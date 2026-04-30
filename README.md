@@ -10,10 +10,6 @@
   Real local PTY sessions, SSH that respects your existing setup, and an assistant that can read context, propose commands, and run safe steps with approval when needed.
 </p>
 
-![AI Terminal screenshot](docs/media/ai-terminal-screenshot.png)
-
-## Demo
-
 ![AI Terminal agent mode demo](docs/media/ai-terminal-demo.gif)
 
 ## Why AI Terminal

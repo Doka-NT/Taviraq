@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Plus, Server, Settings2, TerminalSquare, X } from 'lucide-react'
-import type { SSHProfile, TerminalSessionInfo } from '@shared/types'
+import { Plus, Settings2, TerminalSquare, X } from 'lucide-react'
+import type { TerminalSessionInfo } from '@shared/types'
 import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 
@@ -35,8 +35,8 @@ export function App(): JSX.Element {
   const [sessions, setSessions] = useState<SessionState[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
   const [selectedText, setSelectedText] = useState('')
-  const [sshFormOpen, setSshFormOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [terminalClearVersion, setTerminalClearVersion] = useState(0)
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     storedNumber(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
   )
@@ -152,12 +152,32 @@ export function App(): JSX.Element {
     })
   }, [sessions])
 
-  const connectSsh = useCallback(async (profile: SSHProfile) => {
-    const session = await window.api.ssh.connectProfile(profile)
-    setSessions((current) => [...current, { ...session, status: 'running' }])
-    setActiveSessionId(session.id)
-    setSshFormOpen(false)
-  }, [])
+  const clearActiveTerminal = useCallback(() => {
+    if (!activeSessionId) return
+
+    outputBuffers.current.set(activeSessionId, '')
+    setTerminalClearVersion((version) => version + 1)
+  }, [activeSessionId])
+
+  const closeActiveSession = useCallback(() => {
+    if (!activeSessionId) return
+
+    void closeSession(activeSessionId)
+  }, [activeSessionId, closeSession])
+
+  useEffect(() => {
+    return window.api.shortcuts.onShortcut((shortcut) => {
+      if (shortcut === 'clear-terminal') {
+        clearActiveTerminal()
+      } else if (shortcut === 'open-settings') {
+        setSettingsOpen(true)
+      } else if (shortcut === 'new-tab') {
+        void createLocalSession()
+      } else if (shortcut === 'close-tab') {
+        closeActiveSession()
+      }
+    })
+  }, [clearActiveTerminal, closeActiveSession, createLocalSession])
 
   return (
     <main className="app-shell" style={shellStyle}>
@@ -170,15 +190,11 @@ export function App(): JSX.Element {
             <span>AI Terminal</span>
           </div>
           <div className="topbar-actions">
-            <button className="icon-button" type="button" onClick={() => void createLocalSession()} title="New local terminal">
+            <button className="icon-button" type="button" onClick={() => void createLocalSession()} title="New local terminal (⌘T)">
               <Plus size={16} aria-hidden />
             </button>
-            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title="Settings">
+            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)">
               <Settings2 size={16} aria-hidden />
-            </button>
-            <button className="toolbar-button" type="button" onClick={() => setSshFormOpen((open) => !open)}>
-              <Server size={14} aria-hidden />
-              SSH
             </button>
           </div>
         </header>
@@ -200,7 +216,7 @@ export function App(): JSX.Element {
                 className="tab-close"
                 role="button"
                 tabIndex={0}
-                title="Close session"
+                title="Close session (⌘W)"
                 onClick={(event) => {
                   event.stopPropagation()
                   void closeSession(session.id)
@@ -218,13 +234,12 @@ export function App(): JSX.Element {
           ))}
         </div>
 
-        {sshFormOpen ? <SshConnectForm onConnect={connectSsh} /> : null}
-
         <TerminalPane
           activeSession={activeSession}
           sessionIds={sessions.map((session) => session.id)}
-          layoutKey={`${sshFormOpen ? 'ssh-open' : 'ssh-closed'}-${sidebarWidth}-${textSize}`}
+          layoutKey={`${sidebarWidth}-${textSize}`}
           textSize={textSize}
+          clearSignal={terminalClearVersion}
           onSelectionChange={setSelectedText}
           outputBuffers={outputBuffers}
           onOutput={handleOutput}
@@ -250,39 +265,5 @@ export function App(): JSX.Element {
         onTextSizeChange={updateTextSize}
       />
     </main>
-  )
-}
-
-function SshConnectForm({ onConnect }: { onConnect: (profile: SSHProfile) => Promise<void> }): JSX.Element {
-  const [host, setHost] = useState('')
-  const [user, setUser] = useState('')
-  const [port, setPort] = useState('')
-
-  return (
-    <form
-      className="ssh-form"
-      onSubmit={(event) => {
-        event.preventDefault()
-        void onConnect({
-          host,
-          user: user || undefined,
-          port: port ? Number(port) : undefined
-        })
-      }}
-    >
-      <label>
-        Host
-        <input value={host} onChange={(event) => setHost(event.target.value)} placeholder="server or ~/.ssh/config alias" required />
-      </label>
-      <label>
-        User
-        <input value={user} onChange={(event) => setUser(event.target.value)} placeholder="optional" />
-      </label>
-      <label>
-        Port
-        <input value={port} onChange={(event) => setPort(event.target.value)} inputMode="numeric" placeholder="22" />
-      </label>
-      <button className="primary-button" type="submit">Connect</button>
-    </form>
   )
 }

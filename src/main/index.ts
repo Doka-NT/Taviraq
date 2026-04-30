@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import type {
+  AppShortcutAction,
   ChatStreamRequest,
   CommandRiskAssessmentRequest,
   CreateTerminalRequest,
@@ -24,7 +25,7 @@ function createWindow(): void {
     minWidth: 1060,
     minHeight: 680,
     title: 'AI Terminal',
-    backgroundColor: '#101419',
+    backgroundColor: '#050514',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
@@ -51,6 +52,41 @@ function createWindow(): void {
   mainWindow.webContents.setWindowOpenHandler((details) => {
     void shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (
+      input.type !== 'keyDown' ||
+      !input.meta ||
+      input.control ||
+      input.alt ||
+      input.shift ||
+      input.isAutoRepeat
+    ) {
+      return
+    }
+
+    const key = input.key.toLowerCase()
+    const isClearShortcut = key === 'k' || input.code === 'KeyK'
+    const isSettingsShortcut = key === ',' || input.code === 'Comma'
+    const isNewTabShortcut = key === 't' || input.code === 'KeyT'
+    const isCloseTabShortcut = key === 'w' || input.code === 'KeyW'
+    let action: AppShortcutAction | undefined
+
+    if (isClearShortcut) {
+      action = 'clear-terminal'
+    } else if (isSettingsShortcut) {
+      action = 'open-settings'
+    } else if (isNewTabShortcut) {
+      action = 'new-tab'
+    } else if (isCloseTabShortcut) {
+      action = 'close-tab'
+    }
+
+    if (!action) return
+
+    event.preventDefault()
+    mainWindow?.webContents.send('app:shortcut', action)
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {

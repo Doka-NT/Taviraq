@@ -9,6 +9,7 @@ interface TerminalPaneProps {
   sessionIds: string[]
   layoutKey: string
   textSize: number
+  clearSignal: number
   onSelectionChange: (selection: string) => void
   outputBuffers: MutableRefObject<Map<string, string>>
   onOutput: (sessionId: string, data: string) => void
@@ -22,6 +23,7 @@ export function TerminalPane({
   sessionIds,
   layoutKey,
   textSize,
+  clearSignal,
   onSelectionChange,
   outputBuffers,
   onOutput
@@ -46,27 +48,27 @@ export function TerminalPane({
       minimumContrastRatio: 4.5,
       scrollback: 5000,
       theme: {
-        background: '#070c11',
-        foreground: '#d8e4f0',
-        cursor: '#f5ca5e',
-        cursorAccent: '#070c11',
-        selectionBackground: '#2a4060',
+        background: '#050516',
+        foreground: '#eef4ff',
+        cursor: '#E8399A',
+        cursorAccent: '#050516',
+        selectionBackground: '#26305c',
         selectionForeground: '#e8f0fa',
-        black: '#070c11',
+        black: '#050516',
         red: '#f87171',
         green: '#4ade80',
-        yellow: '#f5ca5e',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#40d4d4',
-        white: '#e2e8f0',
+        yellow: '#E8399A',
+        blue: '#29C4E8',
+        magenta: '#E8399A',
+        cyan: '#29C4E8',
+        white: '#eef4ff',
         brightBlack: '#8a99ad',
-        brightRed: '#fca5a5',
+        brightRed: '#FF8ABF',
         brightGreen: '#86efac',
-        brightYellow: '#fde68a',
-        brightBlue: '#93c5fd',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#67e8f9',
+        brightYellow: '#F7A6D3',
+        brightBlue: '#73DDF2',
+        brightMagenta: '#FF9AD0',
+        brightCyan: '#73DDF2',
         brightWhite: '#f8fafc'
       }
     })
@@ -172,6 +174,13 @@ export function TerminalPane({
       }
     }
   }, [sessionIds, outputBuffers])
+
+  useEffect(() => {
+    if (clearSignal === 0) return
+
+    terminalRef.current?.clear()
+    onSelectionChange('')
+  }, [clearSignal, onSelectionChange])
 
   useEffect(() => {
     const terminal = terminalRef.current

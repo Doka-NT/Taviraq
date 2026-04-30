@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
+  AppShortcutAction,
   ChatStreamEvent,
   ChatStreamRequest,
   CommandRiskAssessment,
@@ -14,6 +15,15 @@ import type {
 } from '@shared/types'
 
 const api = {
+  shortcuts: {
+    onShortcut: (callback: (action: AppShortcutAction) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, action: AppShortcutAction) => callback(action)
+      ipcRenderer.on('app:shortcut', listener)
+      return () => {
+        ipcRenderer.removeListener('app:shortcut', listener)
+      }
+    }
+  },
   config: {
     load: () => ipcRenderer.invoke('config:load') as Promise<AppConfig>
   },

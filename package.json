@@ -12,6 +12,7 @@
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
     "package:mac": "npm run build && COPYFILE_DISABLE=1 electron-builder --mac",
+    "rebuild:native:arm64": "electron-rebuild -f -w keytar -w node-pty -a arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src tests electron.vite.config.ts vitest.config.ts"

@@ -3,13 +3,14 @@ import {
   type FocusEvent, type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import {
-  AlertTriangle, Bot, CheckCircle2, ChevronDown, Circle, Eye, KeyRound, MousePointer2,
-  RefreshCw, Send, Settings2, Sparkles, Square, TerminalSquare, Trash2, User, X, Zap
+  AlertTriangle, Bot, CheckCircle2, ChevronDown, Circle, KeyRound,
+  RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
+import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 
 const ANSI_ESCAPE = String.fromCharCode(27)
 const ANSI_RE = new RegExp(
@@ -34,7 +35,7 @@ const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 
 type ThreadMessage = ChatMessage & {
-  display?: 'command-output'
+  display?: 'command-output' | 'system-status'
   command?: string
   output?: string
 }
@@ -92,6 +93,7 @@ export function LlmPanel({
   // Refs for use inside stable closures
   const activeRequestIdRef = useRef<string>()
   const chatLogRef = useRef<HTMLElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const streamingContentRef = useRef('')       // accumulates current assistant chunk
   const agenticPendingRef = useRef<string | null>(null) // triggers agentic step
   const agenticRunningRef = useRef(false)
@@ -250,7 +252,7 @@ export function LlmPanel({
   useEffect(() => {
     const log = chatLogRef.current
     if (log) log.scrollTop = log.scrollHeight
-  }, [messages, streaming])
+  }, [agenticStep, commandConfirmation, messages, status, streaming])
 
   // Stop agentic
   const stopAgentic = useCallback(() => {
@@ -305,12 +307,13 @@ export function LlmPanel({
         return true
       }
 
+      setStatus('')
       const confirmed = await requestCommandConfirmation({
-        title: 'Review Risky Command',
+        title: 'Review risky command',
         reason: assessment.reason,
         command,
         tone: 'danger',
-        confirmLabel: 'Run Command'
+        confirmLabel: 'Run command'
       })
 
       if (!confirmed) {
@@ -323,12 +326,13 @@ export function LlmPanel({
       return true
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      setStatus('')
       const confirmed = await requestCommandConfirmation({
-        title: 'Safety Check Unavailable',
+        title: 'Safety check unavailable',
         reason: message,
         command,
         tone: 'warning',
-        confirmLabel: 'Run Anyway'
+        confirmLabel: 'Run anyway'
       })
 
       if (!confirmed) {
@@ -422,7 +426,7 @@ export function LlmPanel({
   // Send user message
   const sendMessage = useCallback(() => {
     const content = draft.trim()
-    if (!content || streaming) return
+    if (!content || streaming || commandConfirmation) return
 
     if (assistModeRef.current === 'agent') {
       if (!activeSessionRef.current) {
@@ -442,17 +446,21 @@ export function LlmPanel({
 
     setDraft('')
     startStream(content, messagesRef.current)
-  }, [draft, streaming, startStream])
+  }, [commandConfirmation, draft, streaming, startStream])
 
   // Run command inline from MessageContent
-  const runCommand = useCallback((command: string) => {
+  const runCommand = useCallback(async (command: string) => {
     const session = activeSessionRef.current
     if (!session) {
       setStatus('Open a terminal session before running a command.')
       return
     }
+
+    const allowed = await confirmAgenticCommand(command)
+    if (!allowed) return
+
     void window.api.command.runConfirmed(session.id, command)
-  }, [])
+  }, [confirmAgenticCommand])
 
   // Save provider
   const saveProvider = useCallback(async () => {
@@ -495,10 +503,14 @@ export function LlmPanel({
     }
   }, [onTextSizeChange])
 
-  // Toggle assist mode
-  const toggleMode = useCallback((mode: AssistMode) => {
+  const setPromptDraft = useCallback((prompt: string) => {
+    setDraft(prompt)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [])
+
+  const toggleAgentMode = useCallback(() => {
     setAssistMode((prev) => {
-      const next = prev === mode ? 'off' : mode
+      const next: AssistMode = prev === 'agent' ? 'read' : 'agent'
       if (next !== 'agent' && agenticRunningRef.current) {
         stopAgentic()
       }
@@ -507,86 +519,76 @@ export function LlmPanel({
   }, [stopAgentic])
 
   const providerReady = Boolean(provider.selectedModel && provider.commandRiskModel)
+  const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
+  const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
+  const suggestionChips = useMemo(() => buildSuggestionChips({
+    terminalOutput: strippedTerminalOutput,
+    cwd: activeSession?.cwd,
+    selectedText,
+    assistMode
+  }), [activeSession?.cwd, assistMode, selectedText, strippedTerminalOutput])
+  const inlineStatus = status ? statusToInlineStatus(status) : undefined
+  const inputDisabled = Boolean(commandConfirmation)
 
   return (
     <aside className="llm-panel">
       <header className="panel-header">
-        <div className="panel-title">
-          <span className="panel-icon">
-            <Sparkles size={16} aria-hidden />
-          </span>
-          <div>
-            <h1>Assistant</h1>
-            <p>{provider.selectedModel || 'Choose a model'}</p>
+        <div className="panel-header-row">
+          <div className="panel-title">
+            <span className="panel-icon">
+              <Bot size={15} aria-hidden />
+            </span>
+            <div>
+              <h1>{modelLabel.name}</h1>
+              <p>{modelLabel.version || provider.name}</p>
+            </div>
+          </div>
+          <div className="panel-header-right">
+            <div className="agent-toggle-group">
+              <span>Agent</span>
+              <button
+                className={`agent-toggle ${assistMode === 'agent' ? 'on' : ''}`}
+                type="button"
+                role="switch"
+                aria-checked={assistMode === 'agent'}
+                title={assistMode === 'agent' ? 'Switch to read-only context' : 'Enable agent execution'}
+                onClick={toggleAgentMode}
+              >
+                <span />
+              </button>
+            </div>
+            <button
+              className="icon-button panel-action-button"
+              type="button"
+              onClick={onOpenSettings}
+              title="Settings"
+            >
+              <Settings2 size={13} aria-hidden />
+            </button>
+            <button
+              className="icon-button panel-action-button"
+              type="button"
+              onClick={clearHistory}
+              disabled={messages.length === 0 && !streaming}
+              title="Clear chat history"
+            >
+              <Trash2 size={13} aria-hidden />
+            </button>
           </div>
         </div>
-        <div className="panel-header-right">
-          <div className="assist-mode-pills">
-            <button
-              className={`mode-pill ${assistMode === 'read' ? 'active read' : ''}`}
-              type="button"
-              title="Read-only: auto terminal context"
-              onClick={() => toggleMode('read')}
-            >
-              <Eye size={12} aria-hidden />
-              Read
-            </button>
-            <button
-              className={`mode-pill ${assistMode === 'agent' ? 'active agent' : ''} ${agenticRunning ? 'pulsing' : ''}`}
-              type="button"
-              title="Agent: autonomous command execution"
-              onClick={() => toggleMode('agent')}
-            >
-              <Zap size={12} aria-hidden />
-              Agent
-            </button>
-          </div>
-          <button
-            className="icon-button panel-action-button"
-            type="button"
-            onClick={clearHistory}
-            disabled={messages.length === 0 && !streaming}
-            title="Clear chat history"
-          >
-            <Trash2 size={14} aria-hidden />
-          </button>
+        <div className="permission-badges" aria-label="Assistant permissions">
+          <span className={`permission-chip shell ${activeSession?.status ?? 'exited'}`}>
+            <span className="permission-dot" />
+            <span>{activeSession?.label ?? 'zsh'}</span>
+          </span>
+          <span className={`permission-chip ${assistMode !== 'off' ? 'read' : ''}`}>
+            <span>Read</span>
+          </span>
+          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''} ${agenticRunning ? 'running' : ''} ${commandConfirmation ? 'pending' : ''}`}>
+            <span>{commandConfirmation ? 'Pending' : 'Execute'}</span>
+          </span>
         </div>
       </header>
-
-      {commandConfirmation ? (
-        <div className="command-confirmation-overlay" role="dialog" aria-modal="true" aria-labelledby="command-confirmation-title">
-          <section className={`command-confirmation-card ${commandConfirmation.tone}`}>
-            <header>
-              <span className="command-confirmation-icon">
-                <AlertTriangle size={20} aria-hidden />
-              </span>
-              <div>
-                <h2 id="command-confirmation-title">{commandConfirmation.title}</h2>
-                <p>Agent mode is paused until you choose what to do.</p>
-              </div>
-            </header>
-            <div className="command-confirmation-body">
-              <div className="command-confirmation-reason">
-                <span>Reason</span>
-                <p>{commandConfirmation.reason}</p>
-              </div>
-              <pre><code>{commandConfirmation.command}</code></pre>
-            </div>
-            <footer>
-              <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(false)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className={`danger-button ${commandConfirmation.tone}`}
-                onClick={() => resolveCommandConfirmation(true)}
-              >
-                {commandConfirmation.confirmLabel}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
 
       {settingsOpen ? (
         <div className="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -696,32 +698,18 @@ export function LlmPanel({
         </div>
       ) : null}
 
-      <div className="context-strip">
-        <span className="context-chip">
-          <TerminalSquare size={11} aria-hidden />
-          <span>{activeSession?.label ?? 'No session'}</span>
-        </span>
-        {assistMode !== 'off' ? (
-          <span className={`context-chip context-mode-chip ${assistMode}`}>
-            {assistMode === 'read' ? <Eye size={11} aria-hidden /> : <Zap size={11} aria-hidden />}
-            <span>{assistMode === 'read' ? 'Context on' : 'Agent on'}</span>
-          </span>
-        ) : (
-          <span className="context-chip muted">
-            <MousePointer2 size={11} aria-hidden />
-            <span>{selectedText.trim() ? `${selectedText.trim().length.toLocaleString()} chars` : 'No selection'}</span>
-          </span>
-        )}
-      </div>
-
       <section className="chat-log" aria-live="polite" ref={chatLogRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
-            <div className="empty-chat-icon">
-              <Bot size={20} aria-hidden />
+            <strong>Ready to help</strong>
+            <p>Ask about your terminal, commands, or selected text</p>
+            <div className="suggestion-chips">
+              {suggestionChips.map((suggestion) => (
+                <button type="button" key={suggestion.id} onClick={() => setPromptDraft(suggestion.prompt)}>
+                  {suggestion.label}
+                </button>
+              ))}
             </div>
-            <strong>No thread yet</strong>
-            <p>Ask anything about your terminal, commands, or selected text.</p>
             {!provider.selectedModel ? (
               <button className="quiet-button" type="button" onClick={onOpenSettings}>
                 Connect provider
@@ -768,6 +756,7 @@ export function LlmPanel({
                 <MessageContent
                   content={message.content}
                   onRun={runCommand}
+                  onPrompt={setPromptDraft}
                   disabled={!activeSession}
                 />
               ) : (
@@ -780,29 +769,77 @@ export function LlmPanel({
         {agenticRunning && agenticStep > 0 ? (
           <div className="agentic-status">
             <Zap size={12} aria-hidden />
-            <span>Step {agenticStep} — running <code>{agenticCommand}</code></span>
+            <span>Step {agenticStep} — {commandConfirmation ? 'waiting for review' : 'running'} <code>{agenticCommand}</code></span>
+          </div>
+        ) : null}
+
+        {inlineStatus ? (
+          <div className={`inline-status ${inlineStatus.tone}`}>
+            <span>{inlineStatus.label}</span>
           </div>
         ) : null}
       </section>
 
+      {commandConfirmation ? (
+        <section
+          className={`command-confirmation-card ${commandConfirmation.tone}`}
+          role="dialog"
+          aria-labelledby="command-confirmation-title"
+        >
+          <div className="command-confirmation-head">
+            <div>
+              <AlertTriangle size={12} aria-hidden />
+              <h2 id="command-confirmation-title">{commandConfirmation.title}</h2>
+            </div>
+            <span>{commandConfirmation.tone === 'danger' ? 'review' : 'warning'}</span>
+          </div>
+          <div className="command-confirmation-body">
+            <div className="command-confirmation-command">
+              <code>{commandConfirmation.command}</code>
+            </div>
+            <div className="command-confirmation-reason">
+              <span>Reason</span>
+              <p>{commandConfirmation.reason}</p>
+            </div>
+            <p className="command-confirmation-note">Agent is paused until you choose what to do.</p>
+          </div>
+          <footer>
+            <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={`danger-button ${commandConfirmation.tone}`}
+              onClick={() => resolveCommandConfirmation(true)}
+            >
+              {commandConfirmation.confirmLabel}
+            </button>
+          </footer>
+        </section>
+      ) : null}
+
       <form
-        className="chat-form"
+        className={`chat-form ${inputDisabled ? 'disabled' : ''}`}
         onSubmit={(event) => {
           event.preventDefault()
           sendMessage()
         }}
       >
         <textarea
+          ref={textareaRef}
           value={draft}
+          disabled={inputDisabled}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
+            const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
+            if (wantsSend || wantsMetaSend) {
               event.preventDefault()
               sendMessage()
             }
           }}
           placeholder="Ask about this terminal…"
-          rows={3}
+          rows={1}
         />
         <div className="chat-form-actions">
           {agenticRunning ? (
@@ -819,7 +856,7 @@ export function LlmPanel({
           <button
             className={`send-button ${streaming ? 'streaming' : ''}`}
             type="submit"
-            disabled={streaming || !draft.trim()}
+            disabled={streaming || inputDisabled || !draft.trim()}
             title="Send (Enter)"
             aria-label="Send message"
           >
@@ -827,8 +864,6 @@ export function LlmPanel({
           </button>
         </div>
       </form>
-
-      {status ? <p className="status-line">{status}</p> : null}
     </aside>
   )
 }

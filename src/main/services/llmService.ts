@@ -10,6 +10,8 @@ import { buildOpenAICompatibleUrl, parseModelList } from '@main/utils/provider'
 import { parseChatCompletionChunk, parseSseLines } from '@main/utils/llmProtocol'
 import { getApiKey } from './secretStore'
 
+const COMMAND_RISK_TIMEOUT_MS = 15_000
+
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
   const response = await fetch(buildOpenAICompatibleUrl(provider.baseUrl, 'models'), {
     headers: await buildHeaders(provider)
@@ -86,19 +88,24 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
     throw new Error('Select a command safety model before checking command safety.')
   }
 
-  const response = await fetch(buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'), {
-    method: 'POST',
-    headers: {
-      ...await buildHeaders(request.provider),
-      'Content-Type': 'application/json'
+  const response = await fetchWithTimeout(
+    buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'),
+    {
+      method: 'POST',
+      headers: {
+        ...await buildHeaders(request.provider),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        temperature: 0,
+        messages: buildCommandRiskMessages(request)
+      })
     },
-    body: JSON.stringify({
-      model,
-      stream: false,
-      temperature: 0,
-      messages: buildCommandRiskMessages(request)
-    })
-  })
+    COMMAND_RISK_TIMEOUT_MS,
+    'Command safety check timed out, so the command is treated as risky.'
+  )
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
@@ -106,6 +113,31 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   }
 
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal
+    })
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(timeoutMessage)
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string, string>> {

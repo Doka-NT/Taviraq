@@ -1,7 +1,6 @@
 import { useEffect, useRef, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { FolderOpen } from 'lucide-react'
 import type { TerminalSessionInfo } from '@shared/types'
 
 interface TerminalPaneProps {
@@ -48,28 +47,28 @@ export function TerminalPane({
       minimumContrastRatio: 4.5,
       scrollback: 5000,
       theme: {
-        background: '#050516',
-        foreground: '#eef4ff',
+        background: '#0C0C0E',
+        foreground: 'rgba(255,255,255,0.78)',
         cursor: '#E8399A',
-        cursorAccent: '#050516',
-        selectionBackground: '#26305c',
-        selectionForeground: '#e8f0fa',
-        black: '#050516',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#E8399A',
-        blue: '#29C4E8',
+        cursorAccent: '#0C0C0E',
+        selectionBackground: 'rgba(41,196,232,0.22)',
+        selectionForeground: '#ffffff',
+        black: '#0C0C0E',
+        red: '#F09595',
+        green: '#34C759',
+        yellow: '#EF9F27',
+        blue: '#5BB8EC',
         magenta: '#E8399A',
         cyan: '#29C4E8',
-        white: '#eef4ff',
-        brightBlack: '#8a99ad',
-        brightRed: '#FF8ABF',
-        brightGreen: '#86efac',
-        brightYellow: '#F7A6D3',
-        brightBlue: '#73DDF2',
-        brightMagenta: '#FF9AD0',
-        brightCyan: '#73DDF2',
-        brightWhite: '#f8fafc'
+        white: 'rgba(255,255,255,0.78)',
+        brightBlack: 'rgba(255,255,255,0.32)',
+        brightRed: '#F09595',
+        brightGreen: '#34C759',
+        brightYellow: '#EF9F27',
+        brightBlue: '#5BB8EC',
+        brightMagenta: '#E8399A',
+        brightCyan: '#29C4E8',
+        brightWhite: 'rgba(255,255,255,0.9)'
       }
     })
     const fit = new FitAddon()
@@ -189,22 +188,8 @@ export function TerminalPane({
     }
   }, [layoutKey])
 
-  const cwd = activeSession?.cwd ?? activeSession?.command ?? 'Terminal'
-  const status = activeSession?.status
-
   return (
     <div className="terminal-frame">
-      <div className="terminal-meta">
-        <div className="terminal-meta-cwd">
-          <FolderOpen size={13} aria-hidden />
-          <span title={cwd}>{cwd}</span>
-        </div>
-        {status ? (
-          <span className={`terminal-status-pill ${status}`}>
-            {status}
-          </span>
-        ) : null}
-      </div>
       <div className="terminal-container" ref={containerRef} />
     </div>
   )

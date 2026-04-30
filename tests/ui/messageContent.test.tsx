@@ -28,4 +28,37 @@ describe('MessageContent', () => {
     expect(screen.getByText('Done.')).toBeInTheDocument()
     expect(screen.queryByText('|----------|-------|--------|-------------|')).not.toBeInTheDocument()
   })
+
+  it('adds a visual mini-bar summary for numeric tables', () => {
+    render(
+      <MessageContent
+        content={[
+          '| Resource | Reclaimable |',
+          '|----------|-------------|',
+          '| Images | `1.918 GB` |',
+          '| Volumes | `890 MB` |'
+        ].join('\n')}
+      />
+    )
+
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(screen.getAllByText('Images')).toHaveLength(2)
+    expect(screen.getAllByText('1.918 GB')).toHaveLength(2)
+  })
+
+  it('renders fenced shell commands as compact runnable action pills', () => {
+    const onRun = vi.fn()
+
+    render(
+      <MessageContent
+        content={'```bash\nnpm run typecheck\n```'}
+        onRun={onRun}
+      />
+    )
+
+    screen.getByRole('button', { name: 'Run in terminal' }).click()
+
+    expect(screen.getByText('npm run typecheck')).toBeInTheDocument()
+    expect(onRun).toHaveBeenCalledWith('npm run typecheck')
+  })
 })

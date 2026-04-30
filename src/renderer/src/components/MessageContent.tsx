@@ -1,8 +1,10 @@
-import { Play } from 'lucide-react'
+import { Play, TerminalSquare } from 'lucide-react'
+import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
 
 interface MessageContentProps {
   content: string
-  onRun?: (command: string) => void
+  onRun?: (command: string) => void | Promise<void>
+  onPrompt?: (prompt: string) => void
   disabled?: boolean
 }
 
@@ -116,26 +118,28 @@ function renderInline(text: string): (string | JSX.Element)[] {
   return parts
 }
 
-export function MessageContent({ content, onRun, disabled }: MessageContentProps): JSX.Element {
+export function MessageContent({ content, onRun, onPrompt, disabled }: MessageContentProps): JSX.Element {
   const segments = parseContent(content)
+  const actionChips = onPrompt ? buildActionChips(content) : []
 
   return (
     <div className="message-content">
       {segments.map((seg, i) => {
         if (seg.type === 'code') {
           return (
-            <div className="msg-code-block" key={i}>
-              <pre><code>{seg.code}</code></pre>
+            <div className="msg-action-pill" key={i}>
+              <TerminalSquare size={12} aria-hidden />
+              <code>{seg.code}</code>
               {onRun ? (
                 <button
                   className="msg-run-button"
                   type="button"
                   disabled={disabled}
-                  onClick={() => onRun(seg.code)}
+                  onClick={() => { void onRun(seg.code) }}
                   title="Run in terminal"
+                  aria-label="Run in terminal"
                 >
                   <Play size={11} aria-hidden />
-                  Run
                 </button>
               ) : null}
             </div>
@@ -144,26 +148,45 @@ export function MessageContent({ content, onRun, disabled }: MessageContentProps
 
         return parseTextBlocks(seg.text).map((block, j) => {
           if (block.type === 'table') {
+            const miniBars = detectMiniBarRows(block.header, block.rows)
+
             return (
-              <div className="message-table-wrap" key={`${i}-${j}`}>
-                <table className="message-table">
-                  <thead>
-                    <tr>
-                      {block.header.map((cell, cellIndex) => (
-                        <th key={cellIndex}>{renderInline(cell)}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {block.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
-                        {row.map((cell, cellIndex) => (
-                          <td key={cellIndex}>{renderInline(cell)}</td>
+              <div className="message-table-group" key={`${i}-${j}`}>
+                <div className="message-table-wrap">
+                  <table className="message-table">
+                    <thead>
+                      <tr>
+                        {block.header.map((cell, cellIndex) => (
+                          <th key={cellIndex}>{renderInline(cell)}</th>
                         ))}
                       </tr>
+                    </thead>
+                    <tbody>
+                      {block.rows.map((row, rowIndex) => (
+                        <tr key={rowIndex}>
+                          {row.map((cell, cellIndex) => (
+                            <td key={cellIndex}>{renderInline(cell)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {miniBars.length > 0 ? (
+                  <div className="mini-bars" aria-label="Visual summary">
+                    {miniBars.map((bar) => (
+                      <div className="mini-bar-row" key={`${bar.label}-${bar.displayValue}`}>
+                        <div className="mini-bar-labels">
+                          <span>{bar.label}</span>
+                          <strong>{bar.displayValue}</strong>
+                        </div>
+                        <div className="mini-bar-track">
+                          <span style={{ width: `${Math.max(4, Math.round(bar.ratio * 100))}%` }} />
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                ) : null}
               </div>
             )
           }
@@ -171,6 +194,15 @@ export function MessageContent({ content, onRun, disabled }: MessageContentProps
           return <p key={`${i}-${j}`}>{renderInline(block.text)}</p>
         })
       })}
+      {actionChips.length > 0 ? (
+        <div className="message-action-chips">
+          {actionChips.map((chip) => (
+            <button type="button" key={chip.label} onClick={() => onPrompt?.(chip.prompt)}>
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

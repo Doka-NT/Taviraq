@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Plus, Settings2, TerminalSquare, X } from 'lucide-react'
+import { Plus, Settings2, X } from 'lucide-react'
 import type { TerminalSessionInfo } from '@shared/types'
 import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
@@ -49,6 +49,7 @@ export function App(): JSX.Element {
     () => sessions.find((session) => session.id === activeSessionId),
     [activeSessionId, sessions]
   )
+  const activeCwd = activeSession?.cwd ?? activeSession?.command ?? ''
 
   const getOutput = useCallback((): string => {
     if (!activeSessionId) return ''
@@ -183,12 +184,8 @@ export function App(): JSX.Element {
     <main className="app-shell" style={shellStyle}>
       <section className="workspace">
         <header className="topbar">
-          <div className="brand">
-            <span className="brand-icon">
-              <TerminalSquare size={15} aria-hidden />
-            </span>
-            <span>AI Terminal</span>
-          </div>
+          <div className="topbar-window-spacer" aria-hidden />
+          <div className="topbar-title">AI Terminal</div>
           <div className="topbar-actions">
             <button className="icon-button" type="button" onClick={() => void createLocalSession()} title="New local terminal (⌘T)">
               <Plus size={16} aria-hidden />
@@ -200,38 +197,41 @@ export function App(): JSX.Element {
         </header>
 
         <div className="tabbar" role="tablist" aria-label="Terminal sessions">
-          {sessions.map((session) => (
-            <button
-              className={`session-tab ${session.id === activeSessionId ? 'active' : ''}`}
-              key={session.id}
-              type="button"
-              role="tab"
-              aria-selected={session.id === activeSessionId}
-              onClick={() => setActiveSessionId(session.id)}
-            >
-              <span className={`status-dot ${session.status}`} />
-              <span className="tab-label">{session.label}</span>
-              <span className="tab-kind">{session.kind}</span>
-              <span
-                className="tab-close"
-                role="button"
-                tabIndex={0}
-                title="Close session (⌘W)"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void closeSession(session.id)
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
+          <div className="tab-list">
+            {sessions.map((session) => (
+              <button
+                className={`session-tab ${session.id === activeSessionId ? 'active' : ''}`}
+                key={session.id}
+                type="button"
+                role="tab"
+                aria-selected={session.id === activeSessionId}
+                onClick={() => setActiveSessionId(session.id)}
+              >
+                <span className={`status-dot ${session.status}`} />
+                <span className="tab-label">{session.label}</span>
+                <span className="tab-kind">{session.kind}</span>
+                <span
+                  className="tab-close"
+                  role="button"
+                  tabIndex={0}
+                  title="Close session (⌘W)"
+                  onClick={(event) => {
                     event.stopPropagation()
                     void closeSession(session.id)
-                  }
-                }}
-              >
-                <X size={12} aria-hidden />
-              </span>
-            </button>
-          ))}
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.stopPropagation()
+                      void closeSession(session.id)
+                    }
+                  }}
+                >
+                  <X size={9} aria-hidden />
+                </span>
+              </button>
+            ))}
+          </div>
+          {activeCwd ? <div className="tabbar-cwd" title={activeCwd}>{activeCwd}</div> : null}
         </div>
 
         <TerminalPane

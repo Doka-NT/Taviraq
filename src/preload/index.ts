@@ -9,6 +9,7 @@ import type {
   CommandProposal,
   CreateTerminalRequest,
   LLMModel,
+  PromptTemplate,
   SaveLLMProviderRequest,
   SSHProfile,
   TerminalSessionInfo
@@ -88,6 +89,13 @@ const api = {
     propose: (text: string) => ipcRenderer.invoke('command:propose', text) as Promise<CommandProposal[]>,
     runConfirmed: (sessionId: string, command: string) =>
       ipcRenderer.invoke('command:runConfirmed', sessionId, command) as Promise<void>
+  },
+  prompt: {
+    list: () => ipcRenderer.invoke('prompt:list') as Promise<PromptTemplate[]>,
+    save: (prompt: PromptTemplate) =>
+      ipcRenderer.invoke('prompt:save', prompt) as Promise<PromptTemplate>,
+    delete: (id: string) => ipcRenderer.invoke('prompt:delete', id) as Promise<void>,
+    importFiles: () => ipcRenderer.invoke('prompt:import') as Promise<PromptTemplate[]>
   }
 }
 

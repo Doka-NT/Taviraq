@@ -1,15 +1,17 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
 import type {
   AppShortcutAction,
   ChatStreamRequest,
   CommandRiskAssessmentRequest,
   CreateTerminalRequest,
+  PromptTemplate,
   SaveLLMProviderRequest,
   SSHProfile
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
 import { ConfigStore } from './services/configStore'
+import { PromptStore } from './services/promptStore'
 import { saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
@@ -17,6 +19,7 @@ import { extractCommandProposals } from './utils/commandProposals'
 let mainWindow: BrowserWindow | undefined
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
+const promptStore = new PromptStore()
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -145,6 +148,32 @@ function registerIpc(): void {
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
     terminalManager.runConfirmed(sessionId, command)
+  })
+
+  // Prompts
+  ipcMain.handle('prompt:list', () => promptStore.list())
+
+  ipcMain.handle('prompt:save', (_event, prompt: PromptTemplate) => {
+    return promptStore.save(prompt)
+  })
+
+  ipcMain.handle('prompt:delete', (_event, id: string) => {
+    return promptStore.delete(id)
+  })
+
+  ipcMain.handle('prompt:import', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import Prompt',
+      filters: [{ name: 'Markdown', extensions: ['md', 'txt'] }],
+      properties: ['openFile', 'multiSelections']
+    })
+    if (result.canceled || result.filePaths.length === 0) return []
+    const imported: PromptTemplate[] = []
+    for (const filePath of result.filePaths) {
+      const prompt = await promptStore.importFromFile(filePath)
+      imported.push(prompt)
+    }
+    return imported
   })
 
   ipcMain.on('llm:chatStream', (event, request: ChatStreamRequest) => {

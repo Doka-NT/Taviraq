@@ -7,9 +7,10 @@ import {
   RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, TerminalContext, TerminalSessionInfo
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
+import { PromptPicker } from './PromptPicker'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 
 const ANSI_ESCAPE = String.fromCharCode(27)
@@ -692,6 +693,8 @@ export function LlmPanel({
                 </div>
               </section>
 
+              <PromptLibrarySection />
+
               {status ? <p className="settings-status">{status}</p> : null}
             </div>
           </section>
@@ -842,6 +845,7 @@ export function LlmPanel({
           rows={1}
         />
         <div className="chat-form-actions">
+          <PromptPicker onSelect={setPromptDraft} />
           {agenticRunning ? (
             <button
               className="stop-button"
@@ -1026,5 +1030,159 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
         </div>
       ) : null}
     </div>
+  )
+}
+
+function PromptLibrarySection(): JSX.Element {
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([])
+  const [editing, setEditing] = useState<PromptTemplate | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newContent, setNewContent] = useState('')
+  const [promptStatus, setPromptStatus] = useState('')
+
+  const reload = useCallback(async () => {
+    try {
+      const list = await window.api.prompt.list()
+      setPrompts(list)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  const handleSave = useCallback(async () => {
+    if (!newName.trim() || !newContent.trim()) return
+    setPromptStatus('Saving...')
+    try {
+      await window.api.prompt.save({
+        id: editing?.id ?? '',
+        name: newName.trim(),
+        content: newContent.trim(),
+        createdAt: editing?.createdAt ?? new Date().toISOString()
+      })
+      setNewName('')
+      setNewContent('')
+      setEditing(null)
+      setPromptStatus('Saved')
+      await reload()
+    } catch (err) {
+      setPromptStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [editing, newContent, newName, reload])
+
+  const handleEdit = useCallback((prompt: PromptTemplate) => {
+    setEditing(prompt)
+    setNewName(prompt.name)
+    setNewContent(prompt.content)
+  }, [])
+
+  const handleDelete = useCallback(async (id: string) => {
+    try {
+      await window.api.prompt.delete(id)
+      await reload()
+    } catch {
+      // ignore
+    }
+  }, [reload])
+
+  const handleImport = useCallback(async () => {
+    setPromptStatus('Importing...')
+    try {
+      const imported = await window.api.prompt.importFiles()
+      setPromptStatus(`Imported ${imported.length} prompt(s)`)
+      await reload()
+    } catch (err) {
+      setPromptStatus(`Import failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [reload])
+
+  const handleCancel = useCallback(() => {
+    setEditing(null)
+    setNewName('')
+    setNewContent('')
+  }, [])
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-heading">
+        <span>Prompt library</span>
+        <button type="button" className="quiet-button prompt-import-btn" onClick={() => void handleImport()}>
+          Import file
+        </button>
+      </div>
+
+      <div className="prompt-form">
+        <input
+          type="text"
+          placeholder="Prompt name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <textarea
+          className="prompt-form-content"
+          placeholder="Prompt content…"
+          rows={3}
+          value={newContent}
+          onChange={(e) => setNewContent(e.target.value)}
+        />
+        <div className="prompt-form-actions">
+          <button
+            type="button"
+            className="quiet-button"
+            disabled={!newName.trim() || !newContent.trim()}
+            onClick={() => void handleSave()}
+          >
+            {editing ? 'Update' : 'Add prompt'}
+          </button>
+          {editing ? (
+            <button type="button" className="quiet-button" onClick={handleCancel}>
+              Cancel
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {prompts.length > 0 ? (
+        <div className="prompt-list">
+          {prompts.map((prompt) => (
+            <div key={prompt.id} className="prompt-list-item">
+              <div className="prompt-list-item-info">
+                <span className="prompt-list-item-name">{prompt.name}</span>
+                <span className="prompt-list-item-preview">
+                  {prompt.content.slice(0, 80)}{prompt.content.length > 80 ? '…' : ''}
+                </span>
+              </div>
+              <div className="prompt-list-item-actions">
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="Edit"
+                  onClick={() => handleEdit(prompt)}
+                >
+                  <Settings2 size={12} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title="Delete"
+                  onClick={() => void handleDelete(prompt.id)}
+                >
+                  <Trash2 size={12} aria-hidden />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="prompt-list-empty">
+          No prompts yet. Create one above or import a <code>.md</code> file.
+        </p>
+      )}
+
+      {promptStatus ? <p className="settings-status">{promptStatus}</p> : null}
+    </section>
   )
 }

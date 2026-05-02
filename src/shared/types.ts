@@ -89,6 +89,13 @@ export interface CommandProposal {
   explanation: string
 }
 
+export interface PromptTemplate {
+  id: string
+  name: string
+  content: string
+  createdAt: string
+}
+
 export interface AppConfig {
   providers: LLMProviderConfig[]
   activeProviderRef?: string

@@ -92,7 +92,7 @@ export function formatModelLabel(modelId: string | undefined): ModelLabel {
     return { name: slug.split('-')[0].toUpperCase(), version: tidyVersion(slug.split('-').slice(1).join('-')) }
   }
 
-  return { name: titleCase(normalized), version: trimmed.includes('/') ? trimmed.split('/')[0] : '' }
+  return { name: titleCase(normalized), version: '' }
 }
 
 export function buildSuggestionChips(context: SuggestionContext, limit = 3): SuggestionChip[] {

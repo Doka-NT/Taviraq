@@ -11,6 +11,7 @@ describe('redesign helpers', () => {
     expect(formatModelLabel('x-ai/grok-4.1-fast')).toEqual({ name: 'Grok', version: '4.1 fast' })
     expect(formatModelLabel('anthropic/claude-opus-4-6')).toEqual({ name: 'Claude', version: 'Opus 4.6' })
     expect(formatModelLabel('openai/gpt-4o')).toEqual({ name: 'GPT-4o', version: '' })
+    expect(formatModelLabel('qwen/qwen-turbo')).toEqual({ name: 'Qwen Turbo', version: '' })
     expect(formatModelLabel('')).toEqual({ name: 'Assistant', version: 'Choose a model' })
   })
 

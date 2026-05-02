@@ -3,8 +3,8 @@ import {
   type FocusEvent, type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import {
-  AlertTriangle, Bot, CheckCircle2, ChevronDown, Circle, KeyRound,
-  RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
+  AlertTriangle, Bot, ChevronDown, KeyRound,
+  Plus, RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate, TerminalContext, TerminalSessionInfo
@@ -12,6 +12,8 @@ import type {
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
+
+// ...existing code...
 
 const ANSI_ESCAPE = String.fromCharCode(27)
 const ANSI_RE = new RegExp(
@@ -56,6 +58,18 @@ function toChatMessage(message: ThreadMessage): ChatMessage {
   }
 }
 
+function upsertProviderInOrder(providers: LLMProviderConfig[], provider: LLMProviderConfig): LLMProviderConfig[] {
+  const existingIndex = providers.findIndex((candidate) => candidate.apiKeyRef === provider.apiKeyRef)
+  if (existingIndex === -1) return [...providers, provider]
+  return providers.map((candidate, index) => index === existingIndex ? provider : candidate)
+}
+
+function formatModelDisplay(modelId: string | undefined): string {
+  if (!modelId) return ''
+  const label = formatModelLabel(modelId)
+  return label.version ? `${label.name} — ${label.version}` : label.name
+}
+
 interface LlmPanelProps {
   activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' }
   selectedText: string
@@ -78,6 +92,8 @@ export function LlmPanel({
   onTextSizeChange
 }: LlmPanelProps): JSX.Element {
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
+  const [allProviders, setAllProviders] = useState<LLMProviderConfig[]>([defaultProvider])
+  const [activeProviderRef, setActiveProviderRef] = useState(defaultProvider.apiKeyRef)
   const [apiKey, setApiKey] = useState('')
   const [models, setModels] = useState<LLMModel[]>([])
   const [messages, setMessages] = useState<ThreadMessage[]>([])
@@ -90,6 +106,10 @@ export function LlmPanel({
   const [agenticCommand, setAgenticCommand] = useState('')
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [commandConfirmation, setCommandConfirmation] = useState<CommandConfirmation | null>(null)
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'prompts'>('providers')
+  const [editingApiKey, setEditingApiKey] = useState(false)
+  const [hasApiKey, setHasApiKey] = useState(false)
+  const [providerStatus, setProviderStatus] = useState('')
 
   // Refs for use inside stable closures
   const activeRequestIdRef = useRef<string>()
@@ -123,11 +143,16 @@ export function LlmPanel({
   // Load config on mount
   useEffect(() => {
     void window.api.config.load().then((config: AppConfig) => {
+      const providers = config.providers.length > 0 ? config.providers : [defaultProvider]
+      const loadedActiveProviderRef = config.activeProviderRef ?? providers[0]?.apiKeyRef ?? defaultProvider.apiKeyRef
       const loaded =
-        config.providers.find((p) => p.apiKeyRef === config.activeProviderRef) ??
-        config.providers[0] ??
+        providers.find((p) => p.apiKeyRef === loadedActiveProviderRef) ??
+        providers[0] ??
         defaultProvider
       setProvider(loaded)
+      setAllProviders(providers)
+      setActiveProviderRef(loadedActiveProviderRef)
+      setHasApiKey(Boolean(loaded.apiKeyRef && loadedActiveProviderRef))
     })
   }, [])
 
@@ -465,33 +490,85 @@ export function LlmPanel({
 
   // Save provider
   const saveProvider = useCallback(async () => {
-    setStatus('Saving...')
+    setProviderStatus('Saving...')
     try {
-      await window.api.llm.saveProvider({ provider, apiKey })
+      const result = await window.api.llm.saveProvider({ provider, apiKey })
+      setAllProviders(result.providers)
+      setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
       setApiKey('')
-      setStatus('Saved')
+      setEditingApiKey(false)
+      if (apiKey) setHasApiKey(true)
+      setProviderStatus('Saved')
     } catch (error) {
-      setStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
+      setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }, [apiKey, provider])
 
+  const switchProvider = useCallback((target: LLMProviderConfig) => {
+    setProvider(target)
+    setModels([])
+    setEditingApiKey(false)
+    setHasApiKey(Boolean(target.apiKeyRef))
+    setProviderStatus('')
+    setActiveProviderRef(target.apiKeyRef)
+    void window.api.llm.saveProvider({ provider: target }).then((result) => {
+      setAllProviders(result.providers)
+      setActiveProviderRef(result.activeProviderRef ?? target.apiKeyRef)
+    }).catch((err: unknown) => {
+      setProviderStatus(`Switch failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }, [])
+
+  const addProvider = useCallback(() => {
+    setProvider({
+      name: 'New Provider',
+      baseUrl: '',
+      apiKeyRef: `provider-${crypto.randomUUID()}`,
+      selectedModel: '',
+      commandRiskModel: ''
+    })
+    setModels([])
+    setApiKey('')
+    setEditingApiKey(false)
+    setHasApiKey(false)
+  }, [])
+
+  const handleDeleteProvider = useCallback(async (apiKeyRef: string) => {
+    try {
+      const result = await window.api.llm.deleteProvider(apiKeyRef)
+      setAllProviders(result.providers)
+      setActiveProviderRef(result.activeProviderRef ?? result.providers[0]?.apiKeyRef ?? defaultProvider.apiKeyRef)
+      if (provider.apiKeyRef === apiKeyRef) {
+        const next = result.providers[0] ?? defaultProvider
+        setProvider(next)
+        setModels([])
+      }
+    } catch (error) {
+      setProviderStatus(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [provider.apiKeyRef])
+
   // Load models
   const loadModels = useCallback(async () => {
-    setStatus('Loading models...')
+    setProviderStatus('Loading models...')
     try {
       const loaded = await window.api.llm.listModels({ provider, apiKey })
       setModels(loaded)
       setApiKey('')
-      setStatus(`${loaded.length} models loaded`)
+      setProviderStatus(`${loaded.length} models loaded`)
     } catch (error) {
-      setStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
     }
   }, [apiKey, provider])
 
   const updateProvider = useCallback((updated: LLMProviderConfig) => {
     setProvider(updated)
-    void window.api.llm.saveProvider({ provider: updated }).catch((err: unknown) => {
-      setStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+    setAllProviders((providers) => upsertProviderInOrder(providers, updated))
+    void window.api.llm.saveProvider({ provider: updated }).then((result) => {
+      setAllProviders(result.providers)
+      setActiveProviderRef(result.activeProviderRef ?? updated.apiKeyRef)
+    }).catch((err: unknown) => {
+      setProviderStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
     })
   }, [])
 
@@ -519,7 +596,6 @@ export function LlmPanel({
     })
   }, [stopAgentic])
 
-  const providerReady = Boolean(provider.selectedModel && provider.commandRiskModel)
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
   const suggestionChips = useMemo(() => buildSuggestionChips({
@@ -597,10 +673,7 @@ export function LlmPanel({
             <header className="settings-header">
               <div className="settings-title">
                 <Settings2 size={17} aria-hidden />
-                <div>
-                  <h2 id="settings-title">Settings</h2>
-                  <p>{provider.selectedModel || 'No model selected'}</p>
-                </div>
+                <h2 id="settings-title">Settings</h2>
               </div>
               <button className="icon-button" type="button" onClick={onCloseSettings} title="Close settings">
                 <X size={16} aria-hidden />
@@ -608,94 +681,190 @@ export function LlmPanel({
             </header>
 
             <div className="settings-body">
-              <section className="settings-section">
-                <div className="settings-section-heading">
-                  <span>Text size</span>
-                  <output>{textSize}px applied</output>
-                </div>
-                <input
-                  className="text-size-input"
-                  type="number"
-                  step="0.5"
-                  inputMode="decimal"
-                  value={textSizeDraft}
-                  onChange={(event) => handleTextSizeChange(event.target.value)}
-                />
-              </section>
+              <nav className="settings-nav" aria-label="Settings sections">
+                <button
+                  type="button"
+                  className={`settings-nav-item ${settingsTab === 'appearance' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('appearance')}
+                >
+                  Appearance
+                </button>
+                <button
+                  type="button"
+                  className={`settings-nav-item ${settingsTab === 'providers' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('providers')}
+                >
+                  Providers
+                </button>
+                <button
+                  type="button"
+                  className={`settings-nav-item ${settingsTab === 'prompts' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('prompts')}
+                >
+                  Prompts
+                </button>
+              </nav>
 
-              <section className="settings-section">
-                <div className="settings-section-heading">
-                  <span>LLM provider</span>
-                  <span className={`settings-model-state ${providerReady ? 'ready' : ''}`}>
-                    {providerReady ? <CheckCircle2 size={13} aria-hidden /> : <Circle size={13} aria-hidden />}
-                    {providerReady ? 'Ready' : 'Setup'}
-                  </span>
-                </div>
+              <div className="settings-content">
+                {settingsTab === 'appearance' ? (
+                  <>
+                    <h3 className="settings-content-title">Appearance</h3>
+                    <div className="appearance-row">
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label">Terminal font size</span>
+                        <small className="appearance-row-desc">Applied to all terminal sessions</small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <input
+                          className="text-size-input"
+                          type="number"
+                          step="0.5"
+                          inputMode="decimal"
+                          value={textSizeDraft}
+                          onChange={(event) => handleTextSizeChange(event.target.value)}
+                        />
+                        <output className="text-size-applied">{textSize}px applied</output>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
 
-                <div className="provider-fields">
-                  <label>
-                    Provider
-                    <input
-                      value={provider.name}
-                      onChange={(event) => setProvider((p) => ({ ...p, name: event.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    Base URL
-                    <input
-                      value={provider.baseUrl}
-                      onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
-                    />
-                  </label>
-                  <label>
-                    API key
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      placeholder="Stored in keychain"
-                    />
-                  </label>
-                  <div className="provider-actions">
-                    <button type="button" className="quiet-button" onClick={() => void saveProvider()}>
-                      <KeyRound size={14} aria-hidden />
-                      Save
-                    </button>
-                    <button type="button" className="quiet-button" onClick={() => void loadModels()}>
-                      <RefreshCw size={14} aria-hidden />
-                      Models
-                    </button>
-                  </div>
-                  <div className="model-field">
-                    <span>Chat model</span>
-                    <ModelCombobox
-                      value={provider.selectedModel ?? ''}
-                      models={models}
-                      placeholder="Search chat model"
-                      onChange={(modelId) => {
-                        const updated = { ...provider, selectedModel: modelId }
-                        updateProvider(updated)
-                      }}
-                    />
-                  </div>
-                  <div className="model-field">
-                    <span>Command safety model</span>
-                    <ModelCombobox
-                      value={provider.commandRiskModel ?? ''}
-                      models={models}
-                      placeholder="Search safety model"
-                      onChange={(modelId) => {
-                        const updated = { ...provider, commandRiskModel: modelId }
-                        updateProvider(updated)
-                      }}
-                    />
-                  </div>
-                </div>
-              </section>
+                {settingsTab === 'providers' ? (
+                  <>
+                    <h3 className="settings-content-title">Providers</h3>
+                    <div className="providers-layout">
+                      {/* Left column — provider list */}
+                      <div>
+                        <div className="providers-list-header">
+                          <span>Providers</span>
+                          <button type="button" className="quiet-button" style={{ height: 28, fontSize: 11, padding: '0 7px' }} title="Add provider" onClick={addProvider}>
+                            <Plus size={12} aria-hidden />
+                          </button>
+                        </div>
+                        <div className="provider-list">
+                          {allProviders.map((p) => {
+                            const isEditingProvider = p.apiKeyRef === provider.apiKeyRef
+                            const isActiveProvider = p.apiKeyRef === activeProviderRef
+                            return (
+                              <div
+                                key={p.apiKeyRef}
+                                className={`provider-list-item ${isEditingProvider ? 'active' : ''} ${isActiveProvider ? 'chat-active' : ''}`}
+                                onClick={() => switchProvider(p)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter') switchProvider(p) }}
+                              >
+                                <span className={`provider-active-dot ${isActiveProvider ? 'visible' : ''}`} />
+                                <span className="provider-list-item-name">{p.name || 'Unnamed'}</span>
+                                {isActiveProvider ? <span className="provider-active-label">active</span> : null}
+                                {allProviders.length > 1 ? (
+                                  <button
+                                    type="button"
+                                    className="provider-list-item-delete icon-button"
+                                    title="Delete provider"
+                                    onClick={(e) => { e.stopPropagation(); void handleDeleteProvider(p.apiKeyRef) }}
+                                  >
+                                    <Trash2 size={12} aria-hidden />
+                                  </button>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
 
-              <PromptLibrarySection />
+                      {/* Right column — provider form */}
+                      <div className="provider-form">
+                        <div className="provider-field">
+                          <span className="provider-field-label">Provider name</span>
+                          <input
+                            value={provider.name}
+                            onChange={(event) => setProvider((p) => ({ ...p, name: event.target.value }))}
+                          />
+                        </div>
+                        <div className="provider-field">
+                          <span className="provider-field-label">Base URL</span>
+                          <input
+                            value={provider.baseUrl}
+                            onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
+                          />
+                        </div>
+                        <div className="provider-field">
+                          <span className="provider-field-label">API key</span>
+                          {!editingApiKey && hasApiKey ? (
+                            <div className="apikey-masked">
+                              <span className="apikey-masked-text">●●●●●●●●</span>
+                              <span className="apikey-masked-hint">saved in keychain</span>
+                              <button
+                                type="button"
+                                className="apikey-change-btn"
+                                onClick={() => setEditingApiKey(true)}
+                              >
+                                Change
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="password"
+                              value={apiKey}
+                              onChange={(event) => setApiKey(event.target.value)}
+                              placeholder={hasApiKey ? 'Enter new key to replace…' : 'Enter API key…'}
+                            />
+                          )}
+                        </div>
+                        <div className="provider-actions">
+                          <button type="button" className="quiet-button" onClick={() => void saveProvider()}>
+                            <KeyRound size={14} aria-hidden />
+                            Save provider
+                          </button>
+                          <button type="button" className="quiet-button" onClick={() => void loadModels()}>
+                            <RefreshCw size={13} aria-hidden />
+                            Fetch models
+                          </button>
+                        </div>
+                        {providerStatus ? (
+                          <div className={`provider-connection-status ${statusToInlineStatus(providerStatus).tone}`}>
+                            <span>{statusToInlineStatus(providerStatus).tone === 'success' ? '●' : statusToInlineStatus(providerStatus).tone === 'danger' ? '✕' : statusToInlineStatus(providerStatus).tone === 'warning' ? '◐' : '◌'} {providerStatus}</span>
+                          </div>
+                        ) : null}
+                        <div className="provider-model-selectors">
+                          <div className="model-field">
+                            <span>Chat model</span>
+                            <ModelCombobox
+                              value={provider.selectedModel ?? ''}
+                              models={models}
+                              placeholder="Search chat model"
+                              onChange={(modelId) => {
+                                const updated = { ...provider, selectedModel: modelId }
+                                updateProvider(updated)
+                              }}
+                            />
+                          </div>
+                          <div className="model-field">
+                            <span>Command safety model</span>
+                            <ModelCombobox
+                              value={provider.commandRiskModel ?? ''}
+                              models={models}
+                              placeholder="Search safety model"
+                              onChange={(modelId) => {
+                                const updated = { ...provider, commandRiskModel: modelId }
+                                updateProvider(updated)
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
 
-              {status ? <p className="settings-status">{status}</p> : null}
+                {settingsTab === 'prompts' ? (
+                  <>
+                    <h3 className="settings-content-title">Prompts</h3>
+                    <PromptLibrarySection />
+                  </>
+                ) : null}
+              </div>
             </div>
           </section>
         </div>
@@ -883,12 +1052,17 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState(value)
+  const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
 
-  useEffect(() => {
-    setQuery(value)
+  const formattedValue = useMemo(() => {
+    return formatModelDisplay(value)
   }, [value])
+
+  // When dropdown closes, reset query so input shows formatted value
+  useEffect(() => {
+    if (!open) setQuery('')
+  }, [open])
 
   const availableModels = useMemo(() => {
     if (!value || models.some((model) => model.id === value)) {
@@ -903,8 +1077,9 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
     if (!normalizedQuery) return availableModels
 
     return availableModels.filter((model) => {
+      const display = formatModelDisplay(model.id)
       const owner = model.ownedBy ?? ''
-      return `${model.id} ${owner}`.toLowerCase().includes(normalizedQuery)
+      return `${model.id} ${display} ${owner}`.toLowerCase().includes(normalizedQuery)
     })
   }, [availableModels, query])
 
@@ -917,15 +1092,15 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   }, [visibleModels.length])
 
   const commitModel = useCallback((modelId: string) => {
-    setQuery(modelId)
+    setQuery('')
     setOpen(false)
     onChange(modelId)
   }, [onChange])
 
   const closeList = useCallback(() => {
     setOpen(false)
-    setQuery(value)
-  }, [value])
+    setQuery('')
+  }, [])
 
   const handleBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -971,7 +1146,7 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
         aria-expanded={open}
         aria-controls={listboxId}
         aria-activedescendant={activeOptionId}
-        value={query}
+        value={open ? query : formattedValue}
         placeholder={models.length > 0 || value ? placeholder : 'Load models first'}
         onFocus={(event) => {
           setOpen(true)
@@ -1001,22 +1176,25 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
       {open ? (
         <div className="model-combobox-list" id={listboxId} role="listbox">
           {visibleModels.length > 0 ? (
-            visibleModels.map((model, index) => (
-              <button
-                id={`${listboxId}-option-${index}`}
-                key={`${model.id}-${index}`}
-                type="button"
-                role="option"
-                aria-selected={model.id === value}
-                className={`model-combobox-option ${index === activeIndex ? 'active' : ''} ${model.id === value ? 'selected' : ''}`}
-                onMouseEnter={() => setActiveIndex(index)}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => commitModel(model.id)}
-              >
-                <span>{model.id}</span>
-                {model.ownedBy ? <small>{model.ownedBy}</small> : null}
-              </button>
-            ))
+            visibleModels.map((model, index) => {
+              const modelDisplay = formatModelDisplay(model.id)
+              return (
+                <button
+                  id={`${listboxId}-option-${index}`}
+                  key={`${model.id}-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={model.id === value}
+                  className={`model-combobox-option ${index === activeIndex ? 'active' : ''} ${model.id === value ? 'selected' : ''}`}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => commitModel(model.id)}
+                >
+                  <span>{modelDisplay}</span>
+                  {model.ownedBy ? <small>{model.ownedBy}</small> : null}
+                </button>
+              )
+            })
           ) : (
             <div className="model-combobox-empty">
               {models.length > 0 ? 'No matching models' : 'Load models to search'}
@@ -1036,6 +1214,7 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
 function PromptLibrarySection(): JSX.Element {
   const [prompts, setPrompts] = useState<PromptTemplate[]>([])
   const [editing, setEditing] = useState<PromptTemplate | null>(null)
+  const [addingPrompt, setAddingPrompt] = useState(false)
   const [newName, setNewName] = useState('')
   const [newContent, setNewContent] = useState('')
   const [promptStatus, setPromptStatus] = useState('')
@@ -1066,6 +1245,7 @@ function PromptLibrarySection(): JSX.Element {
       setNewName('')
       setNewContent('')
       setEditing(null)
+      setAddingPrompt(false)
       setPromptStatus('Saved')
       await reload()
     } catch (err) {
@@ -1075,6 +1255,7 @@ function PromptLibrarySection(): JSX.Element {
 
   const handleEdit = useCallback((prompt: PromptTemplate) => {
     setEditing(prompt)
+    setAddingPrompt(false)
     setNewName(prompt.name)
     setNewContent(prompt.content)
   }, [])
@@ -1101,6 +1282,14 @@ function PromptLibrarySection(): JSX.Element {
 
   const handleCancel = useCallback(() => {
     setEditing(null)
+    setAddingPrompt(false)
+    setNewName('')
+    setNewContent('')
+  }, [])
+
+  const handleAddPrompt = useCallback(() => {
+    setEditing(null)
+    setAddingPrompt(true)
     setNewName('')
     setNewContent('')
   }, [])
@@ -1108,46 +1297,23 @@ function PromptLibrarySection(): JSX.Element {
   return (
     <section className="settings-section">
       <div className="settings-section-heading">
-        <span>Prompt library</span>
-        <button type="button" className="quiet-button prompt-import-btn" onClick={() => void handleImport()}>
-          Import file
-        </button>
-      </div>
-
-      <div className="prompt-form">
-        <input
-          type="text"
-          placeholder="Prompt name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-        />
-        <textarea
-          className="prompt-form-content"
-          placeholder="Prompt content…"
-          rows={3}
-          value={newContent}
-          onChange={(e) => setNewContent(e.target.value)}
-        />
-        <div className="prompt-form-actions">
-          <button
-            type="button"
-            className="quiet-button"
-            disabled={!newName.trim() || !newContent.trim()}
-            onClick={() => void handleSave()}
-          >
-            {editing ? 'Update' : 'Add prompt'}
+        <span>Prompts</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="quiet-button prompt-import-btn" onClick={() => void handleImport()}>
+            Import from file
           </button>
-          {editing ? (
-            <button type="button" className="quiet-button" onClick={handleCancel}>
-              Cancel
+          {!editing && !addingPrompt ? (
+            <button type="button" className="quiet-button" style={{ fontSize: 11 }} onClick={handleAddPrompt}>
+              <Plus size={12} aria-hidden />
+              {' '}Add prompt
             </button>
           ) : null}
         </div>
       </div>
 
-      {prompts.length > 0 ? (
-        <div className="prompt-list">
-          {prompts.map((prompt) => (
+      <div className="prompt-list">
+        {prompts.length > 0 ? (
+          prompts.map((prompt) => (
             <div key={prompt.id} className="prompt-list-item">
               <div className="prompt-list-item-info">
                 <span className="prompt-list-item-name">{prompt.name}</span>
@@ -1174,13 +1340,46 @@ function PromptLibrarySection(): JSX.Element {
                 </button>
               </div>
             </div>
-          ))}
+          ))
+        ) : (
+          <p className="prompt-list-empty">
+            No prompts yet. Add one below or import a Markdown file.
+          </p>
+        )}
+      </div>
+
+      {(editing || addingPrompt || !prompts.length) ? (
+        <div className="prompt-form">
+          <input
+            type="text"
+            placeholder="Prompt name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <textarea
+            className="prompt-form-content"
+            placeholder="Prompt content…"
+            rows={3}
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+          />
+          <div className="prompt-form-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={!newName.trim() || !newContent.trim()}
+              onClick={() => void handleSave()}
+            >
+              {editing ? 'Save prompt' : 'Add prompt'}
+            </button>
+            {(editing || addingPrompt) ? (
+              <button type="button" className="quiet-button" onClick={handleCancel}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
         </div>
-      ) : (
-        <p className="prompt-list-empty">
-          No prompts yet. Create one above or import a <code>.md</code> file.
-        </p>
-      )}
+      ) : null}
 
       {promptStatus ? <p className="settings-status">{promptStatus}</p> : null}
     </section>

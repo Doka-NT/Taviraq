@@ -35,10 +35,23 @@ export class ConfigStore {
     await writeFile(this.path, JSON.stringify(config, null, 2), 'utf8')
   }
 
+  async deleteProvider(apiKeyRef: string): Promise<AppConfig> {
+    const config = await this.load()
+    const providers = config.providers.filter((p) => p.apiKeyRef !== apiKeyRef)
+    const activeRef = config.activeProviderRef === apiKeyRef
+      ? providers[0]?.apiKeyRef
+      : config.activeProviderRef
+    const next = { ...config, providers, activeProviderRef: activeRef }
+    await this.save(next)
+    return next
+  }
+
   async upsertProvider(provider: LLMProviderConfig): Promise<AppConfig> {
     const config = await this.load()
-    const providers = config.providers.filter((candidate) => candidate.apiKeyRef !== provider.apiKeyRef)
-    providers.push(provider)
+    const existingIndex = config.providers.findIndex((candidate) => candidate.apiKeyRef === provider.apiKeyRef)
+    const providers = existingIndex === -1
+      ? [...config.providers, provider]
+      : config.providers.map((candidate, index) => index === existingIndex ? provider : candidate)
 
     const next = {
       ...config,

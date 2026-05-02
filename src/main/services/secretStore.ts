@@ -12,6 +12,11 @@ export async function getApiKey(apiKeyRef: string): Promise<string | undefined> 
   return (await keytar.getPassword(SERVICE_NAME, apiKeyRef)) ?? undefined
 }
 
+export async function deleteApiKey(apiKeyRef: string): Promise<void> {
+  const keytar = await importKeytar()
+  await keytar.deletePassword(SERVICE_NAME, apiKeyRef)
+}
+
 async function importKeytar(): Promise<typeof Keytar> {
   try {
     const mod = await import('keytar')

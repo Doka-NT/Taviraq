@@ -12,7 +12,7 @@ import type {
 import { TerminalManager } from './services/TerminalManager'
 import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
-import { saveApiKey } from './services/secretStore'
+import { deleteApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 
@@ -130,6 +130,11 @@ function registerIpc(): void {
     }
 
     return configStore.upsertProvider(request.provider)
+  })
+
+  ipcMain.handle('llm:deleteProvider', async (_event, apiKeyRef: string) => {
+    await deleteApiKey(apiKeyRef)
+    return configStore.deleteProvider(apiKeyRef)
   })
 
   ipcMain.handle('llm:listModels', (_event, request: SaveLLMProviderRequest) => {

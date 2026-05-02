@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useId, useMemo, useRef, useState,
   type FocusEvent, type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
   AlertTriangle, BookmarkPlus, Bot, ChevronDown, KeyRound,
   Plus, RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
@@ -883,7 +884,7 @@ export function LlmPanel({
         </div>
       </header>
 
-      {settingsOpen ? (
+      {settingsOpen ? createPortal(
         <div className="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-title">
           <section className="settings-screen">
             <header className="settings-header">
@@ -1131,7 +1132,7 @@ export function LlmPanel({
             </div>
           </section>
         </div>
-      ) : null}
+      , document.body) : null}
 
       <section className="chat-log" aria-live="polite" ref={chatLogRef}>
         {messages.length === 0 ? (

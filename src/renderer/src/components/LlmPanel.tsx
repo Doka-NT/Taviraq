@@ -1308,7 +1308,7 @@ export function LlmPanel({
         </div>
       </form>
 
-      {savePromptDialog ? (
+      {savePromptDialog ? createPortal(
         <div
           className="save-prompt-overlay"
           role="dialog"
@@ -1368,7 +1368,7 @@ export function LlmPanel({
             )}
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
     </aside>
   )
 }

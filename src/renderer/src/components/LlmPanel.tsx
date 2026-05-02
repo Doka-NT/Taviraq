@@ -3,7 +3,7 @@ import {
   type FocusEvent, type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import {
-  AlertTriangle, Bot, ChevronDown, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, ChevronDown, KeyRound,
   Plus, RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -152,6 +152,9 @@ export function LlmPanel({
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
   const [dataStatus, setDataStatus] = useState('')
+  const [savePromptDialog, setSavePromptDialog] = useState<{ content: string } | null>(null)
+  const [savePromptName, setSavePromptName] = useState('')
+  const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
@@ -434,6 +437,40 @@ export function LlmPanel({
       session: thread.session
     }))
   }, [activeSessionId, stopAgentic, updateThread])
+
+  const openSavePromptDialog = async (): Promise<void> => {
+    setSavePromptDialog({ content: '' })
+    setSavePromptName('')
+    setSavePromptStatus('idle')
+    try {
+      const content = await window.api.llm.summarizeConversation({
+        provider: providerRef.current,
+        messages: messages.map(toChatMessage),
+        language: languageRef.current
+      })
+      setSavePromptDialog({ content })
+    } catch (err) {
+      setSavePromptDialog(null)
+      if (activeSessionId) {
+        updateThread(activeSessionId, (thread) => ({
+          ...thread,
+          status: statusToInlineStatus(err instanceof Error ? err.message : String(err))
+        }))
+      }
+    }
+  }
+
+  const handleSavePromptFromChat = async (): Promise<void> => {
+    if (!savePromptName.trim()) return
+    setSavePromptStatus('saving')
+    try {
+      await window.api.prompt.save({ id: '', name: savePromptName.trim(), content: savePromptDialog!.content, createdAt: '' })
+      setSavePromptStatus('saved')
+      setTimeout(() => setSavePromptDialog(null), 800)
+    } catch {
+      setSavePromptStatus('error')
+    }
+  }
 
   const buildTerminalContext = useCallback((sessionId: string): TerminalContext => {
     const thread = getThread(sessionId)
@@ -811,6 +848,15 @@ export function LlmPanel({
               title={t('panel.settings')}
             >
               <Settings2 size={13} aria-hidden />
+            </button>
+            <button
+              className="icon-button panel-action-button"
+              type="button"
+              onClick={() => void openSavePromptDialog()}
+              disabled={messages.length === 0}
+              title={t('chat.saveAsPrompt')}
+            >
+              <BookmarkPlus size={13} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1260,6 +1306,68 @@ export function LlmPanel({
           </button>
         </div>
       </form>
+
+      {savePromptDialog ? (
+        <div
+          className="save-prompt-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => { if (e.target === e.currentTarget) setSavePromptDialog(null) }}
+        >
+          <div className="save-prompt-modal">
+            <div className="save-prompt-header">
+              <BookmarkPlus size={15} aria-hidden />
+              <span>{t('chat.saveAsPrompt')}</span>
+            </div>
+            {savePromptDialog.content === '' ? (
+              <div className="save-prompt-generating">
+                <span className="save-prompt-spinner" />
+                <span>{t('chat.savePrompt.generating')}</span>
+              </div>
+            ) : (
+              <>
+                <input
+                  className="save-prompt-name-input"
+                  value={savePromptName}
+                  onChange={(e) => setSavePromptName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSavePromptFromChat()
+                    if (e.key === 'Escape') setSavePromptDialog(null)
+                  }}
+                  placeholder={t('prompts.namePlaceholder')}
+                  autoFocus
+                />
+                <textarea
+                  className="save-prompt-content-editor"
+                  value={savePromptDialog.content}
+                  onChange={(e) => setSavePromptDialog({ content: e.target.value })}
+                  rows={6}
+                />
+                <div className="save-prompt-actions">
+                  <button type="button" className="quiet-button" onClick={() => setSavePromptDialog(null)}>
+                    {t('prompts.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="save-prompt-confirm"
+                    onClick={() => void handleSavePromptFromChat()}
+                    disabled={savePromptStatus === 'saving' || !savePromptName.trim() || !savePromptDialog.content.trim()}
+                  >
+                    {savePromptStatus === 'saved'
+                      ? t('chat.savePrompt.saved')
+                      : savePromptStatus === 'saving'
+                        ? t('chat.savePrompt.saving')
+                        : t('chat.savePrompt.save')}
+                  </button>
+                </div>
+                {savePromptStatus === 'error' ? (
+                  <p className="save-prompt-error">{t('chat.savePrompt.error')}</p>
+                ) : null}
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </aside>
   )
 }

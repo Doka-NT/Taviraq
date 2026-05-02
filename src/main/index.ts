@@ -10,13 +10,14 @@ import type {
   ImportResult,
   PromptTemplate,
   SaveLLMProviderRequest,
-  SSHProfile
+  SSHProfile,
+  SummarizeConversationRequest
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
 import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
-import { assessCommandRisk, listModels, streamChatCompletion } from './services/llmService'
+import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 
 let mainWindow: BrowserWindow | undefined
@@ -150,6 +151,10 @@ function registerIpc(): void {
 
   ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {
     return assessCommandRisk(request)
+  })
+
+  ipcMain.handle('llm:summarizeConversation', (_event, request: SummarizeConversationRequest) => {
+    return summarizeConversation(request)
   })
 
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))

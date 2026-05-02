@@ -82,6 +82,12 @@ export interface CommandRiskAssessment {
   reason: string
 }
 
+export interface SummarizeConversationRequest {
+  provider: LLMProviderConfig
+  messages: ChatMessage[]
+  language?: string
+}
+
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'error'; message: string }

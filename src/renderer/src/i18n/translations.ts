@@ -80,6 +80,12 @@ export interface Translations {
   'chat.commandOutput.show': string
   'chat.commandOutput.noOutput': string
   'chat.connectProvider': string
+  'chat.saveAsPrompt': string
+  'chat.savePrompt.generating': string
+  'chat.savePrompt.save': string
+  'chat.savePrompt.saving': string
+  'chat.savePrompt.saved': string
+  'chat.savePrompt.error': string
 
   // Command confirmation dialog
   'confirm.reviewRisky': string
@@ -205,6 +211,12 @@ export const en: Translations = {
   'chat.commandOutput.show': 'Show output',
   'chat.commandOutput.noOutput': '(no output)',
   'chat.connectProvider': 'Connect provider',
+  'chat.saveAsPrompt': 'Save as prompt',
+  'chat.savePrompt.generating': 'Generating prompt…',
+  'chat.savePrompt.save': 'Save',
+  'chat.savePrompt.saving': 'Saving…',
+  'chat.savePrompt.saved': 'Saved ✓',
+  'chat.savePrompt.error': 'Failed to save',
 
   'confirm.reviewRisky': 'Review risky command',
   'confirm.safetyUnavailable': 'Safety check unavailable',
@@ -325,6 +337,12 @@ export const ru: Translations = {
   'chat.commandOutput.show': 'Показать вывод',
   'chat.commandOutput.noOutput': '(нет вывода)',
   'chat.connectProvider': 'Подключить провайдера',
+  'chat.saveAsPrompt': 'Сохранить как промпт',
+  'chat.savePrompt.generating': 'Генерирую промпт…',
+  'chat.savePrompt.save': 'Сохранить',
+  'chat.savePrompt.saving': 'Сохраняю…',
+  'chat.savePrompt.saved': 'Сохранено ✓',
+  'chat.savePrompt.error': 'Ошибка сохранения',
 
   'confirm.reviewRisky': 'Проверьте опасную команду',
   'confirm.safetyUnavailable': 'Проверка безопасности недоступна',
@@ -445,6 +463,12 @@ export const cn: Translations = {
   'chat.commandOutput.show': '显示输出',
   'chat.commandOutput.noOutput': '（无输出）',
   'chat.connectProvider': '连接提供商',
+  'chat.saveAsPrompt': '保存为提示词',
+  'chat.savePrompt.generating': '生成提示词中…',
+  'chat.savePrompt.save': '保存',
+  'chat.savePrompt.saving': '保存中…',
+  'chat.savePrompt.saved': '已保存 ✓',
+  'chat.savePrompt.error': '保存失败',
 
   'confirm.reviewRisky': '审查危险命令',
   'confirm.safetyUnavailable': '安全检查不可用',

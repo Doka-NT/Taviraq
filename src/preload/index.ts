@@ -13,6 +13,7 @@ import type {
   PromptTemplate,
   SaveLLMProviderRequest,
   SSHProfile,
+  SummarizeConversationRequest,
   TerminalSessionInfo
 } from '@shared/types'
 
@@ -86,6 +87,8 @@ const api = {
       ipcRenderer.invoke('llm:listModels', request) as Promise<LLMModel[]>,
     assessCommandRisk: (request: CommandRiskAssessmentRequest) =>
       ipcRenderer.invoke('llm:assessCommandRisk', request) as Promise<CommandRiskAssessment>,
+    summarizeConversation: (request: SummarizeConversationRequest) =>
+      ipcRenderer.invoke('llm:summarizeConversation', request) as Promise<string>,
     chatStream: (request: ChatStreamRequest) => ipcRenderer.send('llm:chatStream', request),
     onChatStreamEvent: (callback: (event: ChatStreamEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: ChatStreamEvent) => callback(payload)

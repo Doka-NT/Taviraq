@@ -4,7 +4,8 @@ import type {
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
   LLMModel,
-  LLMProviderConfig
+  LLMProviderConfig,
+  SummarizeConversationRequest
 } from '@shared/types'
 import { buildOpenAICompatibleUrl, parseModelList } from '@main/utils/provider'
 import { parseChatCompletionChunk, parseSseLines } from '@main/utils/llmProtocol'
@@ -118,6 +119,55 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   }
 
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
+}
+
+export async function summarizeConversation(request: SummarizeConversationRequest): Promise<string> {
+  const model = request.provider.selectedModel?.trim()
+  if (!model) {
+    throw new Error('No model selected.')
+  }
+
+  const languageName = request.language ? LANGUAGE_NAMES[request.language] : undefined
+  const langInstruction = languageName ? ` Write the prompt in ${languageName}.` : ''
+
+  const conversation = request.messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n')
+
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content: `You are a prompt engineer. Given a conversation, write a concise reusable system prompt that captures the context, goal, and any important constraints discussed. Return only the prompt text with no explanation, no headings, no quotes.${langInstruction}`
+    },
+    {
+      role: 'user',
+      content: `Conversation:\n\n${conversation}`
+    }
+  ]
+
+  const response = await fetchWithTimeout(
+    buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'),
+    {
+      method: 'POST',
+      headers: {
+        ...await buildHeaders(request.provider),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, stream: false, temperature: 0.3, messages })
+    },
+    30_000,
+    'Summarization timed out.'
+  )
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Summarization request failed with ${response.status}${body ? `: ${body}` : ''}`)
+  }
+
+  const content = extractMessageContent(await response.json())
+  if (!content.trim()) throw new Error('Empty response from model.')
+  return content.trim()
 }
 
 async function fetchWithTimeout(

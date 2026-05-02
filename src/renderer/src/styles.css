@@ -1228,6 +1228,143 @@ textarea:focus {
   animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
+.save-prompt-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.save-prompt-modal {
+  background: #1a1a1e;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-lg, 10px);
+  padding: 20px;
+  width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.save-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.save-prompt-name-input {
+  width: 100%;
+  padding: 8px 11px;
+  border-radius: 6px;
+  border: 0.5px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.save-prompt-name-input:focus {
+  border-color: var(--accent-brand);
+}
+
+.save-prompt-generating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+.save-prompt-spinner {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent-brand);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.save-prompt-content-editor {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 6px;
+  border: 0.5px solid var(--border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  min-height: 180px;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.save-prompt-content-editor:focus {
+  border-color: var(--accent-brand);
+}
+
+.save-prompt-content-editor::-webkit-scrollbar {
+  width: 4px;
+}
+
+.save-prompt-content-editor::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.save-prompt-content-editor::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.save-prompt-content-editor::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.save-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.save-prompt-confirm {
+  background: var(--accent-brand);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 7px 18px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: opacity var(--transition);
+}
+
+.save-prompt-confirm:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.save-prompt-error {
+  color: var(--accent-red-text);
+  font-size: 11px;
+  margin: 0;
+}
+
 .chat-message.user {
   align-items: flex-end;
 }

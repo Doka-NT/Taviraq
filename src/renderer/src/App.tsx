@@ -190,12 +190,16 @@ export function App(): JSX.Element {
   const closeSession = useCallback(async (sessionId: string) => {
     await window.api.terminal.kill(sessionId)
     outputBuffers.current.delete(sessionId)
-    setSessions((current) => current.filter((session) => session.id !== sessionId))
+    const remaining = sessions.filter((session) => session.id !== sessionId)
+    setSessions(remaining)
     setActiveSessionId((current) => {
       if (current !== sessionId) return current
-      return sessions.find((session) => session.id !== sessionId)?.id
+      return remaining.find((session) => session.id !== sessionId)?.id
     })
-  }, [sessions])
+    if (remaining.length === 0) {
+      void createLocalSession()
+    }
+  }, [sessions, createLocalSession])
 
   const clearActiveTerminal = useCallback(() => {
     if (!activeSessionId) return

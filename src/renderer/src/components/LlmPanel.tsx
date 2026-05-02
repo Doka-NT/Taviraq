@@ -195,39 +195,37 @@ export function LlmPanel({
   }, [])
 
   const updateThread = useCallback((sessionId: string, updater: (thread: AssistantThread) => AssistantThread) => {
-    setThreadsBySessionId((current) => {
-      if (liveSessionIdsRef.current.size > 0 && !liveSessionIdsRef.current.has(sessionId)) return current
-      const nextThread = updater(current[sessionId] ?? createThread())
-      const next = { ...current, [sessionId]: nextThread }
-      threadsRef.current = next
-      return next
-    })
+    if (liveSessionIdsRef.current.size > 0 && !liveSessionIdsRef.current.has(sessionId)) return
+    const current = threadsRef.current
+    const nextThread = updater(current[sessionId] ?? createThread())
+    const next = { ...current, [sessionId]: nextThread }
+    threadsRef.current = next
+    setThreadsBySessionId(next)
   }, [])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIdKey ? sessionIdKey.split('\0') : [])
     liveSessionIdsRef.current = liveSessionIds
-    setThreadsBySessionId((current) => {
-      const next: AssistantThreads = {}
-      let changed = false
+    const next: AssistantThreads = {}
+    let changed = false
 
-      for (const [sessionId, thread] of Object.entries(current)) {
-        if (liveSessionIds.has(sessionId)) {
-          next[sessionId] = thread
-        } else {
-          changed = true
-          promptResolversRef.current.get(sessionId)?.()
-          promptResolversRef.current.delete(sessionId)
-          commandConfirmationResolversRef.current.get(sessionId)?.(false)
-          commandConfirmationResolversRef.current.delete(sessionId)
-          if (thread.activeRequestId) requestSessionRef.current.delete(thread.activeRequestId)
-        }
+    for (const [sessionId, thread] of Object.entries(threadsRef.current)) {
+      if (liveSessionIds.has(sessionId)) {
+        next[sessionId] = thread
+      } else {
+        changed = true
+        promptResolversRef.current.get(sessionId)?.()
+        promptResolversRef.current.delete(sessionId)
+        commandConfirmationResolversRef.current.get(sessionId)?.(false)
+        commandConfirmationResolversRef.current.delete(sessionId)
+        if (thread.activeRequestId) requestSessionRef.current.delete(thread.activeRequestId)
       }
+    }
 
-      if (!changed) return current
+    if (changed) {
       threadsRef.current = next
-      return next
-    })
+      setThreadsBySessionId(next)
+    }
   }, [sessionIdKey])
 
   useEffect(() => {

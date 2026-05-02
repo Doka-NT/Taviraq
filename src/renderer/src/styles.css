@@ -505,7 +505,9 @@ button {
 }
 
 .permission-chip.read {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--accent-green);
+  border-color: rgba(52, 199, 89, 0.25);
+  background: rgba(52, 199, 89, 0.10);
 }
 
 .permission-chip.execute,

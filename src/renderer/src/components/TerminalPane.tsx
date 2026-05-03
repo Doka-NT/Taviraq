@@ -50,6 +50,7 @@ export function TerminalPane({
       macOptionIsMeta: true,
       minimumContrastRatio: 4.5,
       scrollback: 5000,
+      overviewRulerWidth: 0,
       theme: {
         background: '#0C0C0E',
         foreground: 'rgba(255,255,255,0.78)',

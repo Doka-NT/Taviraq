@@ -9,6 +9,7 @@ import type {
   ExportData,
   ImportResult,
   PromptTemplate,
+  SaveSessionStateRequest,
   SaveLLMProviderRequest,
   SSHProfile,
   SummarizeConversationRequest
@@ -16,6 +17,7 @@ import type {
 import { TerminalManager } from './services/TerminalManager'
 import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
+import { SessionStateStore } from './services/sessionStateStore'
 import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
@@ -25,6 +27,7 @@ let currentHideShortcut = ''
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
+const sessionStateStore = new SessionStateStore()
 
 function registerHideShortcut(shortcut: string): void {
   if (currentHideShortcut) globalShortcut.unregister(currentHideShortcut)
@@ -137,6 +140,14 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('terminal:list', () => terminalManager.list())
+
+  ipcMain.handle('sessionState:load', () => sessionStateStore.load())
+
+  ipcMain.handle('sessionState:save', (_event, snapshot: SaveSessionStateRequest) => {
+    return sessionStateStore.save(snapshot)
+  })
+
+  ipcMain.handle('sessionState:clear', () => sessionStateStore.clear())
 
   ipcMain.handle('terminal:write', (_event, sessionId: string, data: string) => {
     terminalManager.write(sessionId, data)

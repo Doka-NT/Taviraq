@@ -295,6 +295,10 @@ button {
   background: rgba(255, 255, 255, 0.28);
 }
 
+.status-dot.disconnected {
+  background: var(--accent-yellow);
+}
+
 .tab-label {
   flex: 1 1 auto;
   min-width: 0;
@@ -351,6 +355,7 @@ button {
 /* Terminal */
 
 .terminal-frame {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
@@ -390,6 +395,29 @@ button {
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.16);
+}
+
+.terminal-reconnect-banner {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 10px;
+  border: 0.5px solid var(--border-default);
+  border-radius: 8px;
+  background: rgba(18, 18, 24, 0.92);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  backdrop-filter: blur(14px);
+}
+
+.terminal-reconnect-banner .quiet-button {
+  height: 26px;
+  padding: 0 8px;
 }
 
 /* Assistant panel */
@@ -545,7 +573,8 @@ button {
   color: rgba(255, 255, 255, 0.45);
 }
 
-.permission-chip.shell.exited .permission-dot {
+.permission-chip.shell.exited .permission-dot,
+.permission-chip.shell.disconnected .permission-dot {
   background: rgba(255, 255, 255, 0.28);
 }
 

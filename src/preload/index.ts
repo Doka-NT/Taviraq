@@ -12,6 +12,8 @@ import type {
   LLMModel,
   PromptTemplate,
   SaveLLMProviderRequest,
+  SaveSessionStateRequest,
+  SessionStateSnapshot,
   SSHProfile,
   SummarizeConversationRequest,
   TerminalSessionInfo
@@ -81,6 +83,12 @@ const api = {
         ipcRenderer.removeListener('terminal:prompt', listener)
       }
     }
+  },
+  sessionState: {
+    load: () => ipcRenderer.invoke('sessionState:load') as Promise<SessionStateSnapshot | undefined>,
+    save: (snapshot: SaveSessionStateRequest) =>
+      ipcRenderer.invoke('sessionState:save', snapshot) as Promise<void>,
+    clear: () => ipcRenderer.invoke('sessionState:clear') as Promise<void>
   },
   ssh: {
     connectProfile: (profile: SSHProfile, request?: CreateTerminalRequest) =>

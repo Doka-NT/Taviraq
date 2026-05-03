@@ -60,6 +60,15 @@ export interface Translations {
   'data.exportImport.desc': string
   'data.export': string
   'data.import': string
+  'data.restoreSessions.label': string
+  'data.restoreSessions.desc': string
+  'data.clearSessions.label': string
+  'data.clearSessions.desc': string
+  'data.clearSessions': string
+
+  // Terminal
+  'terminal.sshDisconnected': string
+  'terminal.reconnect': string
 
   // Panel header
   'panel.agent': string
@@ -110,6 +119,7 @@ export interface Translations {
   'status.safetyFailedConfirmed': string
   'status.noSession.agent': string
   'status.noSession.run': string
+  'status.disconnected.run': string
 
   // Suggestion chips
   'chip.space': string
@@ -196,6 +206,14 @@ export const en: Translations = {
   'data.exportImport.desc': 'Providers, prompts and preferences',
   'data.export': 'Export',
   'data.import': 'Import',
+  'data.restoreSessions.label': 'Restore tabs and history',
+  'data.restoreSessions.desc': 'Reopen tabs with terminal output and assistant history on launch',
+  'data.clearSessions.label': 'Saved session state',
+  'data.clearSessions.desc': 'Remove stored tabs and scrollback without changing current tabs',
+  'data.clearSessions': 'Clear saved state',
+
+  'terminal.sshDisconnected': 'SSH session disconnected',
+  'terminal.reconnect': 'Reconnect',
 
   'panel.agent': 'Agent',
   'panel.agentToggle.enable': 'Enable agent execution',
@@ -242,6 +260,7 @@ export const en: Translations = {
   'status.safetyFailedConfirmed': 'Safety check failed; command confirmed by user.',
   'status.noSession.agent': 'Open a terminal session before starting the agent.',
   'status.noSession.run': 'Open a terminal session before running a command.',
+  'status.disconnected.run': 'Reconnect this session before running commands.',
 
   'chip.space': "What's taking space?",
   'chip.spacePrompt': "What's taking the most disk space here?",
@@ -325,6 +344,14 @@ export const ru: Translations = {
   'data.exportImport.desc': 'Провайдеры, промпты и настройки',
   'data.export': 'Экспорт',
   'data.import': 'Импорт',
+  'data.restoreSessions.label': 'Восстанавливать вкладки и историю',
+  'data.restoreSessions.desc': 'Открывать вкладки с выводом терминала и историей ассистента при запуске',
+  'data.clearSessions.label': 'Сохранённое состояние сессий',
+  'data.clearSessions.desc': 'Удалить сохранённые вкладки и вывод, не меняя текущие вкладки',
+  'data.clearSessions': 'Очистить состояние',
+
+  'terminal.sshDisconnected': 'SSH-сессия отключена',
+  'terminal.reconnect': 'Подключиться',
 
   'panel.agent': 'Агент',
   'panel.agentToggle.enable': 'Включить режим агента',
@@ -371,6 +398,7 @@ export const ru: Translations = {
   'status.safetyFailedConfirmed': 'Проверка безопасности не выполнена; команда подтверждена.',
   'status.noSession.agent': 'Откройте сессию терминала перед запуском агента.',
   'status.noSession.run': 'Откройте сессию терминала перед выполнением команды.',
+  'status.disconnected.run': 'Переподключите эту сессию перед выполнением команд.',
 
   'chip.space': 'Что занимает место?',
   'chip.spacePrompt': 'Что занимает больше всего места на диске?',
@@ -454,6 +482,14 @@ export const cn: Translations = {
   'data.exportImport.desc': '提供商、提示词和偏好设置',
   'data.export': '导出',
   'data.import': '导入',
+  'data.restoreSessions.label': '恢复标签页和历史',
+  'data.restoreSessions.desc': '启动时重新打开标签页、终端输出和助手历史',
+  'data.clearSessions.label': '已保存的会话状态',
+  'data.clearSessions.desc': '删除已保存的标签页和回滚内容，不改变当前标签页',
+  'data.clearSessions': '清除保存状态',
+
+  'terminal.sshDisconnected': 'SSH 会话已断开',
+  'terminal.reconnect': '重新连接',
 
   'panel.agent': '代理',
   'panel.agentToggle.enable': '启用代理执行',
@@ -500,6 +536,7 @@ export const cn: Translations = {
   'status.safetyFailedConfirmed': '安全检查失败；命令已由用户确认。',
   'status.noSession.agent': '在启动代理之前，请打开终端会话。',
   'status.noSession.run': '在运行命令之前，请打开终端会话。',
+  'status.disconnected.run': '运行命令前请重新连接此会话。',
 
   'chip.space': '什么占用了空间？',
   'chip.spacePrompt': '这里什么占用了最多磁盘空间？',

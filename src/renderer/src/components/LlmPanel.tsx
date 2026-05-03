@@ -8,7 +8,8 @@ import {
   Plus, RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate, TerminalContext, TerminalSessionInfo
+  AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate,
+  RestorableAssistantThread, RestorableAssistantThreads, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
@@ -87,6 +88,41 @@ function createThread(): AssistantThread {
   }
 }
 
+function toRestorableThread(thread: AssistantThread): RestorableAssistantThread {
+  return {
+    messages: thread.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      display: message.display,
+      command: message.command,
+      output: message.output
+    })),
+    draft: thread.draft,
+    session: thread.session
+  }
+}
+
+function toRestorableThreads(threads: AssistantThreads): RestorableAssistantThreads {
+  return Object.fromEntries(
+    Object.entries(threads).map(([sessionId, thread]) => [sessionId, toRestorableThread(thread)])
+  )
+}
+
+function fromRestorableThread(thread: RestorableAssistantThread): AssistantThread {
+  return {
+    ...createThread(),
+    messages: thread.messages ?? [],
+    draft: thread.draft ?? '',
+    session: thread.session
+  }
+}
+
+function fromRestorableThreads(threads: RestorableAssistantThreads): AssistantThreads {
+  return Object.fromEntries(
+    Object.entries(threads).map(([sessionId, thread]) => [sessionId, fromRestorableThread(thread)])
+  )
+}
+
 function toChatMessage(message: ThreadMessage): ChatMessage {
   return {
     role: message.role,
@@ -134,7 +170,7 @@ function keyEventToElectron(e: KeyboardEvent): string | null {
 }
 
 interface LlmPanelProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' }
+  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
   sessionIds: string[]
   selectedText: string
   getOutput: () => string
@@ -150,6 +186,11 @@ interface LlmPanelProps {
   onLanguageChange: (language: Language) => void
   hideShortcut: string
   onHideShortcutChange: (shortcut: string) => void
+  restoreSessions: boolean
+  onRestoreSessionsChange: (enabled: boolean) => void
+  restoredThreads: RestorableAssistantThreads
+  onThreadsChange: (threads: RestorableAssistantThreads) => void
+  onClearSavedSessionState: () => Promise<void>
 }
 
 export function LlmPanel({
@@ -168,7 +209,12 @@ export function LlmPanel({
   language,
   onLanguageChange,
   hideShortcut,
-  onHideShortcutChange
+  onHideShortcutChange,
+  restoreSessions,
+  onRestoreSessionsChange,
+  restoredThreads,
+  onThreadsChange,
+  onClearSavedSessionState
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -211,6 +257,11 @@ export function LlmPanel({
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
   useEffect(() => { threadsRef.current = threadsBySessionId }, [threadsBySessionId])
+  useEffect(() => { onThreadsChange(toRestorableThreads(threadsBySessionId)) }, [threadsBySessionId, onThreadsChange])
+  useEffect(() => {
+    setThreadsBySessionId(fromRestorableThreads(restoredThreads))
+    threadsRef.current = fromRestorableThreads(restoredThreads)
+  }, [restoredThreads])
   useEffect(() => { assistModeRef.current = assistMode }, [assistMode])
   useEffect(() => { activeSessionRef.current = activeSession }, [activeSession])
   useEffect(() => { getOutputForSessionRef.current = getOutputForSession }, [getOutputForSession])
@@ -652,7 +703,8 @@ export function LlmPanel({
     const content = draft.trim()
     if (!content || streaming || commandConfirmation) return
 
-    if (assistModeRef.current === 'agent') {
+    const canExecute = session.status === 'running'
+    if (assistModeRef.current === 'agent' && canExecute) {
       promptResolversRef.current.delete(sessionId)
       updateThread(sessionId, (thread) => ({
         ...thread,
@@ -665,16 +717,26 @@ export function LlmPanel({
       }))
     }
 
-    updateThread(sessionId, (thread) => ({ ...thread, draft: '', session: summarizeSession(session) }))
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      draft: '',
+      session: summarizeSession(session),
+      status: assistModeRef.current === 'agent' && !canExecute
+        ? { tone: 'info', label: t('status.disconnected.run') }
+        : thread.status
+    }))
     startStream(sessionId, content, thread.messages)
-  }, [commandConfirmation, draft, getThread, streaming, startStream, summarizeSession, updateThread])
+  }, [commandConfirmation, draft, getThread, streaming, startStream, summarizeSession, t, updateThread])
 
   // Run command inline from MessageContent
   const runCommand = useCallback(async (command: string) => {
     const session = activeSessionRef.current
-    if (!session) {
+    if (!session || session.status !== 'running') {
       if (activeSessionId) {
-        updateThread(activeSessionId, (thread) => ({ ...thread, status: { tone: 'info', label: t('status.noSession.run') } }))
+        updateThread(activeSessionId, (thread) => ({
+          ...thread,
+          status: { tone: 'info', label: session ? t('status.disconnected.run') : t('status.noSession.run') }
+        }))
       }
       return
     }
@@ -813,6 +875,17 @@ export function LlmPanel({
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange])
+
+  const handleClearSavedSessionState = useCallback(async () => {
+    setDataStatus('Clearing saved session...')
+    try {
+      await onClearSavedSessionState()
+      setDataStatus('Saved session cleared')
+      setTimeout(() => setDataStatus(''), 3000)
+    } catch (error) {
+      setDataStatus(`Clear failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [onClearSavedSessionState])
 
   const setPromptDraft = useCallback((prompt: string) => {
     if (activeSessionId) {
@@ -1172,6 +1245,26 @@ export function LlmPanel({
                     <h3 className="settings-content-title">{t('data.title')}</h3>
                     <div className="appearance-row">
                       <div className="appearance-row-left">
+                        <span className="appearance-row-label">{t('data.restoreSessions.label')}</span>
+                        <small className="appearance-row-desc">
+                          {t('data.restoreSessions.desc')}
+                        </small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <button
+                          className={`agent-toggle ${restoreSessions ? 'on' : ''}`}
+                          type="button"
+                          role="switch"
+                          aria-checked={restoreSessions}
+                          title={t('data.restoreSessions.label')}
+                          onClick={() => onRestoreSessionsChange(!restoreSessions)}
+                        >
+                          <span />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="appearance-row">
+                      <div className="appearance-row-left">
                         <span className="appearance-row-label">{t('data.exportImport.label')}</span>
                         <small className="appearance-row-desc">
                           {t('data.exportImport.desc')}
@@ -1183,6 +1276,19 @@ export function LlmPanel({
                         </button>
                         <button type="button" className="quiet-button" onClick={() => void handleImport()}>
                           {t('data.import')}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="appearance-row">
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label">{t('data.clearSessions.label')}</span>
+                        <small className="appearance-row-desc">
+                          {t('data.clearSessions.desc')}
+                        </small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <button type="button" className="quiet-button" onClick={() => void handleClearSavedSessionState()}>
+                          {t('data.clearSessions')}
                         </button>
                       </div>
                     </div>

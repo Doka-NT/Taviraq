@@ -2,9 +2,10 @@ import { useEffect, useRef, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import type { TerminalSessionInfo } from '@shared/types'
+import { useT } from '@renderer/i18n/LanguageContext'
 
 interface TerminalPaneProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' }
+  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
   sessionIds: string[]
   layoutKey: string
   textSize: number
@@ -12,6 +13,7 @@ interface TerminalPaneProps {
   onSelectionChange: (selection: string) => void
   outputBuffers: MutableRefObject<Map<string, string>>
   onOutput: (sessionId: string, data: string) => void
+  onReconnect: (sessionId: string) => void
 }
 
 // C1 control characters (U+0080–U+009F) that appear as ?<0080> artifacts
@@ -25,8 +27,10 @@ export function TerminalPane({
   clearSignal,
   onSelectionChange,
   outputBuffers,
-  onOutput
+  onOutput,
+  onReconnect
 }: TerminalPaneProps): JSX.Element {
+  const { t } = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -34,6 +38,7 @@ export function TerminalPane({
   const resizeFrameRef = useRef<number>()
   const initialResizeTimerRef = useRef<number>()
   const textSizeRef = useRef(textSize)
+  const activeSessionStatusRef = useRef(activeSession?.status)
   const activeSessionId = activeSession?.id
 
   useEffect(() => {
@@ -87,7 +92,7 @@ export function TerminalPane({
 
     const dataDisposable = terminal.onData((data) => {
       const sessionId = activeSessionIdRef.current
-      if (sessionId) {
+      if (sessionId && activeSessionStatusRef.current === 'running') {
         void window.api.terminal.write(sessionId, data)
       }
     })
@@ -142,7 +147,8 @@ export function TerminalPane({
   }, [textSize])
 
   useEffect(() => {
-    activeSessionIdRef.current = activeSessionId
+    activeSessionIdRef.current = activeSession?.status === 'running' ? activeSessionId : undefined
+    activeSessionStatusRef.current = activeSession?.status
     const terminal = terminalRef.current
     if (!terminal) return
 
@@ -156,13 +162,13 @@ export function TerminalPane({
 
     queueMicrotask(() => {
       if (containerRef.current) {
-        scheduleResize(terminal, containerRef.current, activeSessionId, resizeFrameRef)
+        scheduleResize(terminal, containerRef.current, activeSessionIdRef.current, resizeFrameRef)
       }
-      if (activeSessionId && terminal.cols > 1 && terminal.rows > 1) {
-        void window.api.terminal.resize(activeSessionId, terminal.cols, terminal.rows)
+      if (activeSessionIdRef.current && terminal.cols > 1 && terminal.rows > 1) {
+        void window.api.terminal.resize(activeSessionIdRef.current, terminal.cols, terminal.rows)
       }
     })
-  }, [activeSessionId, outputBuffers])
+  }, [activeSessionId, activeSession?.status, outputBuffers])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIds)
@@ -190,6 +196,19 @@ export function TerminalPane({
   return (
     <div className="terminal-frame">
       <div className="terminal-container" ref={containerRef} />
+      {activeSession?.status === 'disconnected' ? (
+        <div className="terminal-reconnect-banner">
+          <span>{t('terminal.sshDisconnected')}</span>
+          <button
+            type="button"
+            className="quiet-button"
+            onClick={() => onReconnect(activeSession.id)}
+            disabled={!activeSession.reconnectCommand}
+          >
+            {t('terminal.reconnect')}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

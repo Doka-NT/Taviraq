@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import pty from 'node-pty'
 import type { CreateTerminalRequest, SSHProfile, TerminalSessionInfo } from '@shared/types'
 import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
+import { resolveExistingCwd } from '@main/utils/cwd'
 
 const execFileAsync = promisify(execFile)
 
@@ -38,7 +39,8 @@ export class TerminalManager {
 
   createLocal(request: CreateTerminalRequest = {}): TerminalSessionInfo {
     const shell = process.env.SHELL || '/bin/zsh'
-    const cwd = request.cwd || process.env.HOME || homedir()
+    const fallbackCwd = process.env.HOME || homedir()
+    const cwd = resolveExistingCwd(request.cwd, fallbackCwd)
 
     return this.spawn({
       kind: 'local',
@@ -66,7 +68,8 @@ export class TerminalManager {
       cols: request.cols,
       rows: request.rows,
       remoteHost: ssh.remoteHost,
-      remoteTarget: ssh.remoteTarget
+      remoteTarget: ssh.remoteTarget,
+      reconnectCommand: `${ssh.command} ${ssh.args.join(' ')}`
     })
   }
 
@@ -132,6 +135,7 @@ export class TerminalManager {
     shell?: string
     remoteHost?: string
     remoteTarget?: string
+    reconnectCommand?: string
   }): TerminalSessionInfo {
     const id = randomUUID()
     const info: TerminalSessionInfo = {
@@ -143,6 +147,7 @@ export class TerminalManager {
       localLabel: options.kind === 'local' ? options.label : undefined,
       remoteHost: options.remoteHost,
       remoteTarget: options.remoteTarget,
+      reconnectCommand: options.reconnectCommand,
       command: options.command,
       createdAt: Date.now()
     }
@@ -256,6 +261,7 @@ export class TerminalManager {
     const parsed = await readSshDescendant(session.pty.pid)
     if (parsed) {
       this.updateTransientSsh(session, parsed)
+      session.info.reconnectCommand = parsed.command
     }
   }
 
@@ -292,6 +298,7 @@ export class TerminalManager {
     }
 
     this.updateTransientSsh(session, parsed)
+    session.info.reconnectCommand = command
   }
 
   private updateTransientSsh(session: ManagedSession, parsed: { remoteHost: string; remoteTarget: string }): void {
@@ -501,7 +508,7 @@ interface ProcessInfo {
   command: string
 }
 
-async function readSshDescendant(rootPid: number): Promise<{ remoteHost: string; remoteTarget: string } | undefined> {
+async function readSshDescendant(rootPid: number): Promise<{ remoteHost: string; remoteTarget: string; command: string } | undefined> {
   if (process.platform !== 'darwin' && process.platform !== 'linux') {
     return undefined
   }
@@ -525,7 +532,7 @@ async function readSshDescendant(rootPid: number): Promise<{ remoteHost: string;
       const process = queue[index]
       const parsed = parseSshCommandTarget(process.command)
       if (parsed) {
-        return parsed
+        return { ...parsed, command: process.command }
       }
       queue.push(...childrenByParent.get(process.pid) ?? [])
     }

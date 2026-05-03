@@ -11,6 +11,7 @@ export interface TerminalSessionInfo {
   shell?: string
   remoteHost?: string
   remoteTarget?: string
+  reconnectCommand?: string
   command: string
   createdAt: number
 }
@@ -55,6 +56,46 @@ export interface ChatMessage {
   role: ChatRole
   content: string
 }
+
+export type RestorableThreadMessage = ChatMessage & {
+  display?: 'command-output' | 'system-status'
+  command?: string
+  output?: string
+}
+
+export interface RestorableAssistantThread {
+  messages: RestorableThreadMessage[]
+  draft: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+}
+
+export type RestorableAssistantThreads = Record<string, RestorableAssistantThread>
+
+export interface RestoredTerminalSession {
+  id: string
+  kind: TerminalSessionKind
+  label: string
+  localLabel?: string
+  cwd?: string
+  shell?: string
+  remoteHost?: string
+  remoteTarget?: string
+  reconnectCommand?: string
+  command: string
+  createdAt: number
+  status: 'running' | 'exited' | 'disconnected'
+  output: string
+}
+
+export interface SessionStateSnapshot {
+  version: number
+  savedAt: string
+  activeSessionId?: string
+  sessions: RestoredTerminalSession[]
+  assistantThreads: RestorableAssistantThreads
+}
+
+export type SaveSessionStateRequest = SessionStateSnapshot
 
 export interface TerminalContext {
   selectedText: string

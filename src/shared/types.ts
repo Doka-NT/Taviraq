@@ -1,6 +1,13 @@
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
-export type AppShortcutAction = 'clear-terminal' | 'open-settings' | 'new-tab' | 'close-tab'
+export type AppShortcutAction =
+  | 'clear-terminal'
+  | 'open-settings'
+  | 'new-tab'
+  | 'close-tab'
+  | 'toggle-sidebar'
+  | 'next-tab'
+  | `switch-tab-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`
 
 export interface TerminalSessionInfo {
   id: string

@@ -517,6 +517,20 @@ export function App(): JSX.Element {
     void closeSession(activeSessionId)
   }, [activeSessionId, closeSession])
 
+  const activateNextSession = useCallback(() => {
+    if (sessions.length === 0) return
+    const activeIndex = sessions.findIndex((session) => session.id === activeSessionId)
+    const nextIndex = activeIndex < 0 || activeIndex === sessions.length - 1 ? 0 : activeIndex + 1
+    setActiveSessionId(sessions[nextIndex]?.id)
+  }, [activeSessionId, sessions])
+
+  const activateSessionByIndex = useCallback((index: number) => {
+    const session = sessions[index]
+    if (session) {
+      setActiveSessionId(session.id)
+    }
+  }, [sessions])
+
   const handleTabbarDoubleClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target : null
     if (target?.closest('.session-tab')) return
@@ -534,11 +548,15 @@ export function App(): JSX.Element {
         void createLocalSession()
       } else if (shortcut === 'close-tab') {
         closeActiveSession()
+      } else if (shortcut === 'next-tab') {
+        activateNextSession()
+      } else if (shortcut.startsWith('switch-tab-')) {
+        activateSessionByIndex(Number(shortcut.replace('switch-tab-', '')) - 1)
       } else if (shortcut === 'toggle-sidebar') {
         toggleSidebar()
       }
     })
-  }, [clearActiveTerminal, closeActiveSession, createLocalSession, toggleSidebar])
+  }, [activateNextSession, activateSessionByIndex, clearActiveTerminal, closeActiveSession, createLocalSession, toggleSidebar])
 
   useEffect(() => {
     return window.api.shortcuts.onWindowShow(() => {

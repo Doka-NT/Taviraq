@@ -125,6 +125,12 @@ function createWindow(): void {
       return
     }
 
+    if (!input.meta && !input.control && !input.alt && input.shift && (input.key === 'Tab' || input.code === 'Tab')) {
+      event.preventDefault()
+      mainWindow?.webContents.send('app:shortcut', 'next-tab' satisfies AppShortcutAction)
+      return
+    }
+
     if (
       !input.meta ||
       input.control ||
@@ -139,9 +145,12 @@ function createWindow(): void {
     const isSettingsShortcut = key === ',' || input.code === 'Comma'
     const isNewTabShortcut = key === 't' || input.code === 'KeyT'
     const isCloseTabShortcut = key === 'w' || input.code === 'KeyW'
+    const tabShortcut = /^[1-9]$/.test(key) ? Number(key) : undefined
     let action: AppShortcutAction | undefined
 
-    if (isClearShortcut) {
+    if (tabShortcut) {
+      action = `switch-tab-${tabShortcut}` as AppShortcutAction
+    } else if (isClearShortcut) {
       action = 'clear-terminal'
     } else if (isSettingsShortcut) {
       action = 'open-settings'

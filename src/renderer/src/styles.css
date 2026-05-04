@@ -63,14 +63,14 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 6px minmax(300px, var(--sidebar-width, 380px));
+  grid-template-columns: minmax(0, 1fr) 6px minmax(300px, min(var(--sidebar-width, 380px), 60vw));
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
   background: var(--bg-window);
   color: var(--text-primary);
-  transition: grid-template-columns 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: none;
 }
 
 @keyframes windowEnter {
@@ -435,6 +435,7 @@ button {
 /* Assistant panel */
 
 .llm-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -2117,39 +2118,40 @@ textarea:focus {
   color: var(--text-primary);
 }
 
-.prompt-picker-popover {
-  width: 280px;
-  max-height: 320px;
+.prompt-picker-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
   display: flex;
   flex-direction: column;
   background: var(--bg-sidebar);
-  border: 0.5px solid var(--border-default);
-  border-radius: var(--radius-md);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-  z-index: 9999;
-  animation: fadeInUp 120ms ease-out;
 }
 
-.prompt-picker-search {
-  position: relative;
-  padding: 8px;
+.prompt-picker-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.prompt-picker-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
   border-bottom: 0.5px solid var(--border-subtle);
 }
 
-.prompt-picker-search svg {
-  position: absolute;
-  top: 50%;
-  left: 17px;
+.prompt-picker-header svg:first-child {
+  flex: 0 0 auto;
   color: var(--text-muted);
-  pointer-events: none;
-  transform: translateY(-50%);
 }
 
-.prompt-picker-search input {
-  display: block;
-  width: 100%;
-  height: 32px;
-  padding: 0 8px 0 28px;
+.prompt-picker-header input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
   border: 0.5px solid var(--border-default);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
@@ -2158,7 +2160,7 @@ textarea:focus {
   outline: none;
 }
 
-.prompt-picker-search input:focus {
+.prompt-picker-header input:focus {
   border-color: var(--accent-brand);
 }
 
@@ -2315,9 +2317,11 @@ textarea:focus {
 
 /* Chat History Overlay */
 .history-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  flex: 1;
   min-height: 0;
   background: var(--bg-base);
 }

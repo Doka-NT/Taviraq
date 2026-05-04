@@ -835,12 +835,6 @@ textarea:focus {
   font-size: 12px;
 }
 
-.text-size-applied {
-  color: var(--accent-cyan);
-  font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
-}
-
 .language-select {
   height: 36px;
   padding: 0 8px;

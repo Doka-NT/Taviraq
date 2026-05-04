@@ -1170,7 +1170,6 @@ export function LlmPanel({
                           value={textSizeDraft}
                           onChange={(event) => handleTextSizeChange(event.target.value)}
                         />
-                        <output className="text-size-applied">{t('appearance.fontSize.applied', { value: textSize })}</output>
                       </div>
                     </div>
                     <div className="appearance-row">

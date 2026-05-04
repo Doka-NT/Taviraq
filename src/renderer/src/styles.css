@@ -2173,54 +2173,60 @@ textarea:focus {
 }
 
 .prompt-picker-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 15;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   background: var(--bg-sidebar);
 }
 
-.prompt-picker-panel {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.prompt-picker-header {
+.prompt-picker-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 10px 16px;
   border-bottom: 0.5px solid var(--border-subtle);
 }
 
-.prompt-picker-header svg:first-child {
+.prompt-picker-search svg {
+  color: var(--text-muted);
   flex: 0 0 auto;
+}
+
+.prompt-picker-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.prompt-picker-search input::placeholder {
   color: var(--text-muted);
 }
 
-.prompt-picker-header input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 0.5px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-size: 12px;
-  outline: none;
-}
-
-.prompt-picker-header input:focus {
-  border-color: var(--accent-brand);
-}
-
 .prompt-picker-list {
+  flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 8px 0;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--scrollbar-color) transparent;
+  scrollbar-width: thin;
+}
+
+.prompt-picker-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.prompt-picker-list::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: var(--scrollbar-color);
+}
+
+.prompt-picker-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .prompt-picker-item {
@@ -2228,14 +2234,14 @@ textarea:focus {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 10px 16px;
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background 0.12s;
 }
 
 .prompt-picker-item:hover,
@@ -2255,10 +2261,11 @@ textarea:focus {
 }
 
 .prompt-picker-empty {
-  padding: 16px 12px;
-  font-size: 12px;
-  color: var(--text-muted);
   text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 32px 16px;
+  margin: 0;
 }
 
 /* Prompt Library Settings Section */

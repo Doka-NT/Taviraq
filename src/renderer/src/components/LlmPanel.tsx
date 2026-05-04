@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, ChevronDown, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, ChevronDown, FileText, History, KeyRound,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -228,6 +228,11 @@ export function LlmPanel({
   const [savePromptName, setSavePromptName] = useState('')
   const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
+  const [promptPickerPrompts, setPromptPickerPrompts] = useState<PromptTemplate[]>([])
+  const [promptPickerQuery, setPromptPickerQuery] = useState('')
+  const [promptPickerActiveIndex, setPromptPickerActiveIndex] = useState(0)
+  const promptPickerListRef = useRef<HTMLDivElement>(null)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
 
@@ -603,9 +608,43 @@ export function LlmPanel({
       setHistoryOpen(false)
       setHistorySearch('')
     } else {
+      setPromptPickerOpen(false)
       void loadHistoryChats().then(() => setHistoryOpen(true))
     }
   }, [historyOpen, loadHistoryChats])
+
+  useEffect(() => {
+    if (!promptPickerOpen) return
+    void window.api.prompt.list().then(setPromptPickerPrompts).catch(() => setPromptPickerPrompts([]))
+  }, [promptPickerOpen])
+
+  useEffect(() => {
+    setPromptPickerActiveIndex(0)
+  }, [promptPickerQuery])
+
+  useEffect(() => {
+    if (!promptPickerListRef.current) return
+    const active = promptPickerListRef.current.querySelector('.prompt-picker-item.active')
+    if (active) active.scrollIntoView({ block: 'nearest' })
+  }, [promptPickerActiveIndex])
+
+  const promptPickerFiltered = useMemo(() => {
+    const q = promptPickerQuery.trim().toLowerCase()
+    if (!q) return promptPickerPrompts
+    return promptPickerPrompts.filter((p) =>
+      p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
+    )
+  }, [promptPickerPrompts, promptPickerQuery])
+
+  const togglePromptPicker = useCallback(() => {
+    if (promptPickerOpen) {
+      setPromptPickerOpen(false)
+      setPromptPickerQuery('')
+    } else {
+      setHistoryOpen(false)
+      setPromptPickerOpen(true)
+    }
+  }, [promptPickerOpen])
 
   const handleDeleteHistoryChat = useCallback(async (chatId: string) => {
     await window.api.chatHistory.delete(chatId)
@@ -1005,6 +1044,30 @@ export function LlmPanel({
     }
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [activeSessionId, updateThread])
+
+  const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setPromptPickerOpen(false)
+      setPromptPickerQuery('')
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, promptPickerFiltered.length - 1))
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setPromptPickerActiveIndex((prev) => Math.max(prev - 1, 0))
+      return
+    }
+    if (e.key === 'Enter' && promptPickerFiltered[promptPickerActiveIndex]) {
+      e.preventDefault()
+      setPromptDraft(promptPickerFiltered[promptPickerActiveIndex].content)
+      setPromptPickerOpen(false)
+      setPromptPickerQuery('')
+    }
+  }, [promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
 
   const toggleAgentMode = useCallback(() => {
     setAssistMode((prev) => {
@@ -1465,7 +1528,46 @@ export function LlmPanel({
         </div>
       , document.body) : null}
 
-      {historyOpen ? (
+      {promptPickerOpen ? (
+        <div className="prompt-picker-overlay">
+          <div className="prompt-picker-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="text"
+              placeholder="Search prompts…"
+              value={promptPickerQuery}
+              onChange={(e) => setPromptPickerQuery(e.target.value)}
+              onKeyDown={handlePromptPickerKeyDown}
+            />
+          </div>
+          {promptPickerFiltered.length === 0 ? (
+            <p className="prompt-picker-empty">
+              {promptPickerPrompts.length === 0
+                ? 'No prompts yet. Add one in Settings.'
+                : 'No matching prompts.'}
+            </p>
+          ) : (
+            <div className="prompt-picker-list" ref={promptPickerListRef}>
+              {promptPickerFiltered.map((prompt, i) => (
+                <button
+                  key={prompt.id}
+                  type="button"
+                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
+                  onClick={() => {
+                    setPromptDraft(prompt.content)
+                    setPromptPickerOpen(false)
+                    setPromptPickerQuery('')
+                  }}
+                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
+                >
+                  <FileText size={13} aria-hidden />
+                  <span>{prompt.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : historyOpen ? (
         <div className="history-overlay">
           <div className="history-search">
             <Search size={14} aria-hidden />
@@ -1654,7 +1756,7 @@ export function LlmPanel({
           rows={1}
         />
         <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} />
+          <PromptPicker onSelect={setPromptDraft} open={false} onOpenChange={togglePromptPicker} />
           {agenticRunning ? (
             <button
               className="stop-button"

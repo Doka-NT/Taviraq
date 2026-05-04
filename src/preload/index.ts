@@ -4,6 +4,7 @@ import type {
   AppShortcutAction,
   ChatStreamEvent,
   ChatStreamRequest,
+  CommandSnippet,
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
   CommandProposal,
@@ -151,6 +152,12 @@ const api = {
       ipcRenderer.invoke('prompt:save', prompt) as Promise<PromptTemplate>,
     delete: (id: string) => ipcRenderer.invoke('prompt:delete', id) as Promise<void>,
     importFiles: () => ipcRenderer.invoke('prompt:import') as Promise<PromptTemplate[]>
+  },
+  commandSnippet: {
+    list: () => ipcRenderer.invoke('commandSnippet:list') as Promise<CommandSnippet[]>,
+    save: (snippet: CommandSnippet) =>
+      ipcRenderer.invoke('commandSnippet:save', snippet) as Promise<CommandSnippet>,
+    delete: (id: string) => ipcRenderer.invoke('commandSnippet:delete', id) as Promise<void>
   },
   data: {
     export: (preferences: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }) =>

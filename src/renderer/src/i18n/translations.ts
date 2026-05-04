@@ -7,6 +7,7 @@ export interface Translations {
   'settings.tab.providers': string
   'settings.tab.connections': string
   'settings.tab.prompts': string
+  'settings.tab.snippets': string
   'settings.tab.data': string
 
   // Appearance tab
@@ -79,6 +80,20 @@ export interface Translations {
   'prompts.deleteConfirmTitle': string
   'prompts.deleteConfirmMessage': string
   'prompts.deleteConfirmBtn': string
+
+  // Command snippets tab
+  'snippets.title': string
+  'snippets.quickHint': string
+  'snippets.addSnippet': string
+  'snippets.saveSnippet': string
+  'snippets.noSnippets': string
+  'snippets.namePlaceholder': string
+  'snippets.commandPlaceholder': string
+  'snippets.edit': string
+  'snippets.delete': string
+  'snippets.deleteConfirmTitle': string
+  'snippets.deleteConfirmMessage': string
+  'snippets.deleteConfirmBtn': string
 
   // Data tab
   'data.title': string
@@ -192,6 +207,7 @@ export const en: Translations = {
   'settings.tab.providers': 'Providers',
   'settings.tab.connections': 'Connections',
   'settings.tab.prompts': 'Prompts',
+  'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
 
   'appearance.title': 'Appearance',
@@ -261,9 +277,22 @@ export const en: Translations = {
   'prompts.deleteConfirmMessage': 'This action cannot be undone.',
   'prompts.deleteConfirmBtn': 'Delete',
 
+  'snippets.title': 'Command Snippets',
+  'snippets.quickHint': 'Quick open with ⌘⇧K. Enter inserts, ⌘Enter runs.',
+  'snippets.addSnippet': 'Add snippet',
+  'snippets.saveSnippet': 'Save snippet',
+  'snippets.noSnippets': 'No command snippets yet. Add one below.',
+  'snippets.namePlaceholder': 'Snippet name',
+  'snippets.commandPlaceholder': 'Terminal command…',
+  'snippets.edit': 'Edit',
+  'snippets.delete': 'Delete',
+  'snippets.deleteConfirmTitle': 'Delete command snippet?',
+  'snippets.deleteConfirmMessage': 'This action cannot be undone.',
+  'snippets.deleteConfirmBtn': 'Delete',
+
   'data.title': 'Data',
   'data.exportImport.label': 'Export / Import',
-  'data.exportImport.desc': 'Providers, prompts and preferences',
+  'data.exportImport.desc': 'Providers, prompts, command snippets and preferences',
   'data.export': 'Export',
   'data.import': 'Import',
   'data.restoreSessions.label': 'Restore tabs and history',
@@ -364,6 +393,7 @@ export const ru: Translations = {
   'settings.tab.providers': 'Провайдеры',
   'settings.tab.connections': 'Подключения',
   'settings.tab.prompts': 'Промпты',
+  'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
 
   'appearance.title': 'Внешний вид',
@@ -433,9 +463,22 @@ export const ru: Translations = {
   'prompts.deleteConfirmMessage': 'Это действие нельзя отменить.',
   'prompts.deleteConfirmBtn': 'Удалить',
 
+  'snippets.title': 'Сниппеты команд',
+  'snippets.quickHint': 'Быстрый вызов: ⌘⇧K. Enter вставляет, ⌘Enter запускает.',
+  'snippets.addSnippet': 'Добавить сниппет',
+  'snippets.saveSnippet': 'Сохранить сниппет',
+  'snippets.noSnippets': 'Сниппетов команд пока нет. Добавьте первый ниже.',
+  'snippets.namePlaceholder': 'Название сниппета',
+  'snippets.commandPlaceholder': 'Команда терминала…',
+  'snippets.edit': 'Редактировать',
+  'snippets.delete': 'Удалить',
+  'snippets.deleteConfirmTitle': 'Удалить сниппет команды?',
+  'snippets.deleteConfirmMessage': 'Это действие нельзя отменить.',
+  'snippets.deleteConfirmBtn': 'Удалить',
+
   'data.title': 'Данные',
   'data.exportImport.label': 'Экспорт / Импорт',
-  'data.exportImport.desc': 'Провайдеры, промпты и настройки',
+  'data.exportImport.desc': 'Провайдеры, промпты, сниппеты команд и настройки',
   'data.export': 'Экспорт',
   'data.import': 'Импорт',
   'data.restoreSessions.label': 'Восстанавливать вкладки и историю',
@@ -536,6 +579,7 @@ export const cn: Translations = {
   'settings.tab.providers': '提供商',
   'settings.tab.connections': '连接',
   'settings.tab.prompts': '提示词',
+  'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
 
   'appearance.title': '外观',
@@ -605,9 +649,22 @@ export const cn: Translations = {
   'prompts.deleteConfirmMessage': '此操作无法撤销。',
   'prompts.deleteConfirmBtn': '删除',
 
+  'snippets.title': '命令片段',
+  'snippets.quickHint': '使用 ⌘⇧K 快速打开。Enter 插入，⌘Enter 运行。',
+  'snippets.addSnippet': '添加片段',
+  'snippets.saveSnippet': '保存片段',
+  'snippets.noSnippets': '还没有命令片段。请在下方添加。',
+  'snippets.namePlaceholder': '片段名称',
+  'snippets.commandPlaceholder': '终端命令…',
+  'snippets.edit': '编辑',
+  'snippets.delete': '删除',
+  'snippets.deleteConfirmTitle': '删除命令片段？',
+  'snippets.deleteConfirmMessage': '此操作无法撤销。',
+  'snippets.deleteConfirmBtn': '删除',
+
   'data.title': '数据',
   'data.exportImport.label': '导出 / 导入',
-  'data.exportImport.desc': '提供商、提示词和偏好设置',
+  'data.exportImport.desc': '提供商、提示词、命令片段和偏好设置',
   'data.export': '导出',
   'data.import': '导入',
   'data.restoreSessions.label': '恢复标签页和历史',

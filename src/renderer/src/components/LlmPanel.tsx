@@ -4,11 +4,11 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, ChevronDown, FileText, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, ChevronDown, Command, FileText, History, KeyRound,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate,
+  AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, PromptTemplate,
   RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
@@ -219,7 +219,7 @@ export function LlmPanel({
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'connections' | 'prompts' | 'data'>('providers')
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'>('providers')
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
@@ -1064,12 +1064,13 @@ export function LlmPanel({
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
       if (result.promptsAdded) parts.push(`${result.promptsAdded} prompt(s)`)
+      if (result.commandSnippetsAdded) parts.push(`${result.commandSnippetsAdded} command snippet(s)`)
       setDataStatus(parts.length ? `Added: ${parts.join(', ')}` : 'Nothing new to import')
       setTimeout(() => setDataStatus(''), 4000)
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange])
+  }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange, onThemeChange])
 
   const handleClearSavedSessionState = useCallback(async () => {
     setDataStatus('Clearing saved session...')
@@ -1262,6 +1263,13 @@ export function LlmPanel({
                   onClick={() => setSettingsTab('prompts')}
                 >
                   {t('settings.tab.prompts')}
+                </button>
+                <button
+                  type="button"
+                  className={`settings-nav-item ${settingsTab === 'snippets' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('snippets')}
+                >
+                  {t('settings.tab.snippets')}
                 </button>
                 <button
                   type="button"
@@ -1607,6 +1615,13 @@ export function LlmPanel({
                   </>
                 ) : null}
 
+                {settingsTab === 'snippets' ? (
+                  <>
+                    <h3 className="settings-content-title">{t('snippets.title')}</h3>
+                    <CommandSnippetLibrarySection />
+                  </>
+                ) : null}
+
                 {settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
@@ -1683,10 +1698,11 @@ export function LlmPanel({
                         </small>
                       </div>
                       <div className="appearance-row-right">
-                        <button type="button" className="quiet-button" onClick={async () => {
-                          await window.api.chatHistory.clear()
-                          setDataStatus(t('data.clearChatHistory.done'))
-                          setTimeout(() => setDataStatus(''), 2000)
+                        <button type="button" className="quiet-button" onClick={() => {
+                          void window.api.chatHistory.clear().then(() => {
+                            setDataStatus(t('data.clearChatHistory.done'))
+                            setTimeout(() => setDataStatus(''), 2000)
+                          })
                         }}>
                           {t('data.clearChatHistory')}
                         </button>
@@ -2428,6 +2444,200 @@ function PromptLibrarySection(): JSX.Element {
                 autoFocus
               >
                 {t('prompts.deleteConfirmBtn')}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
+    </section>
+  )
+}
+
+function CommandSnippetLibrarySection(): JSX.Element {
+  const { t } = useT()
+  const [snippets, setSnippets] = useState<CommandSnippet[]>([])
+  const [editing, setEditing] = useState<CommandSnippet | null>(null)
+  const [addingSnippet, setAddingSnippet] = useState(false)
+  const [name, setName] = useState('')
+  const [command, setCommand] = useState('')
+  const [status, setStatus] = useState('')
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    try {
+      const list = await window.api.commandSnippet.list()
+      setSnippets(list)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  const handleSave = useCallback(async () => {
+    if (!name.trim() || !command.trim()) return
+    setStatus('Saving...')
+    try {
+      await window.api.commandSnippet.save({
+        id: editing?.id ?? '',
+        name: name.trim(),
+        command: command.trim(),
+        createdAt: editing?.createdAt ?? new Date().toISOString(),
+        updatedAt: editing?.updatedAt ?? new Date().toISOString()
+      })
+      setName('')
+      setCommand('')
+      setEditing(null)
+      setAddingSnippet(false)
+      setStatus('Saved')
+      await reload()
+    } catch (err) {
+      setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [command, editing, name, reload])
+
+  const handleEdit = useCallback((snippet: CommandSnippet) => {
+    setEditing(snippet)
+    setAddingSnippet(false)
+    setName(snippet.name)
+    setCommand(snippet.command)
+  }, [])
+
+  const handleCancel = useCallback(() => {
+    setEditing(null)
+    setAddingSnippet(false)
+    setName('')
+    setCommand('')
+  }, [])
+
+  const handleAddSnippet = useCallback(() => {
+    setEditing(null)
+    setAddingSnippet(true)
+    setName('')
+    setCommand('')
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDeleteId) return
+    const id = pendingDeleteId
+    setPendingDeleteId(null)
+    try {
+      await window.api.commandSnippet.delete(id)
+      await reload()
+    } catch {
+      // ignore
+    }
+  }, [pendingDeleteId, reload])
+
+  return (
+    <section className="settings-section">
+      <div className="settings-section-heading">
+        <span>{t('snippets.quickHint')}</span>
+        {!editing && !addingSnippet ? (
+          <button type="button" className="quiet-button" style={{ fontSize: 11 }} onClick={handleAddSnippet}>
+            <Plus size={12} aria-hidden />
+            {' '}{t('snippets.addSnippet')}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="prompt-list">
+        {snippets.length > 0 ? snippets.map((snippet) => (
+          <div key={snippet.id} className="prompt-list-item command-snippet-list-item">
+            <Command size={13} aria-hidden />
+            <div className="prompt-list-item-info">
+              <span className="prompt-list-item-name">{snippet.name}</span>
+              <span className="prompt-list-item-preview command-snippet-command">{snippet.command}</span>
+            </div>
+            <div className="prompt-list-item-actions">
+              <button
+                type="button"
+                className="icon-button"
+                title={t('snippets.edit')}
+                onClick={() => handleEdit(snippet)}
+              >
+                <Settings2 size={12} aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title={t('snippets.delete')}
+                onClick={() => setPendingDeleteId(snippet.id)}
+              >
+                <Trash2 size={12} aria-hidden />
+              </button>
+            </div>
+          </div>
+        )) : (
+          <p className="prompt-list-empty">{t('snippets.noSnippets')}</p>
+        )}
+      </div>
+
+      {(editing || addingSnippet || !snippets.length) ? (
+        <div className="prompt-form">
+          <input
+            type="text"
+            placeholder={t('snippets.namePlaceholder')}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <textarea
+            className="prompt-form-content command-snippet-form-command"
+            placeholder={t('snippets.commandPlaceholder')}
+            rows={2}
+            value={command}
+            onChange={(event) => setCommand(event.target.value)}
+          />
+          <div className="prompt-form-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={!name.trim() || !command.trim()}
+              onClick={() => void handleSave()}
+            >
+              {editing ? t('snippets.saveSnippet') : t('snippets.addSnippet')}
+            </button>
+            {(editing || addingSnippet) ? (
+              <button type="button" className="quiet-button" onClick={handleCancel}>
+                {t('prompts.cancel')}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {status ? <p className="settings-status">{status}</p> : null}
+
+      {pendingDeleteId !== null ? createPortal(
+        <div
+          className="save-prompt-overlay"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-command-snippet-title"
+          onClick={(event) => { if (event.target === event.currentTarget) setPendingDeleteId(null) }}
+        >
+          <div className="save-prompt-modal">
+            <div className="save-prompt-header">
+              <Trash2 size={15} aria-hidden />
+              <span id="delete-command-snippet-title">{t('snippets.deleteConfirmTitle')}</span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+              {t('snippets.deleteConfirmMessage')}
+            </p>
+            <div className="save-prompt-actions">
+              <button type="button" className="quiet-button" onClick={() => setPendingDeleteId(null)}>
+                {t('confirm.cancel')}
+              </button>
+              <button
+                type="button"
+                className="delete-prompt-confirm-btn"
+                onClick={() => void confirmDelete()}
+                autoFocus
+              >
+                {t('snippets.deleteConfirmBtn')}
               </button>
             </div>
           </div>

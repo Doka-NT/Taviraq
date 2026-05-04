@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type {
   AppShortcutAction,
   ChatStreamRequest,
+  CommandSnippet,
   CommandRiskAssessmentRequest,
   CreateTerminalRequest,
   ExportData,
@@ -20,6 +21,7 @@ import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
+import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
 import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
@@ -33,6 +35,7 @@ let isRecordingShortcut = false
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
+const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 
@@ -128,6 +131,12 @@ function createWindow(): void {
     if (!input.meta && !input.control && !input.alt && input.shift && (input.key === 'Tab' || input.code === 'Tab')) {
       event.preventDefault()
       mainWindow?.webContents.send('app:shortcut', 'next-tab' satisfies AppShortcutAction)
+      return
+    }
+
+    if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'k' || input.code === 'KeyK')) {
+      event.preventDefault()
+      mainWindow?.webContents.send('app:shortcut', 'open-command-snippets' satisfies AppShortcutAction)
       return
     }
 
@@ -318,9 +327,20 @@ function registerIpc(): void {
     return imported
   })
 
+  ipcMain.handle('commandSnippet:list', () => commandSnippetStore.list())
+
+  ipcMain.handle('commandSnippet:save', (_event, snippet: CommandSnippet) => {
+    return commandSnippetStore.save(snippet)
+  })
+
+  ipcMain.handle('commandSnippet:delete', (_event, id: string) => {
+    return commandSnippetStore.delete(id)
+  })
+
   ipcMain.handle('data:export', async (_event, preferences: ExportData['preferences']) => {
     const config = await configStore.load()
     const prompts = await promptStore.list()
+    const commandSnippets = await commandSnippetStore.list()
     const includeKeysResult = await dialog.showMessageBox({
       type: 'question',
       buttons: ['Continue', 'Cancel'],
@@ -348,6 +368,7 @@ function registerIpc(): void {
       config,
       ...(Object.keys(apiKeys).length > 0 ? { apiKeys } : {}),
       prompts,
+      commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
       preferences
     }
@@ -390,6 +411,9 @@ function registerIpc(): void {
     const currentPromptIds = new Set(currentPrompts.map((prompt) => prompt.id))
     const importedPrompts = Array.isArray(data.prompts) ? data.prompts : []
     const newPrompts = importedPrompts.filter((prompt) => !currentPromptIds.has(prompt.id))
+    const snippetsAdded = await commandSnippetStore.importMany(
+      Array.isArray(data.commandSnippets) ? data.commandSnippets : []
+    )
 
     const newProviderRefs = new Set(newProviders.map((provider) => provider.apiKeyRef))
     if (data.apiKeys) {
@@ -416,6 +440,7 @@ function registerIpc(): void {
     return {
       providersAdded: newProviders.length,
       promptsAdded: newPrompts.length,
+      commandSnippetsAdded: snippetsAdded,
       sshProfilesAdded: newSshProfiles.length,
       preferences: data.preferences
     }

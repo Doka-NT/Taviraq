@@ -2,6 +2,7 @@ export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type AppShortcutAction =
   | 'clear-terminal'
+  | 'open-command-snippets'
   | 'open-settings'
   | 'new-tab'
   | 'close-tab'
@@ -158,6 +159,14 @@ export interface PromptTemplate {
   createdAt: string
 }
 
+export interface CommandSnippet {
+  id: string
+  name: string
+  command: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface SavedChat {
   id: string
   title: string
@@ -193,6 +202,7 @@ export interface ExportData {
   config: AppConfig
   apiKeys?: Record<string, string>
   prompts: PromptTemplate[]
+  commandSnippets?: CommandSnippet[]
   sshProfiles?: SSHProfileConfig[]
   preferences: {
     textSize?: number
@@ -205,6 +215,7 @@ export interface ExportData {
 export interface ImportResult {
   providersAdded: number
   promptsAdded: number
+  commandSnippetsAdded: number
   sshProfilesAdded: number
   preferences?: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }
 }

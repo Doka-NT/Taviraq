@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { PanelRightClose, PanelRightOpen, Plus, Server, Settings2, Terminal, X } from 'lucide-react'
-import type { RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalSessionInfo } from '@shared/types'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, Terminal, X } from 'lucide-react'
+import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
@@ -90,6 +90,7 @@ export function App(): JSX.Element {
     storedPositiveNumber(MAX_OUTPUT_CONTEXT_KEY, DEFAULT_MAX_OUTPUT_CONTEXT)
   )
   const [newTabDropdownOpen, setNewTabDropdownOpen] = useState(false)
+  const [snippetPaletteOpen, setSnippetPaletteOpen] = useState(false)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
@@ -511,6 +512,12 @@ export function App(): JSX.Element {
     setTerminalClearVersion((version) => version + 1)
   }, [activeSessionId])
 
+  const insertCommandSnippet = useCallback((command: string, run: boolean) => {
+    if (!activeSessionId || activeSession?.status !== 'running') return
+    void window.api.terminal.write(activeSessionId, run ? `${command}\r` : command)
+    setSnippetPaletteOpen(false)
+  }, [activeSession?.status, activeSessionId])
+
   const closeActiveSession = useCallback(() => {
     if (!activeSessionId) return
 
@@ -542,6 +549,8 @@ export function App(): JSX.Element {
     return window.api.shortcuts.onShortcut((shortcut) => {
       if (shortcut === 'clear-terminal') {
         clearActiveTerminal()
+      } else if (shortcut === 'open-command-snippets') {
+        setSnippetPaletteOpen(true)
       } else if (shortcut === 'open-settings') {
         setSettingsOpen(true)
       } else if (shortcut === 'new-tab') {
@@ -583,6 +592,17 @@ export function App(): JSX.Element {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [toggleSidebar])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSnippetPaletteOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <LanguageProvider language={language}>
@@ -626,6 +646,15 @@ export function App(): JSX.Element {
                 </div>
               ) : null}
             </div>
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => setSnippetPaletteOpen(true)}
+              disabled={!activeSessionId || activeSession?.status !== 'running'}
+              title="Command snippets (⌘⇧K)"
+            >
+              <Command size={16} aria-hidden />
+            </button>
             <button className="icon-button" type="button" onClick={toggleSidebar} title={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`}>
               {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
             </button>
@@ -732,11 +761,138 @@ export function App(): JSX.Element {
         restoredThreads={restoredAssistantThreads}
         onThreadsChange={handleAssistantThreadsChange}
         onClearSavedSessionState={clearSavedSessionState}
-        onReopenChat={handleReopenChat}
+        onReopenChat={(chatId) => { void handleReopenChat(chatId) }}
         onConnectSsh={(profile) => { void connectSshProfile(profile) }}
       />
+
+      {snippetPaletteOpen ? (
+        <CommandSnippetPalette
+          activeSession={activeSession}
+          onClose={() => setSnippetPaletteOpen(false)}
+          onUse={insertCommandSnippet}
+        />
+      ) : null}
     </main>
     </LanguageProvider>
+  )
+}
+
+interface CommandSnippetPaletteProps {
+  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
+  onClose: () => void
+  onUse: (command: string, run: boolean) => void
+}
+
+function CommandSnippetPalette({ activeSession, onClose, onUse }: CommandSnippetPaletteProps): JSX.Element {
+  const [snippets, setSnippets] = useState<CommandSnippet[]>([])
+  const [query, setQuery] = useState('')
+  const [activeIndex, setActiveIndex] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    void window.api.commandSnippet.list().then(setSnippets).catch(() => setSnippets([]))
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return snippets
+    return snippets.filter((snippet) =>
+      snippet.name.toLowerCase().includes(q) ||
+      snippet.command.toLowerCase().includes(q)
+    )
+  }, [query, snippets])
+
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [query])
+
+  useEffect(() => {
+    const active = listRef.current?.querySelector('.command-snippet-palette-item.active')
+    active?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
+  const canUse = activeSession?.status === 'running'
+
+  const handleKeyDown = useCallback((event: ReactKeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.min(index + 1, filtered.length - 1))
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveIndex((index) => Math.max(index - 1, 0))
+      return
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const snippet = filtered[activeIndex]
+      if (snippet && canUse) {
+        onUse(snippet.command, event.metaKey || event.ctrlKey)
+      }
+    }
+  }, [activeIndex, canUse, filtered, onClose, onUse])
+
+  return (
+    <div className="command-snippet-palette-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <section className="command-snippet-palette" role="dialog" aria-modal="true" aria-label="Command snippets">
+        <div className="command-snippet-palette-search">
+          <Search size={15} aria-hidden />
+          <input
+            autoFocus
+            value={query}
+            placeholder="Search command snippets..."
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
+        <div className="command-snippet-palette-hint">
+          <span>Enter inserts</span>
+          <span>⌘Enter runs</span>
+        </div>
+        <div className="command-snippet-palette-list" ref={listRef}>
+          {filtered.length > 0 ? filtered.map((snippet, index) => (
+            <button
+              key={snippet.id}
+              type="button"
+              className={`command-snippet-palette-item ${index === activeIndex ? 'active' : ''}`}
+              disabled={!canUse}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => onUse(snippet.command, false)}
+            >
+              <div className="command-snippet-palette-item-text">
+                <span className="command-snippet-palette-item-name">{snippet.name}</span>
+                <code>{snippet.command}</code>
+              </div>
+              <span
+                className="command-snippet-run-action"
+                role="button"
+                tabIndex={-1}
+                title="Run now"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onUse(snippet.command, true)
+                }}
+              >
+                <Play size={13} aria-hidden />
+              </span>
+            </button>
+          )) : (
+            <p className="command-snippet-palette-empty">
+              {snippets.length === 0 ? 'No command snippets yet. Add them in Settings.' : 'No matching snippets.'}
+            </p>
+          )}
+        </div>
+      </section>
+    </div>
   )
 }
 

@@ -1736,9 +1736,11 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   const { t } = useT()
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
+  const [listPos, setListPos] = useState<DOMRect | null>(null)
 
   const formattedValue = useMemo(() => {
     return formatModelDisplay(value)
@@ -1747,6 +1749,25 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   // When dropdown closes, reset query so input shows formatted value
   useEffect(() => {
     if (!open) setQuery('')
+  }, [open])
+
+  // Track input position for portal-positioned dropdown
+  useEffect(() => {
+    if (!open) { setListPos(null); return }
+    const update = () => {
+      const rect = wrapperRef.current?.getBoundingClientRect()
+      setListPos(rect ?? null)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    if (wrapperRef.current) ro.observe(wrapperRef.current)
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
   }, [open])
 
   const availableModels = useMemo(() => {
@@ -1822,8 +1843,48 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
     }
   }, [activeModel, closeList, commitModel, open, visibleModels.length])
 
+  const listContent = open ? (
+    <div
+      className="model-combobox-list"
+      id={listboxId}
+      role="listbox"
+      style={listPos ? { position: 'fixed', top: listPos.bottom + 6, left: listPos.left, width: listPos.width } : undefined}
+    >
+      {visibleModels.length > 0 ? (
+        visibleModels.map((model, index) => {
+          const modelDisplay = formatModelDisplay(model.id)
+          return (
+            <button
+              id={`${listboxId}-option-${index}`}
+              key={`${model.id}-${index}`}
+              type="button"
+              role="option"
+              aria-selected={model.id === value}
+              className={`model-combobox-option ${index === activeIndex ? 'active' : ''} ${model.id === value ? 'selected' : ''}`}
+              onMouseEnter={() => setActiveIndex(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => commitModel(model.id)}
+            >
+              <span>{modelDisplay}</span>
+              {model.ownedBy ? <small>{model.ownedBy}</small> : null}
+            </button>
+          )
+        })
+      ) : (
+        <div className="model-combobox-empty">
+          {models.length > 0 ? t('model.noMatch') : t('model.loadFirst')}
+        </div>
+      )}
+      {matchingModels.length > MAX_VISIBLE_MODELS ? (
+        <div className="model-combobox-count">
+          {t('model.showing', { visible: MAX_VISIBLE_MODELS, total: matchingModels.length })}
+        </div>
+      ) : null}
+    </div>
+  ) : null
+
   return (
-    <div className={`model-combobox ${open ? 'open' : ''}`} onBlur={handleBlur}>
+    <div ref={wrapperRef} className={`model-combobox ${open ? 'open' : ''}`} onBlur={handleBlur}>
       <input
         ref={inputRef}
         role="combobox"
@@ -1857,41 +1918,7 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
       >
         <ChevronDown size={14} aria-hidden />
       </button>
-
-      {open ? (
-        <div className="model-combobox-list" id={listboxId} role="listbox">
-          {visibleModels.length > 0 ? (
-            visibleModels.map((model, index) => {
-              const modelDisplay = formatModelDisplay(model.id)
-              return (
-                <button
-                  id={`${listboxId}-option-${index}`}
-                  key={`${model.id}-${index}`}
-                  type="button"
-                  role="option"
-                  aria-selected={model.id === value}
-                  className={`model-combobox-option ${index === activeIndex ? 'active' : ''} ${model.id === value ? 'selected' : ''}`}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => commitModel(model.id)}
-                >
-                  <span>{modelDisplay}</span>
-                  {model.ownedBy ? <small>{model.ownedBy}</small> : null}
-                </button>
-              )
-            })
-          ) : (
-            <div className="model-combobox-empty">
-              {models.length > 0 ? t('model.noMatch') : t('model.loadFirst')}
-            </div>
-          )}
-          {matchingModels.length > MAX_VISIBLE_MODELS ? (
-            <div className="model-combobox-count">
-              {t('model.showing', { visible: MAX_VISIBLE_MODELS, total: matchingModels.length })}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {listContent ? createPortal(listContent, document.body) : null}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import type { TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/LanguageContext'
@@ -88,6 +89,11 @@ export function TerminalPane({
 
     if (containerRef.current) {
       terminal.open(containerRef.current)
+      try {
+        terminal.loadAddon(new WebglAddon())
+      } catch {
+        // WebGL not available, falls back to canvas
+      }
       initialResizeTimerRef.current = window.setTimeout(() => {
         if (containerRef.current) {
           scheduleResize(terminal, containerRef.current, activeSessionIdRef.current, resizeFrameRef)

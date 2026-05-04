@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { AppConfig, LLMProviderConfig } from '@shared/types'
+import type { AppConfig, LLMProviderConfig, SSHProfileConfig } from '@shared/types'
 
 const CONFIG_FILE = 'config.json'
 
@@ -60,6 +60,31 @@ export class ConfigStore {
       activeProviderRef: provider.apiKeyRef
     }
 
+    await this.save(next)
+    return next
+  }
+
+  listSshProfiles(config: AppConfig): SSHProfileConfig[] {
+    return config.sshProfiles ?? []
+  }
+
+  async upsertSshProfile(profile: SSHProfileConfig): Promise<AppConfig> {
+    const config = await this.load()
+    const profiles = config.sshProfiles ?? []
+    const existingIndex = profiles.findIndex((candidate) => candidate.id === profile.id)
+    const nextProfiles = existingIndex === -1
+      ? [...profiles, profile]
+      : profiles.map((candidate, index) => index === existingIndex ? profile : candidate)
+
+    const next = { ...config, sshProfiles: nextProfiles }
+    await this.save(next)
+    return next
+  }
+
+  async deleteSshProfile(id: string): Promise<AppConfig> {
+    const config = await this.load()
+    const nextProfiles = (config.sshProfiles ?? []).filter((p) => p.id !== id)
+    const next = { ...config, sshProfiles: nextProfiles }
     await this.save(next)
     return next
   }

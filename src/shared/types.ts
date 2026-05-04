@@ -31,6 +31,10 @@ export interface SSHProfile {
   extraArgs?: string[]
 }
 
+export interface SSHProfileConfig extends SSHProfile {
+  id: string
+}
+
 export interface LLMProviderConfig {
   name: string
   baseUrl: string
@@ -173,6 +177,7 @@ export interface AppConfig {
   providers: LLMProviderConfig[]
   activeProviderRef?: string
   hideShortcut?: string
+  sshProfiles?: SSHProfileConfig[]
 }
 
 export interface ExportData {
@@ -181,6 +186,7 @@ export interface ExportData {
   config: AppConfig
   apiKeys?: Record<string, string>
   prompts: PromptTemplate[]
+  sshProfiles?: SSHProfileConfig[]
   preferences: {
     textSize?: number
     sidebarWidth?: number
@@ -192,5 +198,6 @@ export interface ExportData {
 export interface ImportResult {
   providersAdded: number
   promptsAdded: number
+  sshProfilesAdded: number
   preferences?: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }
 }

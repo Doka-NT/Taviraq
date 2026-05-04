@@ -13,6 +13,7 @@ import type {
   SaveLLMProviderRequest,
   SavedChat,
   SSHProfile,
+  SSHProfileConfig,
   SummarizeConversationRequest
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
@@ -234,6 +235,19 @@ function registerIpc(): void {
     return terminalManager.connectSsh(profile, request)
   })
 
+  ipcMain.handle('ssh:listProfiles', async () => {
+    const config = await configStore.load()
+    return configStore.listSshProfiles(config)
+  })
+
+  ipcMain.handle('ssh:saveProfile', async (_event, profile: SSHProfileConfig) => {
+    return configStore.upsertSshProfile(profile)
+  })
+
+  ipcMain.handle('ssh:deleteProfile', async (_event, id: string) => {
+    return configStore.deleteSshProfile(id)
+  })
+
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
     if (request.apiKey?.trim()) {
       await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
@@ -325,6 +339,7 @@ function registerIpc(): void {
       config,
       ...(Object.keys(apiKeys).length > 0 ? { apiKeys } : {}),
       prompts,
+      sshProfiles: config.sshProfiles ?? [],
       preferences
     }
 
@@ -381,9 +396,18 @@ function registerIpc(): void {
       await promptStore.save(prompt)
     }
 
+    const currentSshProfiles = currentConfig.sshProfiles ?? []
+    const currentSshIds = new Set(currentSshProfiles.map((p) => p.id))
+    const importedSshProfiles = Array.isArray(data.sshProfiles) ? data.sshProfiles : []
+    const newSshProfiles = importedSshProfiles.filter((p) => !currentSshIds.has(p.id))
+    for (const profile of newSshProfiles) {
+      await configStore.upsertSshProfile(profile)
+    }
+
     return {
       providersAdded: newProviders.length,
       promptsAdded: newPrompts.length,
+      sshProfilesAdded: newSshProfiles.length,
       preferences: data.preferences
     }
   })

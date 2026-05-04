@@ -5,11 +5,11 @@ import {
 import { createPortal } from 'react-dom'
 import {
   AlertTriangle, BookmarkPlus, Bot, ChevronDown, FileText, History, KeyRound,
-  MessageSquarePlus, Plus, RefreshCw, Search, Send, Settings2, Square, Trash2, User, X, Zap
+  MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate,
-  RestorableAssistantThread, RestorableAssistantThreads, SavedChat, SavedChatSummary,
+  RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
@@ -177,6 +177,7 @@ interface LlmPanelProps {
   onReopenChat: (chatId: string) => void
   themeId: string
   onThemeChange: (themeId: string) => void
+  onConnectSsh: (profile: SSHProfileConfig) => void
 }
 
 export function LlmPanel({
@@ -206,6 +207,7 @@ export function LlmPanel({
   onReopenChat,
   themeId,
   onThemeChange,
+  onConnectSsh,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -217,7 +219,7 @@ export function LlmPanel({
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'prompts' | 'data'>('providers')
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'connections' | 'prompts' | 'data'>('providers')
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
@@ -235,6 +237,8 @@ export function LlmPanel({
   const promptPickerListRef = useRef<HTMLDivElement>(null)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
+  const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
+  const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
@@ -948,6 +952,46 @@ export function LlmPanel({
     }
   }, [provider.apiKeyRef])
 
+  const loadSshProfiles = useCallback(async () => {
+    const profiles = await window.api.ssh.listProfiles()
+    setSshProfiles(profiles)
+    if (profiles.length > 0 && !sshProfile) {
+      setSshProfile(profiles[0])
+    }
+  }, [sshProfile])
+
+  useEffect(() => {
+    void loadSshProfiles()
+  }, [loadSshProfiles])
+
+  const addSshProfile = useCallback(() => {
+    const newProfile: SSHProfileConfig = {
+      id: `ssh-${crypto.randomUUID()}`,
+      name: '',
+      host: ''
+    }
+    setSshProfile(newProfile)
+  }, [])
+
+  const saveSshProfile = useCallback(async () => {
+    if (!sshProfile) return
+    const result = await window.api.ssh.saveProfile(sshProfile)
+    setSshProfiles(result.sshProfiles ?? [])
+  }, [sshProfile])
+
+  const deleteSshProfile = useCallback(async (id: string) => {
+    await window.api.ssh.deleteProfile(id)
+    setSshProfiles((prev) => prev.filter((p) => p.id !== id))
+    if (sshProfile?.id === id) {
+      setSshProfile(null)
+    }
+  }, [sshProfile])
+
+  const connectSshProfile = useCallback((profile: SSHProfileConfig) => {
+    onConnectSsh(profile)
+    onCloseSettings()
+  }, [onConnectSsh, onCloseSettings])
+
   // Load models
   const loadModels = useCallback(async () => {
     setProviderStatus('Loading models...')
@@ -1207,6 +1251,13 @@ export function LlmPanel({
                 </button>
                 <button
                   type="button"
+                  className={`settings-nav-item ${settingsTab === 'connections' ? 'active' : ''}`}
+                  onClick={() => setSettingsTab('connections')}
+                >
+                  {t('settings.tab.connections')}
+                </button>
+                <button
+                  type="button"
                   className={`settings-nav-item ${settingsTab === 'prompts' ? 'active' : ''}`}
                   onClick={() => setSettingsTab('prompts')}
                 >
@@ -1423,6 +1474,128 @@ export function LlmPanel({
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {settingsTab === 'connections' ? (
+                  <>
+                    <h3 className="settings-content-title">{t('connections.title')}</h3>
+                    <div className="connections-layout">
+                      <div>
+                        <div className="providers-list-header">
+                          <span>{t('connections.title')}</span>
+                          <button type="button" className="quiet-button" style={{ height: 28, fontSize: 11, padding: '0 7px' }} title={t('connections.addConnection')} onClick={addSshProfile}>
+                            <Plus size={12} aria-hidden />
+                          </button>
+                        </div>
+                        <div className="provider-list">
+                          {sshProfiles.length === 0 ? (
+                            <div style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>
+                              {t('connections.noConnections')}
+                            </div>
+                          ) : null}
+                          {sshProfiles.map((p) => {
+                            const isEditing = p.id === sshProfile?.id
+                            return (
+                              <div
+                                key={p.id}
+                                className={`provider-list-item ${isEditing ? 'active' : ''}`}
+                                onClick={() => setSshProfile(p)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter') setSshProfile(p) }}
+                              >
+                                <Server size={13} style={{ flexShrink: 0, color: 'var(--text-muted)' }} aria-hidden />
+                                <span className="provider-list-item-name">{p.name || p.host || t('connections.unnamed')}</span>
+                                <button
+                                  type="button"
+                                  className="provider-list-item-delete icon-button"
+                                  title={t('connections.deleteConnection')}
+                                  onClick={(e) => { e.stopPropagation(); void deleteSshProfile(p.id) }}
+                                >
+                                  <Trash2 size={12} aria-hidden />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {sshProfile ? (
+                        <div className="connections-form">
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.name')}</span>
+                            <input
+                              value={sshProfile.name ?? ''}
+                              placeholder={t('connections.newConnection')}
+                              onChange={(event) => setSshProfile((p) => p ? { ...p, name: event.target.value } : p)}
+                            />
+                          </div>
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.host')}</span>
+                            <input
+                              value={sshProfile.host}
+                              placeholder="example.com"
+                              onChange={(event) => setSshProfile((p) => p ? { ...p, host: event.target.value } : p)}
+                            />
+                          </div>
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.user')}</span>
+                            <input
+                              value={sshProfile.user ?? ''}
+                              placeholder="root"
+                              onChange={(event) => setSshProfile((p) => p ? { ...p, user: event.target.value } : p)}
+                            />
+                          </div>
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.port')}</span>
+                            <input
+                              type="number"
+                              value={sshProfile.port ?? ''}
+                              placeholder="22"
+                              onChange={(event) => {
+                                const val = event.target.value
+                                setSshProfile((p) => p ? { ...p, port: val ? Number(val) : undefined } : p)
+                              }}
+                            />
+                          </div>
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.identityFile')}</span>
+                            <input
+                              value={sshProfile.identityFile ?? ''}
+                              placeholder="~/.ssh/id_rsa"
+                              onChange={(event) => setSshProfile((p) => p ? { ...p, identityFile: event.target.value } : p)}
+                            />
+                          </div>
+                          <div className="provider-field">
+                            <span className="provider-field-label">{t('connections.extraArgs')}</span>
+                            <input
+                              value={sshProfile.extraArgs?.join(' ') ?? ''}
+                              placeholder="-o StrictHostKeyChecking=no"
+                              onChange={(event) => {
+                                const val = event.target.value.trim()
+                                setSshProfile((p) => p ? { ...p, extraArgs: val ? val.split(/\s+/) : undefined } : p)
+                              }}
+                            />
+                          </div>
+                          <div className="connection-actions">
+                            <button type="button" className="quiet-button" onClick={() => void saveSshProfile()}>
+                              {t('connections.save')}
+                            </button>
+                            {sshProfile.host ? (
+                              <button type="button" className="quiet-button" onClick={() => connectSshProfile(sshProfile)}>
+                                <Zap size={13} aria-hidden />
+                                {t('connections.connect')}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                          {sshProfiles.length === 0 ? t('connections.noConnections') : ''}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : null}

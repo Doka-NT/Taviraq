@@ -17,6 +17,7 @@ import type {
   SaveSessionStateRequest,
   SessionStateSnapshot,
   SSHProfile,
+  SSHProfileConfig,
   SummarizeConversationRequest,
   TerminalSessionInfo
 } from '@shared/types'
@@ -111,7 +112,13 @@ const api = {
   },
   ssh: {
     connectProfile: (profile: SSHProfile, request?: CreateTerminalRequest) =>
-      ipcRenderer.invoke('ssh:connectProfile', profile, request) as Promise<TerminalSessionInfo>
+      ipcRenderer.invoke('ssh:connectProfile', profile, request) as Promise<TerminalSessionInfo>,
+    listProfiles: () =>
+      ipcRenderer.invoke('ssh:listProfiles') as Promise<SSHProfileConfig[]>,
+    saveProfile: (profile: SSHProfileConfig) =>
+      ipcRenderer.invoke('ssh:saveProfile', profile) as Promise<AppConfig>,
+    deleteProfile: (id: string) =>
+      ipcRenderer.invoke('ssh:deleteProfile', id) as Promise<AppConfig>
   },
   llm: {
     saveProvider: (request: SaveLLMProviderRequest) =>

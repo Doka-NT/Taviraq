@@ -5,6 +5,7 @@ export interface Translations {
   'settings.title': string
   'settings.tab.appearance': string
   'settings.tab.providers': string
+  'settings.tab.connections': string
   'settings.tab.prompts': string
   'settings.tab.data': string
 
@@ -46,6 +47,23 @@ export interface Translations {
   'providers.safetyModel': string
   'providers.searchChatModel': string
   'providers.searchSafetyModel': string
+
+  // Connections tab
+  'connections.title': string
+  'connections.addConnection': string
+  'connections.deleteConnection': string
+  'connections.save': string
+  'connections.connect': string
+  'connections.name': string
+  'connections.host': string
+  'connections.user': string
+  'connections.port': string
+  'connections.identityFile': string
+  'connections.extraArgs': string
+  'connections.unnamed': string
+  'connections.noConnections': string
+  'connections.newConnection': string
+  'connections.tab.newLocal': string
 
   // Prompts tab
   'prompts.title': string
@@ -172,6 +190,7 @@ export const en: Translations = {
   'settings.title': 'Settings',
   'settings.tab.appearance': 'Appearance',
   'settings.tab.providers': 'Providers',
+  'settings.tab.connections': 'Connections',
   'settings.tab.prompts': 'Prompts',
   'settings.tab.data': 'Data',
 
@@ -211,6 +230,22 @@ export const en: Translations = {
   'providers.safetyModel': 'Command safety model',
   'providers.searchChatModel': 'Search chat model',
   'providers.searchSafetyModel': 'Search safety model',
+
+  'connections.title': 'SSH Connections',
+  'connections.addConnection': 'Add connection',
+  'connections.deleteConnection': 'Delete connection',
+  'connections.save': 'Save',
+  'connections.connect': 'Connect',
+  'connections.name': 'Name',
+  'connections.host': 'Host',
+  'connections.user': 'User',
+  'connections.port': 'Port',
+  'connections.identityFile': 'Identity file',
+  'connections.extraArgs': 'Extra args',
+  'connections.unnamed': 'Unnamed',
+  'connections.noConnections': 'No SSH connections yet.',
+  'connections.newConnection': 'New Connection',
+  'connections.tab.newLocal': 'New Local Terminal',
 
   'prompts.title': 'Prompts',
   'prompts.importFromFile': 'Import from file',
@@ -327,6 +362,7 @@ export const ru: Translations = {
   'settings.title': 'Настройки',
   'settings.tab.appearance': 'Внешний вид',
   'settings.tab.providers': 'Провайдеры',
+  'settings.tab.connections': 'Подключения',
   'settings.tab.prompts': 'Промпты',
   'settings.tab.data': 'Данные',
 
@@ -366,6 +402,22 @@ export const ru: Translations = {
   'providers.safetyModel': 'Модель проверки безопасности',
   'providers.searchChatModel': 'Поиск модели чата',
   'providers.searchSafetyModel': 'Поиск модели безопасности',
+
+  'connections.title': 'SSH-подключения',
+  'connections.addConnection': 'Добавить подключение',
+  'connections.deleteConnection': 'Удалить подключение',
+  'connections.save': 'Сохранить',
+  'connections.connect': 'Подключиться',
+  'connections.name': 'Имя',
+  'connections.host': 'Хост',
+  'connections.user': 'Пользователь',
+  'connections.port': 'Порт',
+  'connections.identityFile': 'Файл ключа',
+  'connections.extraArgs': 'Доп. аргументы',
+  'connections.unnamed': 'Без имени',
+  'connections.noConnections': 'Нет SSH-подключений.',
+  'connections.newConnection': 'Новое подключение',
+  'connections.tab.newLocal': 'Новый локальный терминал',
 
   'prompts.title': 'Промпты',
   'prompts.importFromFile': 'Импорт из файла',
@@ -482,6 +534,7 @@ export const cn: Translations = {
   'settings.title': '设置',
   'settings.tab.appearance': '外观',
   'settings.tab.providers': '提供商',
+  'settings.tab.connections': '连接',
   'settings.tab.prompts': '提示词',
   'settings.tab.data': '数据',
 
@@ -521,6 +574,22 @@ export const cn: Translations = {
   'providers.safetyModel': '命令安全模型',
   'providers.searchChatModel': '搜索聊天模型',
   'providers.searchSafetyModel': '搜索安全模型',
+
+  'connections.title': 'SSH 连接',
+  'connections.addConnection': '添加连接',
+  'connections.deleteConnection': '删除连接',
+  'connections.save': '保存',
+  'connections.connect': '连接',
+  'connections.name': '名称',
+  'connections.host': '主机',
+  'connections.user': '用户',
+  'connections.port': '端口',
+  'connections.identityFile': '密钥文件',
+  'connections.extraArgs': '额外参数',
+  'connections.unnamed': '未命名',
+  'connections.noConnections': '暂无 SSH 连接。',
+  'connections.newConnection': '新连接',
+  'connections.tab.newLocal': '新建本地终端',
 
   'prompts.title': '提示词',
   'prompts.importFromFile': '从文件导入',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { PanelRightClose, PanelRightOpen, Plus, Settings2, X } from 'lucide-react'
-import type { RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, TerminalSessionInfo } from '@shared/types'
+import { PanelRightClose, PanelRightOpen, Plus, Server, Settings2, Terminal, X } from 'lucide-react'
+import type { RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
@@ -89,6 +89,8 @@ export function App(): JSX.Element {
   const [maxOutputContext, setMaxOutputContext] = useState(() =>
     storedPositiveNumber(MAX_OUTPUT_CONTEXT_KEY, DEFAULT_MAX_OUTPUT_CONTEXT)
   )
+  const [newTabDropdownOpen, setNewTabDropdownOpen] = useState(false)
+  const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
   const appShellRef = useRef<HTMLElement>(null)
@@ -219,6 +221,22 @@ export function App(): JSX.Element {
     })
   }, [])
 
+  useEffect(() => {
+    void window.api.ssh.listProfiles().then(setSshProfiles)
+  }, [settingsOpen])
+
+  useEffect(() => {
+    if (!newTabDropdownOpen) return
+    const onClick = () => setNewTabDropdownOpen(false)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setNewTabDropdownOpen(false) }
+    document.addEventListener('click', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [newTabDropdownOpen])
+
   const startSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
     const handle = event.currentTarget
@@ -279,6 +297,13 @@ export function App(): JSX.Element {
       outputBuffers.current.set(session.id, request.fallbackNotice)
     }
     return session
+  }, [])
+
+  const connectSshProfile = useCallback(async (profile: SSHProfileConfig) => {
+    setNewTabDropdownOpen(false)
+    const session = await window.api.ssh.connectProfile(profile)
+    setSessions((current) => [...current, { ...session, status: 'running' }])
+    setActiveSessionId(session.id)
   }, [])
 
   useEffect(() => {
@@ -549,9 +574,40 @@ export function App(): JSX.Element {
           <div className="topbar-window-spacer" aria-hidden />
           <div className="topbar-title">AI Terminal</div>
           <div className="topbar-actions">
-            <button className="icon-button" type="button" onClick={() => void createLocalSession()} title="New local terminal (⌘T)">
-              <Plus size={16} aria-hidden />
-            </button>
+            <div className="tabbar-new-dropdown-wrapper">
+              <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title="New terminal (⌘T)">
+                <Plus size={16} aria-hidden />
+              </button>
+              {newTabDropdownOpen ? (
+                <div className="tabbar-new-dropdown" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="tabbar-new-dropdown-item"
+                    onClick={() => { setNewTabDropdownOpen(false); void createLocalSession() }}
+                  >
+                    <Terminal size={14} aria-hidden />
+                    New Local Terminal
+                  </button>
+                  {sshProfiles.length > 0 ? (
+                    <>
+                      <div className="tabbar-new-dropdown-sep" />
+                      <div className="tabbar-new-dropdown-label">SSH</div>
+                      {sshProfiles.map((profile) => (
+                        <button
+                          key={profile.id}
+                          type="button"
+                          className="tabbar-new-dropdown-item"
+                          onClick={() => { void connectSshProfile(profile) }}
+                        >
+                          <Server size={14} aria-hidden />
+                          {profile.name || profile.host || 'Unnamed'}
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
             <button className="icon-button" type="button" onClick={toggleSidebar} title={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`}>
               {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
             </button>
@@ -659,6 +715,7 @@ export function App(): JSX.Element {
         onThreadsChange={handleAssistantThreadsChange}
         onClearSavedSessionState={clearSavedSessionState}
         onReopenChat={handleReopenChat}
+        onConnectSsh={(profile) => { void connectSshProfile(profile) }}
       />
     </main>
     </LanguageProvider>

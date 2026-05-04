@@ -38,8 +38,10 @@ function registerHideShortcut(shortcut: string): boolean {
   if (currentHideShortcut) globalShortcut.unregister(currentHideShortcut)
   const success = globalShortcut.register(shortcut, () => {
     if (!mainWindow) return
-    if (mainWindow.isVisible()) {
+    if (mainWindow.isVisible() && mainWindow.isFocused()) {
       mainWindow.hide()
+    } else if (mainWindow.isVisible()) {
+      mainWindow.focus()
     } else {
       mainWindow.setOpacity(0)
       mainWindow.show()
@@ -54,8 +56,10 @@ function registerHideShortcut(shortcut: string): boolean {
     if (currentHideShortcut) {
       globalShortcut.register(currentHideShortcut, () => {
         if (!mainWindow) return
-        if (mainWindow.isVisible()) {
+        if (mainWindow.isVisible() && mainWindow.isFocused()) {
           mainWindow.hide()
+        } else if (mainWindow.isVisible()) {
+          mainWindow.focus()
         } else {
           mainWindow.setOpacity(0)
           mainWindow.show()
@@ -148,6 +152,11 @@ function createWindow(): void {
 
     event.preventDefault()
     mainWindow?.webContents.send('app:shortcut', action)
+  })
+
+  mainWindow.on('close', (e) => {
+    e.preventDefault()
+    mainWindow?.hide()
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {

@@ -26,6 +26,7 @@ import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
 
 let mainWindow: BrowserWindow | undefined
+let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
 const terminalManager = new TerminalManager(() => mainWindow)
@@ -155,8 +156,10 @@ function createWindow(): void {
   })
 
   mainWindow.on('close', (e) => {
-    e.preventDefault()
-    mainWindow?.hide()
+    if (!isQuitting) {
+      e.preventDefault()
+      mainWindow?.hide()
+    }
   })
 
   if (process.env.ELECTRON_RENDERER_URL) {
@@ -417,6 +420,10 @@ void app.whenReady().then(() => {
       createWindow()
     }
   })
+})
+
+app.on('before-quit', () => {
+  isQuitting = true
 })
 
 app.on('window-all-closed', () => {

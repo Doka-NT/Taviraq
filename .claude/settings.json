@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__computer-use__screenshot",
+      "mcp__computer-use__request_access",
+      "mcp__computer-use__wait",
+      "mcp__ccd_session__mark_chapter"
+    ]
+  }
+}

@@ -5,6 +5,9 @@ import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
 import type { Language } from './i18n/translations'
+import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
+import { applyThemeToDom } from './themes/applyTheme'
+import type { TerminalColors } from './themes/types'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -20,6 +23,7 @@ const SIDEBAR_WIDTH_KEY = 'ai-terminal.sidebarWidth'
 const SIDEBAR_VISIBLE_KEY = 'ai-terminal.sidebarVisible'
 const TEXT_SIZE_KEY = 'ai-terminal.textSize'
 const LANGUAGE_KEY = 'ai-terminal.language'
+const THEME_KEY = 'ai-terminal.theme'
 const RESTORE_SESSIONS_KEY = 'ai-terminal.restoreSessions'
 const MAX_OUTPUT_CONTEXT_KEY = 'ai-terminal.maxOutputContext'
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
@@ -72,6 +76,11 @@ export function App(): JSX.Element {
   const [language, setLanguage] = useState<Language>(() =>
     (window.localStorage.getItem(LANGUAGE_KEY) as Language) ?? 'en'
   )
+  const [themeId, setThemeId] = useState<string>(() =>
+    window.localStorage.getItem(THEME_KEY) || DEFAULT_THEME_ID
+  )
+  const currentTheme = themeMap[themeId] ?? themeMap[DEFAULT_THEME_ID]
+  const terminalTheme: TerminalColors = currentTheme.terminal
   const [restoreSessions, setRestoreSessions] = useState(() =>
     window.localStorage.getItem(RESTORE_SESSIONS_KEY) !== 'false'
   )
@@ -166,6 +175,11 @@ export function App(): JSX.Element {
   useEffect(() => {
     window.localStorage.setItem(LANGUAGE_KEY, language)
   }, [language])
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_KEY, themeId)
+    applyThemeToDom(currentTheme)
+  }, [themeId, currentTheme])
 
   useEffect(() => {
     maxOutputContextRef.current = maxOutputContext
@@ -605,6 +619,7 @@ export function App(): JSX.Element {
           outputBuffers={outputBuffers}
           onOutput={handleOutput}
           onReconnect={(sessionId) => { void reconnectSession(sessionId) }}
+          terminalTheme={terminalTheme}
         />
       </section>
 
@@ -632,6 +647,8 @@ export function App(): JSX.Element {
         onSidebarWidthChange={updateSidebarWidth}
         language={language}
         onLanguageChange={setLanguage}
+        themeId={themeId}
+        onThemeChange={setThemeId}
         hideShortcut={hideShortcut}
         onHideShortcutChange={handleHideShortcutChange}
         maxOutputContext={maxOutputContext}

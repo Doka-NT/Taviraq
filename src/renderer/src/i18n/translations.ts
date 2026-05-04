@@ -24,6 +24,8 @@ export interface Translations {
   'appearance.hideShortcut.conflict': string
   'appearance.outputContext.label': string
   'appearance.outputContext.desc': string
+  'appearance.theme.label': string
+  'appearance.theme.desc': string
 
   // Providers tab
   'providers.title': string
@@ -185,6 +187,8 @@ export const en: Translations = {
   'appearance.hideShortcut.conflict': 'Shortcut {shortcut} is used by the system and cannot be assigned',
   'appearance.outputContext.label': 'Output context for AI',
   'appearance.outputContext.desc': 'Max characters of terminal output sent to the AI',
+  'appearance.theme.label': 'Theme',
+  'appearance.theme.desc': 'Color scheme for UI and terminal',
 
   'providers.title': 'Providers',
   'providers.name': 'Provider name',
@@ -335,6 +339,8 @@ export const ru: Translations = {
   'appearance.hideShortcut.conflict': 'Шорткат {shortcut} занят системой и не может быть назначен',
   'appearance.outputContext.label': 'Контекст вывода для ИИ',
   'appearance.outputContext.desc': 'Максимум символов вывода терминала, передаваемых ИИ',
+  'appearance.theme.label': 'Тема',
+  'appearance.theme.desc': 'Цветовая схема интерфейса и терминала',
 
   'providers.title': 'Провайдеры',
   'providers.name': 'Название провайдера',
@@ -485,6 +491,8 @@ export const cn: Translations = {
   'appearance.hideShortcut.conflict': '快捷键 {shortcut} 已被系统占用，无法分配',
   'appearance.outputContext.label': 'AI输出上下文',
   'appearance.outputContext.desc': '发送给AI的终端输出最大字符数',
+  'appearance.theme.label': '主题',
+  'appearance.theme.desc': '界面和终端配色方案',
 
   'providers.title': '提供商',
   'providers.name': '提供商名称',

@@ -185,11 +185,12 @@ export interface ExportData {
     textSize?: number
     sidebarWidth?: number
     language?: string
+    themeId?: string
   }
 }
 
 export interface ImportResult {
   providersAdded: number
   promptsAdded: number
-  preferences?: { textSize?: number; sidebarWidth?: number; language?: string }
+  preferences?: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }
 }

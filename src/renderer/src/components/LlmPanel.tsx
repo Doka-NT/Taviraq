@@ -19,6 +19,7 @@ import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT } from '@renderer/i18n/LanguageContext'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
+import { themes } from '@renderer/themes/definitions'
 
 // ...existing code...
 
@@ -174,6 +175,8 @@ interface LlmPanelProps {
   onThreadsChange: (threads: RestorableAssistantThreads) => void
   onClearSavedSessionState: () => Promise<void>
   onReopenChat: (chatId: string) => void
+  themeId: string
+  onThemeChange: (themeId: string) => void
 }
 
 export function LlmPanel({
@@ -200,7 +203,9 @@ export function LlmPanel({
   restoredThreads,
   onThreadsChange,
   onClearSavedSessionState,
-  onReopenChat
+  onReopenChat,
+  themeId,
+  onThemeChange,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -949,13 +954,13 @@ export function LlmPanel({
   const handleExport = useCallback(async () => {
     setDataStatus('Exporting...')
     try {
-      await window.api.data.export({ textSize, sidebarWidth, language })
+      await window.api.data.export({ textSize, sidebarWidth, language, themeId })
       setDataStatus('Export complete')
       setTimeout(() => setDataStatus(''), 3000)
     } catch (error) {
       setDataStatus(`Export failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [sidebarWidth, textSize, language])
+  }, [sidebarWidth, textSize, language, themeId])
 
   const handleImport = useCallback(async () => {
     setDataStatus('Importing...')
@@ -969,6 +974,7 @@ export function LlmPanel({
       if (result.preferences?.textSize) onTextSizeChange(result.preferences.textSize)
       if (result.preferences?.sidebarWidth) onSidebarWidthChange(result.preferences.sidebarWidth)
       if (result.preferences?.language) onLanguageChange(result.preferences.language as Language)
+      if (result.preferences?.themeId) onThemeChange(result.preferences.themeId)
 
       await loadConfig()
 
@@ -1156,6 +1162,23 @@ export function LlmPanel({
                 {settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>
+                    <div className="appearance-row">
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label">{t('appearance.theme.label')}</span>
+                        <small className="appearance-row-desc">{t('appearance.theme.desc')}</small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select"
+                          value={themeId}
+                          onChange={(event) => onThemeChange(event.target.value)}
+                        >
+                          {themes.map((theme) => (
+                            <option key={theme.id} value={theme.id}>{theme.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div className="appearance-row">
                       <div className="appearance-row-left">
                         <span className="appearance-row-label">{t('appearance.fontSize.label')}</span>

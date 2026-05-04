@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import type { TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/LanguageContext'
+import type { TerminalColors } from '@renderer/themes/types'
 
 interface TerminalPaneProps {
   activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
@@ -14,6 +15,7 @@ interface TerminalPaneProps {
   outputBuffers: MutableRefObject<Map<string, string>>
   onOutput: (sessionId: string, data: string) => void
   onReconnect: (sessionId: string) => void
+  terminalTheme?: TerminalColors
 }
 
 // C1 control characters (U+0080–U+009F) that appear as ?<0080> artifacts
@@ -28,7 +30,8 @@ export function TerminalPane({
   onSelectionChange,
   outputBuffers,
   onOutput,
-  onReconnect
+  onReconnect,
+  terminalTheme
 }: TerminalPaneProps): JSX.Element {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -51,7 +54,7 @@ export function TerminalPane({
       minimumContrastRatio: 4.5,
       scrollback: 5000,
       overviewRulerWidth: 0,
-      theme: {
+      theme: terminalTheme ?? {
         background: '#0C0C0E',
         foreground: 'rgba(255,255,255,0.78)',
         cursor: '#E8399A',
@@ -135,6 +138,13 @@ export function TerminalPane({
       fitRef.current = null
     }
   }, [onSelectionChange, onOutput])
+
+  useEffect(() => {
+    const terminal = terminalRef.current
+    if (terminal && terminalTheme) {
+      terminal.options.theme = terminalTheme
+    }
+  }, [terminalTheme])
 
   useEffect(() => {
     const terminal = terminalRef.current

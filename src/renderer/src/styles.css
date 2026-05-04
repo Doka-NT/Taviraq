@@ -474,6 +474,8 @@ button {
 
 .panel-header {
   flex: 0 0 auto;
+  position: relative;
+  z-index: 11;
   padding: 13px 14px 11px;
   border-bottom: 0.5px solid var(--border-subtle);
   background: var(--bg-sidebar);
@@ -2354,13 +2356,11 @@ textarea:focus {
 
 /* Chat History Overlay */
 .history-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--bg-base);
+  background: var(--bg-sidebar);
 }
 
 .history-search {
@@ -2394,6 +2394,22 @@ textarea:focus {
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--scrollbar-color) transparent;
+  scrollbar-width: thin;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: var(--scrollbar-color);
+}
+
+.history-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .history-empty {

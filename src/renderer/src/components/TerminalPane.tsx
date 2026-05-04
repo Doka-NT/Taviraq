@@ -42,6 +42,7 @@ export function TerminalPane({
   const initialResizeTimerRef = useRef<number>()
   const textSizeRef = useRef(textSize)
   const activeSessionStatusRef = useRef(activeSession?.status)
+  const restoringRef = useRef(false)
   const activeSessionId = activeSession?.id
 
   useEffect(() => {
@@ -95,6 +96,7 @@ export function TerminalPane({
     }
 
     const dataDisposable = terminal.onData((data) => {
+      if (restoringRef.current) return
       const sessionId = activeSessionIdRef.current
       if (sessionId && activeSessionStatusRef.current === 'running') {
         void window.api.terminal.write(sessionId, data)
@@ -166,7 +168,10 @@ export function TerminalPane({
     terminal.reset()
     const output = activeSessionId ? outputBuffers.current.get(activeSessionId) ?? '' : ''
     if (activeSessionId && output) {
-      terminal.write(output)
+      restoringRef.current = true
+      terminal.write(output, () => {
+        setTimeout(() => { restoringRef.current = false }, 50)
+      })
     } else if (!activeSessionId) {
       terminal.write('\r\nNo active terminal session.\r\n')
     }

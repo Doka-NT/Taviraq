@@ -2055,6 +2055,7 @@ function PromptLibrarySection(): JSX.Element {
   const [newName, setNewName] = useState('')
   const [newContent, setNewContent] = useState('')
   const [promptStatus, setPromptStatus] = useState('')
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     try {
@@ -2097,14 +2098,21 @@ function PromptLibrarySection(): JSX.Element {
     setNewContent(prompt.content)
   }, [])
 
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDelete = useCallback((id: string) => {
+    setPendingDeleteId(id)
+  }, [])
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDeleteId) return
+    const id = pendingDeleteId
+    setPendingDeleteId(null)
     try {
       await window.api.prompt.delete(id)
       await reload()
     } catch {
       // ignore
     }
-  }, [reload])
+  }, [pendingDeleteId, reload])
 
   const handleImport = useCallback(async () => {
     setPromptStatus('Importing...')
@@ -2219,6 +2227,40 @@ function PromptLibrarySection(): JSX.Element {
       ) : null}
 
       {promptStatus ? <p className="settings-status">{promptStatus}</p> : null}
+
+      {pendingDeleteId !== null ? createPortal(
+        <div
+          className="save-prompt-overlay"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-prompt-title"
+          onClick={(e) => { if (e.target === e.currentTarget) setPendingDeleteId(null) }}
+        >
+          <div className="save-prompt-modal">
+            <div className="save-prompt-header">
+              <Trash2 size={15} aria-hidden />
+              <span id="delete-prompt-title">{t('prompts.deleteConfirmTitle')}</span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+              {t('prompts.deleteConfirmMessage')}
+            </p>
+            <div className="save-prompt-actions">
+              <button type="button" className="quiet-button" onClick={() => setPendingDeleteId(null)}>
+                {t('confirm.cancel')}
+              </button>
+              <button
+                type="button"
+                className="delete-prompt-confirm-btn"
+                onClick={() => void confirmDelete()}
+                autoFocus
+              >
+                {t('prompts.deleteConfirmBtn')}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </section>
   )
 }

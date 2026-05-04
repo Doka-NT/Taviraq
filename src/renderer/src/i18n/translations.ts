@@ -58,6 +58,9 @@ export interface Translations {
   'prompts.contentPlaceholder': string
   'prompts.edit': string
   'prompts.delete': string
+  'prompts.deleteConfirmTitle': string
+  'prompts.deleteConfirmMessage': string
+  'prompts.deleteConfirmBtn': string
 
   // Data tab
   'data.title': string
@@ -219,6 +222,9 @@ export const en: Translations = {
   'prompts.contentPlaceholder': 'Prompt content…',
   'prompts.edit': 'Edit',
   'prompts.delete': 'Delete',
+  'prompts.deleteConfirmTitle': 'Delete prompt?',
+  'prompts.deleteConfirmMessage': 'This action cannot be undone.',
+  'prompts.deleteConfirmBtn': 'Delete',
 
   'data.title': 'Data',
   'data.exportImport.label': 'Export / Import',
@@ -371,6 +377,9 @@ export const ru: Translations = {
   'prompts.contentPlaceholder': 'Содержание промпта…',
   'prompts.edit': 'Редактировать',
   'prompts.delete': 'Удалить',
+  'prompts.deleteConfirmTitle': 'Удалить промпт?',
+  'prompts.deleteConfirmMessage': 'Это действие нельзя отменить.',
+  'prompts.deleteConfirmBtn': 'Удалить',
 
   'data.title': 'Данные',
   'data.exportImport.label': 'Экспорт / Импорт',
@@ -523,6 +532,9 @@ export const cn: Translations = {
   'prompts.contentPlaceholder': '提示词内容…',
   'prompts.edit': '编辑',
   'prompts.delete': '删除',
+  'prompts.deleteConfirmTitle': '删除提示词？',
+  'prompts.deleteConfirmMessage': '此操作无法撤销。',
+  'prompts.deleteConfirmBtn': '删除',
 
   'data.title': '数据',
   'data.exportImport.label': '导出 / 导入',

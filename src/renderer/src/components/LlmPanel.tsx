@@ -1031,9 +1031,14 @@ export function LlmPanel({
       <header className="panel-header">
         <div className="panel-header-row">
           <div className="panel-title">
-            <span className="panel-icon">
+            <button
+              className="panel-icon icon-button"
+              type="button"
+              onClick={() => { setSettingsTab('providers'); onOpenSettings() }}
+              title={t('settings.tab.providers')}
+            >
               <Bot size={15} aria-hidden />
-            </span>
+            </button>
             <div className="panel-title-text">
               <h1 title={modelLabel.name}>{modelLabel.name}</h1>
               <p title={modelLabel.version || provider.name}>{modelLabel.version || provider.name}</p>

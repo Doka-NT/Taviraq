@@ -147,6 +147,28 @@ export interface PromptTemplate {
   createdAt: string
 }
 
+export interface SavedChat {
+  id: string
+  title: string
+  messages: RestorableThreadMessage[]
+  createdAt: string
+  updatedAt: string
+  providerRef?: string
+  modelId?: string
+  sessionSnapshot?: Pick<TerminalSessionInfo, 'kind' | 'label' | 'cwd' | 'shell'>
+}
+
+export interface SavedChatSummary {
+  id: string
+  title: string
+  messageCount: number
+  createdAt: string
+  updatedAt: string
+  providerRef?: string
+  modelId?: string
+  sessionSnapshot?: Pick<TerminalSessionInfo, 'kind' | 'label' | 'cwd' | 'shell'>
+}
+
 export interface AppConfig {
   providers: LLMProviderConfig[]
   activeProviderRef?: string

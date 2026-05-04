@@ -68,6 +68,10 @@ export interface Translations {
   'data.clearSessions.label': string
   'data.clearSessions.desc': string
   'data.clearSessions': string
+  'data.clearChatHistory.label': string
+  'data.clearChatHistory.desc': string
+  'data.clearChatHistory': string
+  'data.clearChatHistory.done': string
 
   // Terminal
   'terminal.sshDisconnected': string
@@ -77,7 +81,7 @@ export interface Translations {
   'panel.agent': string
   'panel.agentToggle.enable': string
   'panel.agentToggle.disable': string
-  'panel.clearHistory': string
+  'panel.newChat': string
   'panel.settings': string
   'panel.permission.read': string
   'panel.permission.execute': string
@@ -101,6 +105,11 @@ export interface Translations {
   'chat.savePrompt.saving': string
   'chat.savePrompt.saved': string
   'chat.savePrompt.error': string
+  'chat.history': string
+  'chat.historySearch': string
+  'chat.historyEmpty': string
+  'chat.historyMessages': string
+  'chat.historyDelete': string
 
   // Command confirmation dialog
   'confirm.reviewRisky': string
@@ -217,6 +226,10 @@ export const en: Translations = {
   'data.clearSessions.label': 'Saved session state',
   'data.clearSessions.desc': 'Remove stored tabs and scrollback without changing current tabs',
   'data.clearSessions': 'Clear saved state',
+  'data.clearChatHistory.label': 'Chat History',
+  'data.clearChatHistory.desc': 'Delete all saved chat conversations',
+  'data.clearChatHistory': 'Clear chat history',
+  'data.clearChatHistory.done': 'Chat history cleared',
 
   'terminal.sshDisconnected': 'SSH session disconnected',
   'terminal.reconnect': 'Reconnect',
@@ -224,7 +237,7 @@ export const en: Translations = {
   'panel.agent': 'Agent',
   'panel.agentToggle.enable': 'Enable agent execution',
   'panel.agentToggle.disable': 'Switch to read-only context',
-  'panel.clearHistory': 'Clear chat history',
+  'panel.newChat': 'New chat',
   'panel.settings': 'Settings',
   'panel.permission.read': 'Read',
   'panel.permission.execute': 'Execute',
@@ -247,6 +260,11 @@ export const en: Translations = {
   'chat.savePrompt.saving': 'Saving…',
   'chat.savePrompt.saved': 'Saved ✓',
   'chat.savePrompt.error': 'Failed to save',
+  'chat.history': 'Chat History',
+  'chat.historySearch': 'Search chats…',
+  'chat.historyEmpty': 'No saved chats yet',
+  'chat.historyMessages': 'messages',
+  'chat.historyDelete': 'Delete',
 
   'confirm.reviewRisky': 'Review risky command',
   'confirm.safetyUnavailable': 'Safety check unavailable',
@@ -358,6 +376,10 @@ export const ru: Translations = {
   'data.clearSessions.label': 'Сохранённое состояние сессий',
   'data.clearSessions.desc': 'Удалить сохранённые вкладки и вывод, не меняя текущие вкладки',
   'data.clearSessions': 'Очистить состояние',
+  'data.clearChatHistory.label': 'История чатов',
+  'data.clearChatHistory.desc': 'Удалить все сохранённые разговоры',
+  'data.clearChatHistory': 'Очистить историю',
+  'data.clearChatHistory.done': 'История чатов очищена',
 
   'terminal.sshDisconnected': 'SSH-сессия отключена',
   'terminal.reconnect': 'Подключиться',
@@ -365,7 +387,7 @@ export const ru: Translations = {
   'panel.agent': 'Агент',
   'panel.agentToggle.enable': 'Включить режим агента',
   'panel.agentToggle.disable': 'Перейти в режим только чтения',
-  'panel.clearHistory': 'Очистить историю чата',
+  'panel.newChat': 'Новый чат',
   'panel.settings': 'Настройки',
   'panel.permission.read': 'Чтение',
   'panel.permission.execute': 'Выполнение',
@@ -388,6 +410,11 @@ export const ru: Translations = {
   'chat.savePrompt.saving': 'Сохраняю…',
   'chat.savePrompt.saved': 'Сохранено ✓',
   'chat.savePrompt.error': 'Ошибка сохранения',
+  'chat.history': 'История чатов',
+  'chat.historySearch': 'Поиск чатов…',
+  'chat.historyEmpty': 'Нет сохранённых чатов',
+  'chat.historyMessages': 'сообщений',
+  'chat.historyDelete': 'Удалить',
 
   'confirm.reviewRisky': 'Проверьте опасную команду',
   'confirm.safetyUnavailable': 'Проверка безопасности недоступна',
@@ -499,6 +526,10 @@ export const cn: Translations = {
   'data.clearSessions.label': '已保存的会话状态',
   'data.clearSessions.desc': '删除已保存的标签页和回滚内容，不改变当前标签页',
   'data.clearSessions': '清除保存状态',
+  'data.clearChatHistory.label': '聊天记录',
+  'data.clearChatHistory.desc': '删除所有保存的聊天对话',
+  'data.clearChatHistory': '清除聊天记录',
+  'data.clearChatHistory.done': '聊天记录已清除',
 
   'terminal.sshDisconnected': 'SSH 会话已断开',
   'terminal.reconnect': '重新连接',
@@ -506,7 +537,7 @@ export const cn: Translations = {
   'panel.agent': '代理',
   'panel.agentToggle.enable': '启用代理执行',
   'panel.agentToggle.disable': '切换到只读上下文',
-  'panel.clearHistory': '清除聊天记录',
+  'panel.newChat': '新建聊天',
   'panel.settings': '设置',
   'panel.permission.read': '读取',
   'panel.permission.execute': '执行',
@@ -529,6 +560,11 @@ export const cn: Translations = {
   'chat.savePrompt.saving': '保存中…',
   'chat.savePrompt.saved': '已保存 ✓',
   'chat.savePrompt.error': '保存失败',
+  'chat.history': '聊天记录',
+  'chat.historySearch': '搜索聊天…',
+  'chat.historyEmpty': '暂无保存的聊天',
+  'chat.historyMessages': '条消息',
+  'chat.historyDelete': '删除',
 
   'confirm.reviewRisky': '审查危险命令',
   'confirm.safetyUnavailable': '安全检查不可用',

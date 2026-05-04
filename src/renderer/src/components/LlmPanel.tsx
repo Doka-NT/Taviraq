@@ -4,12 +4,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, ChevronDown, KeyRound,
-  Plus, RefreshCw, Send, Settings2, Square, Trash2, User, X, Zap
+  AlertTriangle, BookmarkPlus, Bot, ChevronDown, History, KeyRound,
+  MessageSquarePlus, Plus, RefreshCw, Search, Send, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AssistMode, ChatMessage, ChatStreamEvent, LLMModel, LLMProviderConfig, PromptTemplate,
-  RestorableAssistantThread, RestorableAssistantThreads, TerminalContext, TerminalSessionInfo
+  RestorableAssistantThread, RestorableAssistantThreads, SavedChat, SavedChatSummary,
+  TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
@@ -70,6 +71,7 @@ interface AssistantThread {
   agenticCommand: string
   commandConfirmation: CommandConfirmation | null
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  savedChatId?: string
 }
 
 type AssistantThreads = Record<string, AssistantThread>
@@ -171,6 +173,7 @@ interface LlmPanelProps {
   restoredThreads: RestorableAssistantThreads
   onThreadsChange: (threads: RestorableAssistantThreads) => void
   onClearSavedSessionState: () => Promise<void>
+  onReopenChat: (chatId: string) => void
 }
 
 export function LlmPanel({
@@ -196,7 +199,8 @@ export function LlmPanel({
   onRestoreSessionsChange,
   restoredThreads,
   onThreadsChange,
-  onClearSavedSessionState
+  onClearSavedSessionState,
+  onReopenChat
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -218,6 +222,9 @@ export function LlmPanel({
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string } | null>(null)
   const [savePromptName, setSavePromptName] = useState('')
   const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
+  const [historySearch, setHistorySearch] = useState('')
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
@@ -234,6 +241,7 @@ export function LlmPanel({
   const commandConfirmationResolversRef = useRef(new Map<string, (confirmed: boolean) => void>())
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
+  const chatHistorySaveTimerRef = useRef<number>()
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
@@ -255,6 +263,12 @@ export function LlmPanel({
   useEffect(() => { selectedTextRef.current = selectedText }, [selectedText])
   useEffect(() => { setTextSizeDraft(String(textSize)) }, [textSize])
   useEffect(() => { setMaxOutputContextDraft(String(maxOutputContext)) }, [maxOutputContext])
+  useEffect(() => () => {
+    if (chatHistorySaveTimerRef.current) {
+      window.clearTimeout(chatHistorySaveTimerRef.current)
+      chatHistorySaveTimerRef.current = undefined
+    }
+  }, [])
 
   // Shortcut recording via main process IPC
   useEffect(() => {
@@ -297,6 +311,47 @@ export function LlmPanel({
     const next = { ...current, [sessionId]: nextThread }
     threadsRef.current = next
     setThreadsBySessionId(next)
+  }, [])
+
+  const autoSaveThreadToHistory = useCallback((sessionId: string) => {
+    const thread = threadsRef.current[sessionId]
+    if (!thread || thread.messages.length === 0) return
+    if (chatHistorySaveTimerRef.current) window.clearTimeout(chatHistorySaveTimerRef.current)
+    chatHistorySaveTimerRef.current = window.setTimeout(() => {
+      chatHistorySaveTimerRef.current = undefined
+      const chatId = thread.savedChatId ?? crypto.randomUUID()
+      if (!thread.savedChatId) {
+        const current = threadsRef.current[sessionId]
+        if (current && !current.savedChatId) {
+          const updated = { ...current, savedChatId: chatId }
+          threadsRef.current = { ...threadsRef.current, [sessionId]: updated }
+          setThreadsBySessionId(threadsRef.current)
+        }
+      }
+      const firstUserMsg = thread.messages.find((m) => m.role === 'user')
+      const title = firstUserMsg?.content.slice(0, 60).replace(/\n/g, ' ') || 'Untitled chat'
+      const savedChat: SavedChat = {
+        id: chatId,
+        title,
+        messages: thread.messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          display: m.display,
+          command: m.command,
+          output: m.output
+        })),
+        createdAt: thread.savedChatId ? thread.messages[0]?.content ? new Date().toISOString() : new Date().toISOString() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        providerRef: providerRef.current.apiKeyRef,
+        modelId: providerRef.current.selectedModel,
+        sessionSnapshot: thread.session
+          ? { kind: thread.session.kind, label: thread.session.label, cwd: thread.session.cwd, shell: thread.session.shell }
+          : undefined
+      }
+      void window.api.chatHistory.save(savedChat).catch((err: unknown) => {
+        console.error('Failed to auto-save chat to history', err)
+      })
+    }, 500)
   }, [])
 
   useEffect(() => {
@@ -427,7 +482,8 @@ export function LlmPanel({
         session
       }
     })
-  }, [getThread, summarizeSession, updateThread])
+    autoSaveThreadToHistory(sessionId)
+  }, [autoSaveThreadToHistory, getThread, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})
@@ -490,9 +546,10 @@ export function LlmPanel({
         if (agenticContent) {
           void runAgenticStepRef.current(sessionId, agenticContent)
         }
+        autoSaveThreadToHistory(sessionId)
       }
     })
-  }, [getThread, updateThread])
+  }, [autoSaveThreadToHistory, getThread, updateThread])
 
   // Auto-scroll
   useEffect(() => {
@@ -530,6 +587,37 @@ export function LlmPanel({
       session: thread.session
     }))
   }, [activeSessionId, stopAgentic, updateThread])
+
+  const loadHistoryChats = useCallback(async () => {
+    const chats = await window.api.chatHistory.list()
+    setHistoryChats(chats)
+  }, [])
+
+  const toggleHistory = useCallback(() => {
+    if (historyOpen) {
+      setHistoryOpen(false)
+      setHistorySearch('')
+    } else {
+      void loadHistoryChats().then(() => setHistoryOpen(true))
+    }
+  }, [historyOpen, loadHistoryChats])
+
+  const handleDeleteHistoryChat = useCallback(async (chatId: string) => {
+    await window.api.chatHistory.delete(chatId)
+    setHistoryChats((prev) => prev.filter((c) => c.id !== chatId))
+  }, [])
+
+  const handleReopenChat = useCallback((chatId: string) => {
+    setHistoryOpen(false)
+    setHistorySearch('')
+    onReopenChat(chatId)
+  }, [onReopenChat])
+
+  const filteredHistoryChats = useMemo(() => {
+    if (!historySearch.trim()) return historyChats
+    const query = historySearch.toLowerCase()
+    return historyChats.filter((chat) => chat.title.toLowerCase().includes(query))
+  }, [historyChats, historySearch])
 
   const openSavePromptDialog = async (): Promise<void> => {
     setSavePromptDialog({ content: '' })
@@ -976,6 +1064,14 @@ export function LlmPanel({
             <button
               className="icon-button panel-action-button"
               type="button"
+              onClick={toggleHistory}
+              title={t('chat.history')}
+            >
+              <History size={13} aria-hidden />
+            </button>
+            <button
+              className="icon-button panel-action-button"
+              type="button"
               onClick={() => void openSavePromptDialog()}
               disabled={messages.length === 0}
               title={t('chat.saveAsPrompt')}
@@ -986,10 +1082,9 @@ export function LlmPanel({
               className="icon-button panel-action-button"
               type="button"
               onClick={clearHistory}
-              disabled={messages.length === 0 && !streaming}
-              title={t('panel.clearHistory')}
+              title={t('panel.newChat')}
             >
-              <Trash2 size={13} aria-hidden />
+              <MessageSquarePlus size={13} aria-hidden />
             </button>
           </div>
         </div>
@@ -1317,6 +1412,23 @@ export function LlmPanel({
                         </button>
                       </div>
                     </div>
+                    <div className="appearance-row">
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label">{t('data.clearChatHistory.label')}</span>
+                        <small className="appearance-row-desc">
+                          {t('data.clearChatHistory.desc')}
+                        </small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <button type="button" className="quiet-button" onClick={async () => {
+                          await window.api.chatHistory.clear()
+                          setDataStatus(t('data.clearChatHistory.done'))
+                          setTimeout(() => setDataStatus(''), 2000)
+                        }}>
+                          {t('data.clearChatHistory')}
+                        </button>
+                      </div>
+                    </div>
                     {dataStatus ? <p className="settings-status">{dataStatus}</p> : null}
                   </>
                 ) : null}
@@ -1326,6 +1438,47 @@ export function LlmPanel({
         </div>
       , document.body) : null}
 
+      {historyOpen ? (
+        <div className="history-overlay">
+          <div className="history-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="text"
+              placeholder={t('chat.historySearch')}
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+            />
+          </div>
+          <div className="history-list">
+            {filteredHistoryChats.length === 0 ? (
+              <p className="history-empty">{t('chat.historyEmpty')}</p>
+            ) : (
+              filteredHistoryChats.map((chat) => (
+                <div key={chat.id} className="history-item" onClick={() => handleReopenChat(chat.id)}>
+                  <div className="history-item-info">
+                    <span className="history-item-title">{chat.title}</span>
+                    <span className="history-item-meta">
+                      {new Date(chat.createdAt).toLocaleDateString()} · {chat.messageCount} {t('chat.historyMessages')}
+                      {chat.modelId ? ` · ${formatModelLabel(chat.modelId).name}` : ''}
+                    </span>
+                  </div>
+                  <div className="history-item-actions">
+                    <button
+                      type="button"
+                      className="icon-button"
+                      onClick={(e) => { e.stopPropagation(); void handleDeleteHistoryChat(chat.id) }}
+                      title={t('chat.historyDelete')}
+                    >
+                      <Trash2 size={13} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+      <>
       <section className="chat-log" aria-live="polite" ref={chatLogRef}>
         {messages.length === 0 ? (
           <div className="empty-chat">
@@ -1499,6 +1652,8 @@ export function LlmPanel({
           </button>
         </div>
       </form>
+      </>
+      )}
 
       {savePromptDialog ? createPortal(
         <div

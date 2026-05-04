@@ -12,6 +12,8 @@ import type {
   LLMModel,
   PromptTemplate,
   SaveLLMProviderRequest,
+  SavedChat,
+  SavedChatSummary,
   SaveSessionStateRequest,
   SessionStateSnapshot,
   SSHProfile,
@@ -99,6 +101,13 @@ const api = {
     save: (snapshot: SaveSessionStateRequest) =>
       ipcRenderer.invoke('sessionState:save', snapshot) as Promise<void>,
     clear: () => ipcRenderer.invoke('sessionState:clear') as Promise<void>
+  },
+  chatHistory: {
+    list: () => ipcRenderer.invoke('chatHistory:list') as Promise<SavedChatSummary[]>,
+    get: (id: string) => ipcRenderer.invoke('chatHistory:get', id) as Promise<SavedChat | undefined>,
+    save: (chat: SavedChat) => ipcRenderer.invoke('chatHistory:save', chat) as Promise<void>,
+    delete: (id: string) => ipcRenderer.invoke('chatHistory:delete', id) as Promise<void>,
+    clear: () => ipcRenderer.invoke('chatHistory:clear') as Promise<void>
   },
   ssh: {
     connectProfile: (profile: SSHProfile, request?: CreateTerminalRequest) =>

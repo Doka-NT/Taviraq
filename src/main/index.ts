@@ -11,10 +11,12 @@ import type {
   PromptTemplate,
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
+  SavedChat,
   SSHProfile,
   SummarizeConversationRequest
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
+import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -30,6 +32,7 @@ const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
 const sessionStateStore = new SessionStateStore()
+const chatHistoryStore = new ChatHistoryStore()
 
 function registerHideShortcut(shortcut: string): boolean {
   if (currentHideShortcut) globalShortcut.unregister(currentHideShortcut)
@@ -195,6 +198,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('sessionState:clear', () => sessionStateStore.clear())
+
+  ipcMain.handle('chatHistory:list', () => chatHistoryStore.list())
+  ipcMain.handle('chatHistory:get', (_event, id: string) => chatHistoryStore.get(id))
+  ipcMain.handle('chatHistory:save', (_event, chat: SavedChat) => chatHistoryStore.save(chat))
+  ipcMain.handle('chatHistory:delete', (_event, id: string) => chatHistoryStore.delete(id))
+  ipcMain.handle('chatHistory:clear', () => chatHistoryStore.clear())
 
   ipcMain.handle('terminal:write', (_event, sessionId: string, data: string) => {
     terminalManager.write(sessionId, data)

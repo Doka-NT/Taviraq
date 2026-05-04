@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { PanelRightClose, PanelRightOpen, Plus, Settings2, X } from 'lucide-react'
-import type { RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, TerminalSessionInfo } from '@shared/types'
+import type { RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
@@ -442,6 +442,21 @@ export function App(): JSX.Element {
     scheduleSessionStateSave()
   }, [scheduleSessionStateSave])
 
+  const handleReopenChat = useCallback(async (chatId: string) => {
+    if (!activeSessionId) return
+    const chat = await window.api.chatHistory.get(chatId)
+    if (!chat) return
+    const thread: RestorableAssistantThread = {
+      messages: chat.messages,
+      draft: '',
+      session: chat.sessionSnapshot ? { id: activeSessionId, ...chat.sessionSnapshot } : undefined
+    }
+    const next = { ...assistantThreadsRef.current, [activeSessionId]: thread }
+    assistantThreadsRef.current = next
+    setRestoredAssistantThreads(next)
+    scheduleSessionStateSave()
+  }, [activeSessionId, scheduleSessionStateSave])
+
   const clearSavedSessionState = useCallback(async () => {
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current)
@@ -626,6 +641,7 @@ export function App(): JSX.Element {
         restoredThreads={restoredAssistantThreads}
         onThreadsChange={handleAssistantThreadsChange}
         onClearSavedSessionState={clearSavedSessionState}
+        onReopenChat={handleReopenChat}
       />
     </main>
     </LanguageProvider>

@@ -1064,7 +1064,7 @@ export function LlmPanel({
               onClick={onOpenSettings}
               title={t('panel.settings')}
             >
-              <Settings2 size={13} aria-hidden />
+              <Settings2 size={15} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1072,7 +1072,7 @@ export function LlmPanel({
               onClick={toggleHistory}
               title={t('chat.history')}
             >
-              <History size={13} aria-hidden />
+              <History size={15} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1081,7 +1081,7 @@ export function LlmPanel({
               disabled={messages.length === 0}
               title={t('chat.saveAsPrompt')}
             >
-              <BookmarkPlus size={13} aria-hidden />
+              <BookmarkPlus size={15} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1089,7 +1089,7 @@ export function LlmPanel({
               onClick={clearHistory}
               title={t('panel.newChat')}
             >
-              <MessageSquarePlus size={13} aria-hidden />
+              <MessageSquarePlus size={15} aria-hidden />
             </button>
           </div>
         </div>

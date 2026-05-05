@@ -133,6 +133,8 @@ const api = {
       ipcRenderer.invoke('llm:assessCommandRisk', request) as Promise<CommandRiskAssessment>,
     summarizeConversation: (request: SummarizeConversationRequest) =>
       ipcRenderer.invoke('llm:summarizeConversation', request) as Promise<GeneratedPrompt>,
+    cancelSummarizeConversation: (requestId: string) =>
+      ipcRenderer.invoke('llm:cancelSummarizeConversation', requestId) as Promise<void>,
     chatStream: (request: ChatStreamRequest) => ipcRenderer.send('llm:chatStream', request),
     onChatStreamEvent: (callback: (event: ChatStreamEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: ChatStreamEvent) => callback(payload)

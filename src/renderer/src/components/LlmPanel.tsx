@@ -326,6 +326,7 @@ export function LlmPanel({
   const promptResolversRef = useRef(new Map<string, () => void>())
   const commandConfirmationResolversRef = useRef(new Map<string, (confirmed: boolean) => void>())
   const runningCommandsRef = useRef(new Set<string>())
+  const savePromptGenerationRequestIdRef = useRef<string | null>(null)
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
@@ -752,18 +753,25 @@ export function LlmPanel({
   }, [historyChats, historySearch])
 
   const openSavePromptDialog = async (): Promise<void> => {
+    const requestId = crypto.randomUUID()
+    savePromptGenerationRequestIdRef.current = requestId
     setSavePromptDialog({ content: '' })
     setSavePromptName('')
     setSavePromptStatus('idle')
     try {
       const prompt = await window.api.llm.summarizeConversation({
+        requestId,
         provider: providerRef.current,
         messages: messages.map(toChatMessage),
         language: languageRef.current
       })
+      if (savePromptGenerationRequestIdRef.current !== requestId) return
+      savePromptGenerationRequestIdRef.current = null
       setSavePromptName(prompt.name)
       setSavePromptDialog(prompt)
     } catch (err) {
+      if (savePromptGenerationRequestIdRef.current !== requestId) return
+      savePromptGenerationRequestIdRef.current = null
       setSavePromptDialog(null)
       if (activeSessionId) {
         updateThread(activeSessionId, (thread) => ({
@@ -773,6 +781,13 @@ export function LlmPanel({
       }
     }
   }
+
+  const closeSavePromptDialog = useCallback((): void => {
+    const requestId = savePromptGenerationRequestIdRef.current
+    savePromptGenerationRequestIdRef.current = null
+    if (requestId) void window.api.llm.cancelSummarizeConversation(requestId)
+    setSavePromptDialog(null)
+  }, [])
 
   const handleSavePromptFromChat = async (): Promise<void> => {
     if (!savePromptName.trim()) return
@@ -2129,7 +2144,7 @@ export function LlmPanel({
           className="save-prompt-overlay"
           role="dialog"
           aria-modal="true"
-          onClick={(e) => { if (e.target === e.currentTarget) setSavePromptDialog(null) }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeSavePromptDialog() }}
         >
           <div className="save-prompt-modal">
             <div className="save-prompt-header">
@@ -2137,10 +2152,17 @@ export function LlmPanel({
               <span>{t('chat.saveAsPrompt')}</span>
             </div>
             {savePromptDialog.content === '' ? (
-              <div className="save-prompt-generating">
-                <span className="save-prompt-spinner" />
-                <span>{t('chat.savePrompt.generating')}</span>
-              </div>
+              <>
+                <div className="save-prompt-generating">
+                  <span className="save-prompt-spinner" />
+                  <span>{t('chat.savePrompt.generating')}</span>
+                </div>
+                <div className="save-prompt-actions">
+                  <button type="button" className="quiet-button" onClick={closeSavePromptDialog}>
+                    {t('prompts.cancel')}
+                  </button>
+                </div>
+              </>
             ) : (
               <>
                 <input
@@ -2149,7 +2171,7 @@ export function LlmPanel({
                   onChange={(e) => setSavePromptName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void handleSavePromptFromChat()
-                    if (e.key === 'Escape') setSavePromptDialog(null)
+                    if (e.key === 'Escape') closeSavePromptDialog()
                   }}
                   placeholder={t('prompts.namePlaceholder')}
                   autoFocus
@@ -2161,7 +2183,7 @@ export function LlmPanel({
                   rows={6}
                 />
                 <div className="save-prompt-actions">
-                  <button type="button" className="quiet-button" onClick={() => setSavePromptDialog(null)}>
+                  <button type="button" className="quiet-button" onClick={closeSavePromptDialog}>
                     {t('prompts.cancel')}
                   </button>
                   <button

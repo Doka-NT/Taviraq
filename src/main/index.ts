@@ -40,6 +40,7 @@ const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
+const summarizeControllers = new Map<string, AbortController>()
 
 function registerHideShortcut(shortcut: string): boolean {
   if (currentHideShortcut) globalShortcut.unregister(currentHideShortcut)
@@ -373,8 +374,21 @@ function registerIpc(): void {
     return assessCommandRisk(request)
   })
 
-  ipcMain.handle('llm:summarizeConversation', (_event, request: SummarizeConversationRequest) => {
-    return summarizeConversation(request)
+  ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {
+    const requestId = request.requestId
+    if (!requestId) return summarizeConversation(request)
+
+    const controller = new AbortController()
+    summarizeControllers.set(requestId, controller)
+    try {
+      return await summarizeConversation(request, controller.signal)
+    } finally {
+      summarizeControllers.delete(requestId)
+    }
+  })
+
+  ipcMain.handle('llm:cancelSummarizeConversation', (_event, requestId: string) => {
+    summarizeControllers.get(requestId)?.abort()
   })
 
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))

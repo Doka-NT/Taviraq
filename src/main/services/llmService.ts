@@ -122,7 +122,10 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
 }
 
-export async function summarizeConversation(request: SummarizeConversationRequest): Promise<GeneratedPrompt> {
+export async function summarizeConversation(
+  request: SummarizeConversationRequest,
+  signal?: AbortSignal
+): Promise<GeneratedPrompt> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
     throw new Error('No model selected.')
@@ -154,19 +157,23 @@ export async function summarizeConversation(request: SummarizeConversationReques
     }
   ]
 
-  const response = await fetchWithTimeout(
-    buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'),
-    {
+  let response: Response
+  try {
+    response = await fetch(buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'), {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model, stream: false, temperature: 0.3, messages })
-    },
-    30_000,
-    'Summarization timed out.'
-  )
+      body: JSON.stringify({ model, stream: false, temperature: 0.3, messages }),
+      signal
+    })
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new Error('Prompt generation cancelled.')
+    }
+    throw error
+  }
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')

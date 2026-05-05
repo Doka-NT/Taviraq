@@ -137,6 +137,7 @@ export interface CommandRiskAssessment {
 }
 
 export interface SummarizeConversationRequest {
+  requestId?: string
   provider: LLMProviderConfig
   messages: ChatMessage[]
   language?: string

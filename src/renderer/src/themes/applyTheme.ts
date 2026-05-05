@@ -1,4 +1,4 @@
-import type { AppTheme, ThemeColors } from './types'
+import type { AppTheme } from './types'
 
 const CAMEL_TO_KEBAB = /[A-Z]/g
 

@@ -11,14 +11,21 @@ interface ChatHistoryFile {
   chats: SavedChat[]
 }
 
+function isChatHistoryFile(value: unknown): value is ChatHistoryFile {
+  if (!value || typeof value !== 'object') return false
+
+  const candidate = value as Partial<ChatHistoryFile>
+  return candidate.version === 1 && Array.isArray(candidate.chats)
+}
+
 export class ChatHistoryStore {
   private readonly path = join(app.getPath('userData'), CHAT_HISTORY_FILE)
 
   private async loadFile(): Promise<ChatHistoryFile> {
     try {
       const raw = await readFile(this.path, 'utf8')
-      const parsed = JSON.parse(raw)
-      if (parsed.version !== 1 || !Array.isArray(parsed.chats)) return { version: 1, chats: [] }
+      const parsed: unknown = JSON.parse(raw)
+      if (!isChatHistoryFile(parsed)) return { version: 1, chats: [] }
       return parsed
     } catch {
       return { version: 1, chats: [] }

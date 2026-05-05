@@ -3,7 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import type { TerminalSessionInfo } from '@shared/types'
-import { useT } from '@renderer/i18n/LanguageContext'
+import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 
 interface TerminalPaneProps {
@@ -17,6 +17,31 @@ interface TerminalPaneProps {
   onOutput: (sessionId: string, data: string) => void
   onReconnect: (sessionId: string) => void
   terminalTheme?: TerminalColors
+}
+
+const DEFAULT_TERMINAL_THEME: TerminalColors = {
+  background: '#0C0C0E',
+  foreground: 'rgba(255,255,255,0.78)',
+  cursor: '#E8399A',
+  cursorAccent: '#0C0C0E',
+  selectionBackground: 'rgba(41,196,232,0.22)',
+  selectionForeground: '#ffffff',
+  black: '#0C0C0E',
+  red: '#F09595',
+  green: '#34C759',
+  yellow: '#EF9F27',
+  blue: '#5BB8EC',
+  magenta: '#E8399A',
+  cyan: '#29C4E8',
+  white: 'rgba(255,255,255,0.78)',
+  brightBlack: 'rgba(255,255,255,0.32)',
+  brightRed: '#F09595',
+  brightGreen: '#34C759',
+  brightYellow: '#EF9F27',
+  brightBlue: '#5BB8EC',
+  brightMagenta: '#E8399A',
+  brightCyan: '#29C4E8',
+  brightWhite: 'rgba(255,255,255,0.9)'
 }
 
 // C1 control characters (U+0080–U+009F) that appear as ?<0080> artifacts
@@ -56,30 +81,7 @@ export function TerminalPane({
       minimumContrastRatio: 4.5,
       scrollback: 5000,
       overviewRulerWidth: 0,
-      theme: terminalTheme ?? {
-        background: '#0C0C0E',
-        foreground: 'rgba(255,255,255,0.78)',
-        cursor: '#E8399A',
-        cursorAccent: '#0C0C0E',
-        selectionBackground: 'rgba(41,196,232,0.22)',
-        selectionForeground: '#ffffff',
-        black: '#0C0C0E',
-        red: '#F09595',
-        green: '#34C759',
-        yellow: '#EF9F27',
-        blue: '#5BB8EC',
-        magenta: '#E8399A',
-        cyan: '#29C4E8',
-        white: 'rgba(255,255,255,0.78)',
-        brightBlack: 'rgba(255,255,255,0.32)',
-        brightRed: '#F09595',
-        brightGreen: '#34C759',
-        brightYellow: '#EF9F27',
-        brightBlue: '#5BB8EC',
-        brightMagenta: '#E8399A',
-        brightCyan: '#29C4E8',
-        brightWhite: 'rgba(255,255,255,0.9)'
-      }
+      theme: DEFAULT_TERMINAL_THEME
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)

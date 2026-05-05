@@ -139,7 +139,14 @@ export async function summarizeConversation(request: SummarizeConversationReques
   const messages: ChatMessage[] = [
     {
       role: 'system',
-      content: `You are a prompt engineer. Given a conversation, create a concise reusable system prompt and a short descriptive title for it.${langInstruction} Return only valid JSON with exactly this shape: {"name":"Prompt title","content":"Prompt text"}. Do not include explanations, headings, quotes around the JSON, or Markdown fences.`
+      content: [
+        'You are a prompt engineer.',
+        'Given a conversation, create a concise reusable user prompt and a short descriptive title for it.',
+        'The generated prompt will be inserted into the chat input and sent as a normal user message, not as a system/developer instruction.',
+        'Write the prompt so it asks the assistant to do the task now: start with a clear action verb, preserve the user intent, include only the necessary constraints, and avoid persona/setup language such as "You are...".',
+        'For terminal assistant workflows, prefer prompts that ask the assistant to inspect, diagnose, explain, fix, or propose commands/results instead of merely acknowledging instructions.',
+        `${langInstruction} Return only valid JSON with exactly this shape: {"name":"Prompt title","content":"Prompt text"}. Do not include explanations, headings, quotes around the JSON, or Markdown fences.`
+      ].join(' ')
     },
     {
       role: 'user',

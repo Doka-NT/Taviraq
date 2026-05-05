@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -55,7 +56,27 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          cat > release-notes.md <<'EOF'
+          CURRENT_COMMIT="$(git rev-list -n 1 "$TAG_NAME")"
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_COMMIT}^" 2>/dev/null || true)"
+          REPOSITORY_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+
+          {
+            echo "## Changelog"
+            echo
+
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "[Full changelog](${REPOSITORY_URL}/compare/${PREVIOUS_TAG}...${TAG_NAME})"
+              echo
+              git log "${PREVIOUS_TAG}..${TAG_NAME}" --pretty=format:'- %s (%h)' --no-merges
+            else
+              git log "$TAG_NAME" --pretty=format:'- %s (%h)' --no-merges
+            fi
+
+            echo
+            echo
+          } > release-notes.md
+
+          cat >> release-notes.md <<'EOF'
           ## Русский
 
           Это неподписанная тестовая сборка для macOS. Если macOS пишет, что приложение повреждено:

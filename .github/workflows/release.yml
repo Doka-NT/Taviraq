@@ -41,18 +41,62 @@ jobs:
         run: npm test
 
       - name: Package macOS app
-        run: npm run package:mac -- --publish never
+        run: npm run build && COPYFILE_DISABLE=1 electron-builder --mac zip --publish never
 
-      - name: Create draft release
+      - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          cat > release-notes.md <<'EOF'
+          ## Русский
+
+          Это неподписанная тестовая сборка для macOS. Если macOS пишет, что приложение повреждено:
+
+          1. Распакуйте ZIP.
+          2. Переместите `AI Terminal.app` в `/Applications`.
+          3. Выполните команду:
+
+          ```bash
+          sudo xattr -rd com.apple.quarantine "/Applications/AI Terminal.app"
+          ```
+
+          После этого откройте приложение снова.
+
+          ## English
+
+          This is an unsigned test build for macOS. If macOS says the app is damaged:
+
+          1. Unzip the archive.
+          2. Move `AI Terminal.app` to `/Applications`.
+          3. Run:
+
+          ```bash
+          sudo xattr -rd com.apple.quarantine "/Applications/AI Terminal.app"
+          ```
+
+          Then open the app again.
+
+          ## 中文
+
+          这是一个未签名的 macOS 测试版本。如果 macOS 提示应用已损坏：
+
+          1. 解压 ZIP 文件。
+          2. 将 `AI Terminal.app` 移动到 `/Applications`。
+          3. 运行：
+
+          ```bash
+          sudo xattr -rd com.apple.quarantine "/Applications/AI Terminal.app"
+          ```
+
+          然后再次打开应用。
+          EOF
+
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" dist/*.pkg dist/*.zip --clobber
+            gh release upload "$TAG_NAME" dist/*.zip --clobber
+            gh release edit "$TAG_NAME" --draft=false --notes-file release-notes.md
           else
-            gh release create "$TAG_NAME" dist/*.pkg dist/*.zip \
-              --draft \
+            gh release create "$TAG_NAME" dist/*.zip \
               --title "$TAG_NAME" \
-              --notes "Unsigned macOS build. Users may need to open it through macOS Privacy & Security settings."
+              --notes-file release-notes.md
           fi

@@ -816,7 +816,7 @@ textarea:focus {
 
 .settings-body {
   display: grid;
-  grid-template-columns: 160px 1fr;
+  grid-template-columns: 160px minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
 }
@@ -874,7 +874,9 @@ textarea:focus {
 }
 
 .settings-content {
+  min-width: 0;
   padding: 20px 24px 24px;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -2633,6 +2635,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .prompt-list-item {
@@ -2640,6 +2643,7 @@ textarea:focus {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-card);
@@ -2647,6 +2651,7 @@ textarea:focus {
 }
 
 .prompt-list-item-info {
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2655,9 +2660,12 @@ textarea:focus {
 }
 
 .prompt-list-item-name {
+  overflow: hidden;
   font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .prompt-list-item-preview {

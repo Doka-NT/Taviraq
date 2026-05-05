@@ -40,6 +40,13 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Set package version from tag
+        env:
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
       - name: Package macOS app
         run: npm run build && COPYFILE_DISABLE=1 npm exec -- electron-builder --mac zip --publish never
 

@@ -28,6 +28,7 @@ const RESTORE_SESSIONS_KEY = 'ai-terminal.restoreSessions'
 const MAX_OUTPUT_CONTEXT_KEY = 'ai-terminal.maxOutputContext'
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
+type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -91,6 +92,9 @@ export function App(): JSX.Element {
   )
   const [newTabDropdownOpen, setNewTabDropdownOpen] = useState(false)
   const [snippetPaletteOpen, setSnippetPaletteOpen] = useState(false)
+  const [settingsTabRequest, setSettingsTabRequest] = useState<SettingsTab>('providers')
+  const [settingsTabRequestVersion, setSettingsTabRequestVersion] = useState(0)
+  const [addSnippetRequestVersion, setAddSnippetRequestVersion] = useState(0)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
@@ -522,6 +526,14 @@ export function App(): JSX.Element {
     })
   }, [activeSession?.status, activeSessionId])
 
+  const openAddCommandSnippet = useCallback(() => {
+    setSnippetPaletteOpen(false)
+    setSettingsTabRequest('snippets')
+    setSettingsTabRequestVersion((version) => version + 1)
+    setAddSnippetRequestVersion((version) => version + 1)
+    setSettingsOpen(true)
+  }, [])
+
   const closeActiveSession = useCallback(() => {
     if (!activeSessionId) return
 
@@ -749,6 +761,9 @@ export function App(): JSX.Element {
         settingsOpen={settingsOpen}
         onOpenSettings={() => setSettingsOpen(true)}
         onCloseSettings={() => setSettingsOpen(false)}
+        settingsTabRequest={settingsTabRequest}
+        settingsTabRequestVersion={settingsTabRequestVersion}
+        addSnippetRequestVersion={addSnippetRequestVersion}
         textSize={textSize}
         onTextSizeChange={updateTextSize}
         sidebarWidth={sidebarWidth}
@@ -775,6 +790,7 @@ export function App(): JSX.Element {
           activeSession={activeSession}
           onClose={() => setSnippetPaletteOpen(false)}
           onUse={insertCommandSnippet}
+          onAddSnippet={openAddCommandSnippet}
         />
       ) : null}
     </main>
@@ -786,9 +802,10 @@ interface CommandSnippetPaletteProps {
   activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
   onClose: () => void
   onUse: (command: string, run: boolean) => void
+  onAddSnippet: () => void
 }
 
-function CommandSnippetPalette({ activeSession, onClose, onUse }: CommandSnippetPaletteProps): JSX.Element {
+function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: CommandSnippetPaletteProps): JSX.Element {
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -860,8 +877,14 @@ function CommandSnippetPalette({ activeSession, onClose, onUse }: CommandSnippet
           />
         </div>
         <div className="command-snippet-palette-hint">
-          <span>Enter inserts</span>
-          <span>⌘Enter runs</span>
+          <div className="command-snippet-palette-shortcuts">
+            <span>Enter inserts</span>
+            <span>⌘Enter runs</span>
+          </div>
+          <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
+            <Plus size={12} aria-hidden />
+            Add snippet
+          </button>
         </div>
         <div className="command-snippet-palette-list" ref={listRef}>
           {filtered.length > 0 ? filtered.map((snippet, index) => (

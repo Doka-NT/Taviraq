@@ -110,6 +110,7 @@ type ThreadMessage = ChatMessage & {
   command?: string
   output?: string
 }
+type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 
 interface CommandConfirmation {
   title: string
@@ -221,6 +222,9 @@ interface LlmPanelProps {
   settingsOpen: boolean
   onOpenSettings: () => void
   onCloseSettings: () => void
+  settingsTabRequest: SettingsTab
+  settingsTabRequestVersion: number
+  addSnippetRequestVersion: number
   textSize: number
   onTextSizeChange: (textSize: number) => void
   sidebarWidth: number
@@ -251,6 +255,9 @@ export function LlmPanel({
   settingsOpen,
   onOpenSettings,
   onCloseSettings,
+  settingsTabRequest,
+  settingsTabRequestVersion,
+  addSnippetRequestVersion,
   textSize,
   onTextSizeChange,
   sidebarWidth,
@@ -281,7 +288,7 @@ export function LlmPanel({
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
-  const [settingsTab, setSettingsTab] = useState<'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'>('providers')
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('providers')
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
@@ -1268,6 +1275,10 @@ export function LlmPanel({
   })), [activeSession?.cwd, assistMode, selectedText, strippedTerminalOutput, t])
   const inputDisabled = Boolean(commandConfirmation)
 
+  useEffect(() => {
+    setSettingsTab(settingsTabRequest)
+  }, [settingsTabRequest, settingsTabRequestVersion])
+
   return (
     <aside className="llm-panel">
       <header className="panel-header">
@@ -1746,7 +1757,7 @@ export function LlmPanel({
                 {settingsTab === 'snippets' ? (
                   <>
                     <h3 className="settings-content-title">{t('snippets.title')}</h3>
-                    <CommandSnippetLibrarySection />
+                    <CommandSnippetLibrarySection addSnippetRequestVersion={addSnippetRequestVersion} />
                   </>
                 ) : null}
 
@@ -2582,7 +2593,11 @@ function PromptLibrarySection(): JSX.Element {
   )
 }
 
-function CommandSnippetLibrarySection(): JSX.Element {
+interface CommandSnippetLibrarySectionProps {
+  addSnippetRequestVersion: number
+}
+
+function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnippetLibrarySectionProps): JSX.Element {
   const { t } = useT()
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
   const [editing, setEditing] = useState<CommandSnippet | null>(null)
@@ -2647,6 +2662,12 @@ function CommandSnippetLibrarySection(): JSX.Element {
     setName('')
     setCommand('')
   }, [])
+
+  useEffect(() => {
+    if (addSnippetRequestVersion > 0) {
+      handleAddSnippet()
+    }
+  }, [addSnippetRequestVersion, handleAddSnippet])
 
   const confirmDelete = useCallback(async () => {
     if (!pendingDeleteId) return
@@ -2715,7 +2736,7 @@ function CommandSnippetLibrarySection(): JSX.Element {
           <textarea
             className="prompt-form-content command-snippet-form-command"
             placeholder={t('snippets.commandPlaceholder')}
-            rows={2}
+            rows={4}
             value={command}
             onChange={(event) => setCommand(event.target.value)}
           />

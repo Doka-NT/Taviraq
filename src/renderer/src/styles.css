@@ -1368,11 +1368,40 @@ textarea:focus {
 .command-snippet-palette-hint {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 14px;
   padding: 0 13px;
   border-bottom: 0.5px solid var(--border-subtle);
   color: var(--text-ghost);
   font-size: 11px;
+}
+
+.command-snippet-palette-shortcuts {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.command-snippet-palette-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  flex: 0 0 auto;
+  padding: 0 7px;
+  border: 0.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: rgba(var(--surface-rgb), 0.06);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.command-snippet-palette-add:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-brand);
+  background: rgba(var(--accent-brand-rgb), 0.12);
 }
 
 .command-snippet-palette-list {
@@ -2729,7 +2758,7 @@ textarea:focus {
 }
 
 .command-snippet-form-command {
-  min-height: 48px;
+  min-height: 96px;
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
 }
 

@@ -170,6 +170,7 @@ export interface Translations {
   'status.noSession.agent': string
   'status.noSession.run': string
   'status.disconnected.run': string
+  'status.commandAlreadyRunning': string
 
   // Suggestion chips
   'chip.space': string
@@ -359,6 +360,7 @@ export const en: Translations = {
   'status.noSession.agent': 'Open a terminal session before starting the agent.',
   'status.noSession.run': 'Open a terminal session before running a command.',
   'status.disconnected.run': 'Reconnect this session before running commands.',
+  'status.commandAlreadyRunning': 'A command is already running in this session.',
 
   'chip.space': "What's taking space?",
   'chip.spacePrompt': "What's taking the most disk space here?",
@@ -545,6 +547,7 @@ export const ru: Translations = {
   'status.noSession.agent': 'Откройте сессию терминала перед запуском агента.',
   'status.noSession.run': 'Откройте сессию терминала перед выполнением команды.',
   'status.disconnected.run': 'Переподключите эту сессию перед выполнением команд.',
+  'status.commandAlreadyRunning': 'В этой сессии уже выполняется команда.',
 
   'chip.space': 'Что занимает место?',
   'chip.spacePrompt': 'Что занимает больше всего места на диске?',
@@ -731,6 +734,7 @@ export const cn: Translations = {
   'status.noSession.agent': '在启动代理之前，请打开终端会话。',
   'status.noSession.run': '在运行命令之前，请打开终端会话。',
   'status.disconnected.run': '运行命令前请重新连接此会话。',
+  'status.commandAlreadyRunning': '此会话中已有命令正在运行。',
 
   'chip.space': '什么占用了空间？',
   'chip.spacePrompt': '这里什么占用了最多磁盘空间？',

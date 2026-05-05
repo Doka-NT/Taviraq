@@ -190,17 +190,20 @@ export class TerminalManager {
 
       if (filtered) {
         const parsed = stripPromptMarkers(managed, filtered)
+        if (parsed.data) {
+          this.emit('terminal:data', { sessionId: id, data: parsed.data })
+        }
         if (parsed.sawPrompt) {
           this.restoreTransientSsh(managed)
           this.emit('terminal:prompt', { sessionId: id })
-        }
-        if (parsed.data) {
-          this.emit('terminal:data', { sessionId: id, data: parsed.data })
         }
       } else {
         // Even when echo-filter swallows all data, still check for prompt markers
         // in the buffer so we don't miss the PROMPT_OSC.
         const parsed = stripPromptMarkers(managed, data)
+        if (parsed.data) {
+          this.emit('terminal:data', { sessionId: id, data: parsed.data })
+        }
         if (parsed.sawPrompt) {
           this.restoreTransientSsh(managed)
           this.emit('terminal:prompt', { sessionId: id })

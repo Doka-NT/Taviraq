@@ -24,11 +24,56 @@ import { themes } from '@renderer/themes/definitions'
 // ...existing code...
 
 const ANSI_ESCAPE = String.fromCharCode(27)
+const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
 const ANSI_RE = new RegExp(
-  `${ANSI_ESCAPE}\\[[0-9;]*[mGKHFABCDJMPXZ]|${ANSI_ESCAPE}[@-_]|${ANSI_ESCAPE}\\[[0-9;]*[Rn]|\\r(?!\\n)`,
+  `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]|${ANSI_ESCAPE}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`,
   'g'
 )
-const stripAnsi = (s: string): string => s.replace(ANSI_RE, '')
+const stripAnsi = (s: string): string => s.replace(OSC_RE, '').replace(ANSI_RE, '')
+
+function getTerminalDelta(before: string, after: string): string {
+  if (after.startsWith(before)) return after.slice(before.length)
+
+  let prefixLength = 0
+  const maxPrefixLength = Math.min(before.length, after.length)
+  while (prefixLength < maxPrefixLength && before[prefixLength] === after[prefixLength]) {
+    prefixLength += 1
+  }
+
+  return after.slice(prefixLength)
+}
+
+function normalizeTerminalOutput(output: string): string {
+  return stripAnsi(output)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+}
+
+function cleanCommandOutput(command: string, output: string): string {
+  const normalizedCommand = command.trim()
+  const normalizedOutput = normalizeTerminalOutput(output)
+  const endedWithNewline = /[\r\n]$/.test(normalizedOutput)
+  const lines = normalizedOutput.split('\n')
+  const shouldDropTrailingPrompt = !endedWithNewline && lines.length > 1
+
+  while (lines.length > 0 && lines[0].trim() === '') {
+    lines.shift()
+  }
+
+  if (lines[0]?.trim() === normalizedCommand) {
+    lines.shift()
+  }
+
+  if (shouldDropTrailingPrompt) {
+    lines.pop()
+  }
+
+  while (lines.length > 0 && lines.at(-1)?.trim() === '') {
+    lines.pop()
+  }
+
+  return lines.join('\n').trim()
+}
 
 function extractFirstCommand(content: string): string | undefined {
   const m = /```(?:bash|sh|shell|zsh|cmd|fish|ksh)\n([\s\S]*?)```/.exec(content)
@@ -68,6 +113,7 @@ interface AssistantThread {
   streamingContent: string
   agenticPending: string | null
   agenticRunning: boolean
+  agenticCommandRunning: boolean
   agenticStep: number
   agenticCommand: string
   commandConfirmation: CommandConfirmation | null
@@ -86,6 +132,7 @@ function createThread(): AssistantThread {
     streamingContent: '',
     agenticPending: null,
     agenticRunning: false,
+    agenticCommandRunning: false,
     agenticStep: 0,
     agenticCommand: '',
     commandConfirmation: null
@@ -253,13 +300,14 @@ export function LlmPanel({
   const selectedTextRef = useRef(selectedText)
   const promptResolversRef = useRef(new Map<string, () => void>())
   const commandConfirmationResolversRef = useRef(new Map<string, (confirmed: boolean) => void>())
+  const runningCommandsRef = useRef(new Set<string>())
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
-  const { messages, draft, status, streaming, agenticRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
@@ -381,6 +429,7 @@ export function LlmPanel({
         changed = true
         promptResolversRef.current.get(sessionId)?.()
         promptResolversRef.current.delete(sessionId)
+        runningCommandsRef.current.delete(sessionId)
         commandConfirmationResolversRef.current.get(sessionId)?.(false)
         commandConfirmationResolversRef.current.delete(sessionId)
         if (thread.activeRequestId) requestSessionRef.current.delete(thread.activeRequestId)
@@ -534,6 +583,7 @@ export function LlmPanel({
           streamingContent: '',
           agenticPending: null,
           agenticRunning: false,
+          agenticCommandRunning: false,
           agenticStep: 0,
           agenticCommand: ''
         }))
@@ -569,7 +619,7 @@ export function LlmPanel({
   useEffect(() => {
     const log = chatLogRef.current
     if (log) log.scrollTop = log.scrollHeight
-  }, [agenticStep, commandConfirmation, messages, status, streaming])
+  }, [agenticCommandRunning, agenticStep, commandConfirmation, messages, status, streaming])
 
   // Stop agentic
   const stopAgentic = useCallback((sessionId: string) => {
@@ -577,6 +627,7 @@ export function LlmPanel({
     commandConfirmationResolversRef.current.delete(sessionId)
     promptResolversRef.current.get(sessionId)?.()
     promptResolversRef.current.delete(sessionId)
+    runningCommandsRef.current.delete(sessionId)
     const thread = getThread(sessionId)
     if (thread.activeRequestId) requestSessionRef.current.delete(thread.activeRequestId)
     updateThread(sessionId, (thread) => ({
@@ -587,6 +638,7 @@ export function LlmPanel({
       streamingContent: '',
       agenticPending: null,
       agenticRunning: false,
+      agenticCommandRunning: false,
       agenticStep: 0,
       agenticCommand: ''
     }))
@@ -785,6 +837,14 @@ export function LlmPanel({
       return
     }
 
+    if (runningCommandsRef.current.has(sessionId) || getThread(sessionId).agenticCommandRunning) {
+      updateThread(sessionId, (thread) => ({
+        ...thread,
+        status: { tone: 'info', label: t('status.commandAlreadyRunning') }
+      }))
+      return
+    }
+
     const nextStep = getThread(sessionId).agenticStep + 1
     if (nextStep > 10) {
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'info', label: t('status.agentStopped.tenSteps') } }))
@@ -795,6 +855,7 @@ export function LlmPanel({
     updateThread(sessionId, (thread) => ({
       ...thread,
       agenticPending: null,
+      agenticCommandRunning: true,
       agenticStep: nextStep,
       agenticCommand: command
     }))
@@ -802,19 +863,20 @@ export function LlmPanel({
     const allowed = await confirmAgenticCommand(sessionId, command)
     if (!allowed || !getThread(sessionId).agenticRunning) return
 
-    // Wait for shell prompt (or timeout after 10s)
+    const beforeOutput = getOutputForSessionRef.current(sessionId)
+
+    // Wait for the shell prompt that is emitted after the command finishes.
     let finishPromptWait = (): void => {}
     const promptPromise = new Promise<void>((resolve) => {
       const finish = (): void => {
-        clearTimeout(timer)
         promptResolversRef.current.delete(sessionId)
         resolve()
       }
-      const timer = setTimeout(finish, 10_000)
       finishPromptWait = finish
       promptResolversRef.current.set(sessionId, finish)
     })
 
+    runningCommandsRef.current.add(sessionId)
     void window.api.command.runConfirmed(session.id, command).catch((error: unknown) => {
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'danger', label: `Command failed: ${error instanceof Error ? error.message : String(error)}` } }))
       stopAgentic(sessionId)
@@ -825,7 +887,10 @@ export function LlmPanel({
 
     if (!getThread(sessionId).agenticRunning) return
 
-    const output = stripAnsi(getOutputForSessionRef.current(sessionId)).slice(-maxOutputContextRef.current)
+    runningCommandsRef.current.delete(sessionId)
+    const afterOutput = getOutputForSessionRef.current(sessionId)
+    const output = cleanCommandOutput(command, getTerminalDelta(beforeOutput, afterOutput)).slice(-maxOutputContextRef.current)
+    updateThread(sessionId, (thread) => ({ ...thread, agenticCommandRunning: false }))
     const continuation =
       `Command \`${command}\` finished.\nOutput:\n\`\`\`\n${output}\n\`\`\`\nContinue.`
 
@@ -847,6 +912,13 @@ export function LlmPanel({
     const thread = getThread(sessionId)
     const content = draft.trim()
     if (!content || streaming || commandConfirmation) return
+    if (thread.agenticCommandRunning || runningCommandsRef.current.has(sessionId)) {
+      updateThread(sessionId, (thread) => ({
+        ...thread,
+        status: { tone: 'info', label: t('status.commandAlreadyRunning') }
+      }))
+      return
+    }
 
     const canExecute = session.status === 'running'
     if (assistModeRef.current === 'agent' && canExecute) {
@@ -854,6 +926,7 @@ export function LlmPanel({
       updateThread(sessionId, (thread) => ({
         ...thread,
         agenticRunning: true,
+        agenticCommandRunning: false,
         agenticStep: 0,
         agenticCommand: '',
         agenticPending: null,
@@ -886,11 +959,51 @@ export function LlmPanel({
       return
     }
 
+    if (runningCommandsRef.current.has(session.id) || getThread(session.id).agenticCommandRunning) {
+      updateThread(session.id, (thread) => ({
+        ...thread,
+        status: { tone: 'info', label: t('status.commandAlreadyRunning') }
+      }))
+      return
+    }
+
     const allowed = await confirmAgenticCommand(session.id, command)
     if (!allowed) return
 
-    void window.api.command.runConfirmed(session.id, command)
-  }, [activeSessionId, confirmAgenticCommand, t, updateThread])
+    runningCommandsRef.current.add(session.id)
+    updateThread(session.id, (thread) => ({
+      ...thread,
+      agenticCommandRunning: true,
+      agenticCommand: command,
+      status: null
+    }))
+
+    let finishPromptWait = (): void => {}
+    const promptPromise = new Promise<void>((resolve) => {
+      const finish = (): void => {
+        promptResolversRef.current.delete(session.id)
+        resolve()
+      }
+      finishPromptWait = finish
+      promptResolversRef.current.set(session.id, finish)
+    })
+
+    void window.api.command.runConfirmed(session.id, command).catch((error: unknown) => {
+      updateThread(session.id, (thread) => ({
+        ...thread,
+        status: { tone: 'danger', label: `Command failed: ${error instanceof Error ? error.message : String(error)}` }
+      }))
+      finishPromptWait()
+    })
+
+    await promptPromise
+    runningCommandsRef.current.delete(session.id)
+    updateThread(session.id, (thread) => ({
+      ...thread,
+      agenticCommandRunning: false,
+      agenticCommand: ''
+    }))
+  }, [activeSessionId, confirmAgenticCommand, getThread, t, updateThread])
 
   // Save provider
   const saveProvider = useCallback(async () => {
@@ -1856,7 +1969,7 @@ export function LlmPanel({
                   content={message.content}
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
-                  disabled={!activeSession}
+                  disabled={!activeSession || agenticCommandRunning}
                 />
               ) : (
                 <p>{message.content}</p>
@@ -1962,7 +2075,7 @@ export function LlmPanel({
           <button
             className={`send-button ${streaming ? 'streaming' : ''}`}
             type="submit"
-            disabled={streaming || inputDisabled || !draft.trim()}
+            disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
             title={t('chat.send')}
             aria-label={t('chat.send')}
           >

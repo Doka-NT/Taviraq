@@ -2,6 +2,24 @@ import { render, screen, within } from '@testing-library/react'
 import { MessageContent } from '@renderer/components/MessageContent'
 
 describe('MessageContent', () => {
+  it('renders markdown headings without the leading hashes', () => {
+    render(
+      <MessageContent
+        content={[
+          '# Main title',
+          '',
+          'Intro text.',
+          '',
+          '### Smaller **section**'
+        ].join('\n')}
+      />
+    )
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Main title' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 3, name: 'Smaller section' })).toBeInTheDocument()
+    expect(screen.queryByText('# Main title')).not.toBeInTheDocument()
+  })
+
   it('renders markdown tables as real tables', () => {
     render(
       <MessageContent

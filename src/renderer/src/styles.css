@@ -1997,6 +1997,31 @@ textarea:focus {
   line-height: inherit;
 }
 
+.message-heading {
+  max-width: none;
+  margin: 2px 0 -2px;
+  padding: 0;
+  color: rgba(var(--surface-rgb), 0.9);
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.message-heading--1 {
+  font-size: calc(var(--app-text-size, 13.5px) + 3px);
+}
+
+.message-heading--2 {
+  font-size: calc(var(--app-text-size, 13.5px) + 1.5px);
+}
+
+.message-heading--3,
+.message-heading--4,
+.message-heading--5,
+.message-heading--6 {
+  font-size: calc(var(--app-text-size, 13.5px) + 0.5px);
+}
+
 .message-table-group {
   display: grid;
   gap: 8px;

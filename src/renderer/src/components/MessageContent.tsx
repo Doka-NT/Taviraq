@@ -14,6 +14,7 @@ type Segment =
 
 type TextBlock =
   | { type: 'paragraph'; text: string }
+  | { type: 'heading'; level: number; text: string }
   | { type: 'table'; header: string[]; rows: string[][] }
 
 const FENCE_RE = /```([a-z]*)\n([\s\S]*?)```/g
@@ -52,8 +53,15 @@ function parseTextBlocks(text: string): TextBlock[] {
   }
 
   for (let index = 0; index < lines.length; index += 1) {
+    const heading = parseHeading(lines[index])
     const header = parseTableRow(lines[index])
     const separator = parseTableRow(lines[index + 1] ?? '')
+
+    if (heading) {
+      flushParagraph()
+      blocks.push(heading)
+      continue
+    }
 
     if (header && separator && isTableSeparator(separator) && header.length === separator.length) {
       const rows: string[][] = []
@@ -82,6 +90,17 @@ function parseTextBlocks(text: string): TextBlock[] {
 
   flushParagraph()
   return blocks
+}
+
+function parseHeading(line: string): TextBlock | undefined {
+  const match = /^(#{1,6})\s+(.+)$/.exec(line.trim())
+  if (!match) return undefined
+
+  return {
+    type: 'heading',
+    level: match[1].length,
+    text: match[2].trim()
+  }
 }
 
 function parseTableRow(line: string): string[] | undefined {
@@ -192,6 +211,16 @@ export function MessageContent({ content, onRun, onPrompt, disabled }: MessageCo
                   </div>
                 ) : null}
               </div>
+            )
+          }
+
+          if (block.type === 'heading') {
+            const HeadingTag = `h${block.level}` as keyof JSX.IntrinsicElements
+
+            return (
+              <HeadingTag className={`message-heading message-heading--${block.level}`} key={`${i}-${j}`}>
+                {renderInline(block.text)}
+              </HeadingTag>
             )
           }
 

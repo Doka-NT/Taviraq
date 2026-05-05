@@ -315,7 +315,10 @@ function buildModeInstructions(mode: ChatStreamRequest['context']['assistMode'])
   if (mode === 'agent') {
     return [
       'Agent mode is enabled. The app can run one command from your response automatically in the active terminal.',
-      'When a command is needed, respond with exactly one fenced bash code block and put the command inside it.',
+      'When you need the app to run a command, write a short marker line exactly like "Выполню:" or "I will run:" immediately followed by exactly one fenced shell code block containing only that command.',
+      'Example of an auto-runnable command:\nВыполню:\n```bash\npwd\n```',
+      'You may include other fenced bash/sh examples for the user to read, but do not put the marker line immediately before examples, alternatives, or explanatory snippets.',
+      'If you include examples, clearly introduce them as examples, such as "Например, вручную можно было бы:" before the code block.',
       'The app will send the command output back to you; do not claim success until you see that output.',
       'Avoid destructive commands unless the user explicitly asked for them, and finish with a normal answer when no more commands are needed.'
     ]

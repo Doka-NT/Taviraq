@@ -76,8 +76,23 @@ function cleanCommandOutput(command: string, output: string): string {
 }
 
 function extractFirstCommand(content: string): string | undefined {
-  const m = /```(?:bash|sh|shell|zsh|cmd|fish|ksh)\n([\s\S]*?)```/.exec(content)
-  return m?.[1]?.trim() || undefined
+  const runnableBlock = /```aiterm[^\r\n]*\r?\n([\s\S]*?)```/i.exec(content)
+  if (runnableBlock?.[1]?.trim()) return runnableBlock[1].trim()
+
+  const shellBlockRe = /```(?:bash|sh|shell|zsh|cmd|fish|ksh)[^\r\n]*\r?\n([\s\S]*?)```/gi
+  for (const match of content.matchAll(shellBlockRe)) {
+    const before = content.slice(0, match.index).trimEnd()
+    const previousLine = before.split(/\r?\n/).at(-1)?.trim() ?? ''
+    if (isAutoRunMarker(previousLine)) {
+      return match[1]?.trim() || undefined
+    }
+  }
+
+  return undefined
+}
+
+function isAutoRunMarker(line: string): boolean {
+  return /^(?:выполню|запускаю|следующая команда|команда для запуска|i will run|running|run this|next command)\s*:$/i.test(line)
 }
 
 const defaultProvider: LLMProviderConfig = {

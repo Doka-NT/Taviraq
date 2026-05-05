@@ -442,6 +442,72 @@ button {
   background: transparent !important;
 }
 
+.terminal-search-panel {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 14px minmax(140px, 220px) minmax(50px, auto) 24px 24px 24px;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 28px);
+  padding: 5px 6px 5px 8px;
+  border: 0.5px solid var(--border-default);
+  border-radius: 8px;
+  background: rgba(22, 22, 25, 0.92);
+  box-shadow: var(--shadow-soft);
+  color: var(--text-secondary);
+  backdrop-filter: blur(14px);
+}
+
+.terminal-search-panel input {
+  min-width: 0;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  background: transparent;
+  font-size: 12px;
+}
+
+.terminal-search-panel input::placeholder {
+  color: var(--text-muted);
+}
+
+.terminal-search-count {
+  min-width: 50px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.terminal-search-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0.5px solid transparent;
+  border-radius: 6px;
+  color: var(--text-icon-default);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), opacity var(--transition);
+}
+
+.terminal-search-button:hover:not(:disabled) {
+  color: var(--text-icon-hover);
+  background: var(--bg-hover-9);
+}
+
+.terminal-search-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .terminal-reconnect-banner {
   position: absolute;
   top: 12px;

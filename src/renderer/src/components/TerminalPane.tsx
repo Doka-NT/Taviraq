@@ -1,7 +1,9 @@
-import { useEffect, useRef, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
+import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import type { TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
@@ -61,15 +63,38 @@ export function TerminalPane({
 }: TerminalPaneProps): JSX.Element {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const searchRef = useRef<SearchAddon | null>(null)
   const activeSessionIdRef = useRef<string>()
   const resizeFrameRef = useRef<number>()
   const initialResizeTimerRef = useRef<number>()
   const textSizeRef = useRef(textSize)
   const activeSessionStatusRef = useRef(activeSession?.status)
   const restoringRef = useRef(false)
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState<{ index: number, count: number } | null>(null)
   const activeSessionId = activeSession?.id
+
+  const closeSearch = useCallback((): void => {
+    setIsSearchOpen(false)
+    setSearchTerm('')
+    setSearchResults(null)
+    searchRef.current?.clearDecorations()
+    terminalRef.current?.focus()
+  }, [])
+
+  const findNext = useCallback((): void => {
+    if (!searchTerm.trim()) return
+    searchRef.current?.findNext(searchTerm)
+  }, [searchTerm])
+
+  const findPrevious = useCallback((): void => {
+    if (!searchTerm.trim()) return
+    searchRef.current?.findPrevious(searchTerm)
+  }, [searchTerm])
 
   useEffect(() => {
     const terminal = new Terminal({
@@ -84,10 +109,13 @@ export function TerminalPane({
       theme: DEFAULT_TERMINAL_THEME
     })
     const fit = new FitAddon()
+    const search = new SearchAddon()
     terminal.loadAddon(fit)
+    terminal.loadAddon(search)
     ;(terminal as XtermInternals)._aiTerminalFit = fit
     terminalRef.current = terminal
     fitRef.current = fit
+    searchRef.current = search
 
     if (containerRef.current) {
       terminal.open(containerRef.current)
@@ -115,6 +143,10 @@ export function TerminalPane({
       onSelectionChange(terminal.getSelection())
     })
 
+    const resultsDisposable = search.onDidChangeResults(({ resultIndex, resultCount }) => {
+      setSearchResults({ index: resultIndex, count: resultCount })
+    })
+
     const offTerminalData = window.api.terminal.onData(({ sessionId, data }) => {
       const clean = data.replace(C1_REGEX, '')
       onOutput(sessionId, clean)
@@ -136,6 +168,7 @@ export function TerminalPane({
     return () => {
       dataDisposable.dispose()
       selectionDisposable.dispose()
+      resultsDisposable.dispose()
       offTerminalData()
       resizeObserver.disconnect()
       if (initialResizeTimerRef.current) {
@@ -146,8 +179,47 @@ export function TerminalPane({
       delete (terminal as XtermInternals)._aiTerminalFit
       terminal.dispose()
       fitRef.current = null
+      searchRef.current = null
     }
   }, [onSelectionChange, onOutput])
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        setIsSearchOpen(true)
+        window.setTimeout(() => {
+          searchInputRef.current?.focus()
+          searchInputRef.current?.select()
+        }, 0)
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'g' && isSearchOpen) {
+        event.preventDefault()
+        if (event.shiftKey) {
+          findPrevious()
+        } else {
+          findNext()
+        }
+      } else if (event.key === 'Escape' && isSearchOpen) {
+        event.preventDefault()
+        closeSearch()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => { window.removeEventListener('keydown', onKeyDown) }
+  }, [closeSearch, findNext, findPrevious, isSearchOpen])
+
+  useEffect(() => {
+    const search = searchRef.current
+    if (!search || !isSearchOpen) return
+
+    if (searchTerm.trim()) {
+      search.findNext(searchTerm, { incremental: true })
+    } else {
+      search.clearDecorations()
+      setSearchResults(null)
+    }
+  }, [isSearchOpen, searchTerm])
 
   useEffect(() => {
     const terminal = terminalRef.current
@@ -174,6 +246,8 @@ export function TerminalPane({
     if (!terminal) return
 
     terminal.reset()
+    searchRef.current?.clearDecorations()
+    setSearchResults(null)
     const output = activeSessionId ? outputBuffers.current.get(activeSessionId) ?? '' : ''
     if (activeSessionId && output) {
       restoringRef.current = true
@@ -217,9 +291,72 @@ export function TerminalPane({
     }
   }, [layoutKey])
 
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      if (event.shiftKey) {
+        findPrevious()
+      } else {
+        findNext()
+      }
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      closeSearch()
+    }
+  }
+
   return (
     <div className="terminal-frame">
       <div className="terminal-container" ref={containerRef} />
+      {isSearchOpen ? (
+        <div className="terminal-search-panel">
+          <Search size={14} aria-hidden="true" />
+          <input
+            ref={searchInputRef}
+            value={searchTerm}
+            onChange={(event) => { setSearchTerm(event.target.value) }}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={t('terminal.searchPlaceholder')}
+            aria-label={t('terminal.searchPlaceholder')}
+          />
+          <span className="terminal-search-count">
+            {searchTerm.trim() && searchResults
+              ? searchResults.count > 0 && searchResults.index >= 0
+                ? `${searchResults.index + 1}/${searchResults.count}`
+                : t('terminal.searchNoResults')
+              : ''}
+          </span>
+          <button
+            type="button"
+            className="terminal-search-button"
+            onClick={findPrevious}
+            disabled={!searchTerm.trim()}
+            aria-label={t('terminal.searchPrevious')}
+            title={t('terminal.searchPrevious')}
+          >
+            <ChevronUp size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="terminal-search-button"
+            onClick={findNext}
+            disabled={!searchTerm.trim()}
+            aria-label={t('terminal.searchNext')}
+            title={t('terminal.searchNext')}
+          >
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="terminal-search-button"
+            onClick={closeSearch}
+            aria-label={t('terminal.searchClose')}
+            title={t('terminal.searchClose')}
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
       {activeSession?.status === 'disconnected' ? (
         <div className="terminal-reconnect-banner">
           <span>{t('terminal.sshDisconnected')}</span>

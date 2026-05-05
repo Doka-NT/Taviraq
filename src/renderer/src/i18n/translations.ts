@@ -114,6 +114,11 @@ export interface Translations {
   // Terminal
   'terminal.sshDisconnected': string
   'terminal.reconnect': string
+  'terminal.searchPlaceholder': string
+  'terminal.searchNoResults': string
+  'terminal.searchPrevious': string
+  'terminal.searchNext': string
+  'terminal.searchClose': string
 
   // Panel header
   'panel.agent': string
@@ -308,6 +313,11 @@ export const en: Translations = {
 
   'terminal.sshDisconnected': 'SSH session disconnected',
   'terminal.reconnect': 'Reconnect',
+  'terminal.searchPlaceholder': 'Search terminal',
+  'terminal.searchNoResults': 'No results',
+  'terminal.searchPrevious': 'Previous result',
+  'terminal.searchNext': 'Next result',
+  'terminal.searchClose': 'Close search',
 
   'panel.agent': 'Agent',
   'panel.agentToggle.enable': 'Enable agent execution',
@@ -495,6 +505,11 @@ export const ru: Translations = {
 
   'terminal.sshDisconnected': 'SSH-сессия отключена',
   'terminal.reconnect': 'Подключиться',
+  'terminal.searchPlaceholder': 'Поиск в терминале',
+  'terminal.searchNoResults': 'Нет результатов',
+  'terminal.searchPrevious': 'Предыдущее совпадение',
+  'terminal.searchNext': 'Следующее совпадение',
+  'terminal.searchClose': 'Закрыть поиск',
 
   'panel.agent': 'Агент',
   'panel.agentToggle.enable': 'Включить режим агента',
@@ -682,6 +697,11 @@ export const cn: Translations = {
 
   'terminal.sshDisconnected': 'SSH 会话已断开',
   'terminal.reconnect': '重新连接',
+  'terminal.searchPlaceholder': '搜索终端',
+  'terminal.searchNoResults': '无结果',
+  'terminal.searchPrevious': '上一个结果',
+  'terminal.searchNext': '下一个结果',
+  'terminal.searchClose': '关闭搜索',
 
   'panel.agent': '代理',
   'panel.agentToggle.enable': '启用代理执行',

@@ -41,7 +41,7 @@ jobs:
         run: npm test
 
       - name: Package macOS app
-        run: npm run build && COPYFILE_DISABLE=1 electron-builder --mac zip --publish never
+        run: npm run build && COPYFILE_DISABLE=1 npm exec -- electron-builder --mac zip --publish never
 
       - name: Create release
         env:

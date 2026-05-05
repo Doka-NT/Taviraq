@@ -455,7 +455,7 @@ button {
   padding: 5px 6px 5px 8px;
   border: 0.5px solid var(--border-default);
   border-radius: 8px;
-  background: rgba(22, 22, 25, 0.92);
+  background: color-mix(in srgb, var(--bg-sidebar) 92%, transparent);
   box-shadow: var(--shadow-soft);
   color: var(--text-secondary);
   backdrop-filter: blur(14px);
@@ -469,7 +469,13 @@ button {
   outline: 0;
   color: var(--text-primary);
   background: transparent;
+  caret-color: var(--accent-brand);
   font-size: 12px;
+}
+
+.terminal-search-panel:focus-within {
+  border-color: color-mix(in srgb, var(--accent-brand) 55%, var(--border-default));
+  box-shadow: var(--shadow-soft), 0 0 0 1px rgba(var(--accent-brand-rgb), 0.16);
 }
 
 .terminal-search-panel input::placeholder {

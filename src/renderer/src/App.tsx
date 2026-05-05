@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, Terminal, X } from 'lucide-react'
 import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalSessionInfo } from '@shared/types'
-import { TerminalPane } from './components/TerminalPane'
+import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
 import type { Language } from './i18n/translations'
@@ -95,6 +95,7 @@ export function App(): JSX.Element {
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
   const appShellRef = useRef<HTMLElement>(null)
+  const terminalPaneRef = useRef<TerminalPaneHandle | null>(null)
   const restoreInitializedRef = useRef(false)
   const restoreSessionsOnLaunchRef = useRef(restoreSessions)
   const restoreSessionsRef = useRef(restoreSessions)
@@ -516,6 +517,9 @@ export function App(): JSX.Element {
     if (!activeSessionId || activeSession?.status !== 'running') return
     void window.api.terminal.write(activeSessionId, run ? `${command}\r` : command)
     setSnippetPaletteOpen(false)
+    requestAnimationFrame(() => {
+      terminalPaneRef.current?.focus()
+    })
   }, [activeSession?.status, activeSessionId])
 
   const closeActiveSession = useCallback(() => {
@@ -713,6 +717,7 @@ export function App(): JSX.Element {
         </div>
 
         <TerminalPane
+          ref={terminalPaneRef}
           activeSession={activeSession}
           sessionIds={sessions.map((session) => session.id)}
           layoutKey={`${sidebarWidth}-${textSize}-${sidebarVisible}`}

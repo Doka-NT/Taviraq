@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -19,6 +19,10 @@ interface TerminalPaneProps {
   onOutput: (sessionId: string, data: string) => void
   onReconnect: (sessionId: string) => void
   terminalTheme?: TerminalColors
+}
+
+export interface TerminalPaneHandle {
+  focus: () => void
 }
 
 const DEFAULT_TERMINAL_THEME: TerminalColors = {
@@ -49,7 +53,7 @@ const DEFAULT_TERMINAL_THEME: TerminalColors = {
 // C1 control characters (U+0080–U+009F) that appear as ?<0080> artifacts
 const C1_REGEX = /[-]/g
 
-export function TerminalPane({
+export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(function TerminalPane({
   activeSession,
   sessionIds,
   layoutKey,
@@ -60,7 +64,7 @@ export function TerminalPane({
   onOutput,
   onReconnect,
   terminalTheme
-}: TerminalPaneProps): JSX.Element {
+}: TerminalPaneProps, ref): JSX.Element {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
@@ -77,6 +81,12 @@ export function TerminalPane({
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<{ index: number, count: number } | null>(null)
   const activeSessionId = activeSession?.id
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      terminalRef.current?.focus()
+    }
+  }), [])
 
   const closeSearch = useCallback((): void => {
     setIsSearchOpen(false)
@@ -372,7 +382,7 @@ export function TerminalPane({
       ) : null}
     </div>
   )
-}
+})
 
 function cancelScheduledResize(frameRef: MutableRefObject<number | undefined>): void {
   if (frameRef.current) {

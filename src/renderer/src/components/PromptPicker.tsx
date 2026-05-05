@@ -12,8 +12,8 @@ export function PromptPicker({ open, onOpenChange }: PromptPickerProps): JSX.Ele
       <button
         type="button"
         className="icon-button prompt-picker-trigger"
-        title="Prompt library"
-        aria-label="Open prompt library"
+        title="Prompt library (Cmd+Shift+P)"
+        aria-label="Open prompt library (Cmd+Shift+P)"
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => onOpenChange(!open)}

@@ -95,6 +95,7 @@ export function App(): JSX.Element {
   const [settingsTabRequest, setSettingsTabRequest] = useState<SettingsTab>('providers')
   const [settingsTabRequestVersion, setSettingsTabRequestVersion] = useState(0)
   const [addSnippetRequestVersion, setAddSnippetRequestVersion] = useState(0)
+  const [promptLibraryRequestVersion, setPromptLibraryRequestVersion] = useState(0)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
@@ -565,6 +566,8 @@ export function App(): JSX.Element {
     return window.api.shortcuts.onShortcut((shortcut) => {
       if (shortcut === 'clear-terminal') {
         clearActiveTerminal()
+      } else if (shortcut === 'open-prompt-library') {
+        setPromptLibraryRequestVersion((version) => version + 1)
       } else if (shortcut === 'open-command-snippets') {
         setSnippetPaletteOpen(true)
       } else if (shortcut === 'open-settings') {
@@ -614,6 +617,10 @@ export function App(): JSX.Element {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setSnippetPaletteOpen(true)
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        setPromptLibraryRequestVersion((version) => version + 1)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -764,6 +771,7 @@ export function App(): JSX.Element {
         settingsTabRequest={settingsTabRequest}
         settingsTabRequestVersion={settingsTabRequestVersion}
         addSnippetRequestVersion={addSnippetRequestVersion}
+        promptLibraryRequestVersion={promptLibraryRequestVersion}
         textSize={textSize}
         onTextSizeChange={updateTextSize}
         sidebarWidth={sidebarWidth}

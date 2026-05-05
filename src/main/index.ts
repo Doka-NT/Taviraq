@@ -201,6 +201,12 @@ async function createWindow(): Promise<void> {
       return
     }
 
+    if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'p' || input.code === 'KeyP')) {
+      event.preventDefault()
+      mainWindow?.webContents.send('app:shortcut', 'open-prompt-library' satisfies AppShortcutAction)
+      return
+    }
+
     if (
       !input.meta ||
       input.control ||

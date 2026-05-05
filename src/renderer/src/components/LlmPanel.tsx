@@ -225,6 +225,7 @@ interface LlmPanelProps {
   settingsTabRequest: SettingsTab
   settingsTabRequestVersion: number
   addSnippetRequestVersion: number
+  promptLibraryRequestVersion: number
   textSize: number
   onTextSizeChange: (textSize: number) => void
   sidebarWidth: number
@@ -258,6 +259,7 @@ export function LlmPanel({
   settingsTabRequest,
   settingsTabRequestVersion,
   addSnippetRequestVersion,
+  promptLibraryRequestVersion,
   textSize,
   onTextSizeChange,
   sidebarWidth,
@@ -304,6 +306,7 @@ export function LlmPanel({
   const [promptPickerQuery, setPromptPickerQuery] = useState('')
   const [promptPickerActiveIndex, setPromptPickerActiveIndex] = useState(0)
   const promptPickerListRef = useRef<HTMLDivElement>(null)
+  const promptPickerSearchRef = useRef<HTMLInputElement | null>(null)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
@@ -694,6 +697,7 @@ export function LlmPanel({
   useEffect(() => {
     if (!promptPickerOpen) return
     void window.api.prompt.list().then(setPromptPickerPrompts).catch(() => setPromptPickerPrompts([]))
+    requestAnimationFrame(() => promptPickerSearchRef.current?.focus())
   }, [promptPickerOpen])
 
   useEffect(() => {
@@ -723,6 +727,12 @@ export function LlmPanel({
       setPromptPickerOpen(true)
     }
   }, [promptPickerOpen])
+
+  useEffect(() => {
+    if (promptLibraryRequestVersion === 0) return
+    setHistoryOpen(false)
+    setPromptPickerOpen(true)
+  }, [promptLibraryRequestVersion])
 
   const handleDeleteHistoryChat = useCallback(async (chatId: string) => {
     await window.api.chatHistory.delete(chatId)
@@ -1862,6 +1872,7 @@ export function LlmPanel({
           <div className="prompt-picker-search">
             <Search size={14} aria-hidden />
             <input
+              ref={promptPickerSearchRef}
               type="text"
               placeholder="Search prompts…"
               value={promptPickerQuery}

@@ -2,6 +2,7 @@ export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type AppShortcutAction =
   | 'clear-terminal'
+  | 'open-prompt-library'
   | 'open-command-snippets'
   | 'open-settings'
   | 'new-tab'

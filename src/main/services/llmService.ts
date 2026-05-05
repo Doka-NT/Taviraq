@@ -3,6 +3,7 @@ import type {
   ChatStreamRequest,
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
+  GeneratedPrompt,
   LLMModel,
   LLMProviderConfig,
   SummarizeConversationRequest
@@ -121,7 +122,7 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
 }
 
-export async function summarizeConversation(request: SummarizeConversationRequest): Promise<string> {
+export async function summarizeConversation(request: SummarizeConversationRequest): Promise<GeneratedPrompt> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
     throw new Error('No model selected.')
@@ -138,7 +139,7 @@ export async function summarizeConversation(request: SummarizeConversationReques
   const messages: ChatMessage[] = [
     {
       role: 'system',
-      content: `You are a prompt engineer. Given a conversation, write a concise reusable system prompt that captures the context, goal, and any important constraints discussed. Return only the prompt text with no explanation, no headings, no quotes.${langInstruction}`
+      content: `You are a prompt engineer. Given a conversation, create a concise reusable system prompt and a short descriptive title for it.${langInstruction} Return only valid JSON with exactly this shape: {"name":"Prompt title","content":"Prompt text"}. Do not include explanations, headings, quotes around the JSON, or Markdown fences.`
     },
     {
       role: 'user',
@@ -167,7 +168,49 @@ export async function summarizeConversation(request: SummarizeConversationReques
 
   const content = extractMessageContent(await response.json())
   if (!content.trim()) throw new Error('Empty response from model.')
-  return content.trim()
+  return parseGeneratedPrompt(content)
+}
+
+function parseGeneratedPrompt(content: string): GeneratedPrompt {
+  const trimmed = content.trim()
+  const jsonText = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+
+  try {
+    const parsed = JSON.parse(jsonText) as Partial<GeneratedPrompt>
+    const promptContent = typeof parsed.content === 'string' ? parsed.content.trim() : ''
+    const name = typeof parsed.name === 'string' ? parsed.name.trim() : ''
+
+    if (promptContent) {
+      return {
+        name: name || fallbackPromptName(promptContent),
+        content: promptContent
+      }
+    }
+  } catch {
+    // Fall through to preserve the generated prompt text if the model ignored JSON.
+  }
+
+  return {
+    name: fallbackPromptName(trimmed),
+    content: trimmed
+  }
+}
+
+function fallbackPromptName(content: string): string {
+  const firstLine = content
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+
+  if (!firstLine) return 'Generated prompt'
+
+  return firstLine
+    .replace(/^#+\s*/, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .slice(0, 80)
 }
 
 async function fetchWithTimeout(

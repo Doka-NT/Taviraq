@@ -141,6 +141,11 @@ export interface SummarizeConversationRequest {
   language?: string
 }
 
+export interface GeneratedPrompt {
+  name: string
+  content: string
+}
+
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'error'; message: string }

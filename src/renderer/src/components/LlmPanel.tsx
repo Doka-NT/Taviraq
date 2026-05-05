@@ -295,7 +295,7 @@ export function LlmPanel({
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
-  const [savePromptDialog, setSavePromptDialog] = useState<{ content: string } | null>(null)
+  const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
   const [savePromptName, setSavePromptName] = useState('')
   const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -746,12 +746,13 @@ export function LlmPanel({
     setSavePromptName('')
     setSavePromptStatus('idle')
     try {
-      const content = await window.api.llm.summarizeConversation({
+      const prompt = await window.api.llm.summarizeConversation({
         provider: providerRef.current,
         messages: messages.map(toChatMessage),
         language: languageRef.current
       })
-      setSavePromptDialog({ content })
+      setSavePromptName(prompt.name)
+      setSavePromptDialog(prompt)
     } catch (err) {
       setSavePromptDialog(null)
       if (activeSessionId) {
@@ -2145,7 +2146,7 @@ export function LlmPanel({
                 <textarea
                   className="save-prompt-content-editor"
                   value={savePromptDialog.content}
-                  onChange={(e) => setSavePromptDialog({ content: e.target.value })}
+                  onChange={(e) => setSavePromptDialog({ ...savePromptDialog, content: e.target.value })}
                   rows={6}
                 />
                 <div className="save-prompt-actions">

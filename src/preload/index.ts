@@ -9,6 +9,7 @@ import type {
   CommandRiskAssessmentRequest,
   CommandProposal,
   CreateTerminalRequest,
+  GeneratedPrompt,
   ImportResult,
   LLMModel,
   PromptTemplate,
@@ -131,7 +132,7 @@ const api = {
     assessCommandRisk: (request: CommandRiskAssessmentRequest) =>
       ipcRenderer.invoke('llm:assessCommandRisk', request) as Promise<CommandRiskAssessment>,
     summarizeConversation: (request: SummarizeConversationRequest) =>
-      ipcRenderer.invoke('llm:summarizeConversation', request) as Promise<string>,
+      ipcRenderer.invoke('llm:summarizeConversation', request) as Promise<GeneratedPrompt>,
     chatStream: (request: ChatStreamRequest) => ipcRenderer.send('llm:chatStream', request),
     onChatStreamEvent: (callback: (event: ChatStreamEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: ChatStreamEvent) => callback(payload)

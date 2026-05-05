@@ -1,5 +1,6 @@
 import { app } from 'electron'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import type { AppConfig, LLMProviderConfig, SSHProfileConfig } from '@shared/types'
 
@@ -25,6 +26,7 @@ const defaultConfig: AppConfig = {
 
 export class ConfigStore {
   private readonly path = join(app.getPath('userData'), CONFIG_FILE)
+  private writeQueue: Promise<void> = Promise.resolve()
 
   async load(): Promise<AppConfig> {
     try {
@@ -37,35 +39,46 @@ export class ConfigStore {
 
   async save(config: AppConfig): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true })
-    await writeFile(this.path, JSON.stringify(config, null, 2), 'utf8')
+    const tmpPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`
+    await writeFile(tmpPath, JSON.stringify(config, null, 2), 'utf8')
+    await rename(tmpPath, this.path)
+  }
+
+  async update(mutator: (config: AppConfig) => AppConfig): Promise<AppConfig> {
+    let nextConfig: AppConfig | undefined
+    const write = this.writeQueue.then(async () => {
+      const config = await this.load()
+      nextConfig = mutator(config)
+      await this.save(nextConfig)
+    })
+    this.writeQueue = write.catch(() => undefined)
+    await write
+    return nextConfig ?? defaultConfig
   }
 
   async deleteProvider(apiKeyRef: string): Promise<AppConfig> {
-    const config = await this.load()
-    const providers = config.providers.filter((p) => p.apiKeyRef !== apiKeyRef)
-    const activeRef = config.activeProviderRef === apiKeyRef
-      ? providers[0]?.apiKeyRef
-      : config.activeProviderRef
-    const next = { ...config, providers, activeProviderRef: activeRef }
-    await this.save(next)
-    return next
+    return this.update((config) => {
+      const providers = config.providers.filter((p) => p.apiKeyRef !== apiKeyRef)
+      const activeRef = config.activeProviderRef === apiKeyRef
+        ? providers[0]?.apiKeyRef
+        : config.activeProviderRef
+      return { ...config, providers, activeProviderRef: activeRef }
+    })
   }
 
   async upsertProvider(provider: LLMProviderConfig): Promise<AppConfig> {
-    const config = await this.load()
-    const existingIndex = config.providers.findIndex((candidate) => candidate.apiKeyRef === provider.apiKeyRef)
-    const providers = existingIndex === -1
-      ? [...config.providers, provider]
-      : config.providers.map((candidate, index) => index === existingIndex ? provider : candidate)
+    return this.update((config) => {
+      const existingIndex = config.providers.findIndex((candidate) => candidate.apiKeyRef === provider.apiKeyRef)
+      const providers = existingIndex === -1
+        ? [...config.providers, provider]
+        : config.providers.map((candidate, index) => index === existingIndex ? provider : candidate)
 
-    const next = {
-      ...config,
-      providers,
-      activeProviderRef: provider.apiKeyRef
-    }
-
-    await this.save(next)
-    return next
+      return {
+        ...config,
+        providers,
+        activeProviderRef: provider.apiKeyRef
+      }
+    })
   }
 
   listSshProfiles(config: AppConfig): SSHProfileConfig[] {
@@ -73,23 +86,21 @@ export class ConfigStore {
   }
 
   async upsertSshProfile(profile: SSHProfileConfig): Promise<AppConfig> {
-    const config = await this.load()
-    const profiles = config.sshProfiles ?? []
-    const existingIndex = profiles.findIndex((candidate) => candidate.id === profile.id)
-    const nextProfiles = existingIndex === -1
-      ? [...profiles, profile]
-      : profiles.map((candidate, index) => index === existingIndex ? profile : candidate)
+    return this.update((config) => {
+      const profiles = config.sshProfiles ?? []
+      const existingIndex = profiles.findIndex((candidate) => candidate.id === profile.id)
+      const nextProfiles = existingIndex === -1
+        ? [...profiles, profile]
+        : profiles.map((candidate, index) => index === existingIndex ? profile : candidate)
 
-    const next = { ...config, sshProfiles: nextProfiles }
-    await this.save(next)
-    return next
+      return { ...config, sshProfiles: nextProfiles }
+    })
   }
 
   async deleteSshProfile(id: string): Promise<AppConfig> {
-    const config = await this.load()
-    const nextProfiles = (config.sshProfiles ?? []).filter((p) => p.id !== id)
-    const next = { ...config, sshProfiles: nextProfiles }
-    await this.save(next)
-    return next
+    return this.update((config) => {
+      const nextProfiles = (config.sshProfiles ?? []).filter((p) => p.id !== id)
+      return { ...config, sshProfiles: nextProfiles }
+    })
   }
 }

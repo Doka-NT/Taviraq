@@ -33,6 +33,7 @@ let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
+let didSaveWindowBoundsForQuit = false
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
@@ -107,13 +108,13 @@ function normalizeWindowBounds(
   return visible ? { width, height, x, y } : { width, height }
 }
 
-function saveWindowBounds(): void {
+async function saveWindowBounds(): Promise<void> {
   if (!mainWindow || mainWindow.isDestroyed()) return
   const bounds = mainWindow.getNormalBounds()
   const isMaximized = mainWindow.isMaximized()
 
-  void configStore.load()
-    .then((config) => configStore.save({
+  try {
+    await configStore.update((config) => ({
       ...config,
       windowBounds: {
         x: bounds.x,
@@ -123,14 +124,16 @@ function saveWindowBounds(): void {
         isMaximized
       }
     }))
-    .catch((error: unknown) => {
-      console.error('[window bounds save failed]', error)
-    })
+  } catch (error: unknown) {
+    console.error('[window bounds save failed]', error)
+  }
 }
 
 function queueWindowBoundsSave(): void {
   if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
-  saveWindowBoundsTimer = setTimeout(saveWindowBounds, 300)
+  saveWindowBoundsTimer = setTimeout(() => {
+    void saveWindowBounds()
+  }, 300)
 }
 
 async function createWindow(): Promise<void> {
@@ -234,10 +237,19 @@ async function createWindow(): Promise<void> {
   })
 
   mainWindow.on('close', (e) => {
-    saveWindowBounds()
     if (!isQuitting) {
       e.preventDefault()
+      void saveWindowBounds()
       mainWindow?.hide()
+      return
+    }
+
+    if (!didSaveWindowBoundsForQuit) {
+      e.preventDefault()
+      void saveWindowBounds().finally(() => {
+        didSaveWindowBoundsForQuit = true
+        mainWindow?.close()
+      })
     }
   })
 

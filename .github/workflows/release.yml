@@ -41,7 +41,7 @@ jobs:
         run: npm test
 
       - name: Package macOS app
-        run: npm run package:mac
+        run: npm run package:mac -- --publish never
 
       - name: Create draft release
         env:

@@ -16,7 +16,11 @@ const defaultConfig: AppConfig = {
     }
   ],
   activeProviderRef: 'openai-compatible-default',
-  hideShortcut: 'CommandOrControl+Shift+Space'
+  hideShortcut: 'CommandOrControl+Shift+Space',
+  windowBounds: {
+    width: 1440,
+    height: 920
+  }
 }
 
 export class ConfigStore {

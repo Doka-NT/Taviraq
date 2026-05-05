@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, screen, shell } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -32,6 +32,7 @@ let mainWindow: BrowserWindow | undefined
 let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
+let saveWindowBoundsTimer: NodeJS.Timeout | undefined
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
@@ -77,10 +78,67 @@ function registerHideShortcut(shortcut: string): boolean {
   return success
 }
 
-function createWindow(): void {
+const defaultWindowBounds = {
+  width: 1440,
+  height: 920
+}
+
+function normalizeWindowBounds(
+  bounds: Awaited<ReturnType<ConfigStore['load']>>['windowBounds']
+): { width: number; height: number; x?: number; y?: number } {
+  const width = Math.max(bounds?.width ?? defaultWindowBounds.width, 1060)
+  const height = Math.max(bounds?.height ?? defaultWindowBounds.height, 680)
+
+  if (typeof bounds?.x !== 'number' || typeof bounds?.y !== 'number') {
+    return { width, height }
+  }
+  const { x, y } = bounds
+
+  const visible = screen.getAllDisplays().some((display) => {
+    const area = display.workArea
+    return (
+      x < area.x + area.width &&
+      x + width > area.x &&
+      y < area.y + area.height &&
+      y + height > area.y
+    )
+  })
+
+  return visible ? { width, height, x, y } : { width, height }
+}
+
+function saveWindowBounds(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const bounds = mainWindow.getNormalBounds()
+  const isMaximized = mainWindow.isMaximized()
+
+  void configStore.load()
+    .then((config) => configStore.save({
+      ...config,
+      windowBounds: {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        isMaximized
+      }
+    }))
+    .catch((error: unknown) => {
+      console.error('[window bounds save failed]', error)
+    })
+}
+
+function queueWindowBoundsSave(): void {
+  if (saveWindowBoundsTimer) clearTimeout(saveWindowBoundsTimer)
+  saveWindowBoundsTimer = setTimeout(saveWindowBounds, 300)
+}
+
+async function createWindow(): Promise<void> {
+  const config = await configStore.load()
+  const bounds = normalizeWindowBounds(config.windowBounds)
+
   mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
+    ...bounds,
     minWidth: 1060,
     minHeight: 680,
     title: 'AI Terminal',
@@ -176,11 +234,19 @@ function createWindow(): void {
   })
 
   mainWindow.on('close', (e) => {
+    saveWindowBounds()
     if (!isQuitting) {
       e.preventDefault()
       mainWindow?.hide()
     }
   })
+
+  mainWindow.on('resize', queueWindowBoundsSave)
+  mainWindow.on('move', queueWindowBoundsSave)
+
+  if (config.windowBounds?.isMaximized) {
+    mainWindow.maximize()
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -188,9 +254,7 @@ function createWindow(): void {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  void configStore.load().then((cfg) => {
-    registerHideShortcut(cfg.hideShortcut ?? 'CommandOrControl+Shift+Space')
-  })
+  registerHideShortcut(config.hideShortcut ?? 'CommandOrControl+Shift+Space')
 }
 
 function registerIpc(): void {
@@ -472,11 +536,11 @@ function registerIpc(): void {
 
 void app.whenReady().then(() => {
   registerIpc()
-  createWindow()
+  void createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      void createWindow()
     }
   })
 })

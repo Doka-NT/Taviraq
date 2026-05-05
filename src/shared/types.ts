@@ -194,6 +194,13 @@ export interface AppConfig {
   activeProviderRef?: string
   hideShortcut?: string
   sshProfiles?: SSHProfileConfig[]
+  windowBounds?: {
+    x?: number
+    y?: number
+    width: number
+    height: number
+    isMaximized?: boolean
+  }
 }
 
 export interface ExportData {

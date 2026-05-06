@@ -10,6 +10,7 @@ const defaultConfig: AppConfig = {
   providers: [
     {
       name: 'OpenAI Compatible',
+      providerType: 'openai',
       baseUrl: 'https://api.openai.com',
       apiKeyRef: 'openai-compatible-default',
       selectedModel: '',

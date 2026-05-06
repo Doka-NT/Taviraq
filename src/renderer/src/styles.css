@@ -1124,7 +1124,8 @@ textarea:focus {
   font-size: 12px;
 }
 
-.provider-field input {
+.provider-field input,
+.provider-field select {
   height: 36px;
   padding: 0 10px;
   border: 0.5px solid var(--border-default);
@@ -1135,7 +1136,12 @@ textarea:focus {
   outline: none;
 }
 
-.provider-field input:focus {
+.provider-field select {
+  appearance: none;
+}
+
+.provider-field input:focus,
+.provider-field select:focus {
   border-color: rgba(var(--accent-cyan-rgb), 0.45);
   background: rgba(var(--surface-rgb), 0.075);
 }

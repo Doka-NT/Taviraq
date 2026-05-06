@@ -31,6 +31,10 @@ export interface Translations {
 
   // Providers tab
   'providers.title': string
+  'providers.type': string
+  'providers.type.openai': string
+  'providers.type.ollama': string
+  'providers.type.lmstudio': string
   'providers.name': string
   'providers.baseUrl': string
   'providers.apiKey': string
@@ -186,6 +190,8 @@ export interface Translations {
   'status.noSession.run': string
   'status.disconnected.run': string
   'status.commandAlreadyRunning': string
+  'status.modelLoading': string
+  'status.promptProcessing': string
 
   // Suggestion chips
   'chip.space': string
@@ -245,6 +251,10 @@ export const en: Translations = {
   'appearance.theme.desc': 'Color scheme for UI and terminal',
 
   'providers.title': 'Providers',
+  'providers.type': 'Provider type',
+  'providers.type.openai': 'OpenAI-compatible',
+  'providers.type.ollama': 'Ollama',
+  'providers.type.lmstudio': 'LM Studio',
   'providers.name': 'Provider name',
   'providers.baseUrl': 'Base URL',
   'providers.apiKey': 'API key',
@@ -391,6 +401,8 @@ export const en: Translations = {
   'status.noSession.run': 'Open a terminal session before running a command.',
   'status.disconnected.run': 'Reconnect this session before running commands.',
   'status.commandAlreadyRunning': 'A command is already running in this session.',
+  'status.modelLoading': 'Loading model {percent}%',
+  'status.promptProcessing': 'Processing prompt {percent}%',
 
   'chip.space': "What's taking space?",
   'chip.spacePrompt': "What's taking the most disk space here?",
@@ -447,6 +459,10 @@ export const ru: Translations = {
   'appearance.theme.desc': 'Цветовая схема интерфейса и терминала',
 
   'providers.title': 'Провайдеры',
+  'providers.type': 'Тип провайдера',
+  'providers.type.openai': 'OpenAI-совместимый',
+  'providers.type.ollama': 'Ollama',
+  'providers.type.lmstudio': 'LM Studio',
   'providers.name': 'Название провайдера',
   'providers.baseUrl': 'Базовый URL',
   'providers.apiKey': 'API-ключ',
@@ -593,6 +609,8 @@ export const ru: Translations = {
   'status.noSession.run': 'Откройте сессию терминала перед выполнением команды.',
   'status.disconnected.run': 'Переподключите эту сессию перед выполнением команд.',
   'status.commandAlreadyRunning': 'В этой сессии уже выполняется команда.',
+  'status.modelLoading': 'Загрузка модели {percent}%',
+  'status.promptProcessing': 'Обработка промпта {percent}%',
 
   'chip.space': 'Что занимает место?',
   'chip.spacePrompt': 'Что занимает больше всего места на диске?',
@@ -649,6 +667,10 @@ export const cn: Translations = {
   'appearance.theme.desc': '界面和终端配色方案',
 
   'providers.title': '提供商',
+  'providers.type': '提供商类型',
+  'providers.type.openai': 'OpenAI兼容',
+  'providers.type.ollama': 'Ollama',
+  'providers.type.lmstudio': 'LM Studio',
   'providers.name': '提供商名称',
   'providers.baseUrl': '基础URL',
   'providers.apiKey': 'API密钥',
@@ -795,6 +817,8 @@ export const cn: Translations = {
   'status.noSession.run': '在运行命令之前，请打开终端会话。',
   'status.disconnected.run': '运行命令前请重新连接此会话。',
   'status.commandAlreadyRunning': '此会话中已有命令正在运行。',
+  'status.modelLoading': '正在加载模型 {percent}%',
+  'status.promptProcessing': '正在处理提示 {percent}%',
 
   'chip.space': '什么占用了空间？',
   'chip.spacePrompt': '这里什么占用了最多磁盘空间？',

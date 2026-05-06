@@ -1,5 +1,6 @@
 import type {
   ChatMessage,
+  ChatStreamEvent,
   ChatStreamRequest,
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
@@ -8,8 +9,15 @@ import type {
   LLMProviderConfig,
   SummarizeConversationRequest
 } from '@shared/types'
-import { buildOpenAICompatibleUrl, parseModelList } from '@main/utils/provider'
-import { parseChatCompletionChunk, parseSseLines } from '@main/utils/llmProtocol'
+import {
+  buildLmStudioNativeUrl,
+  buildProviderUrl,
+  getProviderType,
+  parseLmStudioNativeModelList,
+  parseModelList,
+  PROVIDER_DEFAULTS
+} from '@main/utils/provider'
+import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { getApiKey } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
@@ -20,27 +28,45 @@ const LANGUAGE_NAMES: Record<string, string> = {
 }
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
-  const response = await fetch(buildOpenAICompatibleUrl(provider.baseUrl, 'models'), {
-    headers: await buildHeaders(provider)
-  })
+  const isLmStudio = getProviderType(provider) === 'lmstudio'
+  const response = await fetch(
+    isLmStudio
+      ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
+      : buildProviderUrl(provider, 'models'),
+    {
+      headers: await buildHeaders(provider)
+    }
+  )
 
   if (!response.ok) {
     throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
   }
 
-  return parseModelList(await response.json())
+  const payload = await response.json() as unknown
+  return isLmStudio ? parseLmStudioNativeModelList(payload) : parseModelList(payload)
+}
+
+type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
+  content?: string
+  reasoningContent?: string
+  stage?: 'model_load' | 'prompt_processing'
+  progress?: number
 }
 
 export async function streamChatCompletion(
   request: ChatStreamRequest,
-  onChunk: (chunk: { content?: string; reasoningContent?: string }) => void
+  onChunk: (chunk: ChatStreamUpdate) => void
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
     throw new Error('Select a model before sending a message.')
   }
 
-  const response = await fetch(buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'), {
+  if (getProviderType(request.provider) === 'lmstudio') {
+    return streamLmStudioNativeChatCompletion(request, model, onChunk)
+  }
+
+  const response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -83,7 +109,78 @@ export async function streamChatCompletion(
 
       const chunk = parseChatCompletionChunk(JSON.parse(event) as unknown)
       if (chunk?.content || chunk?.reasoningContent) {
-        onChunk(chunk)
+        onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
+      }
+    }
+  }
+}
+
+async function streamLmStudioNativeChatCompletion(
+  request: ChatStreamRequest,
+  model: string,
+  onChunk: (chunk: ChatStreamUpdate) => void
+): Promise<void> {
+  const response = await fetch(buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat'), {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(request.provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      store: false,
+      ...buildLmStudioNativeInput(request.messages, request.context)
+    })
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`LM Studio chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  if (!response.body) {
+    throw new Error('LM Studio chat response did not include a readable stream.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    const parsed = parseSseEvents(buffer)
+    buffer = parsed.remainder
+
+    for (const event of parsed.events) {
+      const payload = safeParseJson(event.data)
+      const eventType = typeof payload?.type === 'string' ? payload.type : event.event
+
+      if (eventType === 'message.delta') {
+        const content = readString(payload, 'content')
+        if (content) onChunk({ type: 'chunk', content })
+      } else if (eventType === 'reasoning.delta') {
+        const reasoningContent = readString(payload, 'content')
+        if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
+      } else if (eventType === 'prompt_processing.start') {
+        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
+      } else if (eventType === 'prompt_processing.progress') {
+        onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
+      } else if (eventType === 'prompt_processing.end') {
+        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
+      } else if (eventType === 'model_load.start') {
+        onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
+      } else if (eventType === 'model_load.progress') {
+        onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
+      } else if (eventType === 'model_load.end') {
+        onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
+      } else if (eventType === 'error') {
+        throw new Error(readLmStudioError(payload))
       }
     }
   }
@@ -96,7 +193,7 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   }
 
   const response = await fetchWithTimeout(
-    buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'),
+    buildProviderUrl(request.provider, 'chat/completions'),
     {
       method: 'POST',
       headers: {
@@ -159,7 +256,7 @@ export async function summarizeConversation(
 
   let response: Response
   try {
-    response = await fetch(buildOpenAICompatibleUrl(request.provider.baseUrl, 'chat/completions'), {
+    response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
@@ -250,6 +347,61 @@ async function fetchWithTimeout(
   } finally {
     clearTimeout(timeout)
   }
+}
+
+function buildLmStudioNativeInput(
+  messages: ChatMessage[],
+  context: ChatStreamRequest['context']
+): { system_prompt: string; input: string } {
+  const builtMessages = buildMessages(messages, context)
+  const systemPrompt = builtMessages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content)
+    .join('\n\n')
+
+  const transcript = builtMessages
+    .filter((message) => message.role !== 'system')
+    .map((message) => `${message.role === 'assistant' ? 'Assistant' : 'User'}:\n${message.content}`)
+    .join('\n\n')
+
+  return {
+    system_prompt: systemPrompt,
+    input: transcript || messages.at(-1)?.content || ''
+  }
+}
+
+function safeParseJson(data: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(data) as unknown
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function readString(payload: Record<string, unknown> | undefined, key: string): string {
+  const value = payload?.[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function readProgress(payload: Record<string, unknown> | undefined): number {
+  const value = payload?.progress
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(Math.max(value, 0), 1)
+    : 0
+}
+
+function readLmStudioError(payload: Record<string, unknown> | undefined): string {
+  const error = payload?.error
+  if (error && typeof error === 'object') {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message.trim()
+  }
+
+  const message = payload?.message
+  return typeof message === 'string' && message.trim()
+    ? message.trim()
+    : 'LM Studio returned a streaming error.'
 }
 
 async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string, string>> {

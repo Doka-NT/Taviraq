@@ -611,6 +611,15 @@ function registerIpc(): void {
 
   ipcMain.on('llm:chatStream', (event, request: ChatStreamRequest) => {
     void streamChatCompletion(request, (chunk) => {
+      if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
+        event.sender.send('llm:chatStream:event', {
+          requestId: request.requestId,
+          type: 'progress',
+          stage: chunk.stage,
+          progress: chunk.progress
+        })
+      }
+
       if (chunk.reasoningContent) {
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,

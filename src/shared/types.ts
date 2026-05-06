@@ -46,12 +46,15 @@ export interface SSHProfileConfig extends SSHProfile {
 
 export interface LLMProviderConfig {
   name: string
+  providerType?: LLMProviderType
   baseUrl: string
   apiKeyRef: string
   selectedModel?: string
   commandRiskModel?: string
   defaultHeaders?: Record<string, string>
 }
+
+export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio'
 
 export interface SaveLLMProviderRequest {
   provider: LLMProviderConfig
@@ -152,6 +155,7 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
+  | { requestId: string; type: 'progress'; stage: 'model_load' | 'prompt_processing'; progress: number }
   | { requestId: string; type: 'error'; message: string }
   | { requestId: string; type: 'done' }
 

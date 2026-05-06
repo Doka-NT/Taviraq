@@ -3,6 +3,11 @@ export interface ChatCompletionChunk {
   reasoningContent?: string
 }
 
+export interface SseEvent {
+  event?: string
+  data: string
+}
+
 export function parseChatCompletionChunk(payload: unknown): ChatCompletionChunk | undefined {
   if (!payload || typeof payload !== 'object') {
     return undefined
@@ -50,20 +55,38 @@ function readDeltaText(delta: object, keys: string[]): string | undefined {
 }
 
 export function parseSseLines(buffer: string): { events: string[]; remainder: string } {
+  const parsed = parseSseEvents(buffer)
+  return {
+    events: parsed.events.map((event) => event.data),
+    remainder: parsed.remainder
+  }
+}
+
+export function parseSseEvents(buffer: string): { events: SseEvent[]; remainder: string } {
   const normalized = buffer.replace(/\r\n/g, '\n')
   const parts = normalized.split('\n\n')
   const remainder = parts.pop() ?? ''
 
   return {
     events: parts
-      .map((event) =>
-        event
-          .split('\n')
-          .filter((line) => line.startsWith('data:'))
-          .map((line) => line.slice(5).trimStart())
-          .join('\n')
-      )
-      .filter(Boolean),
+      .map(parseSseEventBlock)
+      .filter((event): event is SseEvent => Boolean(event?.data)),
     remainder
   }
+}
+
+function parseSseEventBlock(block: string): SseEvent | undefined {
+  let eventName: string | undefined
+  const data: string[] = []
+
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trimStart()
+    } else if (line.startsWith('data:')) {
+      data.push(line.slice(5).trimStart())
+    }
+  }
+
+  const text = data.join('\n')
+  return text ? { event: eventName, data: text } : undefined
 }

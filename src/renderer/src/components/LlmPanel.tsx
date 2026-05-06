@@ -8,7 +8,7 @@ import {
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, PromptTemplate,
+  AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
   RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
@@ -97,11 +97,18 @@ function isAutoRunMarker(line: string): boolean {
 
 const defaultProvider: LLMProviderConfig = {
   name: 'OpenAI Compatible',
+  providerType: 'openai',
   baseUrl: 'https://api.openai.com',
   apiKeyRef: 'openai-compatible-default',
   selectedModel: '',
   commandRiskModel: ''
 }
+const providerTypeDefaults: Record<LLMProviderType, Pick<LLMProviderConfig, 'name' | 'baseUrl'>> = {
+  openai: { name: 'OpenAI Compatible', baseUrl: 'https://api.openai.com' },
+  ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434' },
+  lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234' }
+}
+const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio']
 const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 
@@ -210,6 +217,28 @@ function upsertProviderInOrder(providers: LLMProviderConfig[], provider: LLMProv
   const existingIndex = providers.findIndex((candidate) => candidate.apiKeyRef === provider.apiKeyRef)
   if (existingIndex === -1) return [...providers, provider]
   return providers.map((candidate, index) => index === existingIndex ? provider : candidate)
+}
+
+function getProviderType(provider: LLMProviderConfig): LLMProviderType {
+  return provider.providerType ?? 'openai'
+}
+
+function applyProviderTypeDefaults(provider: LLMProviderConfig, providerType: LLMProviderType): LLMProviderConfig {
+  const previousDefaults = providerTypeDefaults[getProviderType(provider)]
+  const nextDefaults = providerTypeDefaults[providerType]
+  const shouldReplaceName = !provider.name.trim() || provider.name === previousDefaults.name
+  const shouldReplaceBaseUrl = !provider.baseUrl.trim() || provider.baseUrl === previousDefaults.baseUrl
+
+  return {
+    ...provider,
+    providerType,
+    name: shouldReplaceName ? nextDefaults.name : provider.name,
+    baseUrl: shouldReplaceBaseUrl ? nextDefaults.baseUrl : provider.baseUrl
+  }
+}
+
+function progressPercent(progress: number): number {
+  return Math.round(Math.min(Math.max(progress, 0), 1) * 100)
 }
 
 function formatModelDisplay(modelId: string | undefined): string {
@@ -603,7 +632,8 @@ export function LlmPanel({
           return {
             ...thread,
             messages: next,
-            streamingContent: thread.streamingContent + event.content
+            streamingContent: thread.streamingContent + event.content,
+            status: null
           }
         })
       }
@@ -621,7 +651,24 @@ export function LlmPanel({
           }
           return {
             ...thread,
-            messages: next
+            messages: next,
+            status: null
+          }
+        })
+      }
+
+      if (event.type === 'progress') {
+        const percent = progressPercent(event.progress)
+        updateThread(sessionId, (thread) => {
+          if (thread.activeRequestId !== event.requestId) return thread
+          return {
+            ...thread,
+            status: {
+              tone: 'info',
+              label: event.stage === 'model_load'
+                ? t('status.modelLoading', { percent })
+                : t('status.promptProcessing', { percent })
+            }
           }
         })
       }
@@ -667,7 +714,7 @@ export function LlmPanel({
         autoSaveThreadToHistory(sessionId)
       }
     })
-  }, [autoSaveThreadToHistory, getThread, updateThread])
+  }, [autoSaveThreadToHistory, getThread, t, updateThread])
 
   // Auto-scroll
   useEffect(() => {
@@ -1121,8 +1168,9 @@ export function LlmPanel({
 
   const addProvider = useCallback(() => {
     setProvider({
-      name: 'New Provider',
-      baseUrl: '',
+      name: providerTypeDefaults.openai.name,
+      providerType: 'openai',
+      baseUrl: providerTypeDefaults.openai.baseUrl,
       apiKeyRef: `provider-${crypto.randomUUID()}`,
       selectedModel: '',
       commandRiskModel: ''
@@ -1631,6 +1679,19 @@ export function LlmPanel({
 
                       {/* Right column — provider form */}
                       <div className="provider-form">
+                        <div className="provider-field">
+                          <span className="provider-field-label">{t('providers.type')}</span>
+                          <select
+                            value={getProviderType(provider)}
+                            onChange={(event) => setProvider((p) => applyProviderTypeDefaults(p, event.target.value as LLMProviderType))}
+                          >
+                            {providerTypeOptions.map((providerType) => (
+                              <option key={providerType} value={providerType}>
+                                {t(`providers.type.${providerType}`)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="provider-field">
                           <span className="provider-field-label">{t('providers.name')}</span>
                           <input

@@ -11,10 +11,12 @@ import type {
 } from '@shared/types'
 import {
   buildLmStudioNativeUrl,
+  buildOllamaNativeUrl,
   buildProviderUrl,
   getProviderType,
   parseLmStudioNativeModelList,
   parseModelList,
+  parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
 import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
@@ -28,11 +30,13 @@ const LANGUAGE_NAMES: Record<string, string> = {
 }
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
-  const isLmStudio = getProviderType(provider) === 'lmstudio'
+  const providerType = getProviderType(provider)
   const response = await fetch(
-    isLmStudio
+    providerType === 'lmstudio'
       ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
-      : buildProviderUrl(provider, 'models'),
+      : providerType === 'ollama'
+        ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
+        : buildProviderUrl(provider, 'models'),
     {
       headers: await buildHeaders(provider)
     }
@@ -43,7 +47,9 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
   }
 
   const payload = await response.json() as unknown
-  return isLmStudio ? parseLmStudioNativeModelList(payload) : parseModelList(payload)
+  if (providerType === 'lmstudio') return parseLmStudioNativeModelList(payload)
+  if (providerType === 'ollama') return parseOllamaNativeModelList(payload)
+  return parseModelList(payload)
 }
 
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
@@ -64,6 +70,10 @@ export async function streamChatCompletion(
 
   if (getProviderType(request.provider) === 'lmstudio') {
     return streamLmStudioNativeChatCompletion(request, model, onChunk)
+  }
+
+  if (getProviderType(request.provider) === 'ollama') {
+    return streamOllamaNativeChatCompletion(request, model, onChunk)
   }
 
   const response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
@@ -112,6 +122,65 @@ export async function streamChatCompletion(
         onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
       }
     }
+  }
+}
+
+async function streamOllamaNativeChatCompletion(
+  request: ChatStreamRequest,
+  model: string,
+  onChunk: (chunk: ChatStreamUpdate) => void
+): Promise<void> {
+  const response = await fetch(buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat'), {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(request.provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      stream: true,
+      messages: buildMessages(request.messages, request.context)
+    })
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Ollama chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  if (!response.body) {
+    throw new Error('Ollama chat response did not include a readable stream.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    for (const line of lines) {
+      const payload = safeParseJson(line.trim())
+      if (!payload) continue
+
+      const content = readOllamaMessageText(payload, 'content')
+      const reasoningContent = readOllamaMessageText(payload, 'thinking')
+      if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
+      if (content) onChunk({ type: 'chunk', content })
+    }
+  }
+
+  const payload = safeParseJson(buffer.trim())
+  if (payload) {
+    const content = readOllamaMessageText(payload, 'content')
+    const reasoningContent = readOllamaMessageText(payload, 'thinking')
+    if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
+    if (content) onChunk({ type: 'chunk', content })
   }
 }
 
@@ -192,6 +261,17 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
     throw new Error('Select a command safety model before checking command safety.')
   }
 
+  if (getProviderType(request.provider) === 'ollama') {
+    const response = await postOllamaNativeChat(
+      request.provider,
+      model,
+      buildCommandRiskMessages(request),
+      { options: { temperature: 0 }, timeoutMs: COMMAND_RISK_TIMEOUT_MS }
+    )
+
+    return parseCommandRiskAssessment(extractOllamaMessageContent(response))
+  }
+
   const response = await fetchWithTimeout(
     buildProviderUrl(request.provider, 'chat/completions'),
     {
@@ -256,6 +336,18 @@ export async function summarizeConversation(
 
   let response: Response
   try {
+    if (getProviderType(request.provider) === 'ollama') {
+      const payload = await postOllamaNativeChat(
+        request.provider,
+        model,
+        messages,
+        { options: { temperature: 0.3 }, signal }
+      )
+      const content = extractOllamaMessageContent(payload)
+      if (!content.trim()) throw new Error('Empty response from model.')
+      return parseGeneratedPrompt(content)
+    }
+
     response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
       method: 'POST',
       headers: {
@@ -349,6 +441,44 @@ async function fetchWithTimeout(
   }
 }
 
+async function postOllamaNativeChat(
+  provider: LLMProviderConfig,
+  model: string,
+  messages: ChatMessage[],
+  options?: {
+    options?: Record<string, unknown>
+    signal?: AbortSignal
+    timeoutMs?: number
+  }
+): Promise<unknown> {
+  const url = buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
+  const init: RequestInit = {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      messages,
+      ...(options?.options ? { options: options.options } : {})
+    }),
+    signal: options?.signal
+  }
+
+  const response = options?.timeoutMs
+    ? await fetchWithTimeout(url, init, options.timeoutMs, 'Command safety check timed out, so the command is treated as risky.')
+    : await fetch(url, init)
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Ollama chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  return response.json() as Promise<unknown>
+}
+
 function buildLmStudioNativeInput(
   messages: ChatMessage[],
   context: ChatStreamRequest['context']
@@ -382,6 +512,20 @@ function safeParseJson(data: string): Record<string, unknown> | undefined {
 function readString(payload: Record<string, unknown> | undefined, key: string): string {
   const value = payload?.[key]
   return typeof value === 'string' ? value : ''
+}
+
+function readOllamaMessageText(payload: Record<string, unknown> | undefined, key: 'content' | 'thinking'): string {
+  const message = payload?.message
+  if (!message || typeof message !== 'object') return ''
+
+  const value = (message as Record<string, unknown>)[key]
+  return typeof value === 'string' ? value : ''
+}
+
+function extractOllamaMessageContent(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return ''
+
+  return readOllamaMessageText(payload as Record<string, unknown>, 'content')
 }
 
 function readProgress(payload: Record<string, unknown> | undefined): number {

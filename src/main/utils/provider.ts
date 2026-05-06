@@ -42,6 +42,24 @@ export function buildProviderUrl(provider: LLMProviderConfig, path: 'models' | '
   return buildOpenAICompatibleUrl(provider.baseUrl || PROVIDER_DEFAULTS[getProviderType(provider)].baseUrl, path)
 }
 
+export function buildOllamaNativeUrl(baseUrl: string, path: 'tags' | 'chat'): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+
+  if (!trimmed) {
+    throw new Error('Base URL is required.')
+  }
+
+  const url = new URL(trimmed)
+  url.pathname = url.pathname
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '')
+    .replace(/\/v1$/, '')
+  url.search = ''
+  url.hash = ''
+
+  return `${url.toString().replace(/\/+$/, '')}/api/${path}`
+}
+
 export function buildLmStudioNativeUrl(baseUrl: string, path: 'models' | 'chat'): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, '')
 
@@ -82,6 +100,35 @@ export function parseModelList(payload: unknown): LLMModel[] {
       id: entry.id,
       ownedBy: typeof entry.owned_by === 'string' ? entry.owned_by : undefined
     })
+  }
+
+  return models.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+export function parseOllamaNativeModelList(payload: unknown): LLMModel[] {
+  if (!payload || typeof payload !== 'object' || !('models' in payload)) {
+    throw new Error('Ollama model list response did not include a models array.')
+  }
+
+  const data = payload.models
+  if (!Array.isArray(data)) {
+    throw new Error('Ollama model list data is not an array.')
+  }
+
+  const models: LLMModel[] = []
+  const entries: unknown[] = data
+
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue
+
+    const id = typeof entry.model === 'string'
+      ? entry.model
+      : typeof entry.name === 'string'
+        ? entry.name
+        : undefined
+
+    if (!id) continue
+    models.push({ id, ownedBy: 'ollama' })
   }
 
   return models.sort((a, b) => a.id.localeCompare(b.id))

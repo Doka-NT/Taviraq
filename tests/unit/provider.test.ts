@@ -1,9 +1,11 @@
 import {
   buildLmStudioNativeUrl,
+  buildOllamaNativeUrl,
   buildOpenAICompatibleUrl,
   normalizeBaseUrl,
   parseLmStudioNativeModelList,
-  parseModelList
+  parseModelList,
+  parseOllamaNativeModelList
 } from '@main/utils/provider'
 
 describe('provider utilities', () => {
@@ -29,6 +31,25 @@ describe('provider utilities', () => {
     expect(buildLmStudioNativeUrl('http://localhost:1234', 'chat')).toBe('http://localhost:1234/api/v1/chat')
     expect(buildLmStudioNativeUrl('http://localhost:1234/api/v1', 'models')).toBe('http://localhost:1234/api/v1/models')
     expect(buildLmStudioNativeUrl('http://localhost:1234/v1', 'chat')).toBe('http://localhost:1234/api/v1/chat')
+  })
+
+  it('builds Ollama native URLs', () => {
+    expect(buildOllamaNativeUrl('http://localhost:11434', 'chat')).toBe('http://localhost:11434/api/chat')
+    expect(buildOllamaNativeUrl('http://localhost:11434/api', 'tags')).toBe('http://localhost:11434/api/tags')
+    expect(buildOllamaNativeUrl('http://localhost:11434/v1', 'chat')).toBe('http://localhost:11434/api/chat')
+  })
+
+  it('parses Ollama native models', () => {
+    expect(parseOllamaNativeModelList({
+      models: [
+        { model: 'z-model:latest' },
+        { name: 'a-model:latest' },
+        { digest: 'missing-model-name' }
+      ]
+    })).toEqual([
+      { id: 'a-model:latest', ownedBy: 'ollama' },
+      { id: 'z-model:latest', ownedBy: 'ollama' }
+    ])
   })
 
   it('parses LM Studio native LLM models', () => {

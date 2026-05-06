@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, ChevronDown, Command, FileText, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, Brain, ChevronDown, Command, FileText, History, KeyRound,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -109,6 +109,7 @@ type ThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status'
   command?: string
   output?: string
+  reasoningContent?: string
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 
@@ -162,7 +163,8 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
       content: message.content,
       display: message.display,
       command: message.command,
-      output: message.output
+      output: message.output,
+      reasoningContent: message.reasoningContent
     })),
     draft: thread.draft,
     session: thread.session
@@ -594,6 +596,24 @@ export function LlmPanel({
             ...thread,
             messages: next,
             streamingContent: thread.streamingContent + event.content
+          }
+        })
+      }
+
+      if (event.type === 'reasoning') {
+        updateThread(sessionId, (thread) => {
+          if (thread.activeRequestId !== event.requestId) return thread
+          const next = [...thread.messages]
+          const last = next.at(-1)
+          if (last?.role === 'assistant') {
+            next[next.length - 1] = {
+              ...last,
+              reasoningContent: `${last.reasoningContent ?? ''}${event.content}`
+            }
+          }
+          return {
+            ...thread,
+            messages: next
           }
         })
       }
@@ -1985,7 +2005,8 @@ export function LlmPanel({
 
         {messages.map((message, index) => {
           const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
-          const showDots = isLastAssistant && streaming && !message.content
+          const showDots = isLastAssistant && streaming && !message.content && !message.reasoningContent
+          const reasoningIsStreaming = isLastAssistant && streaming && Boolean(message.reasoningContent) && !message.content
 
           if (message.display === 'command-output') {
             return (
@@ -2013,18 +2034,30 @@ export function LlmPanel({
                 </span>
                 <span className="chat-role-label">{message.role === 'assistant' ? t('chat.role.assistant') : t('chat.role.user')}</span>
               </div>
+              {message.role === 'assistant' && message.reasoningContent ? (
+                <details className="thinking-block">
+                  <summary>
+                    <span className="thinking-title">
+                      <Brain size={12} aria-hidden />
+                      {t('chat.thinking')}
+                    </span>
+                    {reasoningIsStreaming ? <span className="thinking-live-dot" aria-hidden /> : null}
+                  </summary>
+                  <pre>{message.reasoningContent.trim()}</pre>
+                </details>
+              ) : null}
               {showDots ? (
                 <div className="streaming-dots">
                   <span /><span /><span />
                 </div>
-              ) : message.role === 'assistant' ? (
+              ) : message.role === 'assistant' && message.content ? (
                 <MessageContent
                   content={message.content}
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
                   disabled={!activeSession || agenticCommandRunning}
                 />
-              ) : (
+              ) : message.role === 'assistant' ? null : (
                 <p>{message.content}</p>
               )}
             </article>

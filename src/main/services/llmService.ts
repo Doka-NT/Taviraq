@@ -33,7 +33,7 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
 
 export async function streamChatCompletion(
   request: ChatStreamRequest,
-  onChunk: (content: string) => void
+  onChunk: (chunk: { content?: string; reasoningContent?: string }) => void
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
@@ -82,8 +82,8 @@ export async function streamChatCompletion(
       }
 
       const chunk = parseChatCompletionChunk(JSON.parse(event) as unknown)
-      if (chunk?.content) {
-        onChunk(chunk.content)
+      if (chunk?.content || chunk?.reasoningContent) {
+        onChunk(chunk)
       }
     }
   }

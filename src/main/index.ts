@@ -543,12 +543,22 @@ function registerIpc(): void {
   })
 
   ipcMain.on('llm:chatStream', (event, request: ChatStreamRequest) => {
-    void streamChatCompletion(request, (content) => {
-      event.sender.send('llm:chatStream:event', {
-        requestId: request.requestId,
-        type: 'chunk',
-        content
-      })
+    void streamChatCompletion(request, (chunk) => {
+      if (chunk.reasoningContent) {
+        event.sender.send('llm:chatStream:event', {
+          requestId: request.requestId,
+          type: 'reasoning',
+          content: chunk.reasoningContent
+        })
+      }
+
+      if (chunk.content) {
+        event.sender.send('llm:chatStream:event', {
+          requestId: request.requestId,
+          type: 'chunk',
+          content: chunk.content
+        })
+      }
     })
       .then(() => {
         event.sender.send('llm:chatStream:event', {

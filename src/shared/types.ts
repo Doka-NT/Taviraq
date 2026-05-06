@@ -74,6 +74,7 @@ export type RestorableThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status'
   command?: string
   output?: string
+  reasoningContent?: string
 }
 
 export interface RestorableAssistantThread {
@@ -150,6 +151,7 @@ export interface GeneratedPrompt {
 
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
+  | { requestId: string; type: 'reasoning'; content: string }
   | { requestId: string; type: 'error'; message: string }
   | { requestId: string; type: 'done' }
 

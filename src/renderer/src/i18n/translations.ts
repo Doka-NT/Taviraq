@@ -141,6 +141,7 @@ export interface Translations {
   'chat.commandOutput.label': string
   'chat.commandOutput.show': string
   'chat.commandOutput.noOutput': string
+  'chat.thinking': string
   'chat.connectProvider': string
   'chat.saveAsPrompt': string
   'chat.savePrompt.generating': string
@@ -338,6 +339,7 @@ export const en: Translations = {
   'chat.commandOutput.label': 'output sent to assistant',
   'chat.commandOutput.show': 'Show output',
   'chat.commandOutput.noOutput': '(no output)',
+  'chat.thinking': 'Thinking',
   'chat.connectProvider': 'Connect provider',
   'chat.saveAsPrompt': 'Save as prompt',
   'chat.savePrompt.generating': 'Generating prompt…',
@@ -530,6 +532,7 @@ export const ru: Translations = {
   'chat.commandOutput.label': 'вывод отправлен ассистенту',
   'chat.commandOutput.show': 'Показать вывод',
   'chat.commandOutput.noOutput': '(нет вывода)',
+  'chat.thinking': 'Думаю',
   'chat.connectProvider': 'Подключить провайдера',
   'chat.saveAsPrompt': 'Сохранить как промпт',
   'chat.savePrompt.generating': 'Генерирую промпт…',
@@ -722,6 +725,7 @@ export const cn: Translations = {
   'chat.commandOutput.label': '输出已发送给助手',
   'chat.commandOutput.show': '显示输出',
   'chat.commandOutput.noOutput': '（无输出）',
+  'chat.thinking': '思考中',
   'chat.connectProvider': '连接提供商',
   'chat.saveAsPrompt': '保存为提示词',
   'chat.savePrompt.generating': '生成提示词中…',

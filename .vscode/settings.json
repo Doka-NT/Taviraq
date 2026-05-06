@@ -1,0 +1,7 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Generate commit messages using Conventional Commits. Keep the first line under 72 characters. Use English. Do not add emojis."
+    }
+  ]
+}

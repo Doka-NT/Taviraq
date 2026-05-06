@@ -1,5 +1,6 @@
 export interface ChatCompletionChunk {
-  content: string
+  content?: string
+  reasoningContent?: string
 }
 
 export function parseChatCompletionChunk(payload: unknown): ChatCompletionChunk | undefined {
@@ -17,8 +18,35 @@ export function parseChatCompletionChunk(payload: unknown): ChatCompletionChunk 
     return undefined
   }
 
-  const content = (delta as { content?: unknown }).content
-  return typeof content === 'string' ? { content } : undefined
+  const content = readDeltaText(delta, ['content'])
+  const reasoningContent = readDeltaText(delta, [
+    'reasoning_content',
+    'reasoning',
+    'thinking_content',
+    'thinking'
+  ])
+
+  if (!content && !reasoningContent) return undefined
+  return { content, reasoningContent }
+}
+
+function readDeltaText(delta: object, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = (delta as Record<string, unknown>)[key]
+    if (typeof value === 'string') return value
+    if (Array.isArray(value)) {
+      const text = value
+        .map((part) => {
+          if (typeof part === 'string') return part
+          if (!part || typeof part !== 'object') return ''
+          const text = (part as { text?: unknown }).text
+          return typeof text === 'string' ? text : ''
+        })
+        .join('')
+      if (text) return text
+    }
+  }
+  return undefined
 }
 
 export function parseSseLines(buffer: string): { events: string[]; remainder: string } {

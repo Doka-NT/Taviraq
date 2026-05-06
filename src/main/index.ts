@@ -41,6 +41,24 @@ const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
+const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+
+function isAllowedExternalUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return OPEN_EXTERNAL_PROTOCOLS.has(url.protocol)
+  } catch {
+    return false
+  }
+}
+
+async function openAllowedExternalUrl(url: string): Promise<void> {
+  if (!isAllowedExternalUrl(url)) {
+    throw new Error('Unsupported external URL')
+  }
+
+  await shell.openExternal(url)
+}
 
 function beginQuit(): void {
   isQuitting = true
@@ -230,7 +248,9 @@ async function createWindow(): Promise<void> {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    void shell.openExternal(details.url)
+    void openAllowedExternalUrl(details.url).catch((error: unknown) => {
+      console.error('[open external url failed]', error)
+    })
     return { action: 'deny' }
   })
 
@@ -370,6 +390,10 @@ async function createWindow(): Promise<void> {
 
 function registerIpc(): void {
   ipcMain.handle('config:load', () => configStore.load())
+
+  ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
+    return openAllowedExternalUrl(url)
+  })
 
   ipcMain.handle('shortcut:setHide', async (_event, shortcut: string) => {
     const success = registerHideShortcut(shortcut)

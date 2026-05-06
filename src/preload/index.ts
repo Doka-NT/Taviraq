@@ -25,6 +25,9 @@ import type {
 } from '@shared/types'
 
 const api = {
+  app: {
+    openExternalUrl: (url: string) => ipcRenderer.invoke('app:openExternalUrl', url) as Promise<void>
+  },
   shortcuts: {
     onShortcut: (callback: (action: AppShortcutAction) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, action: AppShortcutAction) => callback(action)

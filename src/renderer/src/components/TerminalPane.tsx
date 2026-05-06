@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
@@ -120,8 +121,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     })
     const fit = new FitAddon()
     const search = new SearchAddon()
+    const webLinks = new WebLinksAddon((_event, uri) => {
+      void window.api.app.openExternalUrl(uri).catch((error: unknown) => {
+        console.error('[terminal link open failed]', error)
+      })
+    })
     terminal.loadAddon(fit)
     terminal.loadAddon(search)
+    terminal.loadAddon(webLinks)
     ;(terminal as XtermInternals)._aiTerminalFit = fit
     terminalRef.current = terminal
     fitRef.current = fit

@@ -38,6 +38,8 @@ export interface Translations {
   'providers.name': string
   'providers.baseUrl': string
   'providers.apiKey': string
+  'providers.allowInsecureTls': string
+  'providers.allowInsecureTls.desc': string
   'providers.apiKey.saved': string
   'providers.apiKey.change': string
   'providers.apiKey.placeholder': string
@@ -258,6 +260,8 @@ export const en: Translations = {
   'providers.name': 'Provider name',
   'providers.baseUrl': 'Base URL',
   'providers.apiKey': 'API key',
+  'providers.allowInsecureTls': 'Allow insecure TLS',
+  'providers.allowInsecureTls.desc': 'Use only for trusted internal endpoints with self-signed certificates.',
   'providers.apiKey.saved': 'saved in keychain',
   'providers.apiKey.change': 'Change',
   'providers.apiKey.placeholder': 'Enter API key…',
@@ -466,6 +470,8 @@ export const ru: Translations = {
   'providers.name': 'Название провайдера',
   'providers.baseUrl': 'Базовый URL',
   'providers.apiKey': 'API-ключ',
+  'providers.allowInsecureTls': 'Разрешить небезопасный TLS',
+  'providers.allowInsecureTls.desc': 'Используйте только для доверенных внутренних endpoints с самоподписанными сертификатами.',
   'providers.apiKey.saved': 'сохранён в связке ключей',
   'providers.apiKey.change': 'Изменить',
   'providers.apiKey.placeholder': 'Введите API-ключ…',
@@ -674,6 +680,8 @@ export const cn: Translations = {
   'providers.name': '提供商名称',
   'providers.baseUrl': '基础URL',
   'providers.apiKey': 'API密钥',
+  'providers.allowInsecureTls': '允许不安全TLS',
+  'providers.allowInsecureTls.desc': '仅用于带有自签名证书的可信内部端点。',
   'providers.apiKey.saved': '已保存到密钥链',
   'providers.apiKey.change': '更改',
   'providers.apiKey.placeholder': '输入API密钥…',

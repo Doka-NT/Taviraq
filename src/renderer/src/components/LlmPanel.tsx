@@ -1706,6 +1706,18 @@ export function LlmPanel({
                             onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
                           />
                         </div>
+                        <label className="provider-toggle-field">
+                          <span>
+                            <strong>{t('providers.allowInsecureTls')}</strong>
+                            <small>{t('providers.allowInsecureTls.desc')}</small>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(provider.allowInsecureTls)}
+                            onChange={(event) => setProvider((p) => ({ ...p, allowInsecureTls: event.target.checked }))}
+                          />
+                          <i aria-hidden />
+                        </label>
                         <div className="provider-field">
                           <span className="provider-field-label">{t('providers.apiKey')}</span>
                           {!editingApiKey && hasApiKey ? (

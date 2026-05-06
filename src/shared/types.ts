@@ -52,6 +52,7 @@ export interface LLMProviderConfig {
   selectedModel?: string
   commandRiskModel?: string
   defaultHeaders?: Record<string, string>
+  allowInsecureTls?: boolean
 }
 
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio'

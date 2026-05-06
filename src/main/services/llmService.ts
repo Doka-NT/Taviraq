@@ -9,6 +9,7 @@ import type {
   LLMProviderConfig,
   SummarizeConversationRequest
 } from '@shared/types'
+import { Agent } from 'undici'
 import {
   buildLmStudioNativeUrl,
   buildOllamaNativeUrl,
@@ -23,6 +24,11 @@ import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/u
 import { getApiKey } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
+const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
+
+type ProviderRequestInit = RequestInit & {
+  dispatcher?: Agent
+}
 
 const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian',
@@ -36,9 +42,9 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
     : providerType === 'ollama'
       ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
       : buildProviderUrl(provider, 'models')
-  const response = await fetchProvider(url, {
+  const response = await fetchProvider(url, withProviderTls(provider, {
     headers: await buildHeaders(provider)
-  }, 'Model')
+  }), 'Model')
 
   if (!response.ok) {
     throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
@@ -75,7 +81,7 @@ export async function streamChatCompletion(
   }
 
   const url = buildProviderUrl(request.provider, 'chat/completions')
-  const response = await fetchProvider(url, {
+  const response = await fetchProvider(url, withProviderTls(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -86,7 +92,7 @@ export async function streamChatCompletion(
       stream: true,
       messages: buildMessages(request.messages, request.context)
     })
-  })
+  }))
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
@@ -130,7 +136,7 @@ async function streamOllamaNativeChatCompletion(
   onChunk: (chunk: ChatStreamUpdate) => void
 ): Promise<void> {
   const url = buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const response = await fetchProvider(url, {
+  const response = await fetchProvider(url, withProviderTls(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -141,7 +147,7 @@ async function streamOllamaNativeChatCompletion(
       stream: true,
       messages: buildMessages(request.messages, request.context)
     })
-  })
+  }))
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
@@ -190,7 +196,7 @@ async function streamLmStudioNativeChatCompletion(
   onChunk: (chunk: ChatStreamUpdate) => void
 ): Promise<void> {
   const url = buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat')
-  const response = await fetchProvider(url, {
+  const response = await fetchProvider(url, withProviderTls(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -202,7 +208,7 @@ async function streamLmStudioNativeChatCompletion(
       store: false,
       ...buildLmStudioNativeInput(request.messages, request.context)
     })
-  })
+  }))
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
@@ -350,7 +356,7 @@ export async function summarizeConversation(
     }
 
     const url = buildProviderUrl(request.provider, 'chat/completions')
-    response = await fetchProvider(url, {
+    response = await fetchProvider(url, withProviderTls(request.provider, {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
@@ -358,7 +364,7 @@ export async function summarizeConversation(
       },
       body: JSON.stringify({ model, stream: false, temperature: 0.3, messages }),
       signal
-    })
+    }))
   } catch (error) {
     if (signal?.aborted) {
       throw new Error('Prompt generation cancelled.')
@@ -420,7 +426,7 @@ function fallbackPromptName(content: string): string {
 
 async function fetchWithTimeout(
   url: string,
-  init: RequestInit,
+  init: ProviderRequestInit,
   timeoutMs: number,
   timeoutMessage: string
 ): Promise<Response> {
@@ -448,6 +454,14 @@ async function fetchProvider(url: string, init: RequestInit, label = 'Provider')
     return await fetch(url, init)
   } catch (error) {
     throw new Error(`${label} request to ${url} failed: ${formatFetchError(error)}`)
+  }
+}
+
+function withProviderTls(provider: LLMProviderConfig, init: RequestInit): ProviderRequestInit {
+  if (!provider.allowInsecureTls) return init
+  return {
+    ...init,
+    dispatcher: insecureTlsAgent
   }
 }
 
@@ -480,7 +494,7 @@ async function postOllamaNativeChat(
   }
 ): Promise<unknown> {
   const url = buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const init: RequestInit = {
+  const init = withProviderTls(provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(provider),
@@ -493,7 +507,7 @@ async function postOllamaNativeChat(
       ...(options?.options ? { options: options.options } : {})
     }),
     signal: options?.signal
-  }
+  })
 
   const response = options?.timeoutMs
     ? await fetchWithTimeout(url, init, options.timeoutMs, 'Command safety check timed out, so the command is treated as risky.')

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, screen, shell } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -33,7 +33,7 @@ let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
-let didSaveWindowBoundsForQuit = false
+let quitWindowBoundsSave: Promise<void> | undefined
 const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
@@ -41,6 +41,51 @@ const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
+
+function beginQuit(): void {
+  isQuitting = true
+  terminalManager.killAll()
+}
+
+function finishQuit(): void {
+  globalShortcut.unregisterAll()
+  app.exit(0)
+}
+
+function requestQuit(): void {
+  if (!isQuitting) {
+    beginQuit()
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    finishQuit()
+    return
+  }
+  app.quit()
+}
+
+function registerApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Quit AI Terminal',
+          accelerator: 'Command+Q',
+          click: requestQuit
+        }
+      ]
+    },
+    {
+      role: 'editMenu'
+    },
+    {
+      role: 'windowMenu'
+    }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function registerHideShortcut(shortcut: string): boolean {
   if (currentHideShortcut) globalShortcut.unregister(currentHideShortcut)
@@ -218,12 +263,19 @@ async function createWindow(): Promise<void> {
     }
 
     const key = input.key.toLowerCase()
+    const isQuitShortcut = key === 'q' || input.code === 'KeyQ'
     const isClearShortcut = key === 'k' || input.code === 'KeyK'
     const isSettingsShortcut = key === ',' || input.code === 'Comma'
     const isNewTabShortcut = key === 't' || input.code === 'KeyT'
     const isCloseTabShortcut = key === 'w' || input.code === 'KeyW'
     const tabShortcut = /^[1-9]$/.test(key) ? Number(key) : undefined
     let action: AppShortcutAction | undefined
+
+    if (isQuitShortcut) {
+      event.preventDefault()
+      requestQuit()
+      return
+    }
 
     if (tabShortcut) {
       action = `switch-tab-${tabShortcut}` as AppShortcutAction
@@ -251,13 +303,28 @@ async function createWindow(): Promise<void> {
       return
     }
 
-    if (!didSaveWindowBoundsForQuit) {
-      e.preventDefault()
-      void saveWindowBounds().finally(() => {
-        didSaveWindowBoundsForQuit = true
-        mainWindow?.close()
-      })
+    if (saveWindowBoundsTimer) {
+      clearTimeout(saveWindowBoundsTimer)
+      saveWindowBoundsTimer = undefined
     }
+
+    if (!quitWindowBoundsSave) {
+      e.preventDefault()
+      quitWindowBoundsSave = saveWindowBounds()
+        .catch((error: unknown) => {
+          console.error('[window bounds save before quit failed]', error)
+        })
+        .finally(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.destroy()
+          }
+          finishQuit()
+        })
+    }
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = undefined
   })
 
   mainWindow.on('resize', queueWindowBoundsSave)
@@ -577,10 +644,12 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(() => {
+  registerApplicationMenu()
   registerIpc()
   void createWindow()
 
   app.on('activate', () => {
+    if (isQuitting) return
     if (BrowserWindow.getAllWindows().length === 0) {
       void createWindow()
     }
@@ -588,7 +657,7 @@ void app.whenReady().then(() => {
 })
 
 app.on('before-quit', () => {
-  isQuitting = true
+  beginQuit()
 })
 
 app.on('window-all-closed', () => {

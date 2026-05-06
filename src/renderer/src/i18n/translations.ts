@@ -106,10 +106,16 @@ export interface Translations {
   'data.clearSessions.label': string
   'data.clearSessions.desc': string
   'data.clearSessions': string
+  'data.clearSessionsConfirmTitle': string
+  'data.clearSessionsConfirmMessage': string
+  'data.clearSessionsConfirmBtn': string
   'data.clearChatHistory.label': string
   'data.clearChatHistory.desc': string
   'data.clearChatHistory': string
   'data.clearChatHistory.done': string
+  'data.clearChatHistoryConfirmTitle': string
+  'data.clearChatHistoryConfirmMessage': string
+  'data.clearChatHistoryConfirmBtn': string
 
   // Terminal
   'terminal.sshDisconnected': string
@@ -154,6 +160,9 @@ export interface Translations {
   'chat.historyEmpty': string
   'chat.historyMessages': string
   'chat.historyDelete': string
+  'chat.historyDeleteConfirmTitle': string
+  'chat.historyDeleteConfirmMessage': string
+  'chat.historyDeleteConfirmBtn': string
 
   // Command confirmation dialog
   'confirm.reviewRisky': string
@@ -307,10 +316,16 @@ export const en: Translations = {
   'data.clearSessions.label': 'Saved session state',
   'data.clearSessions.desc': 'Remove stored tabs and scrollback without changing current tabs',
   'data.clearSessions': 'Clear saved state',
+  'data.clearSessionsConfirmTitle': 'Clear saved session state?',
+  'data.clearSessionsConfirmMessage': 'Stored tabs and scrollback will be removed. Current tabs will stay open.',
+  'data.clearSessionsConfirmBtn': 'Clear',
   'data.clearChatHistory.label': 'Chat History',
   'data.clearChatHistory.desc': 'Delete all saved chat conversations',
   'data.clearChatHistory': 'Clear chat history',
   'data.clearChatHistory.done': 'Chat history cleared',
+  'data.clearChatHistoryConfirmTitle': 'Clear chat history?',
+  'data.clearChatHistoryConfirmMessage': 'All saved chat conversations will be deleted. This action cannot be undone.',
+  'data.clearChatHistoryConfirmBtn': 'Clear history',
 
   'terminal.sshDisconnected': 'SSH session disconnected',
   'terminal.reconnect': 'Reconnect',
@@ -352,6 +367,9 @@ export const en: Translations = {
   'chat.historyEmpty': 'No saved chats yet',
   'chat.historyMessages': 'messages',
   'chat.historyDelete': 'Delete',
+  'chat.historyDeleteConfirmTitle': 'Delete chat?',
+  'chat.historyDeleteConfirmMessage': 'This saved chat will be deleted. This action cannot be undone.',
+  'chat.historyDeleteConfirmBtn': 'Delete',
 
   'confirm.reviewRisky': 'Review risky command',
   'confirm.safetyUnavailable': 'Safety check unavailable',
@@ -500,10 +518,16 @@ export const ru: Translations = {
   'data.clearSessions.label': 'Сохранённое состояние сессий',
   'data.clearSessions.desc': 'Удалить сохранённые вкладки и вывод, не меняя текущие вкладки',
   'data.clearSessions': 'Очистить состояние',
+  'data.clearSessionsConfirmTitle': 'Очистить сохранённое состояние?',
+  'data.clearSessionsConfirmMessage': 'Сохранённые вкладки и вывод будут удалены. Текущие вкладки останутся открытыми.',
+  'data.clearSessionsConfirmBtn': 'Очистить',
   'data.clearChatHistory.label': 'История чатов',
   'data.clearChatHistory.desc': 'Удалить все сохранённые разговоры',
   'data.clearChatHistory': 'Очистить историю',
   'data.clearChatHistory.done': 'История чатов очищена',
+  'data.clearChatHistoryConfirmTitle': 'Очистить историю чатов?',
+  'data.clearChatHistoryConfirmMessage': 'Все сохранённые разговоры будут удалены. Это действие нельзя отменить.',
+  'data.clearChatHistoryConfirmBtn': 'Очистить историю',
 
   'terminal.sshDisconnected': 'SSH-сессия отключена',
   'terminal.reconnect': 'Подключиться',
@@ -545,6 +569,9 @@ export const ru: Translations = {
   'chat.historyEmpty': 'Нет сохранённых чатов',
   'chat.historyMessages': 'сообщений',
   'chat.historyDelete': 'Удалить',
+  'chat.historyDeleteConfirmTitle': 'Удалить чат?',
+  'chat.historyDeleteConfirmMessage': 'Сохранённый чат будет удалён. Это действие нельзя отменить.',
+  'chat.historyDeleteConfirmBtn': 'Удалить',
 
   'confirm.reviewRisky': 'Проверьте опасную команду',
   'confirm.safetyUnavailable': 'Проверка безопасности недоступна',
@@ -693,10 +720,16 @@ export const cn: Translations = {
   'data.clearSessions.label': '已保存的会话状态',
   'data.clearSessions.desc': '删除已保存的标签页和回滚内容，不改变当前标签页',
   'data.clearSessions': '清除保存状态',
+  'data.clearSessionsConfirmTitle': '清除保存的会话状态？',
+  'data.clearSessionsConfirmMessage': '已保存的标签页和回滚内容将被删除，当前标签页会保持打开。',
+  'data.clearSessionsConfirmBtn': '清除',
   'data.clearChatHistory.label': '聊天记录',
   'data.clearChatHistory.desc': '删除所有保存的聊天对话',
   'data.clearChatHistory': '清除聊天记录',
   'data.clearChatHistory.done': '聊天记录已清除',
+  'data.clearChatHistoryConfirmTitle': '清除聊天记录？',
+  'data.clearChatHistoryConfirmMessage': '所有保存的聊天对话都将被删除。此操作无法撤销。',
+  'data.clearChatHistoryConfirmBtn': '清除记录',
 
   'terminal.sshDisconnected': 'SSH 会话已断开',
   'terminal.reconnect': '重新连接',
@@ -738,6 +771,9 @@ export const cn: Translations = {
   'chat.historyEmpty': '暂无保存的聊天',
   'chat.historyMessages': '条消息',
   'chat.historyDelete': '删除',
+  'chat.historyDeleteConfirmTitle': '删除聊天？',
+  'chat.historyDeleteConfirmMessage': '此保存的聊天将被删除。此操作无法撤销。',
+  'chat.historyDeleteConfirmBtn': '删除',
 
   'confirm.reviewRisky': '审查危险命令',
   'confirm.safetyUnavailable': '安全检查不可用',

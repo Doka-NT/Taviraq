@@ -121,6 +121,13 @@ interface CommandConfirmation {
   confirmLabel: string
 }
 
+interface DeleteConfirmation {
+  title: string
+  message: string
+  confirmLabel: string
+  onConfirm: () => Promise<void> | void
+}
+
 interface AssistantThread {
   messages: ThreadMessage[]
   draft: string
@@ -302,6 +309,7 @@ export function LlmPanel({
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
   const [savePromptName, setSavePromptName] = useState('')
   const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
   const [promptPickerPrompts, setPromptPickerPrompts] = useState<PromptTemplate[]>([])
@@ -755,10 +763,17 @@ export function LlmPanel({
     setPromptPickerOpen(true)
   }, [promptLibraryRequestVersion])
 
-  const handleDeleteHistoryChat = useCallback(async (chatId: string) => {
-    await window.api.chatHistory.delete(chatId)
-    setHistoryChats((prev) => prev.filter((c) => c.id !== chatId))
-  }, [])
+  const handleDeleteHistoryChat = useCallback((chatId: string) => {
+    setDeleteConfirmation({
+      title: t('chat.historyDeleteConfirmTitle'),
+      message: t('chat.historyDeleteConfirmMessage'),
+      confirmLabel: t('chat.historyDeleteConfirmBtn'),
+      onConfirm: async () => {
+        await window.api.chatHistory.delete(chatId)
+        setHistoryChats((prev) => prev.filter((c) => c.id !== chatId))
+      }
+    })
+  }, [t])
 
   const handleReopenChat = useCallback((chatId: string) => {
     setHistoryOpen(false)
@@ -1253,16 +1268,44 @@ export function LlmPanel({
     }
   }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange, onThemeChange])
 
-  const handleClearSavedSessionState = useCallback(async () => {
-    setDataStatus('Clearing saved session...')
-    try {
-      await onClearSavedSessionState()
-      setDataStatus('Saved session cleared')
-      setTimeout(() => setDataStatus(''), 3000)
-    } catch (error) {
-      setDataStatus(`Clear failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }, [onClearSavedSessionState])
+  const handleClearSavedSessionState = useCallback(() => {
+    setDeleteConfirmation({
+      title: t('data.clearSessionsConfirmTitle'),
+      message: t('data.clearSessionsConfirmMessage'),
+      confirmLabel: t('data.clearSessionsConfirmBtn'),
+      onConfirm: async () => {
+        setDataStatus('Clearing saved session...')
+        try {
+          await onClearSavedSessionState()
+          setDataStatus('Saved session cleared')
+          setTimeout(() => setDataStatus(''), 3000)
+        } catch (error) {
+          setDataStatus(`Clear failed: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+    })
+  }, [onClearSavedSessionState, t])
+
+  const handleClearChatHistory = useCallback(() => {
+    setDeleteConfirmation({
+      title: t('data.clearChatHistoryConfirmTitle'),
+      message: t('data.clearChatHistoryConfirmMessage'),
+      confirmLabel: t('data.clearChatHistoryConfirmBtn'),
+      onConfirm: async () => {
+        await window.api.chatHistory.clear()
+        setHistoryChats([])
+        setDataStatus(t('data.clearChatHistory.done'))
+        setTimeout(() => setDataStatus(''), 2000)
+      }
+    })
+  }, [t])
+
+  const confirmDeleteAction = useCallback(async () => {
+    const confirmation = deleteConfirmation
+    if (!confirmation) return
+    setDeleteConfirmation(null)
+    await confirmation.onConfirm()
+  }, [deleteConfirmation])
 
   const setPromptDraft = useCallback((prompt: string) => {
     if (activeSessionId) {
@@ -1883,12 +1926,7 @@ export function LlmPanel({
                         </small>
                       </div>
                       <div className="appearance-row-right">
-                        <button type="button" className="quiet-button" onClick={() => {
-                          void window.api.chatHistory.clear().then(() => {
-                            setDataStatus(t('data.clearChatHistory.done'))
-                            setTimeout(() => setDataStatus(''), 2000)
-                          })
-                        }}>
+                        <button type="button" className="quiet-button" onClick={handleClearChatHistory}>
                           {t('data.clearChatHistory')}
                         </button>
                       </div>
@@ -2240,6 +2278,40 @@ export function LlmPanel({
           </div>
         </div>
       , document.body) : null}
+
+      {deleteConfirmation ? createPortal(
+        <div
+          className="save-prompt-overlay"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="delete-confirmation-title"
+          onClick={(event) => { if (event.target === event.currentTarget) setDeleteConfirmation(null) }}
+        >
+          <div className="save-prompt-modal">
+            <div className="save-prompt-header">
+              <Trash2 size={15} aria-hidden />
+              <span id="delete-confirmation-title">{deleteConfirmation.title}</span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+              {deleteConfirmation.message}
+            </p>
+            <div className="save-prompt-actions">
+              <button type="button" className="quiet-button" onClick={() => setDeleteConfirmation(null)}>
+                {t('confirm.cancel')}
+              </button>
+              <button
+                type="button"
+                className="delete-prompt-confirm-btn"
+                onClick={() => void confirmDeleteAction()}
+                autoFocus
+              >
+                {deleteConfirmation.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </aside>
   )
 }

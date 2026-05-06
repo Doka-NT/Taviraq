@@ -101,6 +101,12 @@ export class TerminalManager {
     this.emit('terminal:exit', { sessionId, exitCode: 0 })
   }
 
+  killAll(): void {
+    for (const sessionId of [...this.sessions.keys()]) {
+      this.kill(sessionId)
+    }
+  }
+
   runConfirmed(sessionId: string, command: string): void {
     const normalized = command.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
     if (!normalized) {

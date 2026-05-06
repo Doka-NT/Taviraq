@@ -31,16 +31,14 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
   const providerType = getProviderType(provider)
-  const response = await fetch(
-    providerType === 'lmstudio'
-      ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
-      : providerType === 'ollama'
-        ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
-        : buildProviderUrl(provider, 'models'),
-    {
-      headers: await buildHeaders(provider)
-    }
-  )
+  const url = providerType === 'lmstudio'
+    ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
+    : providerType === 'ollama'
+      ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
+      : buildProviderUrl(provider, 'models')
+  const response = await fetchProvider(url, {
+    headers: await buildHeaders(provider)
+  }, 'Model')
 
   if (!response.ok) {
     throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
@@ -76,7 +74,8 @@ export async function streamChatCompletion(
     return streamOllamaNativeChatCompletion(request, model, onChunk)
   }
 
-  const response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
+  const url = buildProviderUrl(request.provider, 'chat/completions')
+  const response = await fetchProvider(url, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -130,7 +129,8 @@ async function streamOllamaNativeChatCompletion(
   model: string,
   onChunk: (chunk: ChatStreamUpdate) => void
 ): Promise<void> {
-  const response = await fetch(buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat'), {
+  const url = buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
+  const response = await fetchProvider(url, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -189,7 +189,8 @@ async function streamLmStudioNativeChatCompletion(
   model: string,
   onChunk: (chunk: ChatStreamUpdate) => void
 ): Promise<void> {
-  const response = await fetch(buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat'), {
+  const url = buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat')
+  const response = await fetchProvider(url, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -348,7 +349,8 @@ export async function summarizeConversation(
       return parseGeneratedPrompt(content)
     }
 
-    response = await fetch(buildProviderUrl(request.provider, 'chat/completions'), {
+    const url = buildProviderUrl(request.provider, 'chat/completions')
+    response = await fetchProvider(url, {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
@@ -441,6 +443,32 @@ async function fetchWithTimeout(
   }
 }
 
+async function fetchProvider(url: string, init: RequestInit, label = 'Provider'): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (error) {
+    throw new Error(`${label} request to ${url} failed: ${formatFetchError(error)}`)
+  }
+}
+
+function formatFetchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+
+  const cause = error.cause
+  if (cause && typeof cause === 'object') {
+    const code = (cause as { code?: unknown }).code
+    const message = (cause as { message?: unknown }).message
+    if (typeof code === 'string' && typeof message === 'string') {
+      return `${error.message} (${code}: ${message})`
+    }
+    if (typeof message === 'string') {
+      return `${error.message} (${message})`
+    }
+  }
+
+  return error.message
+}
+
 async function postOllamaNativeChat(
   provider: LLMProviderConfig,
   model: string,
@@ -469,7 +497,7 @@ async function postOllamaNativeChat(
 
   const response = options?.timeoutMs
     ? await fetchWithTimeout(url, init, options.timeoutMs, 'Command safety check timed out, so the command is treated as risky.')
-    : await fetch(url, init)
+    : await fetchProvider(url, init, 'Ollama chat')
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')

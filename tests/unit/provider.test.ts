@@ -36,6 +36,7 @@ describe('provider utilities', () => {
   it('builds Ollama native URLs', () => {
     expect(buildOllamaNativeUrl('http://localhost:11434', 'chat')).toBe('http://localhost:11434/api/chat')
     expect(buildOllamaNativeUrl('http://localhost:11434/api', 'tags')).toBe('http://localhost:11434/api/tags')
+    expect(buildOllamaNativeUrl('http://localhost:11434/api/tags', 'chat')).toBe('http://localhost:11434/api/chat')
     expect(buildOllamaNativeUrl('http://localhost:11434/v1', 'chat')).toBe('http://localhost:11434/api/chat')
   })
 

@@ -52,6 +52,7 @@ export function buildOllamaNativeUrl(baseUrl: string, path: 'tags' | 'chat'): st
   const url = new URL(trimmed)
   url.pathname = url.pathname
     .replace(/\/+$/, '')
+    .replace(/\/api\/(?:tags|chat)$/, '')
     .replace(/\/api$/, '')
     .replace(/\/v1$/, '')
   url.search = ''
@@ -70,6 +71,7 @@ export function buildLmStudioNativeUrl(baseUrl: string, path: 'models' | 'chat')
   const url = new URL(trimmed)
   url.pathname = url.pathname
     .replace(/\/+$/, '')
+    .replace(/\/api\/v1\/(?:models|chat)$/, '')
     .replace(/\/api\/v1$/, '')
     .replace(/\/v1$/, '')
   url.search = ''

@@ -81,6 +81,19 @@ function registerApplicationMenu(): void {
       role: 'editMenu'
     },
     {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { type: 'separator' },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: 'Alt+Command+I',
+          click: () => mainWindow?.webContents.toggleDevTools()
+        }
+      ]
+    },
+    {
       role: 'windowMenu'
     }
   ]
@@ -250,6 +263,18 @@ async function createWindow(): Promise<void> {
     if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'p' || input.code === 'KeyP')) {
       event.preventDefault()
       mainWindow?.webContents.send('app:shortcut', 'open-prompt-library' satisfies AppShortcutAction)
+      return
+    }
+
+    if (
+      input.meta &&
+      input.alt &&
+      !input.control &&
+      !input.shift &&
+      (input.key.toLowerCase() === 'i' || input.code === 'KeyI')
+    ) {
+      event.preventDefault()
+      mainWindow?.webContents.toggleDevTools()
       return
     }
 

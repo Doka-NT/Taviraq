@@ -41,6 +41,7 @@ const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
+const chatStreamControllers = new Map<string, AbortController>()
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
 
 function isAllowedExternalUrl(value: string): boolean {
@@ -507,6 +508,10 @@ function registerIpc(): void {
     summarizeControllers.get(requestId)?.abort()
   })
 
+  ipcMain.handle('llm:cancelChatStream', (_event, requestId: string) => {
+    chatStreamControllers.get(requestId)?.abort()
+  })
+
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
@@ -659,6 +664,9 @@ function registerIpc(): void {
   })
 
   ipcMain.on('llm:chatStream', (event, request: ChatStreamRequest) => {
+    const controller = new AbortController()
+    chatStreamControllers.set(request.requestId, controller)
+
     void streamChatCompletion(request, (chunk) => {
       if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
         event.sender.send('llm:chatStream:event', {
@@ -684,19 +692,24 @@ function registerIpc(): void {
           content: chunk.content
         })
       }
-    })
+    }, controller.signal)
       .then(() => {
+        if (controller.signal.aborted) return
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
           type: 'done'
         })
       })
       .catch((error: unknown) => {
+        if (controller.signal.aborted) return
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
           type: 'error',
           message: error instanceof Error ? error.message : String(error)
         })
+      })
+      .finally(() => {
+        chatStreamControllers.delete(request.requestId)
       })
   })
 }

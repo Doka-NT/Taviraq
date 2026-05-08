@@ -2079,7 +2079,7 @@ textarea:focus {
   overflow: auto;
   color: rgba(var(--surface-rgb), 0.64);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
-  font-size: calc(var(--app-text-size, 13.5px) - 2px);
+  font-size: max(10px, calc(var(--app-text-size, 13.5px) - 2.75px));
   line-height: 1.5;
   white-space: pre-wrap;
 }

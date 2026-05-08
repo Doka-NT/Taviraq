@@ -135,6 +135,35 @@ interface DeleteConfirmation {
   onConfirm: () => Promise<void> | void
 }
 
+interface ThinkingBlockProps {
+  content: string
+  isStreaming: boolean
+  title: string
+}
+
+function ThinkingBlock({ content, isStreaming, title }: ThinkingBlockProps): JSX.Element {
+  const contentRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [content])
+
+  return (
+    <details className="thinking-block">
+      <summary>
+        <span className="thinking-title">
+          <Brain size={12} aria-hidden />
+          {title}
+        </span>
+        {isStreaming ? <span className="thinking-live-dot" aria-hidden /> : null}
+      </summary>
+      <pre ref={contentRef}>{content.trim()}</pre>
+    </details>
+  )
+}
+
 interface AssistantThread {
   messages: ThreadMessage[]
   draft: string
@@ -730,7 +759,8 @@ export function LlmPanel({
     promptResolversRef.current.delete(sessionId)
     runningCommandsRef.current.delete(sessionId)
     const thread = getThread(sessionId)
-    if (thread.activeRequestId) requestSessionRef.current.delete(thread.activeRequestId)
+    const activeRequestId = thread.activeRequestId
+    if (activeRequestId) requestSessionRef.current.delete(activeRequestId)
     updateThread(sessionId, (thread) => ({
       ...thread,
       commandConfirmation: null,
@@ -743,6 +773,12 @@ export function LlmPanel({
       agenticStep: 0,
       agenticCommand: ''
     }))
+    if (activeRequestId) {
+      const cancelChatStream = window.api.llm.cancelChatStream
+      void cancelChatStream?.(activeRequestId).catch((error: unknown) => {
+        console.error('Failed to cancel chat stream', error)
+      })
+    }
   }, [getThread, updateThread])
 
   const clearHistory = useCallback(() => {
@@ -2146,16 +2182,11 @@ export function LlmPanel({
                 <span className="chat-role-label">{message.role === 'assistant' ? t('chat.role.assistant') : t('chat.role.user')}</span>
               </div>
               {message.role === 'assistant' && message.reasoningContent ? (
-                <details className="thinking-block">
-                  <summary>
-                    <span className="thinking-title">
-                      <Brain size={12} aria-hidden />
-                      {t('chat.thinking')}
-                    </span>
-                    {reasoningIsStreaming ? <span className="thinking-live-dot" aria-hidden /> : null}
-                  </summary>
-                  <pre>{message.reasoningContent.trim()}</pre>
-                </details>
+                <ThinkingBlock
+                  content={message.reasoningContent}
+                  isStreaming={reasoningIsStreaming}
+                  title={t('chat.thinking')}
+                />
               ) : null}
               {showDots ? (
                 <div className="streaming-dots">
@@ -2256,7 +2287,7 @@ export function LlmPanel({
         />
         <div className="chat-form-actions">
           <PromptPicker onSelect={setPromptDraft} open={false} onOpenChange={togglePromptPicker} />
-          {agenticRunning ? (
+          {streaming || agenticRunning ? (
             <button
               className="stop-button"
               type="button"

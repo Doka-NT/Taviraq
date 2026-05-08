@@ -65,7 +65,8 @@ type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
 
 export async function streamChatCompletion(
   request: ChatStreamRequest,
-  onChunk: (chunk: ChatStreamUpdate) => void
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
@@ -73,11 +74,11 @@ export async function streamChatCompletion(
   }
 
   if (getProviderType(request.provider) === 'lmstudio') {
-    return streamLmStudioNativeChatCompletion(request, model, onChunk)
+    return streamLmStudioNativeChatCompletion(request, model, onChunk, signal)
   }
 
   if (getProviderType(request.provider) === 'ollama') {
-    return streamOllamaNativeChatCompletion(request, model, onChunk)
+    return streamOllamaNativeChatCompletion(request, model, onChunk, signal)
   }
 
   const url = buildProviderUrl(request.provider, 'chat/completions')
@@ -91,7 +92,8 @@ export async function streamChatCompletion(
       model,
       stream: true,
       messages: buildMessages(request.messages, request.context)
-    })
+    }),
+    signal
   }))
 
   if (!response.ok) {
@@ -133,7 +135,8 @@ export async function streamChatCompletion(
 async function streamOllamaNativeChatCompletion(
   request: ChatStreamRequest,
   model: string,
-  onChunk: (chunk: ChatStreamUpdate) => void
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const url = buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
   const response = await fetchProvider(url, withProviderTls(request.provider, {
@@ -146,7 +149,8 @@ async function streamOllamaNativeChatCompletion(
       model,
       stream: true,
       messages: buildMessages(request.messages, request.context)
-    })
+    }),
+    signal
   }))
 
   if (!response.ok) {
@@ -193,7 +197,8 @@ async function streamOllamaNativeChatCompletion(
 async function streamLmStudioNativeChatCompletion(
   request: ChatStreamRequest,
   model: string,
-  onChunk: (chunk: ChatStreamUpdate) => void
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
 ): Promise<void> {
   const url = buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat')
   const response = await fetchProvider(url, withProviderTls(request.provider, {
@@ -207,7 +212,8 @@ async function streamLmStudioNativeChatCompletion(
       stream: true,
       store: false,
       ...buildLmStudioNativeInput(request.messages, request.context)
-    })
+    }),
+    signal
   }))
 
   if (!response.ok) {

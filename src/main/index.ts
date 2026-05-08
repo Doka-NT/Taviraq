@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, screen, shel
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
+  AppConfig,
   AppShortcutAction,
   ChatStreamRequest,
   CommandSnippet,
@@ -28,6 +29,10 @@ import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversat
 import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
 
+if (process.env.AI_TERMINAL_USER_DATA_DIR) {
+  app.setPath('userData', process.env.AI_TERMINAL_USER_DATA_DIR)
+}
+
 let mainWindow: BrowserWindow | undefined
 let isQuitting = false
 let currentHideShortcut = ''
@@ -43,6 +48,24 @@ const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+const DEMO_MODE = process.env.AI_TERMINAL_DEMO_MODE === '1'
+const demoProvider = {
+  name: 'AI Terminal Demo',
+  providerType: 'openai' as const,
+  baseUrl: 'https://demo.local',
+  apiKeyRef: 'ai-terminal-demo',
+  selectedModel: 'demo-agent',
+  commandRiskModel: 'demo-safety'
+}
+const demoConfig: AppConfig = {
+  providers: [demoProvider],
+  activeProviderRef: demoProvider.apiKeyRef,
+  hideShortcut: 'CommandOrControl+Shift+Space',
+  windowBounds: {
+    width: 1440,
+    height: 920
+  }
+}
 
 function isAllowedExternalUrl(value: string): boolean {
   try {
@@ -59,6 +82,41 @@ async function openAllowedExternalUrl(url: string): Promise<void> {
   }
 
   await shell.openExternal(url)
+}
+
+async function sendDemoChatStream(
+  event: Electron.IpcMainEvent,
+  request: ChatStreamRequest,
+  signal: AbortSignal
+): Promise<void> {
+  const lastMessage = request.messages.at(-1)?.content.toLowerCase() ?? ''
+  const chunks = lastMessage.startsWith('command `')
+    ? [
+        'The command finished successfully.\n\n',
+        'You can see the live PTY output on the left while I keep the result in the assistant thread. ',
+        'This makes agent execution reviewable without hiding the terminal.'
+      ]
+    : lastMessage.includes('risk') || lastMessage.includes('safety') || lastMessage.includes('опас')
+      ? [
+          'I will pause before running a destructive cleanup command.\n\n',
+          'Running:\n',
+          '```bash\nrm -rf ./dist\n```'
+        ]
+      : [
+          'I will inspect the local workspace and summarize what matters.\n\n',
+          'Running:\n',
+          '```bash\npwd\nprintf "\\nProject files:\\n"\nls -1 | sed -n "1,12p"\nprintf "\\nPackage scripts:\\n"\nnode -e "const p=require(\\"./package.json\\"); for (const [k,v] of Object.entries(p.scripts)) console.log(k + \\": \\" + v)"\n```'
+        ]
+
+  for (const content of chunks) {
+    if (signal.aborted) return
+    event.sender.send('llm:chatStream:event', {
+      requestId: request.requestId,
+      type: 'chunk',
+      content
+    })
+    await new Promise((resolve) => setTimeout(resolve, 280))
+  }
 }
 
 function beginQuit(): void {
@@ -390,7 +448,7 @@ async function createWindow(): Promise<void> {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('config:load', () => configStore.load())
+  ipcMain.handle('config:load', () => DEMO_MODE ? demoConfig : configStore.load())
 
   ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
     return openAllowedExternalUrl(url)
@@ -467,6 +525,10 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
+    if (DEMO_MODE) {
+      return demoConfig
+    }
+
     if (request.apiKey?.trim()) {
       await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
     }
@@ -480,6 +542,13 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:listModels', (_event, request: SaveLLMProviderRequest) => {
+    if (DEMO_MODE) {
+      return [
+        { id: 'demo-agent', ownedBy: 'AI Terminal' },
+        { id: 'demo-safety', ownedBy: 'AI Terminal' }
+      ]
+    }
+
     if (request.apiKey?.trim()) {
       return saveApiKey(request.provider.apiKeyRef, request.apiKey.trim()).then(() => listModels(request.provider))
     }
@@ -488,10 +557,24 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {
+    if (DEMO_MODE) {
+      return {
+        dangerous: /\brm\s+-rf\b|sudo|chmod\s+-r/i.test(request.command),
+        reason: 'Demo safety model: this command can remove files recursively, so it requires explicit confirmation.'
+      }
+    }
+
     return assessCommandRisk(request)
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {
+    if (DEMO_MODE) {
+      return {
+        name: 'Inspect terminal workspace',
+        content: 'Inspect the current terminal workspace, run safe read-only commands when useful, and summarize the result.'
+      }
+    }
+
     const requestId = request.requestId
     if (!requestId) return summarizeConversation(request)
 
@@ -666,6 +749,29 @@ function registerIpc(): void {
   ipcMain.on('llm:chatStream', (event, request: ChatStreamRequest) => {
     const controller = new AbortController()
     chatStreamControllers.set(request.requestId, controller)
+
+    if (DEMO_MODE) {
+      void sendDemoChatStream(event, request, controller.signal)
+        .then(() => {
+          if (controller.signal.aborted) return
+          event.sender.send('llm:chatStream:event', {
+            requestId: request.requestId,
+            type: 'done'
+          })
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return
+          event.sender.send('llm:chatStream:event', {
+            requestId: request.requestId,
+            type: 'error',
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+        .finally(() => {
+          chatStreamControllers.delete(request.requestId)
+        })
+      return
+    }
 
     void streamChatCompletion(request, (chunk) => {
       if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {

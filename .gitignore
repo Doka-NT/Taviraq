@@ -2,6 +2,7 @@ node_modules
 out
 dist
 coverage
+demo-artifacts
 .DS_Store
 .claude/*.local.json
 *.log

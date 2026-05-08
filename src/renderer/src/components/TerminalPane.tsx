@@ -137,10 +137,12 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
     if (containerRef.current) {
       terminal.open(containerRef.current)
-      try {
-        terminal.loadAddon(new WebglAddon())
-      } catch {
-        // WebGL not available, falls back to canvas
+      if (!navigator.webdriver) {
+        try {
+          terminal.loadAddon(new WebglAddon())
+        } catch {
+          // WebGL not available, falls back to canvas
+        }
       }
       initialResizeTimerRef.current = window.setTimeout(() => {
         if (containerRef.current) {

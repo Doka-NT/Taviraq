@@ -18,6 +18,8 @@ const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
 // Literal text of the printf command appended by runConfirmed for SSH sessions.
 // We filter this text from terminal output so the user never sees it.
 const PROMPT_ECHO_SNIPPET = "; printf '\\x1b]6973;PROMPT\\x07'"
+const CANCEL_INPUT_SEQUENCE = '\x03'
+const CONFIRMED_COMMAND_DELAY_MS = 100
 
 interface ManagedSession {
   pty: pty.IPty
@@ -114,14 +116,31 @@ export class TerminalManager {
     }
 
     const session = this.requireSession(sessionId)
-    // For SSH sessions the shell hook is not installed, so we append a printf that
-    // emits the PROMPT_OSC marker after the command finishes.  The literal echo of
-    // the printf is stripped from terminal output so the user never sees it.
-    if (session.info.kind === 'ssh') {
-      session.echoFilterBuffer = ''
-      this.write(sessionId, `${normalized}${PROMPT_ECHO_SNIPPET}\r`)
+    const hadPendingInput = this.clearPendingInput(session)
+    if (hadPendingInput) {
+      this.write(sessionId, CANCEL_INPUT_SEQUENCE)
+    }
+
+    const run = (): void => {
+      if (!this.sessions.has(sessionId)) {
+        return
+      }
+
+      // For SSH sessions the shell hook is not installed, so we append a printf that
+      // emits the PROMPT_OSC marker after the command finishes.  The literal echo of
+      // the printf is stripped from terminal output so the user never sees it.
+      if (session.info.kind === 'ssh') {
+        session.echoFilterBuffer = ''
+        this.write(sessionId, `${normalized}${PROMPT_ECHO_SNIPPET}\r`)
+      } else {
+        this.write(sessionId, `${normalized}\r`)
+      }
+    }
+
+    if (hadPendingInput) {
+      setTimeout(run, CONFIRMED_COMMAND_DELAY_MS)
     } else {
-      this.write(sessionId, `${normalized}\r`)
+      run()
     }
   }
 
@@ -275,10 +294,6 @@ export class TerminalManager {
   }
 
   private trackInput(session: ManagedSession, data: string): void {
-    if (session.info.kind !== 'local') {
-      return
-    }
-
     for (const char of data) {
       if (session.inputEscapeSequence) {
         if (char >= '@' && char <= '~') {
@@ -288,7 +303,9 @@ export class TerminalManager {
         session.inputLine = ''
         session.inputEscapeSequence = true
       } else if (char === '\r' || char === '\n') {
-        this.captureSubmittedCommand(session, session.inputLine ?? '')
+        if (session.info.kind === 'local') {
+          this.captureSubmittedCommand(session, session.inputLine ?? '')
+        }
         session.inputLine = ''
       } else if (char === '\x7f' || char === '\b') {
         session.inputLine = (session.inputLine ?? '').slice(0, -1)
@@ -298,6 +315,16 @@ export class TerminalManager {
         session.inputLine = `${session.inputLine ?? ''}${char}`
       }
     }
+  }
+
+  private clearPendingInput(session: ManagedSession): boolean {
+    if (!session.inputLine) {
+      return false
+    }
+
+    session.inputLine = ''
+    session.inputEscapeSequence = false
+    return true
   }
 
   private captureSubmittedCommand(session: ManagedSession, command: string): void {

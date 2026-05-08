@@ -7,7 +7,7 @@
 <p align="center">
   <strong>A macOS terminal with an AI assistant built in.</strong>
   <br>
-  Ask questions, get command suggestions, and let the AI run steps for you — all without leaving your terminal.
+  Work in a real local or SSH terminal, ask about what is on screen, and let the AI run careful next steps when you want it to.
 </p>
 
 <p align="center">
@@ -22,20 +22,21 @@
   <img src="docs/media/ai-terminal-demo.gif" alt="AI Terminal agent mode demo" width="800">
 </p>
 
-## What it does
+## What it is
 
-AI Terminal is a regular terminal app for macOS with an AI chat panel on the right side. You can open local shell sessions or connect to remote servers over SSH, then ask the assistant anything about what's happening on screen.
+AI Terminal is a desktop terminal for macOS with an assistant panel built into the workflow. It keeps the terminal first: real local shells, SSH sessions through your system `ssh`, searchable output, clickable links, tabs, themes, and a compact sidebar that can explain or act on the context in front of you.
 
-The assistant can explain output, suggest commands, or — in agent mode — run a sequence of commands on its own, one step at a time, asking for your approval before anything potentially risky.
+Use it as a normal terminal, then switch the assistant between read-only help and agent mode when you want it to propose and run commands step by step. Risky or unclear commands pause for an in-app approval before they touch your shell.
 
-## Key features
+## Highlights
 
-- **Local terminal** — open a shell on your Mac just like any other terminal.
-- **SSH support** — connect to remote servers using your existing SSH config, keys, and jump hosts.
-- **AI chat panel** — ask the assistant about selected text or recent terminal output.
-- **Agent mode** — the assistant proposes and runs commands step by step, explaining each one.
-- **Safety confirmations** — risky commands always require a click to approve before they run.
-- **Any AI provider** — works with OpenAI, OpenRouter, LM Studio, or any compatible API.
+- **Real terminal sessions** — local PTY tabs plus SSH profiles that use your existing config, keys, agents, and jump hosts.
+- **Context-aware assistant** — ask about selected text, recent output, the current session, or what command should come next.
+- **Agent mode with safety checks** — commands run one at a time, with a dedicated risk model and confirmation modal for dangerous steps.
+- **Provider choice** — connect OpenAI-compatible APIs, Ollama, or LM Studio, with separate chat and command-risk models.
+- **Prompt and command libraries** — save reusable prompts, turn chats into prompts, and keep command snippets close to the terminal.
+- **Personal workspace** — restore sessions, reopen chat history, tune themes and font size, change language, and import or export settings.
+- **macOS-native storage** — non-secret settings live in app data, while API keys stay in the system keychain.
 
 ## Getting started
 
@@ -62,10 +63,19 @@ On first launch, go to **Settings → Providers** and add your API key and base 
 
 ## Development
 
+**Run locally:**
+
+```bash
+npm install
+npm run dev
+```
+
 **Checks:**
 
 ```bash
-npm run typecheck && npm run test
+npm run lint
+npm run typecheck
+npm test
 ```
 
 **Build macOS package:**

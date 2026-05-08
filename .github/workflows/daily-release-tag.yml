@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -54,3 +55,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$next_tag" -m "Release ${next_tag}"
           git push origin "$next_tag"
+
+          gh workflow run release.yml --ref main -f tag="$next_tag"

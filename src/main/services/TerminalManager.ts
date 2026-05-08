@@ -19,6 +19,7 @@ const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
 // We filter this text from terminal output so the user never sees it.
 const PROMPT_ECHO_SNIPPET = "; printf '\\x1b]6973;PROMPT\\x07'"
 const CANCEL_INPUT_SEQUENCE = '\x03'
+const CONFIRMED_COMMAND_DELAY_MS = 100
 
 interface ManagedSession {
   pty: pty.IPty
@@ -115,16 +116,31 @@ export class TerminalManager {
     }
 
     const session = this.requireSession(sessionId)
-    const prefix = this.prepareForConfirmedCommand(session)
+    const hadPendingInput = this.clearPendingInput(session)
+    if (hadPendingInput) {
+      this.write(sessionId, CANCEL_INPUT_SEQUENCE)
+    }
 
-    // For SSH sessions the shell hook is not installed, so we append a printf that
-    // emits the PROMPT_OSC marker after the command finishes.  The literal echo of
-    // the printf is stripped from terminal output so the user never sees it.
-    if (session.info.kind === 'ssh') {
-      session.echoFilterBuffer = ''
-      this.write(sessionId, `${prefix}${normalized}${PROMPT_ECHO_SNIPPET}\r`)
+    const run = (): void => {
+      if (!this.sessions.has(sessionId)) {
+        return
+      }
+
+      // For SSH sessions the shell hook is not installed, so we append a printf that
+      // emits the PROMPT_OSC marker after the command finishes.  The literal echo of
+      // the printf is stripped from terminal output so the user never sees it.
+      if (session.info.kind === 'ssh') {
+        session.echoFilterBuffer = ''
+        this.write(sessionId, `${normalized}${PROMPT_ECHO_SNIPPET}\r`)
+      } else {
+        this.write(sessionId, `${normalized}\r`)
+      }
+    }
+
+    if (hadPendingInput) {
+      setTimeout(run, CONFIRMED_COMMAND_DELAY_MS)
     } else {
-      this.write(sessionId, `${prefix}${normalized}\r`)
+      run()
     }
   }
 
@@ -301,14 +317,14 @@ export class TerminalManager {
     }
   }
 
-  private prepareForConfirmedCommand(session: ManagedSession): string {
+  private clearPendingInput(session: ManagedSession): boolean {
     if (!session.inputLine) {
-      return ''
+      return false
     }
 
     session.inputLine = ''
     session.inputEscapeSequence = false
-    return CANCEL_INPUT_SEQUENCE
+    return true
   }
 
   private captureSubmittedCommand(session: ManagedSession, command: string): void {

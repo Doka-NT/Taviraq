@@ -84,3 +84,14 @@ npm test
 make build
 # Output: dist/*.pkg and dist/*.zip (unsigned)
 ```
+
+## License
+
+AI Terminal source code is licensed under the
+[GNU Affero General Public License v3.0 or later](LICENSE).
+
+Copyright (C) 2026 Soshnikov Artem.
+
+The AI Terminal name, logo, icon, and other branding assets are not licensed
+for use as trademarks or to imply endorsement. Forks and redistributed builds
+should use their own name and branding unless they have written permission.

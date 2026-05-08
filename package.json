@@ -3,8 +3,9 @@
   "productName": "AI Terminal",
   "version": "0.1.0",
   "description": "Warp-like desktop terminal with OpenAI-compatible LLM assistance.",
-  "author": "Doka-NT",
+  "author": "Soshnikov Artem",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {

@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import type { TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
+import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
   activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
@@ -268,7 +269,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     const output = activeSessionId ? outputBuffers.current.get(activeSessionId) ?? '' : ''
     if (activeSessionId && output) {
       restoringRef.current = true
-      terminal.write(output, () => {
+      terminal.write(outputWithVisibleCursor(output), () => {
         setTimeout(() => { restoringRef.current = false }, 50)
       })
     } else if (!activeSessionId) {

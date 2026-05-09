@@ -206,7 +206,7 @@ export function statusToInlineStatus(status: string): InlineStatus {
     return { tone: 'warning', label: text }
   }
 
-  if (/\b(saved|loaded|ready)\b/.test(lower)) {
+  if (/\b(saved|loaded|ready)\b/.test(lower) || /сохранено|已保存/.test(lower)) {
     return { tone: 'success', label: text }
   }
 

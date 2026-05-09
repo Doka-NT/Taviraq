@@ -9,6 +9,7 @@ export interface Translations {
   'settings.tab.prompts': string
   'settings.tab.snippets': string
   'settings.tab.data': string
+  'status.saved': string
 
   // Appearance tab
   'appearance.title': string
@@ -69,6 +70,7 @@ export interface Translations {
   'connections.extraArgs': string
   'connections.unnamed': string
   'connections.noConnections': string
+  'connections.emptyCta': string
   'connections.newConnection': string
   'connections.tab.newLocal': string
 
@@ -233,6 +235,7 @@ export const en: Translations = {
   'settings.tab.prompts': 'Prompts',
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
+  'status.saved': 'Saved',
 
   'appearance.title': 'Appearance',
   'appearance.fontSize.label': 'Terminal font size',
@@ -290,6 +293,7 @@ export const en: Translations = {
   'connections.extraArgs': 'Extra args',
   'connections.unnamed': 'Unnamed',
   'connections.noConnections': 'No SSH connections yet.',
+  'connections.emptyCta': 'Add first connection',
   'connections.newConnection': 'New Connection',
   'connections.tab.newLocal': 'New Local Terminal',
 
@@ -339,7 +343,7 @@ export const en: Translations = {
   'data.clearChatHistory.done': 'Chat history cleared',
   'data.clearChatHistoryConfirmTitle': 'Clear chat history?',
   'data.clearChatHistoryConfirmMessage': 'All saved chat conversations will be deleted. This action cannot be undone.',
-  'data.clearChatHistoryConfirmBtn': 'Clear history',
+  'data.clearChatHistoryConfirmBtn': 'Clear',
 
   'terminal.sshDisconnected': 'SSH session disconnected',
   'terminal.reconnect': 'Reconnect',
@@ -443,6 +447,7 @@ export const ru: Translations = {
   'settings.tab.prompts': 'Промпты',
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
+  'status.saved': 'Сохранено',
 
   'appearance.title': 'Внешний вид',
   'appearance.fontSize.label': 'Размер шрифта терминала',
@@ -500,6 +505,7 @@ export const ru: Translations = {
   'connections.extraArgs': 'Доп. аргументы',
   'connections.unnamed': 'Без имени',
   'connections.noConnections': 'Нет SSH-подключений.',
+  'connections.emptyCta': 'Добавить первое подключение',
   'connections.newConnection': 'Новое подключение',
   'connections.tab.newLocal': 'Новый локальный терминал',
 
@@ -549,7 +555,7 @@ export const ru: Translations = {
   'data.clearChatHistory.done': 'История чатов очищена',
   'data.clearChatHistoryConfirmTitle': 'Очистить историю чатов?',
   'data.clearChatHistoryConfirmMessage': 'Все сохранённые разговоры будут удалены. Это действие нельзя отменить.',
-  'data.clearChatHistoryConfirmBtn': 'Очистить историю',
+  'data.clearChatHistoryConfirmBtn': 'Очистить',
 
   'terminal.sshDisconnected': 'SSH-сессия отключена',
   'terminal.reconnect': 'Подключиться',
@@ -653,6 +659,7 @@ export const cn: Translations = {
   'settings.tab.prompts': '提示词',
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
+  'status.saved': '已保存',
 
   'appearance.title': '外观',
   'appearance.fontSize.label': '终端字体大小',
@@ -710,6 +717,7 @@ export const cn: Translations = {
   'connections.extraArgs': '额外参数',
   'connections.unnamed': '未命名',
   'connections.noConnections': '暂无 SSH 连接。',
+  'connections.emptyCta': '添加第一个连接',
   'connections.newConnection': '新连接',
   'connections.tab.newLocal': '新建本地终端',
 
@@ -759,7 +767,7 @@ export const cn: Translations = {
   'data.clearChatHistory.done': '聊天记录已清除',
   'data.clearChatHistoryConfirmTitle': '清除聊天记录？',
   'data.clearChatHistoryConfirmMessage': '所有保存的聊天对话都将被删除。此操作无法撤销。',
-  'data.clearChatHistoryConfirmBtn': '清除记录',
+  'data.clearChatHistoryConfirmBtn': '清除',
 
   'terminal.sshDisconnected': 'SSH 会话已断开',
   'terminal.reconnect': '重新连接',

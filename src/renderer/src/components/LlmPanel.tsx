@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, Brain, ChevronDown, Command, FileText, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, History, KeyRound,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -1181,11 +1181,11 @@ export function LlmPanel({
       setApiKey('')
       setEditingApiKey(false)
       if (apiKey) setHasApiKey(true)
-      setProviderStatus('Saved')
+      setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, provider])
+  }, [apiKey, provider, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
     setProvider(target)
@@ -1929,7 +1929,7 @@ export function LlmPanel({
                               {t('connections.save')}
                             </button>
                             {sshProfile.host ? (
-                              <button type="button" className="quiet-button" onClick={() => connectSshProfile(sshProfile)}>
+                              <button type="button" className="quiet-button connection-connect-button" onClick={() => connectSshProfile(sshProfile)}>
                                 <Zap size={13} aria-hidden />
                                 {t('connections.connect')}
                               </button>
@@ -1937,8 +1937,13 @@ export function LlmPanel({
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                          {sshProfiles.length === 0 ? t('connections.noConnections') : ''}
+                        <div className="connections-empty-detail">
+                          {sshProfiles.length === 0 ? (
+                            <button type="button" className="quiet-button connection-connect-button" onClick={addSshProfile}>
+                              <Plus size={13} aria-hidden />
+                              {t('connections.emptyCta')}
+                            </button>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -2618,6 +2623,21 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   )
 }
 
+function SettingsStatus({ label }: { label: string }): JSX.Element {
+  const { t } = useT()
+
+  if (label === t('status.saved')) {
+    return (
+      <div className="inline-status success settings-inline-status">
+        <Check size={13} aria-hidden />
+        <span>{label}</span>
+      </div>
+    )
+  }
+
+  return <p className="settings-status">{label}</p>
+}
+
 function PromptLibrarySection(): JSX.Element {
   const { t } = useT()
   const [prompts, setPrompts] = useState<PromptTemplate[]>([])
@@ -2655,12 +2675,12 @@ function PromptLibrarySection(): JSX.Element {
       setNewContent('')
       setEditing(null)
       setAddingPrompt(false)
-      setPromptStatus('Saved')
+      setPromptStatus(t('status.saved'))
       await reload()
     } catch (err) {
       setPromptStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [editing, newContent, newName, reload])
+  }, [editing, newContent, newName, reload, t])
 
   const handleEdit = useCallback((prompt: PromptTemplate) => {
     setEditing(prompt)
@@ -2797,7 +2817,7 @@ function PromptLibrarySection(): JSX.Element {
         </div>
       ) : null}
 
-      {promptStatus ? <p className="settings-status">{promptStatus}</p> : null}
+      {promptStatus ? <SettingsStatus label={promptStatus} /> : null}
 
       {pendingDeleteId !== null ? createPortal(
         <div
@@ -2878,12 +2898,12 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnipp
       setCommand('')
       setEditing(null)
       setAddingSnippet(false)
-      setStatus('Saved')
+      setStatus(t('status.saved'))
       await reload()
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [command, editing, name, reload])
+  }, [command, editing, name, reload, t])
 
   const handleEdit = useCallback((snippet: CommandSnippet) => {
     setEditing(snippet)
@@ -3001,7 +3021,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnipp
         </div>
       ) : null}
 
-      {status ? <p className="settings-status">{status}</p> : null}
+      {status ? <SettingsStatus label={status} /> : null}
 
       {pendingDeleteId !== null ? createPortal(
         <div

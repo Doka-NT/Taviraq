@@ -9,3 +9,4 @@ demo-artifacts
 *.local
 .env
 .env.*
+.claude/worktrees/

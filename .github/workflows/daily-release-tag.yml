@@ -57,3 +57,5 @@ jobs:
           git push origin "$next_tag"
 
           gh workflow run release.yml --ref main -f tag="$next_tag"
+        env:
+          GH_TOKEN: ${{ github.token }}

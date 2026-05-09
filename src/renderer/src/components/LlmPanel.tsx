@@ -14,6 +14,7 @@ import type {
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT } from '@renderer/i18n/language'
@@ -2321,13 +2322,13 @@ export function LlmPanel({
 
       {savePromptDialog ? createPortal(
         <div
-          className="save-prompt-overlay"
+          className="modal-overlay"
           role="dialog"
           aria-modal="true"
           onClick={(e) => { if (e.target === e.currentTarget) closeSavePromptDialog() }}
         >
-          <div className="save-prompt-modal">
-            <div className="save-prompt-header">
+          <div className="modal-panel">
+            <div className="modal-header">
               <BookmarkPlus size={15} aria-hidden />
               <span>{t('chat.saveAsPrompt')}</span>
             </div>
@@ -2337,7 +2338,7 @@ export function LlmPanel({
                   <span className="save-prompt-spinner" />
                   <span>{t('chat.savePrompt.generating')}</span>
                 </div>
-                <div className="save-prompt-actions">
+                <div className="modal-actions">
                   <button type="button" className="quiet-button" onClick={closeSavePromptDialog}>
                     {t('prompts.cancel')}
                   </button>
@@ -2362,7 +2363,7 @@ export function LlmPanel({
                   onChange={(e) => setSavePromptDialog({ ...savePromptDialog, content: e.target.value })}
                   rows={6}
                 />
-                <div className="save-prompt-actions">
+                <div className="modal-actions">
                   <button type="button" className="quiet-button" onClick={closeSavePromptDialog}>
                     {t('prompts.cancel')}
                   </button>
@@ -2388,38 +2389,14 @@ export function LlmPanel({
         </div>
       , document.body) : null}
 
-      {deleteConfirmation ? createPortal(
-        <div
-          className="save-prompt-overlay"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="delete-confirmation-title"
-          onClick={(event) => { if (event.target === event.currentTarget) setDeleteConfirmation(null) }}
-        >
-          <div className="save-prompt-modal">
-            <div className="save-prompt-header">
-              <Trash2 size={15} aria-hidden />
-              <span id="delete-confirmation-title">{deleteConfirmation.title}</span>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-              {deleteConfirmation.message}
-            </p>
-            <div className="save-prompt-actions">
-              <button type="button" className="quiet-button" onClick={() => setDeleteConfirmation(null)}>
-                {t('confirm.cancel')}
-              </button>
-              <button
-                type="button"
-                className="delete-prompt-confirm-btn"
-                onClick={() => void confirmDeleteAction()}
-                autoFocus
-              >
-                {deleteConfirmation.confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {deleteConfirmation ? (
+        <ConfirmDialog
+          title={deleteConfirmation.title}
+          message={deleteConfirmation.message}
+          confirmLabel={deleteConfirmation.confirmLabel}
+          onConfirm={() => void confirmDeleteAction()}
+          onCancel={() => setDeleteConfirmation(null)}
+        />
       ) : null}
     </aside>
   )
@@ -2819,38 +2796,14 @@ function PromptLibrarySection(): JSX.Element {
 
       {promptStatus ? <SettingsStatus label={promptStatus} /> : null}
 
-      {pendingDeleteId !== null ? createPortal(
-        <div
-          className="save-prompt-overlay"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="delete-prompt-title"
-          onClick={(e) => { if (e.target === e.currentTarget) setPendingDeleteId(null) }}
-        >
-          <div className="save-prompt-modal">
-            <div className="save-prompt-header">
-              <Trash2 size={15} aria-hidden />
-              <span id="delete-prompt-title">{t('prompts.deleteConfirmTitle')}</span>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-              {t('prompts.deleteConfirmMessage')}
-            </p>
-            <div className="save-prompt-actions">
-              <button type="button" className="quiet-button" onClick={() => setPendingDeleteId(null)}>
-                {t('confirm.cancel')}
-              </button>
-              <button
-                type="button"
-                className="delete-prompt-confirm-btn"
-                onClick={() => void confirmDelete()}
-                autoFocus
-              >
-                {t('prompts.deleteConfirmBtn')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {pendingDeleteId !== null ? (
+        <ConfirmDialog
+          title={t('prompts.deleteConfirmTitle')}
+          message={t('prompts.deleteConfirmMessage')}
+          confirmLabel={t('prompts.deleteConfirmBtn')}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDeleteId(null)}
+        />
       ) : null}
     </section>
   )
@@ -3023,38 +2976,14 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnipp
 
       {status ? <SettingsStatus label={status} /> : null}
 
-      {pendingDeleteId !== null ? createPortal(
-        <div
-          className="save-prompt-overlay"
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="delete-command-snippet-title"
-          onClick={(event) => { if (event.target === event.currentTarget) setPendingDeleteId(null) }}
-        >
-          <div className="save-prompt-modal">
-            <div className="save-prompt-header">
-              <Trash2 size={15} aria-hidden />
-              <span id="delete-command-snippet-title">{t('snippets.deleteConfirmTitle')}</span>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
-              {t('snippets.deleteConfirmMessage')}
-            </p>
-            <div className="save-prompt-actions">
-              <button type="button" className="quiet-button" onClick={() => setPendingDeleteId(null)}>
-                {t('confirm.cancel')}
-              </button>
-              <button
-                type="button"
-                className="delete-prompt-confirm-btn"
-                onClick={() => void confirmDelete()}
-                autoFocus
-              >
-                {t('snippets.deleteConfirmBtn')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {pendingDeleteId !== null ? (
+        <ConfirmDialog
+          title={t('snippets.deleteConfirmTitle')}
+          message={t('snippets.deleteConfirmMessage')}
+          confirmLabel={t('snippets.deleteConfirmBtn')}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDeleteId(null)}
+        />
       ) : null}
     </section>
   )

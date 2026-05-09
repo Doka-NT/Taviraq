@@ -1810,7 +1810,7 @@ textarea:focus {
   animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.save-prompt-overlay {
+.modal-overlay {
   position: fixed;
   inset: 0;
   background: var(--overlay-backdrop);
@@ -1821,7 +1821,7 @@ textarea:focus {
   z-index: 50;
 }
 
-.save-prompt-modal {
+.modal-panel {
   background: var(--bg-modal);
   border: 0.5px solid var(--border-strong);
   border-radius: var(--radius-lg, 10px);
@@ -1833,7 +1833,7 @@ textarea:focus {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
-.save-prompt-header {
+.modal-header {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1918,7 +1918,7 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.28);
 }
 
-.save-prompt-actions {
+.modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;

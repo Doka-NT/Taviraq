@@ -313,6 +313,8 @@ interface LlmPanelProps {
   themeId: string
   onThemeChange: (themeId: string) => void
   onConnectSsh: (profile: SSHProfileConfig) => void
+  blockPromptRequest?: { id: string; sessionId: string; prompt: string } | null
+  snippetDraftRequest?: { id: string; name?: string; command?: string } | null
 }
 
 export function LlmPanel({
@@ -347,6 +349,8 @@ export function LlmPanel({
   themeId,
   onThemeChange,
   onConnectSsh,
+  blockPromptRequest,
+  snippetDraftRequest,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -394,6 +398,7 @@ export function LlmPanel({
   const selectedTextRef = useRef(selectedText)
   const promptResolversRef = useRef(new Map<string, () => void>())
   const commandConfirmationResolversRef = useRef(new Map<string, (confirmed: boolean) => void>())
+  const handledBlockPromptRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
   const languageRef = useRef<Language>(language)
@@ -649,6 +654,23 @@ export function LlmPanel({
     })
     autoSaveThreadToHistory(sessionId)
   }, [autoSaveThreadToHistory, getThread, summarizeSession, updateThread])
+
+  useEffect(() => {
+    if (!blockPromptRequest || handledBlockPromptRequestRef.current === blockPromptRequest.id) return
+    handledBlockPromptRequestRef.current = blockPromptRequest.id
+
+    const thread = getThread(blockPromptRequest.sessionId)
+    if (thread.streaming || thread.agenticCommandRunning || thread.commandConfirmation) {
+      updateThread(blockPromptRequest.sessionId, (thread) => ({
+        ...thread,
+        draft: blockPromptRequest.prompt,
+        status: { tone: 'warning', label: t('status.blockPromptQueued') }
+      }))
+      return
+    }
+
+    startStream(blockPromptRequest.sessionId, blockPromptRequest.prompt, thread.messages)
+  }, [blockPromptRequest, getThread, startStream, t, updateThread])
 
   const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
     const requestId = crypto.randomUUID()
@@ -2061,7 +2083,10 @@ export function LlmPanel({
                 {settingsTab === 'snippets' ? (
                   <>
                     <h3 className="settings-content-title">{t('snippets.title')}</h3>
-                    <CommandSnippetLibrarySection addSnippetRequestVersion={addSnippetRequestVersion} />
+                    <CommandSnippetLibrarySection
+                      addSnippetRequestVersion={addSnippetRequestVersion}
+                      snippetDraftRequest={snippetDraftRequest}
+                    />
                   </>
                 ) : null}
 
@@ -2942,9 +2967,14 @@ function PromptLibrarySection(): JSX.Element {
 
 interface CommandSnippetLibrarySectionProps {
   addSnippetRequestVersion: number
+  snippetDraftRequest?: { id: string; name?: string; command?: string } | null
 }
 
-function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnippetLibrarySectionProps): JSX.Element {
+function snippetNameFromCommand(command: string): string {
+  return command.split('\n')[0]?.trim().slice(0, 48) || ''
+}
+
+function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRequest }: CommandSnippetLibrarySectionProps): JSX.Element {
   const { t } = useT()
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
   const [editing, setEditing] = useState<CommandSnippet | null>(null)
@@ -2953,6 +2983,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnipp
   const [command, setCommand] = useState('')
   const [status, setStatus] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const handledSnippetDraftRequestRef = useRef<string>()
 
   const reload = useCallback(async () => {
     try {
@@ -3010,11 +3041,28 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion }: CommandSnipp
     setCommand('')
   }, [])
 
+  const handleAddSnippetDraft = useCallback((draftCommand: string, draftName?: string) => {
+    setEditing(null)
+    setAddingSnippet(true)
+    setName(draftName?.trim() || snippetNameFromCommand(draftCommand))
+    setCommand(draftCommand)
+  }, [])
+
   useEffect(() => {
     if (addSnippetRequestVersion > 0) {
       handleAddSnippet()
     }
   }, [addSnippetRequestVersion, handleAddSnippet])
+
+  useEffect(() => {
+    if (!snippetDraftRequest || handledSnippetDraftRequestRef.current === snippetDraftRequest.id) return
+    handledSnippetDraftRequestRef.current = snippetDraftRequest.id
+    if (snippetDraftRequest.command?.trim()) {
+      handleAddSnippetDraft(snippetDraftRequest.command.trim(), snippetDraftRequest.name)
+    } else {
+      handleAddSnippet()
+    }
+  }, [handleAddSnippet, handleAddSnippetDraft, snippetDraftRequest])
 
   const confirmDelete = useCallback(async () => {
     if (!pendingDeleteId) return

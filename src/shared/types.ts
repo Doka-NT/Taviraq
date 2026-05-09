@@ -31,6 +31,26 @@ export interface CreateTerminalRequest {
   rows?: number
 }
 
+export interface TerminalCommandEvent {
+  sessionId: string
+  command: string
+}
+
+export interface TerminalPromptEvent {
+  sessionId: string
+}
+
+export interface TerminalBlock {
+  id: string
+  sessionId: string
+  command: string
+  startOffset: number
+  endOffset: number
+  startLine: number
+  endLine: number
+  complete: boolean
+}
+
 export interface SSHProfile {
   name?: string
   host: string

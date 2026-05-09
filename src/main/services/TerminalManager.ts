@@ -14,10 +14,10 @@ const execFileAsync = promisify(execFile)
 
 // OSC marker emitted by shell hook on every prompt
 const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
+const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
+const AIT_OSC_PREFIX = '\x1b]6973;'
+const OSC_END = '\x07'
 
-// Literal text of the printf command appended by runConfirmed for SSH sessions.
-// We filter this text from terminal output so the user never sees it.
-const PROMPT_ECHO_SNIPPET = "; printf '\\x1b]6973;PROMPT\\x07'"
 const CANCEL_INPUT_SEQUENCE = '\x03'
 const CONFIRMED_COMMAND_DELAY_MS = 100
 
@@ -27,8 +27,6 @@ interface ManagedSession {
   cwdTimer?: NodeJS.Timeout
   zdotdir?: string  // temp dir to clean up on kill
   promptMarkerRemainder?: string
-  /** Buffered data while looking for PROMPT_ECHO_SNIPPET in the output stream. */
-  echoFilterBuffer?: string
   inputLine?: string
   inputEscapeSequence?: boolean
   transientSsh?: boolean
@@ -126,14 +124,17 @@ export class TerminalManager {
         return
       }
 
-      // For SSH sessions the shell hook is not installed, so we append a printf that
-      // emits the PROMPT_OSC marker after the command finishes.  The literal echo of
-      // the printf is stripped from terminal output so the user never sees it.
-      if (session.info.kind === 'ssh') {
-        session.echoFilterBuffer = ''
-        this.write(sessionId, `${normalized}${PROMPT_ECHO_SNIPPET}\r`)
+      const wasSshSession = session.info.kind === 'ssh'
+      if (wasSshSession) {
+        this.emit('terminal:command', { sessionId, command: normalized })
       } else {
-        this.write(sessionId, `${normalized}\r`)
+        this.captureSubmittedCommand(session, normalized)
+      }
+
+      if (wasSshSession) {
+        session.pty.write(`${normalized}\r`)
+      } else {
+        session.pty.write(`${normalized}\r`)
       }
     }
 
@@ -191,48 +192,16 @@ export class TerminalManager {
     this.sessions.set(id, managed)
 
     child.onData((data) => {
-      // Filter the echo of the appended printf from SSH agent commands
-      let filtered = data
-      if (managed.echoFilterBuffer !== undefined) {
-        const combined = managed.echoFilterBuffer + data
-        const idx = combined.indexOf(PROMPT_ECHO_SNIPPET)
-        if (idx !== -1) {
-          // Found the echo snippet — remove it and stop filtering
-          filtered = combined.slice(0, idx) + combined.slice(idx + PROMPT_ECHO_SNIPPET.length)
-          managed.echoFilterBuffer = undefined
-        } else {
-          // Not found yet — keep buffering (up to a reasonable limit)
-          if (combined.length > 4096) {
-            // Give up filtering — the snippet should have appeared by now
-            filtered = combined
-            managed.echoFilterBuffer = undefined
-          } else {
-            managed.echoFilterBuffer = combined
-            filtered = ''
-          }
-        }
+      const parsed = stripTerminalMarkers(managed, data)
+      if (parsed.data) {
+        this.emit('terminal:data', { sessionId: id, data: parsed.data })
       }
-
-      if (filtered) {
-        const parsed = stripPromptMarkers(managed, filtered)
-        if (parsed.data) {
-          this.emit('terminal:data', { sessionId: id, data: parsed.data })
-        }
-        if (parsed.sawPrompt) {
-          this.restoreTransientSsh(managed)
-          this.emit('terminal:prompt', { sessionId: id })
-        }
-      } else {
-        // Even when echo-filter swallows all data, still check for prompt markers
-        // in the buffer so we don't miss the PROMPT_OSC.
-        const parsed = stripPromptMarkers(managed, data)
-        if (parsed.data) {
-          this.emit('terminal:data', { sessionId: id, data: parsed.data })
-        }
-        if (parsed.sawPrompt) {
-          this.restoreTransientSsh(managed)
-          this.emit('terminal:prompt', { sessionId: id })
-        }
+      for (const command of parsed.commands) {
+        this.emit('terminal:command', { sessionId: id, command })
+      }
+      if (parsed.sawPrompt) {
+        this.restoreTransientSsh(managed)
+        this.emit('terminal:prompt', { sessionId: id })
       }
     })
 
@@ -305,6 +274,11 @@ export class TerminalManager {
       } else if (char === '\r' || char === '\n') {
         if (session.info.kind === 'local') {
           this.captureSubmittedCommand(session, session.inputLine ?? '')
+        } else if (session.info.kind === 'ssh') {
+          const command = (session.inputLine ?? '').trim()
+          if (command) {
+            this.emit('terminal:command', { sessionId: session.info.id, command })
+          }
         }
         session.inputLine = ''
       } else if (char === '\x7f' || char === '\b') {
@@ -423,7 +397,9 @@ function buildHookEnv(shell: string | undefined): HookEnv {
       'fc -R "$HISTFILE" 2>/dev/null || true',
       'unset ZSH_AUTOSUGGEST_USE_ASYNC',
       '___ait_precmd() { printf "\\033]6973;PROMPT\\007"; }',
+      '___ait_preexec() { printf "\\033]6973;COMMAND;%s\\007" "$1"; }',
       'precmd_functions+=(___ait_precmd)',
+      'preexec_functions+=(___ait_preexec)',
       'unset ___AIT_USER_ZDOTDIR ___ait_boot_zdotdir ___ait_default_zdotdir ___ait_user_zdotdir'
     ].join('\n') + '\n')
 
@@ -474,38 +450,63 @@ function isUtf8Locale(value: string | undefined): boolean {
   return Boolean(value && /utf-?8/i.test(value))
 }
 
-function stripPromptMarkers(
+function stripTerminalMarkers(
   session: ManagedSession,
   data: string
-): { data: string; sawPrompt: boolean } {
+): { data: string; sawPrompt: boolean; commands: string[] } {
   let input = `${session.promptMarkerRemainder ?? ''}${data}`
   let clean = ''
   let sawPrompt = false
+  const commands: string[] = []
 
   while (true) {
-    const markerIndex = input.indexOf(PROMPT_OSC)
+    const markerIndex = input.indexOf(AIT_OSC_PREFIX)
     if (markerIndex === -1) {
       break
     }
 
     clean += input.slice(0, markerIndex)
-    input = input.slice(markerIndex + PROMPT_OSC.length)
-    sawPrompt = true
+    input = input.slice(markerIndex)
+
+    if (input.startsWith(PROMPT_OSC)) {
+      input = input.slice(PROMPT_OSC.length)
+      sawPrompt = true
+      continue
+    }
+
+    if (input.startsWith(COMMAND_OSC_PREFIX)) {
+      const endIndex = input.indexOf(OSC_END, COMMAND_OSC_PREFIX.length)
+      if (endIndex === -1) {
+        session.promptMarkerRemainder = input
+        return { data: clean, sawPrompt, commands }
+      }
+      const command = input.slice(COMMAND_OSC_PREFIX.length, endIndex).trim()
+      if (command) {
+        commands.push(command)
+      }
+      input = input.slice(endIndex + OSC_END.length)
+      continue
+    }
+
+    clean += input[0]
+    input = input.slice(1)
   }
 
-  const remainderLength = longestPromptMarkerPrefixAtEnd(input)
+  const remainderLength = longestTerminalMarkerPrefixAtEnd(input)
   const completeLength = input.length - remainderLength
   clean += input.slice(0, completeLength)
   session.promptMarkerRemainder = remainderLength > 0 ? input.slice(completeLength) : undefined
 
-  return { data: clean, sawPrompt }
+  return { data: clean, sawPrompt, commands }
 }
 
-function longestPromptMarkerPrefixAtEnd(value: string): number {
-  const maxLength = Math.min(value.length, PROMPT_OSC.length - 1)
+function longestTerminalMarkerPrefixAtEnd(value: string): number {
+  const candidates = [PROMPT_OSC, COMMAND_OSC_PREFIX]
+  const maxLength = Math.min(value.length, Math.max(...candidates.map((candidate) => candidate.length - 1)))
 
   for (let length = maxLength; length > 0; length -= 1) {
-    if (PROMPT_OSC.startsWith(value.slice(-length))) {
+    const suffix = value.slice(-length)
+    if (candidates.some((candidate) => candidate.startsWith(suffix))) {
       return length
     }
   }

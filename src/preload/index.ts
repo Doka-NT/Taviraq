@@ -73,6 +73,13 @@ const api = {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
+    onCommand: (callback: (payload: { sessionId: string; command: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; command: string }) => callback(payload)
+      ipcRenderer.on('terminal:command', listener)
+      return () => {
+        ipcRenderer.removeListener('terminal:command', listener)
+      }
+    },
     onExit: (callback: (payload: { sessionId: string; exitCode: number }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; exitCode: number }) => callback(payload)
       ipcRenderer.on('terminal:exit', listener)

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, Terminal, X } from 'lucide-react'
-import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalSessionInfo } from '@shared/types'
+import { Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, ShieldAlert, Terminal, X } from 'lucide-react'
+import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
-import type { Language } from './i18n/translations'
+import { useT } from './i18n/language'
+import { TRANSLATIONS, type Language, type Translations } from './i18n/translations'
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
@@ -29,6 +30,25 @@ const MAX_OUTPUT_CONTEXT_KEY = 'ai-terminal.maxOutputContext'
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
+
+interface BlockPromptRequest {
+  id: string
+  sessionId: string
+  prompt: string
+}
+
+interface SnippetDraftRequest {
+  id: string
+  name?: string
+  command?: string
+}
+
+interface PendingBlockPrompt {
+  id: string
+  sessionId: string
+  prompt: string
+  blockCount: number
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
@@ -57,6 +77,63 @@ function getTabLabel(session: TerminalSessionInfo): string {
   return session.label && session.label !== remoteTarget
     ? `${session.label} · ${remoteTarget}`
     : remoteTarget
+}
+
+function lineCount(output: string): number {
+  if (!output) return 0
+  return output.split('\n').length - 1
+}
+
+function findCommandStart(output: string, command: string): number {
+  const commandIndex = output.lastIndexOf(command)
+  if (commandIndex === -1) return output.length
+
+  const previousNewline = output.lastIndexOf('\n', commandIndex)
+  return previousNewline === -1 ? 0 : previousNewline + 1
+}
+
+function findBlockVisualStartLine(output: string, command: string): number {
+  const commandStart = findCommandStart(output, command)
+  if (commandStart < output.length) {
+    return lineCount(output.slice(0, commandStart))
+  }
+
+  const lines = output.split('\n')
+  return Math.max(0, lines.length - 2)
+}
+
+function updateBlockBounds(block: TerminalBlock, output: string): TerminalBlock {
+  const lineEnd = output.indexOf('\n', block.startOffset)
+  const storedCommandLine = output.slice(block.startOffset, lineEnd === -1 ? output.length : lineEnd)
+  const hasCommandAtStoredStart = storedCommandLine.includes(block.command)
+  const commandStart = hasCommandAtStoredStart ? block.startOffset : findCommandStart(output, block.command)
+  const hasCommandInBuffer = commandStart < output.length
+  const startOffset = hasCommandInBuffer ? commandStart : block.startOffset
+  const startLine = hasCommandInBuffer
+    ? lineCount(output.slice(0, commandStart))
+    : block.startLine
+
+  return {
+    ...block,
+    startOffset,
+    startLine,
+    endOffset: output.length,
+    endLine: Math.max(startLine, lineCount(output))
+  }
+}
+
+function stripTerminalControls(value: string): string {
+  const escape = String.fromCharCode(27)
+  return value
+    .replace(new RegExp(`${escape}\\][^\\u0007]*(?:\\u0007|${escape}\\\\)`, 'g'), '')
+    .replace(new RegExp(`${escape}\\[[0-9;?]*[ -/]*[@-~]|${escape}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`, 'g'), '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+}
+
+function isPromptOnlyLine(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed === '~' || trimmed === '%' || trimmed === '>' || /^[➜$#❯>]\s*$/.test(trimmed)
 }
 
 export function App(): JSX.Element {
@@ -99,6 +176,8 @@ export function App(): JSX.Element {
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const outputBuffers = useRef(new Map<string, string>())
+  const terminalBlocksRef = useRef(new Map<string, TerminalBlock[]>())
+  const activeBlockIdsRef = useRef(new Map<string, string>())
   const appShellRef = useRef<HTMLElement>(null)
   const terminalPaneRef = useRef<TerminalPaneHandle | null>(null)
   const restoreInitializedRef = useRef(false)
@@ -108,12 +187,29 @@ export function App(): JSX.Element {
   const sessionsRef = useRef<SessionState[]>([])
   const activeSessionIdRef = useRef<string>()
   const assistantThreadsRef = useRef<RestorableAssistantThreads>({})
+  const [terminalBlocksRevision, setTerminalBlocksRevision] = useState(0)
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
+  const [blockPromptRequest, setBlockPromptRequest] = useState<BlockPromptRequest | null>(null)
+  const [snippetDraftRequest, setSnippetDraftRequest] = useState<SnippetDraftRequest | null>(null)
+  const [pendingBlockPrompt, setPendingBlockPrompt] = useState<PendingBlockPrompt | null>(null)
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.id === activeSessionId),
     [activeSessionId, sessions]
   )
   const activeCwd = activeSession?.cwd ?? activeSession?.command ?? ''
+  const activeTerminalBlocks = activeSessionId && terminalBlocksRevision >= 0
+    ? terminalBlocksRef.current.get(activeSessionId) ?? []
+    : []
+  const appT = useCallback((key: keyof Translations, vars?: Record<string, string | number>): string => {
+    let result = TRANSLATIONS[language][key]
+    if (vars) {
+      for (const [k, v] of Object.entries(vars)) {
+        result = result.replace(`{${k}}`, String(v))
+      }
+    }
+    return result
+  }, [language])
 
   const getOutputForSession = useCallback((sessionId: string): string => {
     const buf = outputBuffers.current.get(sessionId) ?? ''
@@ -124,6 +220,121 @@ export function App(): JSX.Element {
     if (!activeSessionId) return ''
     return getOutputForSession(activeSessionId)
   }, [activeSessionId, getOutputForSession])
+
+  const touchTerminalBlocks = useCallback(() => {
+    setTerminalBlocksRevision((version) => version + 1)
+  }, [])
+
+  const updateActiveBlockEnd = useCallback((sessionId: string, output: string): void => {
+    const blockId = activeBlockIdsRef.current.get(sessionId)
+    if (!blockId) return
+
+    const blocks = terminalBlocksRef.current.get(sessionId) ?? []
+    const block = blocks.find((candidate) => candidate.id === blockId)
+    if (!block) return
+
+    Object.assign(block, updateBlockBounds(block, output))
+  }, [])
+
+  const handleCommandBlockStart = useCallback((sessionId: string, command: string): void => {
+    const output = outputBuffers.current.get(sessionId) ?? ''
+    const activeBlockId = activeBlockIdsRef.current.get(sessionId)
+    if (activeBlockId) {
+      const currentBlocks = terminalBlocksRef.current.get(sessionId) ?? []
+      terminalBlocksRef.current.set(sessionId, currentBlocks.map((block) =>
+        block.id === activeBlockId
+          ? { ...updateBlockBounds(block, output), complete: true }
+          : block
+      ))
+    }
+
+    const startOffset = findCommandStart(output, command)
+    const startLine = findBlockVisualStartLine(output, command)
+    const block: TerminalBlock = {
+      id: crypto.randomUUID(),
+      sessionId,
+      command,
+      startOffset,
+      endOffset: output.length,
+      startLine,
+      endLine: Math.max(startLine, lineCount(output)),
+      complete: false
+    }
+
+    activeBlockIdsRef.current.set(sessionId, block.id)
+    terminalBlocksRef.current.set(sessionId, [...(terminalBlocksRef.current.get(sessionId) ?? []), block])
+    touchTerminalBlocks()
+  }, [touchTerminalBlocks])
+
+  const handleCommandBlockComplete = useCallback((sessionId: string): void => {
+    const blockId = activeBlockIdsRef.current.get(sessionId)
+    if (!blockId) return
+
+    const output = outputBuffers.current.get(sessionId) ?? ''
+    const blocks = terminalBlocksRef.current.get(sessionId) ?? []
+    terminalBlocksRef.current.set(sessionId, blocks.map((block) =>
+      block.id === blockId
+        ? { ...updateBlockBounds(block, output), complete: true }
+        : block
+    ))
+    activeBlockIdsRef.current.delete(sessionId)
+    touchTerminalBlocks()
+  }, [touchTerminalBlocks])
+
+  const toggleBlockSelection = useCallback((blockId: string, additive: boolean): void => {
+    setSelectedBlockIds((current) => {
+      if (!additive) return [blockId]
+      return current.includes(blockId)
+        ? current.filter((id) => id !== blockId)
+        : [...current, blockId]
+    })
+  }, [])
+
+  const clearBlockSelection = useCallback(() => {
+    setSelectedBlockIds([])
+  }, [])
+
+  const askAboutBlocks = useCallback((blocks: TerminalBlock[]): void => {
+    if (!activeSessionId || !blocks.length) return
+
+    const selected = blocks
+      .slice()
+      .sort((a, b) => a.startOffset - b.startOffset)
+      .map((block, index) => {
+        const output = outputBuffers.current.get(block.sessionId) ?? ''
+        const rawOutput = stripTerminalControls(output.slice(block.startOffset, block.endOffset))
+          .split('\n')
+          .filter((line) => !isPromptOnlyLine(line))
+          .join('\n')
+          .trim()
+        const outputLines = rawOutput.split('\n')
+        const cleanOutput = outputLines[0]?.includes(block.command)
+          ? outputLines.slice(1).join('\n').trim()
+          : rawOutput
+        const text = [`$ ${block.command}`, cleanOutput].filter(Boolean).join('\n')
+        return `${appT('terminal.blocks.label', { index: index + 1 })}\n\`\`\`text\n${text}\n\`\`\``
+      })
+      .join('\n\n')
+
+    setPendingBlockPrompt({
+      id: crypto.randomUUID(),
+      sessionId: activeSessionId,
+      blockCount: blocks.length,
+      prompt: `${appT('terminal.blocks.askPrompt')}\n\n${selected}`
+    })
+  }, [activeSessionId, appT])
+
+  const confirmBlockPromptSend = useCallback((): void => {
+    if (!pendingBlockPrompt) return
+
+    setBlockPromptRequest({
+      id: crypto.randomUUID(),
+      sessionId: pendingBlockPrompt.sessionId,
+      prompt: pendingBlockPrompt.prompt
+    })
+    setSidebarVisible(true)
+    setPendingBlockPrompt(null)
+  }, [pendingBlockPrompt])
 
   const scheduleSessionStateSave = useCallback(() => {
     if (!restoreInitializedRef.current || !restoreSessionsRef.current) return
@@ -165,9 +376,18 @@ export function App(): JSX.Element {
   const handleOutput = useCallback((sessionId: string, data: string) => {
     const prev = outputBuffers.current.get(sessionId) ?? ''
     const next = prev + data
-    outputBuffers.current.set(sessionId, next.length > MAX_OUTPUT_CHARS ? next.slice(-MAX_OUTPUT_CHARS) : next)
+    if (next.length > MAX_OUTPUT_CHARS) {
+      outputBuffers.current.set(sessionId, next.slice(-MAX_OUTPUT_CHARS))
+      terminalBlocksRef.current.delete(sessionId)
+      activeBlockIdsRef.current.delete(sessionId)
+      setSelectedBlockIds([])
+      touchTerminalBlocks()
+    } else {
+      outputBuffers.current.set(sessionId, next)
+      updateActiveBlockEnd(sessionId, next)
+    }
     scheduleSessionStateSave()
-  }, [scheduleSessionStateSave])
+  }, [scheduleSessionStateSave, touchTerminalBlocks, updateActiveBlockEnd])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(sidebarVisible))
@@ -212,6 +432,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId
+    setSelectedBlockIds([])
     scheduleSessionStateSave()
   }, [activeSessionId, scheduleSessionStateSave])
 
@@ -431,12 +652,30 @@ export function App(): JSX.Element {
     }
   }, [])
 
+  useEffect(() => {
+    const offCommand = window.api.terminal.onCommand(({ sessionId, command }) => {
+      handleCommandBlockStart(sessionId, command)
+    })
+    const offPrompt = window.api.terminal.onPrompt(({ sessionId }) => {
+      handleCommandBlockComplete(sessionId)
+    })
+
+    return () => {
+      offCommand()
+      offPrompt()
+    }
+  }, [handleCommandBlockComplete, handleCommandBlockStart])
+
   const closeSession = useCallback(async (sessionId: string) => {
     const closing = sessions.find((session) => session.id === sessionId)
     if (closing?.status !== 'disconnected') {
       await window.api.terminal.kill(sessionId)
     }
     outputBuffers.current.delete(sessionId)
+    terminalBlocksRef.current.delete(sessionId)
+    activeBlockIdsRef.current.delete(sessionId)
+    setSelectedBlockIds([])
+    touchTerminalBlocks()
     const remaining = sessions.filter((session) => session.id !== sessionId)
     setSessions(remaining)
     setActiveSessionId((current) => {
@@ -446,7 +685,7 @@ export function App(): JSX.Element {
     if (remaining.length === 0) {
       void createLocalSession()
     }
-  }, [sessions, createLocalSession])
+  }, [sessions, createLocalSession, touchTerminalBlocks])
 
   const reconnectSession = useCallback(async (sessionId: string) => {
     const session = sessions.find((candidate) => candidate.id === sessionId)
@@ -459,6 +698,10 @@ export function App(): JSX.Element {
       : ''
     outputBuffers.current.delete(sessionId)
     outputBuffers.current.set(next.id, `${restoredOutput}${fallbackNotice}`)
+    terminalBlocksRef.current.delete(sessionId)
+    activeBlockIdsRef.current.delete(sessionId)
+    setSelectedBlockIds([])
+    touchTerminalBlocks()
     assistantThreadsRef.current = remapAssistantThreadId(assistantThreadsRef.current, sessionId, next.id)
     setRestoredAssistantThreads(assistantThreadsRef.current)
     setSessions((current) =>
@@ -481,7 +724,7 @@ export function App(): JSX.Element {
     )
     setActiveSessionId(next.id)
     void window.api.command.runConfirmed(next.id, session.reconnectCommand)
-  }, [sessions])
+  }, [sessions, touchTerminalBlocks])
 
   const handleAssistantThreadsChange = useCallback((threads: RestorableAssistantThreads) => {
     assistantThreadsRef.current = threads
@@ -515,8 +758,12 @@ export function App(): JSX.Element {
     if (!activeSessionId) return
 
     outputBuffers.current.set(activeSessionId, '')
+    terminalBlocksRef.current.delete(activeSessionId)
+    activeBlockIdsRef.current.delete(activeSessionId)
+    setSelectedBlockIds([])
+    touchTerminalBlocks()
     setTerminalClearVersion((version) => version + 1)
-  }, [activeSessionId])
+  }, [activeSessionId, touchTerminalBlocks])
 
   const insertCommandSnippet = useCallback((command: string, run: boolean) => {
     if (!activeSessionId || activeSession?.status !== 'running') return
@@ -532,6 +779,20 @@ export function App(): JSX.Element {
     setSettingsTabRequest('snippets')
     setSettingsTabRequestVersion((version) => version + 1)
     setAddSnippetRequestVersion((version) => version + 1)
+    setSettingsOpen(true)
+  }, [])
+
+  const openSnippetForm = useCallback((command?: string) => {
+    const normalizedCommand = command?.trim() ?? ''
+    setSnippetPaletteOpen(false)
+    setSettingsTabRequest('snippets')
+    setSettingsTabRequestVersion((version) => version + 1)
+    setAddSnippetRequestVersion(0)
+    setSnippetDraftRequest({
+      id: crypto.randomUUID(),
+      name: normalizedCommand.split('\n')[0]?.trim().slice(0, 48) || undefined,
+      command: normalizedCommand || undefined
+    })
     setSettingsOpen(true)
   }, [])
 
@@ -674,7 +935,7 @@ export function App(): JSX.Element {
               type="button"
               onClick={() => setSnippetPaletteOpen(true)}
               disabled={!activeSessionId || activeSession?.status !== 'running'}
-              title="Command snippets (⌘⇧K)"
+              title={`${appT('snippetPalette.title')} (⌘⇧K)`}
             >
               <Command size={16} aria-hidden />
             </button>
@@ -746,6 +1007,12 @@ export function App(): JSX.Element {
           outputBuffers={outputBuffers}
           onOutput={handleOutput}
           onReconnect={(sessionId) => { void reconnectSession(sessionId) }}
+          terminalBlocks={activeTerminalBlocks}
+          selectedBlockIds={selectedBlockIds}
+          onToggleBlockSelection={toggleBlockSelection}
+          onClearBlockSelection={clearBlockSelection}
+          onAskBlocks={askAboutBlocks}
+          onSaveSnippet={openSnippetForm}
           terminalTheme={terminalTheme}
         />
       </section>
@@ -791,7 +1058,54 @@ export function App(): JSX.Element {
         onClearSavedSessionState={clearSavedSessionState}
         onReopenChat={(chatId) => { void handleReopenChat(chatId) }}
         onConnectSsh={(profile) => { void connectSshProfile(profile) }}
+        blockPromptRequest={blockPromptRequest}
+        snippetDraftRequest={snippetDraftRequest}
       />
+
+      {pendingBlockPrompt ? (
+        <div
+          className="modal-overlay terminal-block-send-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="terminal-block-send-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setPendingBlockPrompt(null)
+          }}
+        >
+          <div
+            className="modal-panel terminal-block-send-panel"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                setPendingBlockPrompt(null)
+              }
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                event.stopPropagation()
+                confirmBlockPromptSend()
+              }
+            }}
+          >
+            <div className="modal-header">
+              <ShieldAlert size={15} aria-hidden />
+              <span id="terminal-block-send-title">{appT('terminal.blocks.sendTitle')}</span>
+            </div>
+            <p className="terminal-block-send-copy">{appT('terminal.blocks.sendBody')}</p>
+            <div className="terminal-block-send-meta">
+              {appT('terminal.blocks.selectedCount', { count: pendingBlockPrompt.blockCount })}
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="quiet-button" onClick={() => setPendingBlockPrompt(null)} autoFocus>
+                {appT('confirm.cancel')}
+              </button>
+              <button type="button" className="save-prompt-confirm" onClick={confirmBlockPromptSend}>
+                {appT('terminal.blocks.send')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {snippetPaletteOpen ? (
         <CommandSnippetPalette
@@ -814,6 +1128,7 @@ interface CommandSnippetPaletteProps {
 }
 
 function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: CommandSnippetPaletteProps): JSX.Element {
+  const { t } = useT()
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -873,25 +1188,25 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
 
   return (
     <div className="command-snippet-palette-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="command-snippet-palette" role="dialog" aria-modal="true" aria-label="Command snippets">
+      <section className="command-snippet-palette" role="dialog" aria-modal="true" aria-label={t('snippetPalette.title')}>
         <div className="command-snippet-palette-search">
           <Search size={15} aria-hidden />
           <input
             autoFocus
             value={query}
-            placeholder="Search command snippets..."
+            placeholder={t('snippetPalette.search')}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={handleKeyDown}
           />
         </div>
         <div className="command-snippet-palette-hint">
           <div className="command-snippet-palette-shortcuts">
-            <span>Enter inserts</span>
-            <span>⌘Enter runs</span>
+            <span>{t('snippetPalette.enterInserts')}</span>
+            <span>{t('snippetPalette.metaEnterRuns')}</span>
           </div>
           <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
             <Plus size={12} aria-hidden />
-            Add snippet
+            {t('snippetPalette.addSnippet')}
           </button>
         </div>
         <div className="command-snippet-palette-list" ref={listRef}>
@@ -912,7 +1227,7 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
                 className="command-snippet-run-action"
                 role="button"
                 tabIndex={-1}
-                title="Run now"
+                title={t('snippetPalette.runNow')}
                 onClick={(event) => {
                   event.stopPropagation()
                   onUse(snippet.command, true)
@@ -923,7 +1238,7 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
             </button>
           )) : (
             <p className="command-snippet-palette-empty">
-              {snippets.length === 0 ? 'No command snippets yet. Add them in Settings.' : 'No matching snippets.'}
+              {snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}
             </p>
           )}
         </div>

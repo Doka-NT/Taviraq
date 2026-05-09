@@ -2,9 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
-function createManagerWithSession(info: Partial<TerminalSessionInfo>, inputLine?: string): { manager: TerminalManager; writes: string[] } {
+function createManagerWithSession(
+  info: Partial<TerminalSessionInfo>,
+  inputLine?: string,
+  sends: Array<{ channel: string; payload: unknown }> = []
+): { manager: TerminalManager; writes: string[] } {
   const writes: string[] = []
-  const manager = new TerminalManager(() => undefined)
+  const manager = new TerminalManager(() => ({
+    webContents: {
+      send: (channel: string, payload: unknown) => sends.push({ channel, payload })
+    }
+  }) as never)
   const sessionInfo: TerminalSessionInfo = {
     id: 'session-1',
     kind: 'local',
@@ -68,6 +76,19 @@ describe('TerminalManager.runConfirmed', () => {
 
     vi.advanceTimersByTime(100)
 
-    expect(writes).toEqual(['\x03', "pwd; printf '\\x1b]6973;PROMPT\\x07'\r"])
+    expect(writes).toEqual(['\x03', 'pwd\r'])
+  })
+
+  it('emits command events for commands typed inside direct SSH sessions', () => {
+    const sends: Array<{ channel: string; payload: unknown }> = []
+    const { manager, writes } = createManagerWithSession({ kind: 'ssh' }, undefined, sends)
+
+    manager.write('session-1', 'ls -la\r')
+
+    expect(writes).toEqual(['ls -la\r'])
+    expect(sends).toContainEqual({
+      channel: 'terminal:command',
+      payload: { sessionId: 'session-1', command: 'ls -la' }
+    })
   })
 })

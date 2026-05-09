@@ -133,6 +133,22 @@ export interface Translations {
   'terminal.searchPrevious': string
   'terminal.searchNext': string
   'terminal.searchClose': string
+  'terminal.blocks.select': string
+  'terminal.blocks.deselect': string
+  'terminal.blocks.askAi': string
+  'terminal.blocks.copyBlock': string
+  'terminal.blocks.copyCommand': string
+  'terminal.blocks.copyOutput': string
+  'terminal.blocks.rerunCommand': string
+  'terminal.blocks.saveSnippet': string
+  'terminal.blocks.clearSelection': string
+  'terminal.blocks.sendTitle': string
+  'terminal.blocks.sendBody': string
+  'terminal.blocks.send': string
+  'terminal.blocks.selectedCount': string
+  'terminal.blocks.askPrompt': string
+  'terminal.blocks.label': string
+  'terminal.noActiveSession': string
 
   // Panel header
   'panel.agent': string
@@ -199,6 +215,7 @@ export interface Translations {
   'status.commandAlreadyRunning': string
   'status.modelLoading': string
   'status.promptProcessing': string
+  'status.blockPromptQueued': string
 
   // Suggestion chips
   'chip.space': string
@@ -228,6 +245,16 @@ export interface Translations {
   'model.loadFirst': string
   'model.loadModelsFirst': string
   'model.showing': string
+
+  // Command snippet palette
+  'snippetPalette.title': string
+  'snippetPalette.search': string
+  'snippetPalette.enterInserts': string
+  'snippetPalette.metaEnterRuns': string
+  'snippetPalette.addSnippet': string
+  'snippetPalette.runNow': string
+  'snippetPalette.empty': string
+  'snippetPalette.noMatch': string
 }
 
 export const en: Translations = {
@@ -355,6 +382,22 @@ export const en: Translations = {
   'terminal.searchPrevious': 'Previous result',
   'terminal.searchNext': 'Next result',
   'terminal.searchClose': 'Close search',
+  'terminal.blocks.select': 'Select',
+  'terminal.blocks.deselect': 'Deselect',
+  'terminal.blocks.askAi': 'Ask AI',
+  'terminal.blocks.copyBlock': 'Copy block',
+  'terminal.blocks.copyCommand': 'Copy command',
+  'terminal.blocks.copyOutput': 'Copy output',
+  'terminal.blocks.rerunCommand': 'Rerun command',
+  'terminal.blocks.saveSnippet': 'Save snippet',
+  'terminal.blocks.clearSelection': 'Clear selection',
+  'terminal.blocks.sendTitle': 'Send selected blocks to chat?',
+  'terminal.blocks.sendBody': 'Commands and the selected terminal output will be sent to the chat. Check that there are no tokens, keys, passwords, private paths, or other sensitive data.',
+  'terminal.blocks.send': 'Send',
+  'terminal.blocks.selectedCount': '{count} selected block(s)',
+  'terminal.blocks.askPrompt': 'Analyze the selected terminal blocks: explain what ran, what the output means, whether there are errors, and what next steps make sense.',
+  'terminal.blocks.label': 'Block {index}',
+  'terminal.noActiveSession': 'No active terminal session.',
 
   'panel.agent': 'Agent',
   'panel.agentToggle.enable': 'Enable agent execution',
@@ -417,6 +460,7 @@ export const en: Translations = {
   'status.commandAlreadyRunning': 'A command is already running in this session.',
   'status.modelLoading': 'Loading model {percent}%',
   'status.promptProcessing': 'Processing prompt {percent}%',
+  'status.blockPromptQueued': 'Assistant is busy. Block prompt was placed in the input.',
 
   'chip.space': "What's taking space?",
   'chip.spacePrompt': "What's taking the most disk space here?",
@@ -443,6 +487,15 @@ export const en: Translations = {
   'model.loadFirst': 'Load models to search',
   'model.loadModelsFirst': 'Load models first',
   'model.showing': 'Showing {visible} of {total}',
+
+  'snippetPalette.title': 'Command snippets',
+  'snippetPalette.search': 'Search command snippets...',
+  'snippetPalette.enterInserts': 'Enter inserts',
+  'snippetPalette.metaEnterRuns': '⌘Enter runs',
+  'snippetPalette.addSnippet': 'Add snippet',
+  'snippetPalette.runNow': 'Run now',
+  'snippetPalette.empty': 'No command snippets yet. Add them in Settings.',
+  'snippetPalette.noMatch': 'No matching snippets.',
 }
 
 export const ru: Translations = {
@@ -570,6 +623,22 @@ export const ru: Translations = {
   'terminal.searchPrevious': 'Предыдущее совпадение',
   'terminal.searchNext': 'Следующее совпадение',
   'terminal.searchClose': 'Закрыть поиск',
+  'terminal.blocks.select': 'Выбрать',
+  'terminal.blocks.deselect': 'Снять',
+  'terminal.blocks.askAi': 'Спросить ИИ',
+  'terminal.blocks.copyBlock': 'Копировать блок',
+  'terminal.blocks.copyCommand': 'Копировать команду',
+  'terminal.blocks.copyOutput': 'Копировать вывод',
+  'terminal.blocks.rerunCommand': 'Запустить снова',
+  'terminal.blocks.saveSnippet': 'Сохранить сниппет',
+  'terminal.blocks.clearSelection': 'Снять выделение',
+  'terminal.blocks.sendTitle': 'Отправить выбранные блоки в чат?',
+  'terminal.blocks.sendBody': 'В чат попадут команды и весь выбранный вывод терминала. Проверьте, что там нет токенов, ключей, паролей, приватных путей или других чувствительных данных.',
+  'terminal.blocks.send': 'Отправить',
+  'terminal.blocks.selectedCount': 'Выбрано блоков: {count}',
+  'terminal.blocks.askPrompt': 'Разбери выбранные блоки терминала: объясни, что выполнялось, что означает вывод, есть ли ошибки и какие следующие шаги разумны.',
+  'terminal.blocks.label': 'Блок {index}',
+  'terminal.noActiveSession': 'Нет активной сессии терминала.',
 
   'panel.agent': 'Агент',
   'panel.agentToggle.enable': 'Включить режим агента',
@@ -632,6 +701,7 @@ export const ru: Translations = {
   'status.commandAlreadyRunning': 'В этой сессии уже выполняется команда.',
   'status.modelLoading': 'Загрузка модели {percent}%',
   'status.promptProcessing': 'Обработка промпта {percent}%',
+  'status.blockPromptQueued': 'Ассистент занят. Промпт по блоку помещён в поле ввода.',
 
   'chip.space': 'Что занимает место?',
   'chip.spacePrompt': 'Что занимает больше всего места на диске?',
@@ -658,6 +728,15 @@ export const ru: Translations = {
   'model.loadFirst': 'Загрузите модели для поиска',
   'model.loadModelsFirst': 'Сначала загрузите модели',
   'model.showing': 'Показано {visible} из {total}',
+
+  'snippetPalette.title': 'Сниппеты команд',
+  'snippetPalette.search': 'Поиск сниппетов команд...',
+  'snippetPalette.enterInserts': 'Enter вставляет',
+  'snippetPalette.metaEnterRuns': '⌘Enter запускает',
+  'snippetPalette.addSnippet': 'Добавить сниппет',
+  'snippetPalette.runNow': 'Запустить сейчас',
+  'snippetPalette.empty': 'Сниппетов команд пока нет. Добавьте их в настройках.',
+  'snippetPalette.noMatch': 'Подходящих сниппетов нет.',
 }
 
 export const cn: Translations = {
@@ -785,6 +864,22 @@ export const cn: Translations = {
   'terminal.searchPrevious': '上一个结果',
   'terminal.searchNext': '下一个结果',
   'terminal.searchClose': '关闭搜索',
+  'terminal.blocks.select': '选择',
+  'terminal.blocks.deselect': '取消选择',
+  'terminal.blocks.askAi': '询问 AI',
+  'terminal.blocks.copyBlock': '复制块',
+  'terminal.blocks.copyCommand': '复制命令',
+  'terminal.blocks.copyOutput': '复制输出',
+  'terminal.blocks.rerunCommand': '重新运行命令',
+  'terminal.blocks.saveSnippet': '保存片段',
+  'terminal.blocks.clearSelection': '清除选择',
+  'terminal.blocks.sendTitle': '将所选块发送到聊天？',
+  'terminal.blocks.sendBody': '命令和所选终端输出将发送到聊天。请确认其中没有令牌、密钥、密码、私有路径或其他敏感数据。',
+  'terminal.blocks.send': '发送',
+  'terminal.blocks.selectedCount': '已选择 {count} 个块',
+  'terminal.blocks.askPrompt': '分析所选终端块：解释执行了什么、输出含义、是否有错误，以及合理的下一步。',
+  'terminal.blocks.label': '块 {index}',
+  'terminal.noActiveSession': '没有活动的终端会话。',
 
   'panel.agent': '代理',
   'panel.agentToggle.enable': '启用代理执行',
@@ -847,6 +942,7 @@ export const cn: Translations = {
   'status.commandAlreadyRunning': '此会话中已有命令正在运行。',
   'status.modelLoading': '正在加载模型 {percent}%',
   'status.promptProcessing': '正在处理提示 {percent}%',
+  'status.blockPromptQueued': '助手正忙。块提示已放入输入框。',
 
   'chip.space': '什么占用了空间？',
   'chip.spacePrompt': '这里什么占用了最多磁盘空间？',
@@ -873,6 +969,15 @@ export const cn: Translations = {
   'model.loadFirst': '加载模型以搜索',
   'model.loadModelsFirst': '请先加载模型',
   'model.showing': '显示 {visible} / {total}',
+
+  'snippetPalette.title': '命令片段',
+  'snippetPalette.search': '搜索命令片段...',
+  'snippetPalette.enterInserts': 'Enter 插入',
+  'snippetPalette.metaEnterRuns': '⌘Enter 运行',
+  'snippetPalette.addSnippet': '添加片段',
+  'snippetPalette.runNow': '立即运行',
+  'snippetPalette.empty': '还没有命令片段。请在设置中添加。',
+  'snippetPalette.noMatch': '没有匹配的片段。',
 }
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ru, cn }

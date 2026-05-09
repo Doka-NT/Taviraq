@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, GitFork, History, KeyRound,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -470,6 +470,35 @@ export function LlmPanel({
     setThreadsBySessionId(next)
   }, [])
 
+  const saveThreadSnapshotToHistory = useCallback((thread: AssistantThread): string | undefined => {
+    if (thread.messages.length === 0) return undefined
+    const chatId = thread.savedChatId ?? crypto.randomUUID()
+    const firstUserMsg = thread.messages.find((m) => m.role === 'user')
+    const title = firstUserMsg?.content.slice(0, 60).replace(/\n/g, ' ') || 'Untitled chat'
+    const savedChat: SavedChat = {
+      id: chatId,
+      title,
+      messages: thread.messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        display: m.display,
+        command: m.command,
+        output: m.output
+      })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      providerRef: providerRef.current.apiKeyRef,
+      modelId: providerRef.current.selectedModel,
+      sessionSnapshot: thread.session
+        ? { kind: thread.session.kind, label: thread.session.label, cwd: thread.session.cwd, shell: thread.session.shell }
+        : undefined
+    }
+    void window.api.chatHistory.save(savedChat).catch((err: unknown) => {
+      console.error('Failed to save chat to history', err)
+    })
+    return chatId
+  }, [])
+
   const autoSaveThreadToHistory = useCallback((sessionId: string) => {
     const thread = threadsRef.current[sessionId]
     if (!thread || thread.messages.length === 0) return
@@ -485,31 +514,9 @@ export function LlmPanel({
           setThreadsBySessionId(threadsRef.current)
         }
       }
-      const firstUserMsg = thread.messages.find((m) => m.role === 'user')
-      const title = firstUserMsg?.content.slice(0, 60).replace(/\n/g, ' ') || 'Untitled chat'
-      const savedChat: SavedChat = {
-        id: chatId,
-        title,
-        messages: thread.messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-          display: m.display,
-          command: m.command,
-          output: m.output
-        })),
-        createdAt: thread.savedChatId ? thread.messages[0]?.content ? new Date().toISOString() : new Date().toISOString() : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        providerRef: providerRef.current.apiKeyRef,
-        modelId: providerRef.current.selectedModel,
-        sessionSnapshot: thread.session
-          ? { kind: thread.session.kind, label: thread.session.label, cwd: thread.session.cwd, shell: thread.session.shell }
-          : undefined
-      }
-      void window.api.chatHistory.save(savedChat).catch((err: unknown) => {
-        console.error('Failed to auto-save chat to history', err)
-      })
+      saveThreadSnapshotToHistory({ ...thread, savedChatId: chatId })
     }, 500)
-  }, [])
+  }, [saveThreadSnapshotToHistory])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIdKey ? sessionIdKey.split('\0') : [])
@@ -632,6 +639,44 @@ export function LlmPanel({
       requestId,
       provider: providerRef.current,
       messages: nextMessages.slice(0, -1).map(toChatMessage),
+      context: {
+        selectedText: selectedTextRef.current,
+        assistMode: mode,
+        terminalOutput: terminalOutput || undefined,
+        language: languageRef.current,
+        session
+      }
+    })
+    autoSaveThreadToHistory(sessionId)
+  }, [autoSaveThreadToHistory, getThread, summarizeSession, updateThread])
+
+  const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
+    const requestId = crypto.randomUUID()
+    const thread = getThread(sessionId)
+    const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
+    const nextMessages: ThreadMessage[] = [
+      ...currentMessages,
+      { role: 'assistant', content: '' }
+    ]
+    requestSessionRef.current.set(requestId, sessionId)
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: nextMessages,
+      streaming: true,
+      activeRequestId: requestId,
+      streamingContent: '',
+      status: null,
+      agenticPending: null,
+      session
+    }))
+
+    const mode = assistModeRef.current
+    const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+
+    window.api.llm.chatStream({
+      requestId,
+      provider: providerRef.current,
+      messages: currentMessages.map(toChatMessage),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1112,6 +1157,61 @@ export function LlmPanel({
     }))
     startStream(sessionId, content, thread.messages)
   }, [commandConfirmation, draft, getThread, streaming, startStream, summarizeSession, t, updateThread])
+
+  const regenerateMessage = useCallback((messageIndex: number) => {
+    const session = activeSessionRef.current
+    if (!session || streaming || commandConfirmation) return
+    const sessionId = session.id
+    const thread = getThread(sessionId)
+    if (thread.agenticCommandRunning || runningCommandsRef.current.has(sessionId)) return
+    const message = thread.messages[messageIndex]
+    if (!message || message.role !== 'assistant') return
+
+    const baseMessages = thread.messages.slice(0, messageIndex)
+    if (baseMessages.length === 0) return
+
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: baseMessages,
+      agenticRunning: false,
+      agenticCommandRunning: false,
+      agenticStep: 0,
+      agenticCommand: '',
+      agenticPending: null,
+      status: null,
+      savedChatId: undefined,
+      session: summarizeSession(session)
+    }))
+    startAssistantStream(sessionId, baseMessages)
+  }, [commandConfirmation, getThread, startAssistantStream, streaming, summarizeSession, updateThread])
+
+  const forkChatFromMessage = useCallback((messageIndex: number) => {
+    const session = activeSessionRef.current
+    if (!session || streaming || commandConfirmation) return
+    const sessionId = session.id
+    const thread = getThread(sessionId)
+    if (thread.agenticCommandRunning || runningCommandsRef.current.has(sessionId)) return
+    if (!thread.messages[messageIndex]) return
+
+    saveThreadSnapshotToHistory(thread)
+    const forkedMessages = thread.messages.slice(0, messageIndex + 1)
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: forkedMessages,
+      activeRequestId: undefined,
+      streaming: false,
+      streamingContent: '',
+      agenticPending: null,
+      agenticRunning: false,
+      agenticCommandRunning: false,
+      agenticStep: 0,
+      agenticCommand: '',
+      commandConfirmation: null,
+      savedChatId: undefined,
+      status: { tone: 'info', label: t('chat.forked') },
+      session: summarizeSession(session)
+    }))
+  }, [commandConfirmation, getThread, saveThreadSnapshotToHistory, streaming, summarizeSession, t, updateThread])
 
   // Run command inline from MessageContent
   const runCommand = useCallback(async (command: string) => {
@@ -2160,6 +2260,9 @@ export function LlmPanel({
           const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
           const showDots = isLastAssistant && streaming && !message.content && !message.reasoningContent
           const reasoningIsStreaming = isLastAssistant && streaming && Boolean(message.reasoningContent) && !message.content
+          const messageActionsDisabled = streaming || agenticRunning || agenticCommandRunning || Boolean(commandConfirmation)
+          const canRegenerate = message.role === 'assistant' && index > 0
+          const canFork = message.role === 'assistant'
 
           if (message.display === 'command-output') {
             return (
@@ -2208,6 +2311,34 @@ export function LlmPanel({
               ) : message.role === 'assistant' ? null : (
                 <p>{message.content}</p>
               )}
+              {canRegenerate || canFork ? (
+                <div className="chat-message-actions">
+                  {canRegenerate ? (
+                    <button
+                      type="button"
+                      className="chat-message-action"
+                      onClick={() => regenerateMessage(index)}
+                      disabled={messageActionsDisabled}
+                      title={t('chat.regenerate')}
+                      aria-label={t('chat.regenerate')}
+                    >
+                      <RefreshCw size={11} aria-hidden />
+                    </button>
+                  ) : null}
+                  {canFork ? (
+                    <button
+                      type="button"
+                      className="chat-message-action"
+                      onClick={() => forkChatFromMessage(index)}
+                      disabled={messageActionsDisabled}
+                      title={t('chat.forkFromMessage')}
+                      aria-label={t('chat.forkFromMessage')}
+                    >
+                      <GitFork className="chat-message-action-icon-fork" size={11} aria-hidden />
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </article>
           )
         })}

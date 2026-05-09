@@ -156,6 +156,9 @@ export interface Translations {
   'chat.commandOutput.show': string
   'chat.commandOutput.noOutput': string
   'chat.thinking': string
+  'chat.regenerate': string
+  'chat.forkFromMessage': string
+  'chat.forked': string
   'chat.connectProvider': string
   'chat.saveAsPrompt': string
   'chat.savePrompt.generating': string
@@ -373,6 +376,9 @@ export const en: Translations = {
   'chat.commandOutput.show': 'Show output',
   'chat.commandOutput.noOutput': '(no output)',
   'chat.thinking': 'Thinking',
+  'chat.regenerate': 'Regenerate',
+  'chat.forkFromMessage': 'Fork from here',
+  'chat.forked': 'Forked chat from selected message.',
   'chat.connectProvider': 'Connect provider',
   'chat.saveAsPrompt': 'Save as prompt',
   'chat.savePrompt.generating': 'Generating prompt…',
@@ -585,6 +591,9 @@ export const ru: Translations = {
   'chat.commandOutput.show': 'Показать вывод',
   'chat.commandOutput.noOutput': '(нет вывода)',
   'chat.thinking': 'Думаю',
+  'chat.regenerate': 'Сгенерировать заново',
+  'chat.forkFromMessage': 'Форкнуть отсюда',
+  'chat.forked': 'Чат форкнут от выбранного сообщения.',
   'chat.connectProvider': 'Подключить провайдера',
   'chat.saveAsPrompt': 'Сохранить как промпт',
   'chat.savePrompt.generating': 'Генерирую промпт…',
@@ -797,6 +806,9 @@ export const cn: Translations = {
   'chat.commandOutput.show': '显示输出',
   'chat.commandOutput.noOutput': '（无输出）',
   'chat.thinking': '思考中',
+  'chat.regenerate': '重新生成',
+  'chat.forkFromMessage': '从此处分叉',
+  'chat.forked': '已从所选消息分叉聊天。',
   'chat.connectProvider': '连接提供商',
   'chat.saveAsPrompt': '保存为提示词',
   'chat.savePrompt.generating': '生成提示词中…',

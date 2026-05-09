@@ -327,12 +327,6 @@ async function createWindow(): Promise<void> {
       return
     }
 
-    if (!input.meta && !input.control && !input.alt && input.shift && (input.key === 'Tab' || input.code === 'Tab')) {
-      event.preventDefault()
-      mainWindow?.webContents.send('app:shortcut', 'next-tab' satisfies AppShortcutAction)
-      return
-    }
-
     if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'k' || input.code === 'KeyK')) {
       event.preventDefault()
       mainWindow?.webContents.send('app:shortcut', 'open-command-snippets' satisfies AppShortcutAction)

@@ -255,6 +255,14 @@ export interface Translations {
   'snippetPalette.runNow': string
   'snippetPalette.empty': string
   'snippetPalette.noMatch': string
+
+  // Prompt palette
+  'promptPalette.title': string
+  'promptPalette.search': string
+  'promptPalette.enterInserts': string
+  'promptPalette.addPrompt': string
+  'promptPalette.empty': string
+  'promptPalette.noMatch': string
 }
 
 export const en: Translations = {
@@ -496,6 +504,13 @@ export const en: Translations = {
   'snippetPalette.runNow': 'Run now',
   'snippetPalette.empty': 'No command snippets yet. Add them in Settings.',
   'snippetPalette.noMatch': 'No matching snippets.',
+
+  'promptPalette.title': 'Prompts',
+  'promptPalette.search': 'Search prompts...',
+  'promptPalette.enterInserts': 'Enter inserts',
+  'promptPalette.addPrompt': 'Add prompt',
+  'promptPalette.empty': 'No prompts yet. Add them in Settings.',
+  'promptPalette.noMatch': 'No matching prompts.',
 }
 
 export const ru: Translations = {
@@ -737,6 +752,13 @@ export const ru: Translations = {
   'snippetPalette.runNow': 'Запустить сейчас',
   'snippetPalette.empty': 'Сниппетов команд пока нет. Добавьте их в настройках.',
   'snippetPalette.noMatch': 'Подходящих сниппетов нет.',
+
+  'promptPalette.title': 'Промпты',
+  'promptPalette.search': 'Поиск промптов...',
+  'promptPalette.enterInserts': 'Enter вставляет',
+  'promptPalette.addPrompt': 'Добавить промпт',
+  'promptPalette.empty': 'Промптов пока нет. Добавьте их в настройках.',
+  'promptPalette.noMatch': 'Подходящих промптов нет.',
 }
 
 export const cn: Translations = {
@@ -978,6 +1000,13 @@ export const cn: Translations = {
   'snippetPalette.runNow': '立即运行',
   'snippetPalette.empty': '还没有命令片段。请在设置中添加。',
   'snippetPalette.noMatch': '没有匹配的片段。',
+
+  'promptPalette.title': '提示词',
+  'promptPalette.search': '搜索提示词...',
+  'promptPalette.enterInserts': 'Enter 插入',
+  'promptPalette.addPrompt': '添加提示词',
+  'promptPalette.empty': '还没有提示词。请在设置中添加。',
+  'promptPalette.noMatch': '没有匹配的提示词。',
 }
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ru, cn }

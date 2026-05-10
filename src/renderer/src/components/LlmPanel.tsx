@@ -908,6 +908,17 @@ export function LlmPanel({
     }
   }, [promptPickerOpen])
 
+  const closePromptPicker = useCallback(() => {
+    setPromptPickerOpen(false)
+    setPromptPickerQuery('')
+  }, [])
+
+  const openAddPrompt = useCallback(() => {
+    closePromptPicker()
+    setSettingsTab('prompts')
+    onOpenSettings()
+  }, [closePromptPicker, onOpenSettings])
+
   useEffect(() => {
     if (promptLibraryRequestVersion === 0) return
     setHistoryOpen(false)
@@ -1523,13 +1534,12 @@ export function LlmPanel({
 
   const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setPromptPickerOpen(false)
-      setPromptPickerQuery('')
+      closePromptPicker()
       return
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, promptPickerFiltered.length - 1))
+      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, Math.max(promptPickerFiltered.length - 1, 0)))
       return
     }
     if (e.key === 'ArrowUp') {
@@ -1540,10 +1550,9 @@ export function LlmPanel({
     if (e.key === 'Enter' && promptPickerFiltered[promptPickerActiveIndex]) {
       e.preventDefault()
       setPromptDraft(promptPickerFiltered[promptPickerActiveIndex].content)
-      setPromptPickerOpen(false)
-      setPromptPickerQuery('')
+      closePromptPicker()
     }
-  }, [promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
+  }, [closePromptPicker, promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
 
   const toggleAgentMode = useCallback(() => {
     setAssistMode((prev) => {
@@ -2180,47 +2189,7 @@ export function LlmPanel({
         </div>
       , document.body) : null}
 
-      {promptPickerOpen ? (
-        <div className="prompt-picker-overlay">
-          <div className="prompt-picker-search">
-            <Search size={14} aria-hidden />
-            <input
-              ref={promptPickerSearchRef}
-              type="text"
-              placeholder="Search prompts…"
-              value={promptPickerQuery}
-              onChange={(e) => setPromptPickerQuery(e.target.value)}
-              onKeyDown={handlePromptPickerKeyDown}
-            />
-          </div>
-          {promptPickerFiltered.length === 0 ? (
-            <p className="prompt-picker-empty">
-              {promptPickerPrompts.length === 0
-                ? 'No prompts yet. Add one in Settings.'
-                : 'No matching prompts.'}
-            </p>
-          ) : (
-            <div className="prompt-picker-list" ref={promptPickerListRef}>
-              {promptPickerFiltered.map((prompt, i) => (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    setPromptDraft(prompt.content)
-                    setPromptPickerOpen(false)
-                    setPromptPickerQuery('')
-                  }}
-                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
-                >
-                  <FileText size={13} aria-hidden />
-                  <span>{prompt.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : historyOpen ? (
+      {historyOpen ? (
         <div className="history-overlay">
           <div className="history-search">
             <Search size={14} aria-hidden />
@@ -2448,7 +2417,7 @@ export function LlmPanel({
           rows={1}
         />
         <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} open={false} onOpenChange={togglePromptPicker} />
+          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} />
           {streaming || agenticRunning ? (
             <button
               className="stop-button"
@@ -2475,6 +2444,59 @@ export function LlmPanel({
       </form>
       </>
       )}
+
+      {promptPickerOpen ? createPortal(
+        <div className="prompt-picker-overlay" onClick={(event) => { if (event.target === event.currentTarget) closePromptPicker() }}>
+          <section className="prompt-picker-palette" role="dialog" aria-modal="true" aria-label={t('promptPalette.title')}>
+            <div className="prompt-picker-search">
+              <Search size={15} aria-hidden />
+              <input
+                ref={promptPickerSearchRef}
+                type="text"
+                placeholder={t('promptPalette.search')}
+                value={promptPickerQuery}
+                onChange={(e) => setPromptPickerQuery(e.target.value)}
+                onKeyDown={handlePromptPickerKeyDown}
+              />
+            </div>
+            <div className="prompt-picker-hint">
+              <div className="prompt-picker-shortcuts">
+                <span>{t('promptPalette.enterInserts')}</span>
+              </div>
+              <button type="button" className="prompt-picker-add" onClick={openAddPrompt}>
+                <Plus size={12} aria-hidden />
+                {t('promptPalette.addPrompt')}
+              </button>
+            </div>
+            <div className="prompt-picker-list" ref={promptPickerListRef}>
+              {promptPickerFiltered.length > 0 ? promptPickerFiltered.map((prompt, i) => (
+                <button
+                  key={prompt.id}
+                  type="button"
+                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
+                  onClick={() => {
+                    setPromptDraft(prompt.content)
+                    closePromptPicker()
+                  }}
+                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
+                >
+                  <FileText size={14} aria-hidden />
+                  <div className="prompt-picker-item-text">
+                    <span className="prompt-picker-item-name">{prompt.name}</span>
+                    <span className="prompt-picker-item-preview">{prompt.content}</span>
+                  </div>
+                </button>
+              )) : (
+                <p className="prompt-picker-empty">
+                  {promptPickerPrompts.length === 0
+                    ? t('promptPalette.empty')
+                    : t('promptPalette.noMatch')}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      , document.body) : null}
 
       {savePromptDialog ? createPortal(
         <div

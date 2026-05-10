@@ -10,8 +10,10 @@ import {
 
 describe('provider utilities', () => {
   it('normalizes compatible base URLs', () => {
-    expect(normalizeBaseUrl(' https://api.openai.com/v1/ ')).toBe('https://api.openai.com')
+    expect(normalizeBaseUrl(' https://api.openai.com/v1/ ')).toBe('https://api.openai.com/v1')
+    expect(buildOpenAICompatibleUrl('https://example.test', 'models')).toBe('https://example.test/v1/models')
     expect(buildOpenAICompatibleUrl('https://example.test/api/v1', 'models')).toBe('https://example.test/api/v1/models')
+    expect(buildOpenAICompatibleUrl('https://api.edenai.run/v3', 'chat/completions')).toBe('https://api.edenai.run/v3/chat/completions')
   })
 
   it('parses and sorts model lists', () => {

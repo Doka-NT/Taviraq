@@ -27,7 +27,7 @@ export function normalizeBaseUrl(input: string): string {
   }
 
   const url = new URL(trimmed)
-  url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/v1$/, '')
+  url.pathname = url.pathname.replace(/\/+$/, '')
   url.search = ''
   url.hash = ''
 
@@ -35,7 +35,10 @@ export function normalizeBaseUrl(input: string): string {
 }
 
 export function buildOpenAICompatibleUrl(baseUrl: string, path: 'models' | 'chat/completions'): string {
-  return `${normalizeBaseUrl(baseUrl)}/v1/${path}`
+  const normalized = normalizeBaseUrl(baseUrl)
+  const url = new URL(normalized)
+  const apiBase = url.pathname && url.pathname !== '/' ? normalized : `${normalized}/v1`
+  return `${apiBase}/${path}`
 }
 
 export function buildProviderUrl(provider: LLMProviderConfig, path: 'models' | 'chat/completions'): string {

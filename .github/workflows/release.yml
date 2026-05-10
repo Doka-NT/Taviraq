@@ -48,35 +48,33 @@ jobs:
           VERSION="${TAG_NAME#v}"
           npm version "$VERSION" --no-git-tag-version --allow-same-version
 
+      - name: Generate changelog from tags
+        env:
+          TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: node scripts/generate-changelog.mjs --tag "$TAG_NAME" --release-notes release-notes.md --changelog CHANGELOG.md
+
       - name: Package macOS app
         run: npm run build && COPYFILE_DISABLE=1 npm exec -- electron-builder --mac zip --publish never
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 *.zip > checksums.txt
 
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          CURRENT_COMMIT="$(git rev-list -n 1 "$TAG_NAME")"
-          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${CURRENT_COMMIT}^" 2>/dev/null || true)"
-          REPOSITORY_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
-
-          {
-            echo "## Changelog"
-            echo
-
-            if [ -n "$PREVIOUS_TAG" ]; then
-              echo "[Full changelog](${REPOSITORY_URL}/compare/${PREVIOUS_TAG}...${TAG_NAME})"
-              echo
-              git log "${PREVIOUS_TAG}..${TAG_NAME}" --pretty=format:'- %s (%h)' --no-merges
-            else
-              git log "$TAG_NAME" --pretty=format:'- %s (%h)' --no-merges
-            fi
-
-            echo
-            echo
-          } > release-notes.md
-
           cat >> release-notes.md <<'EOF'
+          ## Verification
+
+          Download `checksums.txt` and verify the archive before opening it:
+
+          ```bash
+          shasum -a 256 -c checksums.txt
+          ```
+
           ## Русский
 
           Это неподписанная тестовая сборка для macOS. Если macOS пишет, что приложение повреждено:
@@ -121,10 +119,10 @@ jobs:
           EOF
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" dist/*.zip --clobber
+            gh release upload "$TAG_NAME" dist/*.zip dist/checksums.txt CHANGELOG.md --clobber
             gh release edit "$TAG_NAME" --draft=false --notes-file release-notes.md
           else
-            gh release create "$TAG_NAME" dist/*.zip \
+            gh release create "$TAG_NAME" dist/*.zip dist/checksums.txt CHANGELOG.md \
               --title "$TAG_NAME" \
               --notes-file release-notes.md
           fi

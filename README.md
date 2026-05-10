@@ -5,9 +5,9 @@
 </p>
 
 <p align="center">
-  <strong>A macOS terminal with an AI assistant built in.</strong>
+  <strong>A safer AI terminal for local and SSH workflows.</strong>
   <br>
-  Work in a real local or SSH terminal, ask about what is on screen, and let the AI run careful next steps when you want it to.
+  Ask what happened, get the next command, and keep control before anything risky runs.
 </p>
 
 <p align="center">
@@ -24,9 +24,15 @@
 
 ## What it is
 
-AI Terminal is a desktop terminal for macOS with an assistant panel built into the workflow. It keeps the terminal first: real local shells, SSH sessions through your system `ssh`, searchable output, clickable links, tabs, themes, and a compact sidebar that can explain or act on the context in front of you.
+AI Terminal is a local-first macOS terminal with an AI assistant built in. It understands your shell output, works with local and SSH sessions, supports OpenAI-compatible providers, Ollama, and LM Studio, and pauses before risky commands touch your shell.
 
-Use it as a normal terminal, then switch the assistant between read-only help and agent mode when you want it to propose and run commands step by step. Risky or unclear commands pause for an in-app approval before they touch your shell.
+Use it as a normal terminal, then switch the assistant between read-only help and agent mode when you want it to propose and run commands step by step. The terminal stays in front: real local shells, SSH through your system `ssh`, searchable output, clickable links, tabs, themes, and a compact assistant sidebar.
+
+## Core workflows
+
+- **Explain failing output** — select text, use recent output, or share the current session so the assistant can explain errors and logs without leaving the terminal.
+- **Get a safe next command** — ask for one next step, review what it does, and keep the final approval before risky or unclear commands run.
+- **Troubleshoot SSH sessions** — diagnose remote shells with the same context flow, while agent mode still routes risky commands through an in-app safety gate.
 
 ## Highlights
 
@@ -38,14 +44,28 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 - **Personal workspace** — restore sessions, reopen chat history, tune themes and font size, change language, and import or export settings.
 - **macOS-native storage** — non-secret settings live in app data, while API keys stay in the system keychain.
 
+## Security and privacy
+
+- API keys are stored in the macOS Keychain through `keytar`, not in project config files.
+- Non-secret provider settings, prompts, and app configuration are stored locally in app data.
+- You choose which provider receives assistant context: OpenAI-compatible APIs, Ollama, or LM Studio.
+- The assistant only receives the context mode you select, such as selected text, recent output, or the current session.
+- Agent mode asks a dedicated command-risk model before auto-execution.
+- If command-risk classification fails or cannot be parsed, the command is treated as risky and requires confirmation.
+- Risky or unclear commands pause in an in-app confirmation modal before they touch your shell.
+
 ## Getting started
 
-### Download (recommended)
+### Download
 
 Grab the latest `.zip` from [Releases](https://github.com/Doka-NT/ai-terminal/releases), unzip it, and drag **AI Terminal.app** to your Applications folder.
 
-> **First launch:** macOS will warn that the app is from an unidentified developer. Right-click → **Open** → **Open** to proceed.
+Current release builds are unsigned. macOS will warn that the app is from an unidentified developer.
+
+> **First launch:** right-click **AI Terminal.app** → **Open** → **Open** to proceed.
 > Or run: `xattr -dr com.apple.quarantine "/Applications/AI Terminal.app"`
+
+Release assets include a `checksums.txt` file when built by GitHub Actions.
 
 ### Build from source
 
@@ -55,7 +75,7 @@ cd ai-terminal
 make build
 ```
 
-Open `dist/`, unzip the archive, and drag **AI Terminal.app** to your Applications folder.
+Open `dist/`, unzip the archive or run the package, and drag **AI Terminal.app** to your Applications folder when needed.
 
 On first launch, go to **Settings → Providers** and add your API key and base URL. Then pick a model and start a session.
 

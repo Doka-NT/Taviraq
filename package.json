@@ -1,8 +1,8 @@
 {
   "name": "ai-terminal",
   "productName": "AI Terminal",
-  "version": "0.1.0",
-  "description": "Warp-like desktop terminal with OpenAI-compatible LLM assistance.",
+  "version": "0.0.0",
+  "description": "Safer macOS AI terminal for local and SSH workflows.",
   "author": "Soshnikov Artem",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src tests electron.vite.config.ts vitest.config.ts",
+    "changelog": "node scripts/generate-changelog.mjs --changelog /tmp/ai-terminal-changelog.md && cat /tmp/ai-terminal-changelog.md",
     "record:demo": "node scripts/record-demo.mjs",
     "record:demo:gif": "node scripts/record-demo.mjs --gif"
   },

@@ -17,6 +17,7 @@ const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
 const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
 const AIT_OSC_PREFIX = '\x1b]6973;'
 const OSC_END = '\x07'
+const ANSI_CSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g')
 
 const CANCEL_INPUT_SEQUENCE = '\x03'
 const CONFIRMED_COMMAND_DELAY_MS = 100
@@ -199,7 +200,7 @@ export class TerminalManager {
       for (const command of parsed.commands) {
         this.emit('terminal:command', { sessionId: id, command })
       }
-      if (parsed.sawPrompt) {
+      if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
         this.emit('terminal:prompt', { sessionId: id })
       }
@@ -512,6 +513,27 @@ function longestTerminalMarkerPrefixAtEnd(value: string): number {
   }
 
   return 0
+}
+
+function looksLikeShellPrompt(data: string): boolean {
+  const lastLine = stripAnsi(data)
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .filter((line) => line.trim())
+    .at(-1)
+
+  if (!lastLine) {
+    return false
+  }
+
+  return /^[#$%>] $/.test(lastLine) ||
+    /^\[[^\]\n]+@[\w.-]+[^\]\n]*\][#$%>] $/.test(lastLine) ||
+    /^[\w.-]+@[\w.-]+(?::[^\n]*)?[#$%>] $/.test(lastLine) ||
+    /^[\w.-]+(?::[^\n]*)?[#$%>] $/.test(lastLine)
+}
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI_CSI_PATTERN, '')
 }
 
 async function readProcessCwd(pid: number): Promise<string | undefined> {

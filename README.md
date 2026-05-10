@@ -19,6 +19,14 @@
 </p>
 
 <p align="center">
+  <a href="https://taviraq.dev">Website</a>
+  ·
+  <a href="https://github.com/Doka-NT/Taviraq/releases">Download</a>
+  ·
+  <a href="https://github.com/Doka-NT/Taviraq/issues">Issues</a>
+</p>
+
+<p align="center">
   <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo" width="800">
 </p>
 

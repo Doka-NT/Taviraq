@@ -361,16 +361,11 @@ export async function summarizeConversation(
       return parseGeneratedPrompt(content)
     }
 
-    const url = buildProviderUrl(request.provider, 'chat/completions')
-    response = await fetchProvider(url, withProviderTls(request.provider, {
-      method: 'POST',
-      headers: {
-        ...await buildHeaders(request.provider),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ model, stream: false, temperature: 0.3, messages }),
+    response = await postOpenAICompatibleChatCompletion(
+      request.provider,
+      { model, stream: false, temperature: 0.3, messages },
       signal
-    }))
+    )
   } catch (error) {
     if (signal?.aborted) {
       throw new Error('Prompt generation cancelled.')
@@ -386,6 +381,49 @@ export async function summarizeConversation(
   const content = extractMessageContent(await response.json())
   if (!content.trim()) throw new Error('Empty response from model.')
   return parseGeneratedPrompt(content)
+}
+
+async function postOpenAICompatibleChatCompletion(
+  provider: LLMProviderConfig,
+  body: {
+    model: string
+    stream: false
+    temperature?: number
+    messages: ChatMessage[]
+  },
+  signal?: AbortSignal
+): Promise<Response> {
+  const url = buildProviderUrl(provider, 'chat/completions')
+  const headers = {
+    ...await buildHeaders(provider),
+    'Content-Type': 'application/json'
+  }
+
+  const response = await fetchProvider(url, withProviderTls(provider, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal
+  }))
+
+  if (body.temperature === undefined || response.ok) return response
+
+  const errorBody = await response.text().catch(() => '')
+  if (!isUnsupportedTemperatureError(errorBody)) {
+    throw new Error(`Summarization request failed with ${response.status}${errorBody ? `: ${errorBody}` : ''}`)
+  }
+
+  const { temperature: _temperature, ...defaultTemperatureBody } = body
+  return fetchProvider(url, withProviderTls(provider, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(defaultTemperatureBody),
+    signal
+  }))
+}
+
+function isUnsupportedTemperatureError(body: string): boolean {
+  return /temperature/i.test(body) && /unsupported|not support|does not support|only the default/i.test(body)
 }
 
 function parseGeneratedPrompt(content: string): GeneratedPrompt {

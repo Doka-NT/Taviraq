@@ -301,10 +301,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const [searchResults, setSearchResults] = useState<{ index: number, count: number } | null>(null)
   const [terminalMetrics, setTerminalMetrics] = useState<TerminalMetrics | null>(null)
   const [hoveredBlockId, setHoveredBlockId] = useState<string>()
+  const [isAlternateBufferActive, setIsAlternateBufferActive] = useState(false)
   const activeSessionId = activeSession?.id
+  const areTerminalBlocksAvailable = !isAlternateBufferActive
   const selectedBlocks = useMemo(
-    () => terminalBlocks.filter((block) => selectedBlockIds.includes(block.id)),
-    [selectedBlockIds, terminalBlocks]
+    () => areTerminalBlocksAvailable
+      ? terminalBlocks.filter((block) => selectedBlockIds.includes(block.id))
+      : [],
+    [areTerminalBlocksAvailable, selectedBlockIds, terminalBlocks]
   )
 
   const syncBlockHighlightDecorations = useCallback((): void => {
@@ -316,6 +320,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       decoration.dispose()
     }
     blockHighlightDecorationsRef.current = []
+    if (terminal.buffer.active.type === 'alternate') return
 
     const ranges = blockVisualRanges(terminal, terminalBlocksRef.current)
     const viewportY = terminal.buffer.active.viewportY
@@ -548,6 +553,16 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       setHoveredBlockId(undefined)
       scheduleTerminalMetricsUpdate()
     })
+    const bufferDisposable = terminal.buffer.onBufferChange((buffer) => {
+      const isAlternate = buffer.type === 'alternate'
+      setIsAlternateBufferActive(isAlternate)
+      setHoveredBlockId(undefined)
+      if (isAlternate) {
+        onClearBlockSelection()
+      }
+      scheduleTerminalMetricsUpdate()
+      scheduleBlockHighlightSync()
+    })
 
     const offTerminalData = window.api.terminal.onData(({ sessionId, data }) => {
       const clean = data.replace(C1_REGEX, '')
@@ -573,6 +588,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       selectionDisposable.dispose()
       resultsDisposable.dispose()
       scrollDisposable.dispose()
+      bufferDisposable.dispose()
       viewport?.removeEventListener('scroll', handleViewportScroll)
       offTerminalData()
       resizeObserver.disconnect()
@@ -599,7 +615,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       fitRef.current = null
       searchRef.current = null
     }
-  }, [onClearBlockSelection, onSelectionChange, onOutput, scheduleTerminalMetricsUpdate])
+  }, [onClearBlockSelection, onSelectionChange, onOutput, scheduleBlockHighlightSync, scheduleTerminalMetricsUpdate])
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent): void => {
@@ -743,6 +759,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }
 
   const blockAtClientY = useCallback((clientY: number): TerminalBlock | undefined => {
+    if (!areTerminalBlocksAvailable) return undefined
     if (terminalBlocks.length === 0) return undefined
 
     const terminal = terminalRef.current
@@ -762,7 +779,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       const range = ranges.get(block.id)
       return range ? line >= range.start && line <= range.end : false
     })
-  }, [terminalBlocks])
+  }, [areTerminalBlocksAvailable, terminalBlocks])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
     terminalRef.current?.focus()
@@ -870,7 +887,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       Math.max(8, Math.max(...visibleSelectedBlocks.map((entry) => entry.top + entry.height)) + 6)
     )
     : 10
-  const hoveredBlockHandle = terminalMetrics && hoveredBlockId
+  const hoveredBlockHandle = areTerminalBlocksAvailable && terminalMetrics && hoveredBlockId
     ? (() => {
       const terminal = terminalRef.current
       const hoveredBlock = terminalBlocks.find((block) => block.id === hoveredBlockId)

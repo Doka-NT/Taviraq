@@ -50,6 +50,11 @@ interface PendingBlockPrompt {
   blockCount: number
 }
 
+interface PendingBlockRerun {
+  sessionId: string
+  command: string
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
@@ -192,6 +197,7 @@ export function App(): JSX.Element {
   const [blockPromptRequest, setBlockPromptRequest] = useState<BlockPromptRequest | null>(null)
   const [snippetDraftRequest, setSnippetDraftRequest] = useState<SnippetDraftRequest | null>(null)
   const [pendingBlockPrompt, setPendingBlockPrompt] = useState<PendingBlockPrompt | null>(null)
+  const [pendingBlockRerun, setPendingBlockRerun] = useState<PendingBlockRerun | null>(null)
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.id === activeSessionId),
@@ -335,6 +341,20 @@ export function App(): JSX.Element {
     setSidebarVisible(true)
     setPendingBlockPrompt(null)
   }, [pendingBlockPrompt])
+
+  const requestBlockRerun = useCallback((block: TerminalBlock): void => {
+    setPendingBlockRerun({
+      sessionId: block.sessionId,
+      command: block.command
+    })
+  }, [])
+
+  const confirmBlockRerun = useCallback((): void => {
+    if (!pendingBlockRerun) return
+
+    void window.api.command.runConfirmed(pendingBlockRerun.sessionId, pendingBlockRerun.command)
+    setPendingBlockRerun(null)
+  }, [pendingBlockRerun])
 
   const scheduleSessionStateSave = useCallback(() => {
     if (!restoreInitializedRef.current || !restoreSessionsRef.current) return
@@ -1012,6 +1032,7 @@ export function App(): JSX.Element {
           onToggleBlockSelection={toggleBlockSelection}
           onClearBlockSelection={clearBlockSelection}
           onAskBlocks={askAboutBlocks}
+          onRerunBlock={requestBlockRerun}
           onSaveSnippet={openSnippetForm}
           terminalTheme={terminalTheme}
         />
@@ -1101,6 +1122,51 @@ export function App(): JSX.Element {
               </button>
               <button type="button" className="save-prompt-confirm" onClick={confirmBlockPromptSend}>
                 {appT('terminal.blocks.send')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingBlockRerun ? (
+        <div
+          className="modal-overlay terminal-block-rerun-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="terminal-block-rerun-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setPendingBlockRerun(null)
+          }}
+        >
+          <div
+            className="modal-panel terminal-block-send-panel"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                setPendingBlockRerun(null)
+              }
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                event.stopPropagation()
+                confirmBlockRerun()
+              }
+            }}
+          >
+            <div className="modal-header">
+              <ShieldAlert size={15} aria-hidden />
+              <span id="terminal-block-rerun-title">{appT('terminal.blocks.rerunTitle')}</span>
+            </div>
+            <p className="terminal-block-send-copy">{appT('terminal.blocks.rerunBody')}</p>
+            <div className="command-confirmation-command">
+              <code>{pendingBlockRerun.command}</code>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="quiet-button" onClick={() => setPendingBlockRerun(null)} autoFocus>
+                {appT('confirm.cancel')}
+              </button>
+              <button type="button" className="save-prompt-confirm" onClick={confirmBlockRerun}>
+                {appT('terminal.blocks.rerunConfirm')}
               </button>
             </div>
           </div>

@@ -140,6 +140,9 @@ export interface Translations {
   'terminal.blocks.copyCommand': string
   'terminal.blocks.copyOutput': string
   'terminal.blocks.rerunCommand': string
+  'terminal.blocks.rerunTitle': string
+  'terminal.blocks.rerunBody': string
+  'terminal.blocks.rerunConfirm': string
   'terminal.blocks.saveSnippet': string
   'terminal.blocks.clearSelection': string
   'terminal.blocks.sendTitle': string
@@ -397,6 +400,9 @@ export const en: Translations = {
   'terminal.blocks.copyCommand': 'Copy command',
   'terminal.blocks.copyOutput': 'Copy output',
   'terminal.blocks.rerunCommand': 'Rerun command',
+  'terminal.blocks.rerunTitle': 'Rerun selected command?',
+  'terminal.blocks.rerunBody': 'This command will be sent to the active terminal session.',
+  'terminal.blocks.rerunConfirm': 'Rerun',
   'terminal.blocks.saveSnippet': 'Save snippet',
   'terminal.blocks.clearSelection': 'Clear selection',
   'terminal.blocks.sendTitle': 'Send selected blocks to chat?',
@@ -645,6 +651,9 @@ export const ru: Translations = {
   'terminal.blocks.copyCommand': 'Копировать команду',
   'terminal.blocks.copyOutput': 'Копировать вывод',
   'terminal.blocks.rerunCommand': 'Запустить снова',
+  'terminal.blocks.rerunTitle': 'Запустить выбранную команду снова?',
+  'terminal.blocks.rerunBody': 'Команда будет отправлена в активную сессию терминала.',
+  'terminal.blocks.rerunConfirm': 'Запустить снова',
   'terminal.blocks.saveSnippet': 'Сохранить сниппет',
   'terminal.blocks.clearSelection': 'Снять выделение',
   'terminal.blocks.sendTitle': 'Отправить выбранные блоки в чат?',
@@ -893,6 +902,9 @@ export const cn: Translations = {
   'terminal.blocks.copyCommand': '复制命令',
   'terminal.blocks.copyOutput': '复制输出',
   'terminal.blocks.rerunCommand': '重新运行命令',
+  'terminal.blocks.rerunTitle': '重新运行所选命令？',
+  'terminal.blocks.rerunBody': '此命令将发送到活动终端会话。',
+  'terminal.blocks.rerunConfirm': '重新运行',
   'terminal.blocks.saveSnippet': '保存片段',
   'terminal.blocks.clearSelection': '清除选择',
   'terminal.blocks.sendTitle': '将所选块发送到聊天？',

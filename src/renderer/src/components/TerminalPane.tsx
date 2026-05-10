@@ -28,6 +28,7 @@ interface TerminalPaneProps {
   onToggleBlockSelection: (blockId: string, additive: boolean) => void
   onClearBlockSelection: () => void
   onAskBlocks: (blocks: TerminalBlock[]) => void
+  onRerunBlock: (block: TerminalBlock) => void
   onSaveSnippet: (command: string) => void
   terminalTheme?: TerminalColors
 }
@@ -272,6 +273,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   onToggleBlockSelection,
   onClearBlockSelection,
   onAskBlocks,
+  onRerunBlock,
   onSaveSnippet,
   terminalTheme
 }: TerminalPaneProps, ref): JSX.Element {
@@ -819,8 +821,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const rerunSelectedBlock = useCallback((): void => {
     const block = selectedBlocks[0]
     if (!block || selectedBlocks.length !== 1 || activeSession?.status !== 'running') return
-    void window.api.command.runConfirmed(block.sessionId, block.command)
-  }, [activeSession?.status, selectedBlocks])
+    onRerunBlock(block)
+  }, [activeSession?.status, onRerunBlock, selectedBlocks])
 
   const saveSelectedSnippet = useCallback((): void => {
     const block = selectedBlocks[0]

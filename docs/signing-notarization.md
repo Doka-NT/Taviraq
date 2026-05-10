@@ -5,7 +5,7 @@ notarized for a trusted public release.
 
 ## Current Developer Preview Builds
 
-The GitHub release workflow sets:
+The default local packaging commands and GitHub release workflow set:
 
 ```bash
 CSC_IDENTITY_AUTO_DISCOVERY=false
@@ -13,6 +13,18 @@ CSC_IDENTITY_AUTO_DISCOVERY=false
 
 This keeps automated preview builds unsigned unless the workflow is intentionally
 changed to use signing credentials.
+
+For local app installation without signing:
+
+```bash
+make install
+```
+
+For a full unsigned package build:
+
+```bash
+npm run package:mac:unsigned
+```
 
 ## Signing Prep
 
@@ -28,8 +40,15 @@ Recommended GitHub secrets:
 - `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password
 - `APPLE_TEAM_ID`: Apple Developer Team ID
 
-Remove `CSC_IDENTITY_AUTO_DISCOVERY=false` from the release workflow only after
-these secrets are configured.
+The default `package.json` build config also sets `mac.identity` to `null` so
+local and preview builds do not enter `codesign`.
+
+For an explicit local signed package build:
+
+```bash
+CSC_NAME="Developer ID Application: Example Team (TEAMID)"
+npm run package:mac:signed
+```
 
 ## Verification
 

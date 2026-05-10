@@ -8,15 +8,20 @@ INSTALL_BUNDLE := $(INSTALL_DIR)/$(APP_NAME).app
 
 export COPYFILE_DISABLE := 1
 
-.PHONY: build clean install
+.PHONY: app build clean install
 
 $(NODE_MODULES_STAMP): package-lock.json
 	npm ci
 
+app: $(NODE_MODULES_STAMP)
+	rm -rf dist/mac-arm64
+	npm run package:mac:dir
+
 build: $(NODE_MODULES_STAMP)
+	rm -rf dist/mac-arm64 dist/*.zip dist/*.pkg
 	npm run package:mac
 
-install: build
+install: app
 	test -d "$(APP_BUNDLE)"
 	rm -rf "$(INSTALL_BUNDLE)"
 	ditto "$(APP_BUNDLE)" "$(INSTALL_BUNDLE)"

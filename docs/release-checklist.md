@@ -33,7 +33,7 @@ npm run build
 For release packaging:
 
 ```bash
-COPYFILE_DISABLE=1 npm exec -- electron-builder --mac zip --publish never
+npm run package:mac:unsigned
 cd dist
 shasum -a 256 *.zip > checksums.txt
 shasum -a 256 -c checksums.txt

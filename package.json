@@ -12,7 +12,10 @@
     "postinstall": "node scripts/fix-node-pty-permissions.mjs",
     "dev": "electron-vite dev",
     "build": "npm run typecheck && electron-vite build",
-    "package:mac": "npm run build && COPYFILE_DISABLE=1 electron-builder --mac",
+    "package:mac": "npm run package:mac:unsigned",
+    "package:mac:dir": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false COPYFILE_DISABLE=1 electron-builder --mac dir --publish never",
+    "package:mac:unsigned": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false COPYFILE_DISABLE=1 electron-builder --mac --publish never",
+    "package:mac:signed": "npm run build && COPYFILE_DISABLE=1 electron-builder --mac --publish never -c.mac.identity=\"$CSC_NAME\"",
     "rebuild:native:arm64": "electron-rebuild -f -w keytar -w node-pty -a arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -77,6 +80,7 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns",
+      "identity": null,
       "target": [
         "pkg",
         "zip"

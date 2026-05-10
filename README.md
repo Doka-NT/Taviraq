@@ -23,6 +23,8 @@
   ·
   <a href="https://github.com/Doka-NT/Taviraq/releases">Download</a>
   ·
+  <a href="docs/security-privacy.md">Security & Privacy</a>
+  ·
   <a href="https://github.com/Doka-NT/Taviraq/issues">Issues</a>
 </p>
 
@@ -58,9 +60,17 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 - Non-secret provider settings, prompts, and app configuration are stored locally in app data.
 - You choose which provider receives assistant context: OpenAI-compatible APIs, Ollama, or LM Studio.
 - The assistant only receives the context mode you select, such as selected text, recent output, or the current session.
-- Agent mode asks a dedicated command-risk model before auto-execution.
+- Agent mode checks built-in protected-command patterns and then asks a dedicated command-risk model before auto-execution.
 - If command-risk classification fails or cannot be parsed, the command is treated as risky and requires confirmation.
 - Risky or unclear commands pause in an in-app confirmation modal before they touch your shell.
+
+More detail:
+
+- [Security and Privacy](docs/security-privacy.md)
+- [Command Safety Eval](docs/safety-eval.md)
+- [Comparison](docs/comparison.md)
+- [Release Checklist](docs/release-checklist.md)
+- [macOS Signing and Notarization](docs/signing-notarization.md)
 
 ## Getting started
 

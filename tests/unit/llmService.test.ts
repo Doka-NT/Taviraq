@@ -29,7 +29,7 @@ describe('llmService', () => {
         apiKeyRef: 'test',
         commandRiskModel: 'safety-model'
       },
-      command: 'sudo journalctl --vacuum-size=100M',
+      command: 'journalctl --vacuum-size=100M',
       context: {
         selectedText: '',
         assistMode: 'agent'

@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/out/**',
+      '**/.claude/**'
+    ],
     environmentMatchGlobs: [
       ['tests/ui/**', 'jsdom']
     ],

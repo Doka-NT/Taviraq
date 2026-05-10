@@ -20,6 +20,7 @@ import {
   parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
+import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
 import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { getApiKey } from './secretStore'
 
@@ -269,6 +270,9 @@ async function streamLmStudioNativeChatCompletion(
 }
 
 export async function assessCommandRisk(request: CommandRiskAssessmentRequest): Promise<CommandRiskAssessment> {
+  const protectedAssessment = assessProtectedCommandRisk(request)
+  if (protectedAssessment) return protectedAssessment
+
   const model = request.provider.commandRiskModel?.trim()
   if (!model) {
     throw new Error('Select a command safety model before checking command safety.')
@@ -413,7 +417,8 @@ async function postOpenAICompatibleChatCompletion(
     throw new Error(`Summarization request failed with ${response.status}${errorBody ? `: ${errorBody}` : ''}`)
   }
 
-  const { temperature: _temperature, ...defaultTemperatureBody } = body
+  const defaultTemperatureBody = { ...body }
+  delete defaultTemperatureBody.temperature
   return fetchProvider(url, withProviderTls(provider, {
     method: 'POST',
     headers,

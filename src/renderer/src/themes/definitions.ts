@@ -1,8 +1,8 @@
 import type { AppTheme } from './types'
 
-const aiTerminalDark: AppTheme = {
-  id: 'ai-terminal-dark',
-  name: 'AI Terminal Dark',
+const taviraqDark: AppTheme = {
+  id: 'taviraq-dark',
+  name: 'Taviraq Dark',
   appearance: 'dark',
   colors: {
     bgWindow: '#111113',
@@ -1397,7 +1397,7 @@ const additionalThemes: AppTheme[] = [
 ]
 
 export const themes: AppTheme[] = [
-  aiTerminalDark,
+  taviraqDark,
   darcula,
   monokai,
   atomOneDark,
@@ -1414,4 +1414,4 @@ export const themeMap: Record<string, AppTheme> = Object.fromEntries(
   themes.map((theme) => [theme.id, theme])
 )
 
-export const DEFAULT_THEME_ID = 'ai-terminal-dark'
+export const DEFAULT_THEME_ID = 'taviraq-dark'

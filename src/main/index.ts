@@ -29,8 +29,10 @@ import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversat
 import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
 
-if (process.env.AI_TERMINAL_USER_DATA_DIR) {
-  app.setPath('userData', process.env.AI_TERMINAL_USER_DATA_DIR)
+const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
+
+if (userDataDir) {
+  app.setPath('userData', userDataDir)
 }
 
 let mainWindow: BrowserWindow | undefined
@@ -48,12 +50,12 @@ const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
-const DEMO_MODE = process.env.AI_TERMINAL_DEMO_MODE === '1'
+const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
 const demoProvider = {
-  name: 'AI Terminal Demo',
+  name: 'Taviraq Demo',
   providerType: 'openai' as const,
   baseUrl: 'https://demo.local',
-  apiKeyRef: 'ai-terminal-demo',
+  apiKeyRef: 'taviraq-demo',
   selectedModel: 'demo-agent',
   commandRiskModel: 'demo-safety'
 }
@@ -148,7 +150,7 @@ function registerApplicationMenu(): void {
         { role: 'about' },
         { type: 'separator' },
         {
-          label: 'Quit AI Terminal',
+          label: 'Quit Taviraq',
           accelerator: 'Command+Q',
           click: requestQuit
         }
@@ -280,7 +282,7 @@ async function createWindow(): Promise<void> {
     ...bounds,
     minWidth: 1060,
     minHeight: 680,
-    title: 'AI Terminal',
+    title: 'Taviraq',
     backgroundColor: '#050514',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -538,8 +540,8 @@ function registerIpc(): void {
   ipcMain.handle('llm:listModels', (_event, request: SaveLLMProviderRequest) => {
     if (DEMO_MODE) {
       return [
-        { id: 'demo-agent', ownedBy: 'AI Terminal' },
-        { id: 'demo-safety', ownedBy: 'AI Terminal' }
+        { id: 'demo-agent', ownedBy: 'Taviraq' },
+        { id: 'demo-safety', ownedBy: 'Taviraq' }
       ]
     }
 
@@ -640,7 +642,7 @@ function registerIpc(): void {
       buttons: ['Continue', 'Cancel'],
       cancelId: 1,
       defaultId: 0,
-      message: 'Export AI Terminal data',
+      message: 'Export Taviraq data',
       detail: 'Choose whether this export should include plaintext API keys.',
       checkboxLabel: 'Include API keys in export file',
       checkboxChecked: false
@@ -668,8 +670,8 @@ function registerIpc(): void {
     }
 
     const saveResult = await dialog.showSaveDialog({
-      title: 'Export AI Terminal Data',
-      defaultPath: 'ai-terminal-backup.json',
+      title: 'Export Taviraq Data',
+      defaultPath: 'taviraq-backup.json',
       filters: [{ name: 'JSON', extensions: ['json'] }]
     })
 
@@ -679,7 +681,7 @@ function registerIpc(): void {
 
   ipcMain.handle('data:import', async (): Promise<ImportResult | undefined> => {
     const openResult = await dialog.showOpenDialog({
-      title: 'Import AI Terminal Data',
+      title: 'Import Taviraq Data',
       filters: [{ name: 'JSON', extensions: ['json'] }],
       properties: ['openFile']
     })

@@ -492,7 +492,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     terminal.loadAddon(fit)
     terminal.loadAddon(search)
     terminal.loadAddon(webLinks)
-    ;(terminal as XtermInternals)._aiTerminalFit = fit
+    ;(terminal as XtermInternals)._taviraqFit = fit
     terminalRef.current = terminal
     fitRef.current = fit
     searchRef.current = search
@@ -584,7 +584,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       }
       blockHighlightDecorationsRef.current = []
       cancelScheduledResize(resizeFrameRef)
-      delete (terminal as XtermInternals)._aiTerminalFit
+      delete (terminal as XtermInternals)._taviraqFit
       terminal.dispose()
       fitRef.current = null
       searchRef.current = null
@@ -1057,7 +1057,7 @@ function scheduleResize(
 
 interface XtermInternals {
   _core?: { _renderService?: { _renderer?: { value?: unknown } } }
-  _aiTerminalFit?: FitAddon
+  _taviraqFit?: FitAddon
 }
 
 function hasXtermRenderer(terminal: Terminal): boolean {
@@ -1065,5 +1065,5 @@ function hasXtermRenderer(terminal: Terminal): boolean {
 }
 
 function fitRefFor(terminal: Terminal): FitAddon | undefined {
-  return (terminal as XtermInternals)._aiTerminalFit
+  return (terminal as XtermInternals)._taviraqFit
 }

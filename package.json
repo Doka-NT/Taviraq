@@ -1,8 +1,8 @@
 {
-  "name": "ai-terminal",
-  "productName": "AI Terminal",
+  "name": "taviraq",
+  "productName": "Taviraq",
   "version": "0.0.0",
-  "description": "Safer macOS AI terminal for local and SSH workflows.",
+  "description": "AI-native macOS terminal with built-in assistant workflows and safe command execution.",
   "author": "Soshnikov Artem",
   "private": true,
   "license": "AGPL-3.0-or-later",
@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src tests electron.vite.config.ts vitest.config.ts",
-    "changelog": "node scripts/generate-changelog.mjs --changelog /tmp/ai-terminal-changelog.md && cat /tmp/ai-terminal-changelog.md",
+    "changelog": "node scripts/generate-changelog.mjs --changelog /tmp/taviraq-changelog.md && cat /tmp/taviraq-changelog.md",
     "record:demo": "node scripts/record-demo.mjs",
     "record:demo:gif": "node scripts/record-demo.mjs --gif"
   },
@@ -56,8 +56,8 @@
     "vitest": "^2.1.8"
   },
   "build": {
-    "appId": "com.dokant.aiterminal",
-    "productName": "AI Terminal",
+    "appId": "com.dokant.taviraq",
+    "productName": "Taviraq",
     "directories": {
       "output": "dist"
     },

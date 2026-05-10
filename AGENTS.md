@@ -1,10 +1,10 @@
-# AI Terminal Agent Brief
+# Taviraq Agent Brief
 
 Read this first when working in this project. Keep changes small, product-minded, and scoped to the user request.
 
 ## Product
 
-AI Terminal is a macOS-first Electron desktop terminal with:
+Taviraq is a macOS-first Electron desktop terminal with:
 
 - real local PTY sessions via `node-pty`
 - SSH sessions through the system `ssh` binary

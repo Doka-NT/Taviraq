@@ -1,6 +1,7 @@
 import type * as Keytar from 'keytar'
 
-const SERVICE_NAME = 'ai-terminal'
+const SERVICE_NAME = 'taviraq'
+const LEGACY_SERVICE_NAME = 'ai-terminal'
 
 export async function saveApiKey(apiKeyRef: string, apiKey: string): Promise<void> {
   const keytar = await importKeytar()
@@ -9,12 +10,16 @@ export async function saveApiKey(apiKeyRef: string, apiKey: string): Promise<voi
 
 export async function getApiKey(apiKeyRef: string): Promise<string | undefined> {
   const keytar = await importKeytar()
-  return (await keytar.getPassword(SERVICE_NAME, apiKeyRef)) ?? undefined
+  const apiKey = await keytar.getPassword(SERVICE_NAME, apiKeyRef)
+  if (apiKey) return apiKey
+
+  return (await keytar.getPassword(LEGACY_SERVICE_NAME, apiKeyRef)) ?? undefined
 }
 
 export async function deleteApiKey(apiKeyRef: string): Promise<void> {
   const keytar = await importKeytar()
   await keytar.deletePassword(SERVICE_NAME, apiKeyRef)
+  await keytar.deletePassword(LEGACY_SERVICE_NAME, apiKeyRef)
 }
 
 async function importKeytar(): Promise<typeof Keytar> {

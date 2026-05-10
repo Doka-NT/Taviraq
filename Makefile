@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := build
 
 NODE_MODULES_STAMP := node_modules/.package-lock.json
-APP_NAME := AI Terminal
+APP_NAME := Taviraq
 APP_BUNDLE := dist/mac-arm64/$(APP_NAME).app
 INSTALL_DIR ?= /Applications
 INSTALL_BUNDLE := $(INSTALL_DIR)/$(APP_NAME).app

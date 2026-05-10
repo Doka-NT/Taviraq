@@ -1,30 +1,30 @@
-# AI Terminal
+# Taviraq
 
 <p align="center">
-  <img src="docs/media/ai-terminal-icon.png" alt="AI Terminal app icon" width="96" height="96">
+  <img src="docs/media/taviraq-icon.png" alt="Taviraq app icon" width="96" height="96">
 </p>
 
 <p align="center">
-  <strong>A safer AI terminal for local and SSH workflows.</strong>
+  <strong>AI-native terminal for local and SSH workflows.</strong>
   <br>
-  Ask what happened, get the next command, and keep control before anything risky runs.
+  Your terminal, with AI context and command safety.
 </p>
 
 <p align="center">
   <img alt="macOS" src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple&logoColor=white">
   <img alt="Electron" src="https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white">
-  <img alt="License" src="https://img.shields.io/github/license/doka-nt/ai-terminal">
-  <img alt="Stars" src="https://img.shields.io/github/stars/doka-nt/ai-terminal?style=social">
+  <img alt="License" src="https://img.shields.io/github/license/doka-nt/taviraq">
+  <img alt="Stars" src="https://img.shields.io/github/stars/doka-nt/taviraq?style=social">
 </p>
 
 <p align="center">
-  <img src="docs/media/ai-terminal-demo.gif" alt="AI Terminal agent mode demo" width="800">
+  <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo" width="800">
 </p>
 
 ## What it is
 
-AI Terminal is a local-first macOS terminal with an AI assistant built in. It understands your shell output, works with local and SSH sessions, supports OpenAI-compatible providers, Ollama, and LM Studio, and pauses before risky commands touch your shell.
+Taviraq is a macOS terminal with a built-in AI assistant that understands terminal output, helps with debugging and shell workflows, and safely executes commands through approval-based agent mode.
 
 Use it as a normal terminal, then switch the assistant between read-only help and agent mode when you want it to propose and run commands step by step. The terminal stays in front: real local shells, SSH through your system `ssh`, searchable output, clickable links, tabs, themes, and a compact assistant sidebar.
 
@@ -58,24 +58,24 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 
 ### Download
 
-Grab the latest `.zip` from [Releases](https://github.com/Doka-NT/ai-terminal/releases), unzip it, and drag **AI Terminal.app** to your Applications folder.
+Grab the latest `.zip` from [Releases](https://github.com/Doka-NT/taviraq/releases), unzip it, and drag **Taviraq.app** to your Applications folder.
 
 Current release builds are unsigned. macOS will warn that the app is from an unidentified developer.
 
-> **First launch:** right-click **AI Terminal.app** → **Open** → **Open** to proceed.
-> Or run: `xattr -dr com.apple.quarantine "/Applications/AI Terminal.app"`
+> **First launch:** right-click **Taviraq.app** → **Open** → **Open** to proceed.
+> Or run: `xattr -dr com.apple.quarantine "/Applications/Taviraq.app"`
 
 Release assets include a `checksums.txt` file when built by GitHub Actions.
 
 ### Build from source
 
 ```bash
-git clone https://github.com/Doka-NT/ai-terminal.git
-cd ai-terminal
+git clone https://github.com/Doka-NT/taviraq.git
+cd taviraq
 make build
 ```
 
-Open `dist/`, unzip the archive or run the package, and drag **AI Terminal.app** to your Applications folder when needed.
+Open `dist/`, unzip the archive or run the package, and drag **Taviraq.app** to your Applications folder when needed.
 
 On first launch, go to **Settings → Providers** and add your API key and base URL. Then pick a model and start a session.
 
@@ -107,11 +107,11 @@ make build
 
 ## License
 
-AI Terminal source code is licensed under the
+Taviraq source code is licensed under the
 [GNU Affero General Public License v3.0 or later](LICENSE).
 
 Copyright (C) 2026 Soshnikov Artem.
 
-The AI Terminal name, logo, icon, and other branding assets are not licensed
+The Taviraq name, logo, icon, and other branding assets are not licensed
 for use as trademarks or to imply endorsement. Forks and redistributed builds
 should use their own name and branding unless they have written permission.

@@ -12,9 +12,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const projectRoot = resolve(__dirname, '..')
 const artifactsDir = join(projectRoot, 'demo-artifacts')
 const framesDir = join(artifactsDir, 'frames')
-const userDataDir = join(tmpdir(), `ai-terminal-demo-${process.pid}`)
-const outputMp4 = join(artifactsDir, 'ai-terminal-demo.mp4')
-const outputGif = join(artifactsDir, 'ai-terminal-demo.gif')
+const userDataDir = join(tmpdir(), `taviraq-demo-${process.pid}`)
+const outputMp4 = join(artifactsDir, 'taviraq-demo.mp4')
+const outputGif = join(artifactsDir, 'taviraq-demo.gif')
 const makeGif = process.argv.includes('--gif')
 const skipBuild = process.argv.includes('--no-build')
 const fps = 30
@@ -93,11 +93,11 @@ async function sendAssistantMessage(page, text) {
 
 async function prepareDemoPreferences(page) {
   await page.evaluate(() => {
-    localStorage.setItem('ai-terminal.textSize', '17')
-    localStorage.setItem('ai-terminal.sidebarWidth', '480')
-    localStorage.setItem('ai-terminal.sidebarVisible', 'true')
-    localStorage.setItem('ai-terminal.restoreSessions', 'false')
-    localStorage.setItem('ai-terminal.language', 'en')
+    localStorage.setItem('taviraq.textSize', '17')
+    localStorage.setItem('taviraq.sidebarWidth', '480')
+    localStorage.setItem('taviraq.sidebarVisible', 'true')
+    localStorage.setItem('taviraq.restoreSessions', 'false')
+    localStorage.setItem('taviraq.language', 'en')
   })
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
@@ -121,8 +121,8 @@ async function main() {
     args: [projectRoot],
     env: {
       ...process.env,
-      AI_TERMINAL_DEMO_MODE: '1',
-      AI_TERMINAL_USER_DATA_DIR: userDataDir,
+      TAVIRAQ_DEMO_MODE: '1',
+      TAVIRAQ_USER_DATA_DIR: userDataDir,
       ELECTRON_DISABLE_SECURITY_WARNINGS: 'true'
     }
   })
@@ -140,7 +140,7 @@ async function main() {
 
     await typeInTerminal(page, `cd ${JSON.stringify(projectRoot)}`)
     await sleep(900)
-    await typeInTerminal(page, 'printf "AI Terminal demo\\nLocal PTY session is live\\n"')
+    await typeInTerminal(page, 'printf "Taviraq demo\\nLocal PTY session is live\\n"')
     await sleep(1300)
     await typeInTerminal(page, 'node -v && pwd')
     await sleep(1400)

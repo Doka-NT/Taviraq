@@ -20,16 +20,19 @@ const MIN_SIDEBAR_WIDTH = 300
 const MAX_SIDEBAR_WIDTH = 720
 const MIN_WORKSPACE_WIDTH = 520
 const DEFAULT_TEXT_SIZE = 13.5
-const SIDEBAR_WIDTH_KEY = 'ai-terminal.sidebarWidth'
-const SIDEBAR_VISIBLE_KEY = 'ai-terminal.sidebarVisible'
-const TEXT_SIZE_KEY = 'ai-terminal.textSize'
-const LANGUAGE_KEY = 'ai-terminal.language'
-const THEME_KEY = 'ai-terminal.theme'
-const RESTORE_SESSIONS_KEY = 'ai-terminal.restoreSessions'
-const MAX_OUTPUT_CONTEXT_KEY = 'ai-terminal.maxOutputContext'
+const STORAGE_PREFIX = 'taviraq'
+const LEGACY_STORAGE_PREFIX = 'ai-terminal'
+const SIDEBAR_WIDTH_KEY = `${STORAGE_PREFIX}.sidebarWidth`
+const SIDEBAR_VISIBLE_KEY = `${STORAGE_PREFIX}.sidebarVisible`
+const TEXT_SIZE_KEY = `${STORAGE_PREFIX}.textSize`
+const LANGUAGE_KEY = `${STORAGE_PREFIX}.language`
+const THEME_KEY = `${STORAGE_PREFIX}.theme`
+const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
+const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
+let storageMigrationComplete = false
 
 interface BlockPromptRequest {
   id: string
@@ -67,6 +70,35 @@ function storedNumber(key: string, fallback: number, min: number, max: number): 
 function storedPositiveNumber(key: string, fallback: number): number {
   const value = Number(window.localStorage.getItem(key))
   return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function migrateLocalStorageKeys(): void {
+  if (storageMigrationComplete) return
+  storageMigrationComplete = true
+
+  const keys = [
+    'sidebarWidth',
+    'sidebarVisible',
+    'textSize',
+    'language',
+    'theme',
+    'restoreSessions',
+    'maxOutputContext'
+  ]
+
+  for (const key of keys) {
+    const nextKey = `${STORAGE_PREFIX}.${key}`
+    const legacyKey = `${LEGACY_STORAGE_PREFIX}.${key}`
+    if (window.localStorage.getItem(nextKey) !== null) continue
+
+    const legacyValue = window.localStorage.getItem(legacyKey)
+    if (legacyValue === null) continue
+
+    window.localStorage.setItem(
+      nextKey,
+      legacyValue === 'ai-terminal-dark' ? DEFAULT_THEME_ID : legacyValue
+    )
+  }
 }
 
 function getTabLabel(session: TerminalSessionInfo): string {
@@ -142,6 +174,8 @@ function isPromptOnlyLine(line: string): boolean {
 }
 
 export function App(): JSX.Element {
+  migrateLocalStorageKeys()
+
   const [sessions, setSessions] = useState<SessionState[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string>()
   const [selectedText, setSelectedText] = useState('')
@@ -582,7 +616,7 @@ export function App(): JSX.Element {
           const session = await window.api.terminal.create(saved.cwd ? { cwd: saved.cwd } : undefined)
           if (cancelled) return
           const fallbackNotice = saved.cwd && session.cwd !== saved.cwd
-            ? `\r\n[AI Terminal restored this tab in ${session.cwd ?? 'your home directory'} because ${saved.cwd} was unavailable.]\r\n`
+            ? `\r\n[Taviraq restored this tab in ${session.cwd ?? 'your home directory'} because ${saved.cwd} was unavailable.]\r\n`
             : ''
           restoredSessions.push({ ...session, status: 'running' })
           idMap.set(saved.id, session.id)
@@ -714,7 +748,7 @@ export function App(): JSX.Element {
     const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
     const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
     const fallbackNotice = session.cwd && next.cwd !== session.cwd
-      ? `\r\n[AI Terminal reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
+      ? `\r\n[Taviraq reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
       : ''
     outputBuffers.current.delete(sessionId)
     outputBuffers.current.set(next.id, `${restoredOutput}${fallbackNotice}`)
@@ -914,7 +948,7 @@ export function App(): JSX.Element {
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />
-          <div className="topbar-title">AI Terminal</div>
+          <div className="topbar-title">Taviraq</div>
           <div className="topbar-actions">
             <div className="tabbar-new-dropdown-wrapper">
               <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title="New terminal (⌘T)">

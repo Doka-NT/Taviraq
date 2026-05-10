@@ -404,6 +404,7 @@ export function LlmPanel({
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
+  const loadingModelsRef = useRef(false)
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
@@ -1408,6 +1409,8 @@ export function LlmPanel({
 
   // Load models
   const loadModels = useCallback(async () => {
+    if (loadingModelsRef.current) return
+    loadingModelsRef.current = true
     setProviderStatus('Loading models...')
     try {
       const loaded = await window.api.llm.listModels({ provider, apiKey })
@@ -1416,6 +1419,8 @@ export function LlmPanel({
       setProviderStatus(`${loaded.length} models loaded`)
     } catch (error) {
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      loadingModelsRef.current = false
     }
   }, [apiKey, provider])
 
@@ -1914,10 +1919,6 @@ export function LlmPanel({
                             <KeyRound size={14} aria-hidden />
                             {t('providers.save')}
                           </button>
-                          <button type="button" className="quiet-button" onClick={() => void loadModels()}>
-                            <RefreshCw size={13} aria-hidden />
-                            {t('providers.fetchModels')}
-                          </button>
                         </div>
                         {providerStatus ? (
                           <div className={`provider-connection-status ${statusToInlineStatus(providerStatus).tone}`}>
@@ -1931,6 +1932,7 @@ export function LlmPanel({
                               value={provider.selectedModel ?? ''}
                               models={models}
                               placeholder={t('providers.searchChatModel')}
+                              onOpen={() => void loadModels()}
                               onChange={(modelId) => {
                                 const updated = { ...provider, selectedModel: modelId }
                                 updateProvider(updated)
@@ -1943,6 +1945,7 @@ export function LlmPanel({
                               value={provider.commandRiskModel ?? ''}
                               models={models}
                               placeholder={t('providers.searchSafetyModel')}
+                              onOpen={() => void loadModels()}
                               onChange={(modelId) => {
                                 const updated = { ...provider, commandRiskModel: modelId }
                                 updateProvider(updated)
@@ -2584,10 +2587,11 @@ interface ModelComboboxProps {
   value: string
   models: LLMModel[]
   placeholder: string
+  onOpen?: () => void
   onChange: (modelId: string) => void
 }
 
-function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxProps): JSX.Element {
+function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelComboboxProps): JSX.Element {
   const { t } = useT()
   const listboxId = useId()
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -2658,6 +2662,13 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
     onChange(modelId)
   }, [onChange])
 
+  const openList = useCallback(() => {
+    setOpen((current) => {
+      if (!current) onOpen?.()
+      return true
+    })
+  }, [onOpen])
+
   const closeList = useCallback(() => {
     setOpen(false)
     setQuery('')
@@ -2672,14 +2683,14 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault()
-      setOpen(true)
+      openList()
       setActiveIndex((index) => Math.min(index + 1, Math.max(visibleModels.length - 1, 0)))
       return
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault()
-      setOpen(true)
+      openList()
       setActiveIndex((index) => Math.max(index - 1, 0))
       return
     }
@@ -2696,7 +2707,7 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
       event.preventDefault()
       closeList()
     }
-  }, [activeModel, closeList, commitModel, open, visibleModels.length])
+  }, [activeModel, closeList, commitModel, open, openList, visibleModels.length])
 
   const listContent = open ? (
     <div
@@ -2750,13 +2761,13 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
         value={open ? query : formattedValue}
         placeholder={models.length > 0 || value ? placeholder : t('model.loadModelsFirst')}
         onFocus={(event) => {
-          setOpen(true)
+          openList()
           event.currentTarget.select()
         }}
         onChange={(event) => {
           setQuery(event.target.value)
           setActiveIndex(0)
-          setOpen(true)
+          openList()
         }}
         onKeyDown={handleKeyDown}
       />
@@ -2767,7 +2778,11 @@ function ModelCombobox({ value, models, placeholder, onChange }: ModelComboboxPr
         tabIndex={-1}
         onMouseDown={(event) => {
           event.preventDefault()
-          setOpen((current) => !current)
+          if (open) {
+            closeList()
+            return
+          }
+          openList()
           inputRef.current?.focus()
         }}
       >

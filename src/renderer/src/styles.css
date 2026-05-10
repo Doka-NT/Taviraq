@@ -210,6 +210,7 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition), color var(--transition), opacity var(--transition), transform var(--transition);
 }

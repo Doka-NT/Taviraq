@@ -472,6 +472,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   useEffect(() => {
     const terminal = new Terminal({
       cursorBlink: true,
+      cursorInactiveStyle: 'block',
       fontFamily: '"SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace',
       fontSize: textSizeRef.current,
       lineHeight: 1.25,
@@ -484,6 +485,8 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     })
     const fit = new FitAddon()
     const search = new SearchAddon()
+    let webglAddon: WebglAddon | undefined
+    let webglContextLossDisposable: Disposable | undefined
     const webLinks = new WebLinksAddon((_event, uri) => {
       void window.api.app.openExternalUrl(uri).catch((error: unknown) => {
         console.error('[terminal link open failed]', error)
@@ -501,7 +504,13 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       terminal.open(containerRef.current)
       if (!navigator.webdriver) {
         try {
-          terminal.loadAddon(new WebglAddon())
+          webglAddon = new WebglAddon()
+          webglContextLossDisposable = webglAddon.onContextLoss(() => {
+            console.warn('[terminal webgl context lost, falling back to canvas renderer]')
+            webglAddon?.dispose()
+            terminal.refresh(0, terminal.rows - 1)
+          })
+          terminal.loadAddon(webglAddon)
         } catch {
           // WebGL not available, falls back to canvas
         }
@@ -585,6 +594,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       blockHighlightDecorationsRef.current = []
       cancelScheduledResize(resizeFrameRef)
       delete (terminal as XtermInternals)._taviraqFit
+      webglContextLossDisposable?.dispose()
       terminal.dispose()
       fitRef.current = null
       searchRef.current = null
@@ -755,6 +765,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [terminalBlocks])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>): void => {
+    terminalRef.current?.focus()
     pointerStartRef.current = { x: event.clientX, y: event.clientY }
   }
 

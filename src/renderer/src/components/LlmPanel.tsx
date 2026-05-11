@@ -2075,7 +2075,7 @@ export function LlmPanel({
                       </div>
                       <div className="appearance-row-right">
                         <input
-                          className={`text-size-input ${!isValidTextSize(textSizeDraft) ? 'invalid-input' : ''}`}
+                          className={`numeric-input ${!isValidTextSize(textSizeDraft) ? 'invalid-input' : ''}`}
                           type="number"
                           step="0.5"
                           min={MIN_TEXT_SIZE}
@@ -2367,7 +2367,7 @@ export function LlmPanel({
                               min={MIN_SSH_PORT}
                               max={MAX_SSH_PORT}
                               step="1"
-                              className={`number-input-clean ${!isValidSshPort(sshProfile.port) ? 'invalid-input' : ''}`}
+                              className={`numeric-input ${!isValidSshPort(sshProfile.port) ? 'invalid-input' : ''}`}
                               aria-invalid={!isValidSshPort(sshProfile.port)}
                               value={sshProfile.port ?? ''}
                               placeholder="22"
@@ -2461,7 +2461,7 @@ export function LlmPanel({
                       </div>
                       <div className="appearance-row-right">
                         <input
-                          className={`text-size-input ${!isValidOutputContext(maxOutputContextDraft) ? 'invalid-input' : ''}`}
+                          className={`numeric-input ${!isValidOutputContext(maxOutputContextDraft) ? 'invalid-input' : ''}`}
                           type="number"
                           step="1000"
                           min={MIN_OUTPUT_CONTEXT}

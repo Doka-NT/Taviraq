@@ -198,6 +198,11 @@ button {
   -webkit-app-region: no-drag;
 }
 
+.topbar-actions .icon-button {
+  width: 32px;
+  height: 32px;
+}
+
 .icon-button,
 .quiet-button,
 .send-button,
@@ -1185,6 +1190,7 @@ textarea:focus {
   flex-shrink: 0;
 }
 
+.numeric-input,
 .text-size-input {
   width: 80px;
   height: 32px;
@@ -1194,6 +1200,8 @@ textarea:focus {
   -moz-appearance: textfield;
 }
 
+.numeric-input::-webkit-outer-spin-button,
+.numeric-input::-webkit-inner-spin-button,
 .text-size-input::-webkit-outer-spin-button,
 .text-size-input::-webkit-inner-spin-button {
   margin: 0;
@@ -2188,7 +2196,7 @@ textarea:focus {
 }
 
 .save-prompt-name-input:focus {
-  border-color: var(--accent-brand);
+  border-color: rgba(var(--accent-cyan-rgb), 0.65);
 }
 
 .save-prompt-generating {
@@ -2204,7 +2212,7 @@ textarea:focus {
   width: 14px;
   height: 14px;
   border: 1.5px solid var(--border-strong);
-  border-top-color: var(--accent-brand);
+  border-top-color: var(--accent-cyan);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -2231,7 +2239,7 @@ textarea:focus {
 }
 
 .save-prompt-content-editor:focus {
-  border-color: var(--accent-brand);
+  border-color: rgba(var(--accent-cyan-rgb), 0.65);
 }
 
 .save-prompt-content-editor::-webkit-scrollbar {

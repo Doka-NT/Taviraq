@@ -3230,8 +3230,8 @@ textarea:focus {
   gap: 14px;
   padding: 0 13px;
   border-bottom: 0.5px solid var(--border-subtle);
-  color: var(--text-ghost);
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
 }
 
 .prompt-picker-shortcuts {
@@ -3239,6 +3239,7 @@ textarea:focus {
   align-items: center;
   gap: 14px;
   min-width: 0;
+  font-weight: 500;
 }
 
 .prompt-picker-add {

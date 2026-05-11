@@ -116,6 +116,7 @@ const MIN_TEXT_SIZE = 8
 const MAX_TEXT_SIZE = 32
 const MIN_SSH_PORT = 1
 const MAX_SSH_PORT = 65535
+const MIN_OUTPUT_CONTEXT = 1000
 
 type ThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status'
@@ -176,6 +177,17 @@ function isValidSshPort(value: number | undefined): boolean {
 function clampSshPort(value: number | undefined): number | undefined {
   if (value === undefined || !Number.isFinite(value)) return undefined
   return Math.min(MAX_SSH_PORT, Math.max(MIN_SSH_PORT, Math.round(value)))
+}
+
+function isValidOutputContext(value: string): boolean {
+  const parsed = parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed >= MIN_OUTPUT_CONTEXT
+}
+
+function clampOutputContext(value: string, fallback: number): number {
+  const parsed = parseInt(value, 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(MIN_OUTPUT_CONTEXT, parsed)
 }
 
 function normalizeLibraryName(value: string): string {
@@ -1645,10 +1657,16 @@ export function LlmPanel({
     setMaxOutputContextDraft(value)
 
     const parsed = parseInt(value, 10)
-    if (Number.isFinite(parsed) && parsed >= 1000) {
+    if (isValidOutputContext(value)) {
       onMaxOutputContextChange(parsed)
     }
   }, [onMaxOutputContextChange])
+
+  const commitMaxOutputContextDraft = useCallback(() => {
+    const nextMaxOutputContext = clampOutputContext(maxOutputContextDraft, maxOutputContext)
+    setMaxOutputContextDraft(String(nextMaxOutputContext))
+    onMaxOutputContextChange(nextMaxOutputContext)
+  }, [maxOutputContext, maxOutputContextDraft, onMaxOutputContextChange])
 
   const handleExport = useCallback(async () => {
     setDataStatus('Exporting...')
@@ -2433,12 +2451,18 @@ export function LlmPanel({
                       </div>
                       <div className="appearance-row-right">
                         <input
-                          className="text-size-input"
+                          className={`text-size-input ${!isValidOutputContext(maxOutputContextDraft) ? 'invalid-input' : ''}`}
                           type="number"
                           step="1000"
-                          min="1000"
+                          min={MIN_OUTPUT_CONTEXT}
                           value={maxOutputContextDraft}
                           onChange={(event) => handleMaxOutputContextChange(event.target.value)}
+                          onBlur={commitMaxOutputContextDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
                         />
                         <span className="input-suffix">chars</span>
                       </div>

@@ -310,7 +310,7 @@ export const en: Translations = {
   'appearance.hideShortcut.recording': 'Press a key combination...',
   'appearance.hideShortcut.conflict': 'Shortcut {shortcut} is used by the system and cannot be assigned',
   'appearance.outputContext.label': 'Output context for AI',
-  'appearance.outputContext.desc': 'Max characters of terminal output sent to the AI',
+  'appearance.outputContext.desc': 'Recent terminal output sent to the AI. Minimum 1,000 chars',
   'appearance.theme.label': 'Theme',
   'appearance.theme.desc': 'Color scheme for UI and terminal',
 
@@ -577,7 +577,7 @@ export const ru: Translations = {
   'appearance.hideShortcut.recording': 'Нажмите сочетание клавиш...',
   'appearance.hideShortcut.conflict': 'Шорткат {shortcut} занят системой и не может быть назначен',
   'appearance.outputContext.label': 'Контекст вывода для ИИ',
-  'appearance.outputContext.desc': 'Максимум символов вывода терминала, передаваемых ИИ',
+  'appearance.outputContext.desc': 'Недавний вывод терминала, который увидит ИИ. Минимум 1 000 символов',
   'appearance.theme.label': 'Тема',
   'appearance.theme.desc': 'Цветовая схема интерфейса и терминала',
 
@@ -844,7 +844,7 @@ export const cn: Translations = {
   'appearance.hideShortcut.recording': '按下快捷键组合...',
   'appearance.hideShortcut.conflict': '快捷键 {shortcut} 已被系统占用，无法分配',
   'appearance.outputContext.label': 'AI输出上下文',
-  'appearance.outputContext.desc': '发送给AI的终端输出最大字符数',
+  'appearance.outputContext.desc': '发送给 AI 的最近终端输出。最少 1,000 个字符',
   'appearance.theme.label': '主题',
   'appearance.theme.desc': '界面和终端配色方案',
 

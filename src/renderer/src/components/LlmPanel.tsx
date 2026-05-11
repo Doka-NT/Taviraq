@@ -3355,9 +3355,15 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
             </div>
           ))
         ) : (
-          <p className="prompt-list-empty">
-            {t('prompts.noPrompts')}
-          </p>
+          <div className="prompt-list-empty">
+            <p>{t('prompts.noPrompts')}</p>
+            {!editing && !addingPrompt ? (
+              <button type="button" className="quiet-button" onClick={handleAddPrompt}>
+                <Plus size={12} aria-hidden />
+                {t('prompts.addPrompt')}
+              </button>
+            ) : null}
+          </div>
         )}
       </div>
 
@@ -3572,7 +3578,15 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
             </div>
           </div>
         )) : (
-          <p className="prompt-list-empty">{t('snippets.noSnippets')}</p>
+          <div className="prompt-list-empty">
+            <p>{t('snippets.noSnippets')}</p>
+            {!editing && !addingSnippet ? (
+              <button type="button" className="quiet-button" onClick={handleAddSnippet}>
+                <Plus size={12} aria-hidden />
+                {t('snippets.addSnippet')}
+              </button>
+            ) : null}
+          </div>
         )}
       </div>
 

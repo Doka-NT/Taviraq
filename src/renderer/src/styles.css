@@ -3478,9 +3478,17 @@ textarea:focus {
 }
 
 .prompt-list-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 12px;
   color: var(--text-muted);
   margin: 4px 0;
+}
+
+.prompt-list-empty p {
+  margin: 0;
 }
 
 .prompt-list-empty code {

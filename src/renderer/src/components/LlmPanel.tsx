@@ -1853,6 +1853,21 @@ export function LlmPanel({
   const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
     matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
   ), [settingsSearch])
+  const handleSettingsNavKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex = index
+    if (event.key === 'ArrowDown') nextIndex = Math.min(index + 1, filteredSettingsNavItems.length - 1)
+    else if (event.key === 'ArrowUp') nextIndex = Math.max(index - 1, 0)
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = filteredSettingsNavItems.length - 1
+    else return
+
+    event.preventDefault()
+    const nextItem = filteredSettingsNavItems[nextIndex]
+    if (!nextItem) return
+    setSettingsTab(nextItem.id)
+    const navItems = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('.settings-nav-item')
+    navItems?.[nextIndex]?.focus()
+  }, [filteredSettingsNavItems])
 
   useEffect(() => {
     setSettingsTab(settingsTabRequest)
@@ -1988,12 +2003,13 @@ export function LlmPanel({
                     placeholder={t('settings.search')}
                   />
                 </label>
-                {filteredSettingsNavItems.length > 0 ? filteredSettingsNavItems.map((item) => (
+                {filteredSettingsNavItems.length > 0 ? filteredSettingsNavItems.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
                     className={`settings-nav-item ${settingsTab === item.id ? 'active' : ''}`}
                     onClick={() => setSettingsTab(item.id)}
+                    onKeyDown={(event) => handleSettingsNavKeyDown(event, index)}
                   >
                     <HighlightSearchText text={item.label} query={settingsSearch} />
                   </button>

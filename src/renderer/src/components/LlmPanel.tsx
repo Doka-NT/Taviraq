@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, GitFork, History, KeyRound,
+  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, GitFork, History, KeyRound, Pencil,
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
@@ -3245,7 +3245,7 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
                   title={t('prompts.edit')}
                   onClick={() => handleEdit(prompt)}
                 >
-                  <Settings2 size={12} aria-hidden />
+                  <Pencil size={16} aria-hidden />
                 </button>
                 <button
                   type="button"
@@ -3253,7 +3253,7 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
                   title={t('prompts.delete')}
                   onClick={() => void handleDelete(prompt.id)}
                 >
-                  <Trash2 size={12} aria-hidden />
+                  <Trash2 size={16} aria-hidden />
                 </button>
               </div>
             </div>
@@ -3463,7 +3463,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
                 title={t('snippets.edit')}
                 onClick={() => handleEdit(snippet)}
               >
-                <Settings2 size={12} aria-hidden />
+                <Pencil size={16} aria-hidden />
               </button>
               <button
                 type="button"
@@ -3471,7 +3471,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
                 title={t('snippets.delete')}
                 onClick={() => setPendingDeleteId(snippet.id)}
               >
-                <Trash2 size={12} aria-hidden />
+                <Trash2 size={16} aria-hidden />
               </button>
             </div>
           </div>

@@ -3419,9 +3419,10 @@ textarea:focus {
 }
 
 .prompt-list-item-actions .icon-button {
-  width: 30px;
-  height: 30px;
-  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  color: rgba(var(--surface-rgb), 0.58);
+  background: rgba(var(--surface-rgb), 0.055);
 }
 
 .prompt-list-empty {

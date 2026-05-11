@@ -114,6 +114,8 @@ const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
 const MAX_TEXT_SIZE = 32
+const MIN_SSH_PORT = 1
+const MAX_SSH_PORT = 65535
 
 type ThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status'
@@ -165,6 +167,15 @@ function clampTextSize(value: string, fallback: number): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, parsed))
+}
+
+function isValidSshPort(value: number | undefined): boolean {
+  return value === undefined || (Number.isInteger(value) && value >= MIN_SSH_PORT && value <= MAX_SSH_PORT)
+}
+
+function clampSshPort(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value)) return undefined
+  return Math.min(MAX_SSH_PORT, Math.max(MIN_SSH_PORT, Math.round(value)))
 }
 
 function normalizeLibraryName(value: string): string {
@@ -1551,9 +1562,14 @@ export function LlmPanel({
 
   const saveSshProfile = useCallback(async () => {
     if (!sshProfile) return
+    if (!isValidSshPort(sshProfile.port)) return
     const result = await window.api.ssh.saveProfile(sshProfile)
     setSshProfiles(result.sshProfiles ?? [])
   }, [sshProfile])
+
+  const commitSshPort = useCallback(() => {
+    setSshProfile((profile) => profile ? { ...profile, port: clampSshPort(profile.port) } : profile)
+  }, [])
 
   const chooseSshIdentityFile = useCallback(async () => {
     const filePath = await window.api.ssh.chooseIdentityFile()
@@ -2299,14 +2315,22 @@ export function LlmPanel({
 	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.port')} query={settingsSearch} /></span>
                             <input
                               type="number"
-                              min="1"
-                              max="65535"
+                              min={MIN_SSH_PORT}
+                              max={MAX_SSH_PORT}
                               step="1"
+                              className={`number-input-clean ${!isValidSshPort(sshProfile.port) ? 'invalid-input' : ''}`}
+                              aria-invalid={!isValidSshPort(sshProfile.port)}
                               value={sshProfile.port ?? ''}
                               placeholder="22"
                               onChange={(event) => {
                                 const val = event.target.value
                                 setSshProfile((p) => p ? { ...p, port: val ? Number(val) : undefined } : p)
+                              }}
+                              onBlur={commitSshPort}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.currentTarget.blur()
+                                }
                               }}
                             />
                           </div>
@@ -2335,11 +2359,11 @@ export function LlmPanel({
                             />
                           </div>
                           <div className="connection-actions">
-                            <button type="button" className="primary-button" onClick={() => void saveSshProfile()}>
+                            <button type="button" className="primary-button" disabled={!isValidSshPort(sshProfile.port)} onClick={() => void saveSshProfile()}>
                               {t('connections.save')}
                             </button>
                             {sshProfile.host ? (
-                              <button type="button" className="primary-button connection-connect-button" onClick={() => connectSshProfile(sshProfile)}>
+                              <button type="button" className="primary-button connection-connect-button" disabled={!isValidSshPort(sshProfile.port)} onClick={() => connectSshProfile(sshProfile)}>
                                 <Zap size={13} aria-hidden />
                                 {t('connections.connect')}
                               </button>

@@ -1190,6 +1190,18 @@ textarea:focus {
   -webkit-appearance: none;
 }
 
+.number-input-clean {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.number-input-clean::-webkit-outer-spin-button,
+.number-input-clean::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 .input-suffix {
   color: var(--text-muted);
   font-size: 11px;

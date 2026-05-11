@@ -2947,12 +2947,17 @@ textarea:focus {
   flex: 1.35;
   height: 32px;
   padding: 0 10px;
-  border: 0.5px solid rgba(var(--accent-red-rgb), 0.45);
+  border: 0.5px solid rgba(var(--accent-amber-rgb), 0.50);
   border-radius: 7px;
-  color: var(--accent-red-text);
-  background: var(--accent-red);
+  color: rgba(var(--accent-amber-rgb), 0.94);
+  background: rgba(var(--accent-amber-rgb), 0.16);
   font-size: 12px;
   font-weight: 500;
+}
+
+.danger-button:hover:not(:disabled) {
+  border-color: rgba(var(--accent-amber-rgb), 0.68);
+  background: rgba(var(--accent-amber-rgb), 0.22);
 }
 
 .danger-button.warning {

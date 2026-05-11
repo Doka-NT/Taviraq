@@ -1907,6 +1907,7 @@ export function LlmPanel({
               type="button"
               onClick={() => { setSettingsTab('providers'); onOpenSettings() }}
               title={t('settings.tab.providers')}
+              aria-label={t('settings.tab.providers')}
             >
               <Bot size={15} aria-hidden />
             </button>
@@ -1934,6 +1935,7 @@ export function LlmPanel({
               type="button"
               onClick={onOpenSettings}
               title={t('panel.settings')}
+              aria-label={t('panel.settings')}
             >
               <Settings2 size={15} aria-hidden />
             </button>
@@ -1942,6 +1944,7 @@ export function LlmPanel({
               type="button"
               onClick={toggleHistory}
               title={t('chat.history')}
+              aria-label={t('chat.history')}
             >
               <History size={15} aria-hidden />
             </button>
@@ -1951,6 +1954,7 @@ export function LlmPanel({
               onClick={() => void openSavePromptDialog()}
               disabled={messages.length === 0}
               title={t('chat.saveAsPrompt')}
+              aria-label={t('chat.saveAsPrompt')}
             >
               <BookmarkPlus size={15} aria-hidden />
             </button>
@@ -1959,6 +1963,7 @@ export function LlmPanel({
               type="button"
               onClick={clearHistory}
               title={t('panel.newChat')}
+              aria-label={t('panel.newChat')}
             >
               <MessageSquarePlus size={15} aria-hidden />
             </button>

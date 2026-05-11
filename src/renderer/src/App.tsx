@@ -990,13 +990,14 @@ export function App(): JSX.Element {
               onClick={() => setSnippetPaletteOpen(true)}
               disabled={!activeSessionId || activeSession?.status !== 'running'}
               title={`${appT('snippetPalette.title')} (⌘⇧K)`}
+              aria-label={`${appT('snippetPalette.title')} (⌘⇧K)`}
             >
               <Command size={16} aria-hidden />
             </button>
-            <button className="icon-button" type="button" onClick={toggleSidebar} title={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`}>
+            <button className="icon-button" type="button" onClick={toggleSidebar} title={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`} aria-label={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`}>
               {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
             </button>
-            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)">
+            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)" aria-label="Settings (⌘,)">
               <Settings2 size={16} aria-hidden />
             </button>
           </div>

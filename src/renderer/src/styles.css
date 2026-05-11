@@ -570,17 +570,17 @@ button {
 
 .terminal-container .xterm-viewport {
   background: transparent !important;
-  overflow-y: overlay !important;
+  overflow-y: auto !important;
   scrollbar-color: var(--scrollbar-color) transparent !important;
-  scrollbar-width: none !important;
-  scrollbar-gutter: none !important;
+  scrollbar-width: thin !important;
+  scrollbar-gutter: stable !important;
   margin-right: 0 !important;
   padding-right: 0 !important;
 }
 
 .terminal-container .xterm-viewport::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
+  width: 10px !important;
+  height: 10px !important;
 }
 
 .terminal-container .xterm-viewport::-webkit-scrollbar-track {
@@ -588,7 +588,10 @@ button {
 }
 
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
-  background: transparent !important;
+  background: var(--scrollbar-color) !important;
+  border: 3px solid transparent !important;
+  border-radius: 999px !important;
+  background-clip: content-box !important;
 }
 
 .terminal-search-panel {

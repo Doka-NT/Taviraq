@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, ShieldAlert, Terminal, X } from 'lucide-react'
+import { ChevronLeft, Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, ShieldAlert, Terminal, X } from 'lucide-react'
 import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
@@ -1071,6 +1071,17 @@ export function App(): JSX.Element {
           onSaveSnippet={openSnippetForm}
           terminalTheme={terminalTheme}
         />
+        {!sidebarVisible && (
+          <button
+            type="button"
+            className="sidebar-open-handle"
+            onClick={toggleSidebar}
+            title={appT('sidebar.openHandle')}
+            aria-label={appT('sidebar.openHandle')}
+          >
+            <ChevronLeft size={14} aria-hidden />
+          </button>
+        )}
       </section>
 
       <div

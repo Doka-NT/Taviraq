@@ -173,6 +173,7 @@ export interface Translations {
   'panel.permission.read': string
   'panel.permission.execute': string
   'panel.permission.pending': string
+  'sidebar.openHandle': string
 
   // Chat area
   'chat.empty.title': string
@@ -449,6 +450,7 @@ export const en: Translations = {
   'panel.permission.read': 'Read',
   'panel.permission.execute': 'Execute',
   'panel.permission.pending': 'Pending',
+  'sidebar.openHandle': 'Open assistant (⌘\\)',
 
   'chat.empty.title': 'Ready to help',
   'chat.empty.body': 'Ask about your terminal, commands, or selected text',
@@ -717,6 +719,7 @@ export const ru: Translations = {
   'panel.permission.read': 'Чтение',
   'panel.permission.execute': 'Выполнение',
   'panel.permission.pending': 'Ожидание',
+  'sidebar.openHandle': 'Открыть ассистента (⌘\\)',
 
   'chat.empty.title': 'Готов помочь',
   'chat.empty.body': 'Спросите о терминале, командах или выделенном тексте',
@@ -985,6 +988,7 @@ export const cn: Translations = {
   'panel.permission.read': '读取',
   'panel.permission.execute': '执行',
   'panel.permission.pending': '待处理',
+  'sidebar.openHandle': '打开助手 (⌘\\)',
 
   'chat.empty.title': '准备就绪',
   'chat.empty.body': '询问关于终端、命令或选定文本的问题',

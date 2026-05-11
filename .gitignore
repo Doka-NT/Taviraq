@@ -10,3 +10,4 @@ demo-artifacts
 .env
 .env.*
 .claude/worktrees/
+screenshots/

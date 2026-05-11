@@ -123,6 +123,7 @@ button {
 }
 
 .workspace {
+  position: relative;
   display: grid;
   grid-template-rows: 42px 34px minmax(0, 1fr);
   min-width: 0;
@@ -160,6 +161,33 @@ button {
 .sidebar-resizer:hover::before,
 .sidebar-resizer:active::before {
   background: rgba(var(--accent-cyan-rgb), 0.35);
+}
+
+.sidebar-open-handle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 72px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px 0 0 6px;
+  background: var(--bg-sidebar);
+  color: var(--text-icon-default);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 150ms ease, color 150ms ease, background 150ms ease;
+  z-index: 10;
+}
+
+.sidebar-open-handle:hover {
+  opacity: 1;
+  color: var(--accent-cyan);
+  background: var(--bg-titlebar);
 }
 
 /* Titlebar */

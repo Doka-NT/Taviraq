@@ -2052,21 +2052,21 @@ textarea:focus {
   justify-content: center;
   min-height: 220px;
   padding: 16px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-align: center;
 }
 
 .empty-chat strong {
-  color: rgba(var(--surface-rgb), 0.35);
-  font-size: 13px;
-  font-weight: 500;
+  color: rgba(var(--surface-rgb), 0.72);
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .empty-chat p {
-  max-width: 190px;
-  margin: 5px 0 14px;
-  color: rgba(var(--surface-rgb), 0.20);
-  font-size: 11.5px;
+  max-width: 240px;
+  margin: 7px 0 16px;
+  color: rgba(var(--surface-rgb), 0.42);
+  font-size: 12.5px;
   line-height: 1.5;
 }
 

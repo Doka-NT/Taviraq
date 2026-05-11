@@ -298,6 +298,13 @@ button {
   cursor: not-allowed;
 }
 
+.primary-button:disabled {
+  border-color: var(--border-subtle);
+  color: var(--text-ghost);
+  background: rgba(var(--surface-rgb), 0.025);
+  opacity: 1;
+}
+
 /* Tabs */
 
 .tabbar {

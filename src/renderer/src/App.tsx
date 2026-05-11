@@ -1335,6 +1335,7 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
                 }}
               >
                 <Play size={13} aria-hidden />
+                <kbd>⌘↵</kbd>
               </span>
             </button>
           )) : (

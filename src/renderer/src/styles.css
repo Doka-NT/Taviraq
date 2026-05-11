@@ -1891,13 +1891,22 @@ textarea:focus {
 }
 
 .command-snippet-run-action {
-  display: grid;
-  place-items: center;
-  width: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 44px;
   height: 28px;
   flex: 0 0 auto;
+  padding: 0 7px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
+}
+
+.command-snippet-run-action kbd {
+  color: inherit;
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px;
 }
 
 .command-snippet-run-action:hover {

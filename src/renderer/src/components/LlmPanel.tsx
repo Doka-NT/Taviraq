@@ -158,6 +158,47 @@ function normalizeLibraryName(value: string): string {
   return value.trim().toLowerCase()
 }
 
+function matchesSearchQuery(query: string, terms: Array<string | undefined>): boolean {
+  const normalizedQuery = query.trim().toLowerCase()
+  if (!normalizedQuery) return false
+  return terms.some((term) => term?.toLowerCase().includes(normalizedQuery))
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function HighlightSearchText({ text, query }: { text: string; query: string }): JSX.Element {
+  const normalizedQuery = query.trim()
+  if (!normalizedQuery) return <>{text}</>
+
+  const queryPattern = new RegExp(`(${escapeRegExp(normalizedQuery)})`, 'ig')
+  const normalizedLowerQuery = normalizedQuery.toLowerCase()
+  const words = text.split(/(\s+)/)
+
+  return (
+    <>
+      {words.map((word, wordIndex) => {
+        if (!word || /^\s+$/.test(word)) return word
+
+        const parts = word.split(queryPattern)
+        const hasMatch = parts.some((part) => part.toLowerCase() === normalizedLowerQuery)
+        if (!hasMatch) return word
+
+        return (
+          <span key={`${word}-${wordIndex}`} className="settings-search-word">
+            {parts.map((part, partIndex) => (
+              part.toLowerCase() === normalizedLowerQuery
+                ? <mark key={`${part}-${partIndex}`} className="settings-search-highlight">{part}</mark>
+                : part
+            ))}
+          </span>
+        )
+      })}
+    </>
+  )
+}
+
 interface ThinkingBlockProps {
   content: string
   isStreaming: boolean
@@ -385,6 +426,9 @@ export function LlmPanel({
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('providers')
+  const [settingsSearch, setSettingsSearch] = useState('')
+  const lastAutoOpenedSettingsQueryRef = useRef('')
+  const settingsSearchRef = useRef<HTMLInputElement | null>(null)
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
@@ -1702,10 +1746,106 @@ export function LlmPanel({
     prompt: t(`chip.${chip.id}Prompt` as Parameters<typeof t>[0])
   })), [activeSession?.cwd, assistMode, selectedText, strippedTerminalOutput, t])
   const inputDisabled = Boolean(commandConfirmation)
+  const settingsNavItems = useMemo<Array<{ id: SettingsTab; label: string; terms: string[] }>>(() => [
+    {
+      id: 'appearance',
+      label: t('settings.tab.appearance'),
+      terms: [
+        t('appearance.title'), t('appearance.theme.label'), t('appearance.theme.desc'),
+        t('appearance.fontSize.label'), t('appearance.fontSize.desc'),
+        t('appearance.language.label'), t('appearance.language.desc'),
+        t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'),
+        'font size theme language shortcut hotkey appearance terminal'
+      ]
+    },
+    {
+      id: 'providers',
+      label: t('settings.tab.providers'),
+      terms: [
+        t('providers.title'), t('providers.type'), t('providers.name'), t('providers.baseUrl'),
+        t('providers.apiKey'), t('providers.allowInsecureTls'), t('providers.apiKey.saved'),
+        t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
+        'openai ollama lm studio model api key base url tls provider safety'
+      ]
+    },
+    {
+      id: 'connections',
+      label: t('settings.tab.connections'),
+      terms: [
+        t('connections.title'), t('connections.name'), t('connections.host'), t('connections.user'),
+        t('connections.port'), t('connections.identityFile'), t('connections.browseIdentityFile'),
+        t('connections.extraArgs'), t('connections.connect'),
+        'ssh connection host user port identity file key pem rsa args'
+      ]
+    },
+    {
+      id: 'prompts',
+      label: t('settings.tab.prompts'),
+      terms: [
+        t('prompts.title'), t('prompts.importFromFile'), t('prompts.addPrompt'),
+        t('prompts.savePrompt'), t('prompts.namePlaceholder'), t('prompts.contentPlaceholder'),
+        'prompt prompts template markdown import library'
+      ]
+    },
+    {
+      id: 'snippets',
+      label: t('settings.tab.snippets'),
+      terms: [
+        t('snippets.title'), t('snippets.quickHint'), t('snippets.addSnippet'),
+        t('snippets.saveSnippet'), t('snippets.namePlaceholder'), t('snippets.commandPlaceholder'),
+        'snippet command terminal shell quick open run insert'
+      ]
+    },
+    {
+      id: 'data',
+      label: t('settings.tab.data'),
+      terms: [
+        t('data.title'), t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
+        t('data.restoreSessions.label'), t('data.restoreSessions.desc'),
+        t('data.exportImport.label'), t('data.exportImport.desc'),
+        t('data.clearSessions.label'), t('data.clearSessions.desc'),
+        t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'),
+        'data export import backup restore session state output context chars chat history clear'
+      ]
+    }
+  ], [t])
+  const filteredSettingsNavItems = useMemo(() => {
+    if (!settingsSearch.trim()) return settingsNavItems
+    return settingsNavItems.filter((item) =>
+      matchesSearchQuery(settingsSearch, [item.label, ...item.terms])
+    )
+  }, [settingsNavItems, settingsSearch])
+  const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
+    matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
+  ), [settingsSearch])
 
   useEffect(() => {
     setSettingsTab(settingsTabRequest)
   }, [settingsTabRequest, settingsTabRequestVersion])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+
+    const frameId = requestAnimationFrame(() => {
+      settingsSearchRef.current?.focus()
+    })
+
+    return () => cancelAnimationFrame(frameId)
+  }, [settingsOpen])
+
+  useEffect(() => {
+    const query = settingsSearch.trim().toLowerCase()
+    if (!query) {
+      lastAutoOpenedSettingsQueryRef.current = ''
+      return
+    }
+    if (!settingsOpen || lastAutoOpenedSettingsQueryRef.current === query) return
+    const firstMatch = filteredSettingsNavItems[0]
+    if (firstMatch) {
+      setSettingsTab(firstMatch.id)
+      lastAutoOpenedSettingsQueryRef.current = query
+    }
+  }, [filteredSettingsNavItems, settingsOpen, settingsSearch])
 
   return (
     <aside className="llm-panel">
@@ -1803,58 +1943,38 @@ export function LlmPanel({
 
             <div className="settings-body">
               <nav className="settings-nav" aria-label="Settings sections">
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'appearance' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('appearance')}
-                >
-                  {t('settings.tab.appearance')}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'providers' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('providers')}
-                >
-                  {t('settings.tab.providers')}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'connections' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('connections')}
-                >
-                  {t('settings.tab.connections')}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'prompts' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('prompts')}
-                >
-                  {t('settings.tab.prompts')}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'snippets' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('snippets')}
-                >
-                  {t('settings.tab.snippets')}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-nav-item ${settingsTab === 'data' ? 'active' : ''}`}
-                  onClick={() => setSettingsTab('data')}
-                >
-                  {t('settings.tab.data')}
-                </button>
+                <label className="settings-search">
+                  <Search size={13} aria-hidden />
+                  <input
+                    ref={settingsSearchRef}
+                    type="text"
+                    value={settingsSearch}
+                    onChange={(event) => setSettingsSearch(event.target.value)}
+                    placeholder={t('settings.search')}
+                  />
+                </label>
+                {filteredSettingsNavItems.length > 0 ? filteredSettingsNavItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`settings-nav-item ${settingsTab === item.id ? 'active' : ''}`}
+                    onClick={() => setSettingsTab(item.id)}
+                  >
+                    <HighlightSearchText text={item.label} query={settingsSearch} />
+                  </button>
+                )) : (
+                  <p className="settings-nav-empty">{t('settings.search.empty')}</p>
+                )}
               </nav>
 
               <div className="settings-content">
                 {settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.theme.label'), t('appearance.theme.desc'), 'theme color scheme ui terminal'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('appearance.theme.label')}</span>
-                        <small className="appearance-row-desc">{t('appearance.theme.desc')}</small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.theme.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.theme.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <select
@@ -1868,10 +1988,10 @@ export function LlmPanel({
                         </select>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.fontSize.label'), t('appearance.fontSize.desc'), 'font size text terminal'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('appearance.fontSize.label')}</span>
-                        <small className="appearance-row-desc">{t('appearance.fontSize.desc')}</small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.fontSize.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.fontSize.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <input
@@ -1886,10 +2006,10 @@ export function LlmPanel({
                         />
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('appearance.language.label')}</span>
-                        <small className="appearance-row-desc">{t('appearance.language.desc')}</small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.language.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.language.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <select
@@ -1903,10 +2023,10 @@ export function LlmPanel({
                         </select>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'), electronToDisplay(hideShortcut), 'shortcut hotkey hide show'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('appearance.hideShortcut.label')}</span>
-                        <small className="appearance-row-desc">{t('appearance.hideShortcut.desc')}</small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.hideShortcut.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.hideShortcut.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <button
@@ -1972,8 +2092,8 @@ export function LlmPanel({
 
                       {/* Right column — provider form */}
                       <div className="provider-form">
-                        <div className="provider-field">
-                          <span className="provider-field-label">{t('providers.type')}</span>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.type'), t('providers.type.openai'), t('providers.type.ollama'), t('providers.type.lmstudio'), 'provider type openai ollama lm studio'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.type')} query={settingsSearch} /></span>
                           <select
                             value={getProviderType(provider)}
                             onChange={(event) => setProvider((p) => applyProviderTypeDefaults(p, event.target.value as LLMProviderType))}
@@ -1985,24 +2105,24 @@ export function LlmPanel({
                             ))}
                           </select>
                         </div>
-                        <div className="provider-field">
-                          <span className="provider-field-label">{t('providers.name')}</span>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.name'), provider.name, 'provider name label'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.name')} query={settingsSearch} /></span>
                           <input
                             value={provider.name}
                             onChange={(event) => setProvider((p) => ({ ...p, name: event.target.value }))}
                           />
                         </div>
-                        <div className="provider-field">
-                          <span className="provider-field-label">{t('providers.baseUrl')}</span>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.baseUrl'), provider.baseUrl, 'base url endpoint api'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.baseUrl')} query={settingsSearch} /></span>
                           <input
                             value={provider.baseUrl}
                             onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
                           />
                         </div>
-                        <label className="provider-toggle-field">
+                        <label className={`provider-toggle-field ${settingsMatchClass([t('providers.allowInsecureTls'), t('providers.allowInsecureTls.desc'), 'tls ssl insecure certificate'])}`}>
                           <span>
-                            <strong>{t('providers.allowInsecureTls')}</strong>
-                            <small>{t('providers.allowInsecureTls.desc')}</small>
+                            <strong><HighlightSearchText text={t('providers.allowInsecureTls')} query={settingsSearch} /></strong>
+                            <small><HighlightSearchText text={t('providers.allowInsecureTls.desc')} query={settingsSearch} /></small>
                           </span>
                           <input
                             type="checkbox"
@@ -2011,18 +2131,18 @@ export function LlmPanel({
                           />
                           <i aria-hidden />
                         </label>
-                        <div className="provider-field">
-                          <span className="provider-field-label">{t('providers.apiKey')}</span>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.apiKey'), t('providers.apiKey.saved'), t('providers.apiKey.change'), 'api key secret token keychain'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.apiKey')} query={settingsSearch} /></span>
                           {!editingApiKey && hasApiKey ? (
                             <div className="apikey-masked">
                               <span className="apikey-masked-text">●●●●●●●●</span>
-                              <span className="apikey-masked-hint">{t('providers.apiKey.saved')}</span>
+                              <span className="apikey-masked-hint"><HighlightSearchText text={t('providers.apiKey.saved')} query={settingsSearch} /></span>
                               <button
                                 type="button"
                                 className="apikey-change-btn"
                                 onClick={() => setEditingApiKey(true)}
                               >
-                                {t('providers.apiKey.change')}
+                                <HighlightSearchText text={t('providers.apiKey.change')} query={settingsSearch} />
                               </button>
                             </div>
                           ) : (
@@ -2046,8 +2166,8 @@ export function LlmPanel({
                           </div>
                         ) : null}
                         <div className="provider-model-selectors">
-                          <div className="model-field">
-                            <span>{t('providers.chatModel')}</span>
+                          <div className={`model-field ${settingsMatchClass([t('providers.chatModel'), t('providers.searchChatModel'), provider.selectedModel, 'chat model completion'])}`}>
+                            <span><HighlightSearchText text={t('providers.chatModel')} query={settingsSearch} /></span>
                             <ModelCombobox
                               value={provider.selectedModel ?? ''}
                               models={models}
@@ -2059,8 +2179,8 @@ export function LlmPanel({
                               }}
                             />
                           </div>
-                          <div className="model-field">
-                            <span>{t('providers.safetyModel')}</span>
+                          <div className={`model-field ${settingsMatchClass([t('providers.safetyModel'), t('providers.searchSafetyModel'), provider.commandRiskModel, 'safety risk command model'])}`}>
+                            <span><HighlightSearchText text={t('providers.safetyModel')} query={settingsSearch} /></span>
                             <ModelCombobox
                               value={provider.commandRiskModel ?? ''}
                               models={models}
@@ -2124,32 +2244,32 @@ export function LlmPanel({
 
                       {sshProfile ? (
                         <div className="connections-form">
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.name')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.name'), sshProfile.name, t('connections.newConnection'), 'connection name label'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.name')} query={settingsSearch} /></span>
                             <input
                               value={sshProfile.name ?? ''}
                               placeholder={t('connections.newConnection')}
                               onChange={(event) => setSshProfile((p) => p ? { ...p, name: event.target.value } : p)}
                             />
                           </div>
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.host')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.host'), sshProfile.host, 'host hostname server domain ip'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.host')} query={settingsSearch} /></span>
                             <input
                               value={sshProfile.host}
                               placeholder="example.com"
                               onChange={(event) => setSshProfile((p) => p ? { ...p, host: event.target.value } : p)}
                             />
                           </div>
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.user')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.user'), sshProfile.user, 'user username login'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.user')} query={settingsSearch} /></span>
                             <input
                               value={sshProfile.user ?? ''}
                               placeholder="root"
                               onChange={(event) => setSshProfile((p) => p ? { ...p, user: event.target.value } : p)}
                             />
                           </div>
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.port')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.port'), String(sshProfile.port ?? ''), 'port ssh 22'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.port')} query={settingsSearch} /></span>
                             <input
                               type="number"
                               min="1"
@@ -2163,8 +2283,8 @@ export function LlmPanel({
                               }}
                             />
                           </div>
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.identityFile')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.identityFile'), t('connections.browseIdentityFile'), sshProfile.identityFile, 'identity file key pem rsa private key'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.identityFile')} query={settingsSearch} /></span>
                             <div className="inline-field-action">
                               <input
                                 value={sshProfile.identityFile ?? ''}
@@ -2172,12 +2292,12 @@ export function LlmPanel({
                                 onChange={(event) => setSshProfile((p) => p ? { ...p, identityFile: event.target.value } : p)}
                               />
                               <button type="button" className="quiet-button" onClick={() => void chooseSshIdentityFile()}>
-                                {t('connections.browseIdentityFile')}
+	                                <HighlightSearchText text={t('connections.browseIdentityFile')} query={settingsSearch} />
                               </button>
                             </div>
                           </div>
-                          <div className="provider-field">
-                            <span className="provider-field-label">{t('connections.extraArgs')}</span>
+                          <div className={`provider-field ${settingsMatchClass([t('connections.extraArgs'), sshProfile.extraArgs?.join(' '), 'extra args ssh options arguments'])}`}>
+	                            <span className="provider-field-label"><HighlightSearchText text={t('connections.extraArgs')} query={settingsSearch} /></span>
                             <input
                               value={sshProfile.extraArgs?.join(' ') ?? ''}
                               placeholder="-o ServerAliveInterval=30"
@@ -2216,7 +2336,7 @@ export function LlmPanel({
                 {settingsTab === 'prompts' ? (
                   <>
                     <h3 className="settings-content-title">{t('prompts.title')}</h3>
-                    <PromptLibrarySection />
+                    <PromptLibrarySection settingsSearch={settingsSearch} />
                   </>
                 ) : null}
 
@@ -2226,6 +2346,7 @@ export function LlmPanel({
                     <CommandSnippetLibrarySection
                       addSnippetRequestVersion={addSnippetRequestVersion}
                       snippetDraftRequest={snippetDraftRequest}
+                      settingsSearch={settingsSearch}
                     />
                   </>
                 ) : null}
@@ -2233,10 +2354,10 @@ export function LlmPanel({
                 {settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.outputContext.label'), t('appearance.outputContext.desc'), 'output context ai max characters chars terminal'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('appearance.outputContext.label')}</span>
-                        <small className="appearance-row-desc">{t('appearance.outputContext.desc')}</small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.outputContext.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.outputContext.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <input
@@ -2250,11 +2371,11 @@ export function LlmPanel({
                         <span className="input-suffix">chars</span>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('data.restoreSessions.label'), t('data.restoreSessions.desc'), 'restore sessions startup state'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('data.restoreSessions.label')}</span>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('data.restoreSessions.label')} query={settingsSearch} /></span>
                         <small className="appearance-row-desc">
-                          {t('data.restoreSessions.desc')}
+                          <HighlightSearchText text={t('data.restoreSessions.desc')} query={settingsSearch} />
                         </small>
                       </div>
                       <div className="appearance-row-right">
@@ -2270,45 +2391,45 @@ export function LlmPanel({
                         </button>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('data.exportImport.label'), t('data.exportImport.desc'), t('data.export'), t('data.import'), 'export import backup json settings'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('data.exportImport.label')}</span>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('data.exportImport.label')} query={settingsSearch} /></span>
                         <small className="appearance-row-desc">
-                          {t('data.exportImport.desc')}
+                          <HighlightSearchText text={t('data.exportImport.desc')} query={settingsSearch} />
                         </small>
                       </div>
                       <div className="appearance-row-right" style={{ gap: 8, display: 'flex' }}>
                         <button type="button" className="quiet-button" onClick={() => void handleExport()}>
-                          {t('data.export')}
+                          <HighlightSearchText text={t('data.export')} query={settingsSearch} />
                         </button>
                         <button type="button" className="quiet-button" onClick={() => void handleImport()}>
-                          {t('data.import')}
+                          <HighlightSearchText text={t('data.import')} query={settingsSearch} />
                         </button>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('data.clearSessions.label'), t('data.clearSessions.desc'), t('data.clearSessions'), 'clear saved state session destructive'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('data.clearSessions.label')}</span>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('data.clearSessions.label')} query={settingsSearch} /></span>
                         <small className="appearance-row-desc">
-                          {t('data.clearSessions.desc')}
+                          <HighlightSearchText text={t('data.clearSessions.desc')} query={settingsSearch} />
                         </small>
                       </div>
                       <div className="appearance-row-right">
                         <button type="button" className="danger-outline-button" onClick={() => void handleClearSavedSessionState()}>
-                          {t('data.clearSessions')}
+                          <HighlightSearchText text={t('data.clearSessions')} query={settingsSearch} />
                         </button>
                       </div>
                     </div>
-                    <div className="appearance-row">
+                    <div className={`appearance-row ${settingsMatchClass([t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'), t('data.clearChatHistory'), 'clear chat history destructive'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label">{t('data.clearChatHistory.label')}</span>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('data.clearChatHistory.label')} query={settingsSearch} /></span>
                         <small className="appearance-row-desc">
-                          {t('data.clearChatHistory.desc')}
+                          <HighlightSearchText text={t('data.clearChatHistory.desc')} query={settingsSearch} />
                         </small>
                       </div>
                       <div className="appearance-row-right">
                         <button type="button" className="danger-outline-button" onClick={handleClearChatHistory}>
-                          {t('data.clearChatHistory')}
+                          <HighlightSearchText text={t('data.clearChatHistory')} query={settingsSearch} />
                         </button>
                       </div>
                     </div>
@@ -2984,7 +3105,11 @@ function SettingsStatus({ label }: { label: string }): JSX.Element {
   return <p className="settings-status">{label}</p>
 }
 
-function PromptLibrarySection(): JSX.Element {
+interface PromptLibrarySectionProps {
+  settingsSearch: string
+}
+
+function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JSX.Element {
   const { t } = useT()
   const [prompts, setPrompts] = useState<PromptTemplate[]>([])
   const [editing, setEditing] = useState<PromptTemplate | null>(null)
@@ -2998,6 +3123,9 @@ function PromptLibrarySection(): JSX.Element {
     if (!name) return false
     return prompts.some((prompt) => prompt.id !== editing?.id && normalizeLibraryName(prompt.name) === name)
   }, [editing?.id, newName, prompts])
+  const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
+    matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
+  ), [settingsSearch])
 
   const reload = useCallback(async () => {
     try {
@@ -3083,16 +3211,16 @@ function PromptLibrarySection(): JSX.Element {
 
   return (
     <section className="settings-section">
-      <div className="settings-section-heading">
-        <span>{t('prompts.title')}</span>
+      <div className={`settings-section-heading ${settingsMatchClass([t('prompts.title'), t('prompts.importFromFile'), t('prompts.addPrompt'), 'prompt prompts template markdown import library'])}`}>
+        <span><HighlightSearchText text={t('prompts.title')} query={settingsSearch} /></span>
         <div style={{ display: 'flex', gap: 6 }}>
           <button type="button" className="quiet-button prompt-import-btn" onClick={() => void handleImport()}>
-            {t('prompts.importFromFile')}
+            <HighlightSearchText text={t('prompts.importFromFile')} query={settingsSearch} />
           </button>
           {!editing && !addingPrompt ? (
             <button type="button" className="quiet-button" style={{ fontSize: 11 }} onClick={handleAddPrompt}>
               <Plus size={12} aria-hidden />
-              {' '}{t('prompts.addPrompt')}
+              {' '}<HighlightSearchText text={t('prompts.addPrompt')} query={settingsSearch} />
             </button>
           ) : null}
         </div>
@@ -3101,11 +3229,11 @@ function PromptLibrarySection(): JSX.Element {
       <div className="prompt-list">
         {prompts.length > 0 ? (
           prompts.map((prompt) => (
-            <div key={prompt.id} className="prompt-list-item">
+            <div key={prompt.id} className={`prompt-list-item ${settingsMatchClass([prompt.name, prompt.content])}`}>
               <div className="prompt-list-item-info">
-                <span className="prompt-list-item-name">{prompt.name}</span>
+                <span className="prompt-list-item-name"><HighlightSearchText text={prompt.name} query={settingsSearch} /></span>
                 <span className="prompt-list-item-preview">
-                  {prompt.content.slice(0, 80)}{prompt.content.length > 80 ? '…' : ''}
+                  <HighlightSearchText text={`${prompt.content.slice(0, 80)}${prompt.content.length > 80 ? '…' : ''}`} query={settingsSearch} />
                 </span>
               </div>
               <div className="prompt-list-item-actions">
@@ -3136,7 +3264,7 @@ function PromptLibrarySection(): JSX.Element {
       </div>
 
       {(editing || addingPrompt) ? (
-        <div className="prompt-form">
+        <div className={`prompt-form ${settingsMatchClass([t('prompts.namePlaceholder'), t('prompts.contentPlaceholder'), t('prompts.savePrompt'), t('prompts.addPrompt'), newName, newContent, 'prompt name content'])}`}>
           <input
             type="text"
             placeholder={t('prompts.namePlaceholder')}
@@ -3189,13 +3317,14 @@ function PromptLibrarySection(): JSX.Element {
 interface CommandSnippetLibrarySectionProps {
   addSnippetRequestVersion: number
   snippetDraftRequest?: { id: string; name?: string; command?: string } | null
+  settingsSearch: string
 }
 
 function snippetNameFromCommand(command: string): string {
   return command.split('\n')[0]?.trim().slice(0, 48) || ''
 }
 
-function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRequest }: CommandSnippetLibrarySectionProps): JSX.Element {
+function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRequest, settingsSearch }: CommandSnippetLibrarySectionProps): JSX.Element {
   const { t } = useT()
   const [snippets, setSnippets] = useState<CommandSnippet[]>([])
   const [editing, setEditing] = useState<CommandSnippet | null>(null)
@@ -3210,6 +3339,9 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
     if (!normalizedName) return false
     return snippets.some((snippet) => snippet.id !== editing?.id && normalizeLibraryName(snippet.name) === normalizedName)
   }, [editing?.id, name, snippets])
+  const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
+    matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
+  ), [settingsSearch])
 
   const reload = useCallback(async () => {
     try {
@@ -3304,23 +3436,23 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
 
   return (
     <section className="settings-section">
-      <div className="settings-section-heading">
-        <span>{t('snippets.quickHint')}</span>
+      <div className={`settings-section-heading ${settingsMatchClass([t('snippets.title'), t('snippets.quickHint'), t('snippets.addSnippet'), 'snippet snippets command terminal shell quick open run insert'])}`}>
+        <span><HighlightSearchText text={t('snippets.quickHint')} query={settingsSearch} /></span>
         {!editing && !addingSnippet ? (
           <button type="button" className="quiet-button" style={{ fontSize: 11 }} onClick={handleAddSnippet}>
             <Plus size={12} aria-hidden />
-            {' '}{t('snippets.addSnippet')}
+            {' '}<HighlightSearchText text={t('snippets.addSnippet')} query={settingsSearch} />
           </button>
         ) : null}
       </div>
 
       <div className="prompt-list">
         {snippets.length > 0 ? snippets.map((snippet) => (
-          <div key={snippet.id} className="prompt-list-item command-snippet-list-item">
+          <div key={snippet.id} className={`prompt-list-item command-snippet-list-item ${settingsMatchClass([snippet.name, snippet.command])}`}>
             <Command size={13} aria-hidden />
             <div className="prompt-list-item-info">
-              <span className="prompt-list-item-name">{snippet.name}</span>
-              <span className="prompt-list-item-preview command-snippet-command">{snippet.command}</span>
+              <span className="prompt-list-item-name"><HighlightSearchText text={snippet.name} query={settingsSearch} /></span>
+              <span className="prompt-list-item-preview command-snippet-command"><HighlightSearchText text={snippet.command} query={settingsSearch} /></span>
             </div>
             <div className="prompt-list-item-actions">
               <button
@@ -3347,7 +3479,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
       </div>
 
       {(editing || addingSnippet) ? (
-        <div className="prompt-form">
+        <div className={`prompt-form ${settingsMatchClass([t('snippets.namePlaceholder'), t('snippets.commandPlaceholder'), t('snippets.saveSnippet'), t('snippets.addSnippet'), name, command, 'snippet command shell terminal'])}`}>
           <input
             type="text"
             placeholder={t('snippets.namePlaceholder')}

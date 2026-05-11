@@ -9,6 +9,8 @@ export interface Translations {
   'settings.tab.prompts': string
   'settings.tab.snippets': string
   'settings.tab.data': string
+  'settings.search': string
+  'settings.search.empty': string
   'status.saved': string
 
   // Appearance tab
@@ -290,6 +292,8 @@ export const en: Translations = {
   'settings.tab.prompts': 'Prompts',
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
+  'settings.search': 'Search settings',
+  'settings.search.empty': 'No sections found',
   'status.saved': 'Saved',
 
   'appearance.title': 'Appearance',
@@ -555,6 +559,8 @@ export const ru: Translations = {
   'settings.tab.prompts': 'Промпты',
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
+  'settings.search': 'Поиск настроек',
+  'settings.search.empty': 'Разделы не найдены',
   'status.saved': 'Сохранено',
 
   'appearance.title': 'Внешний вид',
@@ -820,6 +826,8 @@ export const cn: Translations = {
   'settings.tab.prompts': '提示词',
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
+  'settings.search': '搜索设置',
+  'settings.search.empty': '未找到部分',
   'status.saved': '已保存',
 
   'appearance.title': '外观',

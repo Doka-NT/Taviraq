@@ -924,6 +924,19 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.075);
 }
 
+.invalid-input,
+.invalid-input:focus {
+  border-color: rgba(var(--accent-red-rgb), 0.62);
+  background: rgba(var(--accent-red-rgb), 0.07);
+}
+
+.provider-field input.invalid-input,
+.provider-field input.invalid-input:focus {
+  border-color: rgba(var(--accent-red-rgb), 0.78);
+  background: rgba(var(--accent-red-rgb), 0.10);
+  box-shadow: 0 0 0 1px rgba(var(--accent-red-rgb), 0.18);
+}
+
 .settings-overlay {
   position: fixed;
   inset: 0;

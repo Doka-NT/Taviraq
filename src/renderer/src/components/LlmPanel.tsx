@@ -2115,6 +2115,8 @@ export function LlmPanel({
                         <div className={`provider-field ${settingsMatchClass([t('providers.baseUrl'), provider.baseUrl, 'base url endpoint api'])}`}>
                           <span className="provider-field-label"><HighlightSearchText text={t('providers.baseUrl')} query={settingsSearch} /></span>
                           <input
+                            className={provider.baseUrl.trim() && !isValidProviderBaseUrl(provider.baseUrl) ? 'invalid-input' : undefined}
+                            aria-invalid={Boolean(provider.baseUrl.trim() && !isValidProviderBaseUrl(provider.baseUrl))}
                             value={provider.baseUrl}
                             onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
                           />

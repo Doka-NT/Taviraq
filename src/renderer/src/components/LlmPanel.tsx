@@ -122,12 +122,15 @@ type ThreadMessage = ChatMessage & {
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 
 interface CommandConfirmation {
+  sessionId: string
   title: string
   reason: string
   command: string
   tone: 'danger' | 'warning'
   confirmLabel: string
 }
+type CommandConfirmationResult = string | false
+type CommandConfirmationRequest = Omit<CommandConfirmation, 'sessionId'>
 
 interface DeleteConfirmation {
   title: string
@@ -412,7 +415,7 @@ export function LlmPanel({
   const providerRef = useRef(provider)
   const selectedTextRef = useRef(selectedText)
   const promptResolversRef = useRef(new Map<string, () => void>())
-  const commandConfirmationResolversRef = useRef(new Map<string, (confirmed: boolean) => void>())
+  const commandConfirmationResolversRef = useRef(new Map<string, (result: CommandConfirmationResult) => void>())
   const handledBlockPromptRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
@@ -610,20 +613,30 @@ export function LlmPanel({
     })
   }, [])
 
-  const resolveCommandConfirmation = useCallback((confirmed: boolean) => {
-    if (!activeSessionId) return
-    const resolve = commandConfirmationResolversRef.current.get(activeSessionId)
-    commandConfirmationResolversRef.current.delete(activeSessionId)
-    updateThread(activeSessionId, (thread) => ({ ...thread, commandConfirmation: null }))
-    resolve?.(confirmed)
-  }, [activeSessionId, updateThread])
+  const resolveCommandConfirmation = useCallback((sessionId: string, confirmed: boolean, commandOverride?: string) => {
+    const resolve = commandConfirmationResolversRef.current.get(sessionId)
+    const confirmedCommand = (commandOverride ?? threadsRef.current[sessionId]?.commandConfirmation?.command ?? '').trim()
+    commandConfirmationResolversRef.current.delete(sessionId)
+    updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: null }))
+    resolve?.(confirmed && confirmedCommand ? confirmedCommand : false)
+  }, [updateThread])
 
-  const requestCommandConfirmation = useCallback((sessionId: string, confirmation: CommandConfirmation): Promise<boolean> => {
+  const requestCommandConfirmation = useCallback((sessionId: string, confirmation: CommandConfirmationRequest): Promise<CommandConfirmationResult> => {
     commandConfirmationResolversRef.current.get(sessionId)?.(false)
 
     return new Promise((resolve) => {
       commandConfirmationResolversRef.current.set(sessionId, resolve)
-      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: confirmation }))
+      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: { ...confirmation, sessionId } }))
+    })
+  }, [updateThread])
+
+  const updateCommandConfirmationCommand = useCallback((sessionId: string, command: string) => {
+    updateThread(sessionId, (thread) => {
+      if (!thread.commandConfirmation) return thread
+      return {
+        ...thread,
+        commandConfirmation: { ...thread.commandConfirmation, command }
+      }
     })
   }, [updateThread])
 
@@ -632,13 +645,30 @@ export function LlmPanel({
 
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        resolveCommandConfirmation(false)
+        resolveCommandConfirmation(commandConfirmation.sessionId, false)
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [commandConfirmation, resolveCommandConfirmation])
+
+  const appendCommandEditNotice = useCallback((sessionId: string, originalCommand: string, finalCommand: string) => {
+    if (originalCommand.trim() === finalCommand.trim()) return
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: [
+        ...thread.messages,
+        {
+          role: 'assistant',
+          content: `Command edited before run.\nOriginal:\n${originalCommand.trim()}\nRun:\n${finalCommand.trim()}`,
+          display: 'system-status',
+          command: finalCommand.trim(),
+          output: originalCommand.trim()
+        }
+      ]
+    }))
+  }, [updateThread])
 
   // Core chat stream: starts a new exchange given user message content
   const startStream = useCallback((
@@ -1042,7 +1072,7 @@ export function LlmPanel({
     }
   }, [getThread, summarizeSession])
 
-  const confirmAgenticCommand = useCallback(async (sessionId: string, command: string): Promise<boolean> => {
+  const confirmAgenticCommand = useCallback(async (sessionId: string, command: string): Promise<CommandConfirmationResult> => {
     updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'info', label: t('status.checkingSafety') } }))
 
     try {
@@ -1054,7 +1084,7 @@ export function LlmPanel({
 
       if (!assessment.dangerous) {
         updateThread(sessionId, (thread) => ({ ...thread, status: null }))
-        return true
+        return command
       }
 
       updateThread(sessionId, (thread) => ({ ...thread, status: null }))
@@ -1073,7 +1103,7 @@ export function LlmPanel({
       }
 
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.riskyCommandConfirmed') } }))
-      return true
+      return confirmed
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       updateThread(sessionId, (thread) => ({ ...thread, status: null }))
@@ -1092,7 +1122,7 @@ export function LlmPanel({
       }
 
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.safetyFailedConfirmed') } }))
-      return true
+      return confirmed
     }
   }, [buildTerminalContext, requestCommandConfirmation, stopAgentic, t, updateThread])
 
@@ -1100,8 +1130,8 @@ export function LlmPanel({
   const runAgenticStep = useCallback(async (sessionId: string, content: string) => {
     if (!getThread(sessionId).agenticRunning) return
 
-    const command = extractFirstCommand(content)
-    if (!command) {
+    const proposedCommand = extractFirstCommand(content)
+    if (!proposedCommand) {
       stopAgentic(sessionId)
       return
     }
@@ -1132,11 +1162,13 @@ export function LlmPanel({
       agenticPending: null,
       agenticCommandRunning: true,
       agenticStep: nextStep,
-      agenticCommand: command
+      agenticCommand: proposedCommand
     }))
 
-    const allowed = await confirmAgenticCommand(sessionId, command)
-    if (!allowed || !getThread(sessionId).agenticRunning) return
+    const command = await confirmAgenticCommand(sessionId, proposedCommand)
+    if (!command || !getThread(sessionId).agenticRunning) return
+    appendCommandEditNotice(sessionId, proposedCommand, command)
+    updateThread(sessionId, (thread) => ({ ...thread, agenticCommand: command }))
 
     const beforeOutput = getOutputForSessionRef.current(sessionId)
 
@@ -1174,7 +1206,7 @@ export function LlmPanel({
       command,
       output
     })
-  }, [confirmAgenticCommand, getThread, stopAgentic, startStream, t, updateThread])
+  }, [appendCommandEditNotice, confirmAgenticCommand, getThread, stopAgentic, startStream, t, updateThread])
 
   // Keep ref updated
   useEffect(() => { runAgenticStepRef.current = runAgenticStep }, [runAgenticStep])
@@ -1297,14 +1329,15 @@ export function LlmPanel({
       return
     }
 
-    const allowed = await confirmAgenticCommand(session.id, command)
-    if (!allowed) return
+    const confirmedCommand = await confirmAgenticCommand(session.id, command)
+    if (!confirmedCommand) return
+    appendCommandEditNotice(session.id, command, confirmedCommand)
 
     runningCommandsRef.current.add(session.id)
     updateThread(session.id, (thread) => ({
       ...thread,
       agenticCommandRunning: true,
-      agenticCommand: command,
+      agenticCommand: confirmedCommand,
       status: null
     }))
 
@@ -1318,7 +1351,7 @@ export function LlmPanel({
       promptResolversRef.current.set(session.id, finish)
     })
 
-    void window.api.command.runConfirmed(session.id, command).catch((error: unknown) => {
+    void window.api.command.runConfirmed(session.id, confirmedCommand).catch((error: unknown) => {
       updateThread(session.id, (thread) => ({
         ...thread,
         status: { tone: 'danger', label: `Command failed: ${error instanceof Error ? error.message : String(error)}` }
@@ -1333,7 +1366,7 @@ export function LlmPanel({
       agenticCommandRunning: false,
       agenticCommand: ''
     }))
-  }, [activeSessionId, confirmAgenticCommand, getThread, t, updateThread])
+  }, [activeSessionId, appendCommandEditNotice, confirmAgenticCommand, getThread, t, updateThread])
 
   // Save provider
   const saveProvider = useCallback(async () => {
@@ -1385,20 +1418,28 @@ export function LlmPanel({
     setHasApiKey(false)
   }, [])
 
-  const handleDeleteProvider = useCallback(async (apiKeyRef: string) => {
-    try {
-      const result = await window.api.llm.deleteProvider(apiKeyRef)
-      setAllProviders(result.providers)
-      setActiveProviderRef(result.activeProviderRef ?? result.providers[0]?.apiKeyRef ?? defaultProvider.apiKeyRef)
-      if (provider.apiKeyRef === apiKeyRef) {
-        const next = result.providers[0] ?? defaultProvider
-        setProvider(next)
-        setModels([])
+  const handleDeleteProvider = useCallback((apiKeyRef: string) => {
+    const target = allProviders.find((candidate) => candidate.apiKeyRef === apiKeyRef)
+    setDeleteConfirmation({
+      title: withObjectName(t('providers.deleteConfirmTitle'), target?.name),
+      message: t('providers.deleteConfirmMessage'),
+      confirmLabel: t('providers.deleteConfirmBtn'),
+      onConfirm: async () => {
+        try {
+          const result = await window.api.llm.deleteProvider(apiKeyRef)
+          setAllProviders(result.providers)
+          setActiveProviderRef(result.activeProviderRef ?? result.providers[0]?.apiKeyRef ?? defaultProvider.apiKeyRef)
+          if (provider.apiKeyRef === apiKeyRef) {
+            const next = result.providers[0] ?? defaultProvider
+            setProvider(next)
+            setModels([])
+          }
+        } catch (error) {
+          setProviderStatus(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
+        }
       }
-    } catch (error) {
-      setProviderStatus(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }, [provider.apiKeyRef])
+    })
+  }, [allProviders, provider.apiKeyRef, t])
 
   const loadSshProfiles = useCallback(async () => {
     const profiles = await window.api.ssh.listProfiles()
@@ -1427,13 +1468,21 @@ export function LlmPanel({
     setSshProfiles(result.sshProfiles ?? [])
   }, [sshProfile])
 
-  const deleteSshProfile = useCallback(async (id: string) => {
-    await window.api.ssh.deleteProfile(id)
-    setSshProfiles((prev) => prev.filter((p) => p.id !== id))
-    if (sshProfile?.id === id) {
-      setSshProfile(null)
-    }
-  }, [sshProfile])
+  const deleteSshProfile = useCallback((id: string) => {
+    const target = sshProfiles.find((candidate) => candidate.id === id)
+    setDeleteConfirmation({
+      title: withObjectName(t('connections.deleteConfirmTitle'), target?.name || target?.host),
+      message: t('connections.deleteConfirmMessage'),
+      confirmLabel: t('connections.deleteConfirmBtn'),
+      onConfirm: async () => {
+        await window.api.ssh.deleteProfile(id)
+        setSshProfiles((prev) => prev.filter((p) => p.id !== id))
+        if (sshProfile?.id === id) {
+          setSshProfile(null)
+        }
+      }
+    })
+  }, [sshProfile, sshProfiles, t])
 
   const connectSshProfile = useCallback((profile: SSHProfileConfig) => {
     onConnectSsh(profile)
@@ -2320,6 +2369,27 @@ export function LlmPanel({
             )
           }
 
+          if (message.display === 'system-status') {
+            return (
+              <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
+                <div>
+                  <span className="system-prefix">&gt;</span>
+                  <span>{t('chat.commandEdited.label')}</span>
+                </div>
+                <div className="command-edit-details">
+                  <div>
+                    <span>{t('chat.commandEdited.original')}</span>
+                    <pre>{message.output}</pre>
+                  </div>
+                  <div>
+                    <span>{t('chat.commandEdited.final')}</span>
+                    <pre>{message.command}</pre>
+                  </div>
+                </div>
+              </div>
+            )
+          }
+
           return (
             <article className={`chat-message ${message.role}`} key={`${message.role}-${index}`}>
               <div className="chat-message-meta">
@@ -2411,9 +2481,15 @@ export function LlmPanel({
             <span>{commandConfirmation.tone === 'danger' ? t('confirm.review') : t('confirm.warning')}</span>
           </div>
           <div className="command-confirmation-body">
-            <div className="command-confirmation-command">
-              <code>{commandConfirmation.command}</code>
-            </div>
+            <label className="command-confirmation-command">
+              <span>{t('confirm.command')}</span>
+              <textarea
+                value={commandConfirmation.command}
+                onChange={(event) => updateCommandConfirmationCommand(commandConfirmation.sessionId, event.target.value)}
+                spellCheck={false}
+                rows={Math.min(5, Math.max(2, commandConfirmation.command.split('\n').length))}
+              />
+            </label>
             <div className="command-confirmation-reason">
               <span>{t('confirm.reason')}</span>
               <p>{commandConfirmation.reason}</p>
@@ -2421,13 +2497,14 @@ export function LlmPanel({
             <p className="command-confirmation-note">{t('confirm.agentPaused')}</p>
           </div>
           <footer>
-            <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(false)}>
+            <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, false)}>
               {t('confirm.cancel')}
             </button>
             <button
               type="button"
               className={`danger-button ${commandConfirmation.tone}`}
-              onClick={() => resolveCommandConfirmation(true)}
+              disabled={!commandConfirmation.command.trim()}
+              onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, true, commandConfirmation.command)}
             >
               {commandConfirmation.confirmLabel}
             </button>

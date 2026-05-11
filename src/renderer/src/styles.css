@@ -2577,6 +2577,53 @@ textarea:focus {
   font-size: calc(var(--app-text-size, 13.5px) - 2px);
 }
 
+.command-edit-message {
+  gap: 8px;
+  padding: 9px 10px;
+  max-width: 100%;
+  min-width: 0;
+  border: 0.5px solid rgba(var(--accent-amber-rgb), 0.16);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-amber-rgb), 0.045);
+}
+
+.command-edit-message .command-edit-details {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 10px;
+}
+
+.command-edit-message .command-edit-details > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.command-edit-message .command-edit-details span {
+  color: rgba(var(--accent-amber-rgb), 0.70);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.command-edit-message .command-edit-details pre {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-height: 78px;
+  margin: 0;
+  padding: 7px 8px;
+  overflow: auto hidden;
+  border: 0.5px solid rgba(var(--accent-amber-rgb), 0.12);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(var(--surface-rgb), 0.62);
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(var(--app-text-size, 13.5px) - 2px);
+  line-height: 1.45;
+  white-space: pre;
+}
+
 .msg-action-pill {
   display: flex;
   align-items: center;
@@ -2710,17 +2757,56 @@ textarea:focus {
 }
 
 .command-confirmation-command {
-  padding: 7px 10px;
-  overflow-x: auto;
-  border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.28);
+  display: grid;
+  gap: 5px;
 }
 
-.command-confirmation-command code {
-  color: rgba(var(--surface-rgb), 0.68);
+.command-confirmation-command span {
+  color: rgba(var(--surface-rgb), 0.35);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.command-confirmation-command textarea {
+  width: 100%;
+  min-height: 58px;
+  max-height: 132px;
+  padding: 7px 10px;
+  overflow: auto;
+  border: 0.5px solid rgba(var(--accent-amber-rgb), 0.18);
+  border-radius: var(--radius-sm);
+  outline: none;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(var(--surface-rgb), 0.72);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: 11px;
-  white-space: pre;
+  line-height: 1.45;
+  resize: vertical;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--surface-rgb), 0.18) transparent;
+}
+
+.command-confirmation-command textarea:focus {
+  border-color: rgba(var(--accent-amber-rgb), 0.44);
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.command-confirmation-command textarea::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.command-confirmation-command textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.command-confirmation-command textarea::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(var(--surface-rgb), 0.18);
+}
+
+.command-confirmation-command textarea::-webkit-resizer {
+  background: transparent;
 }
 
 .command-confirmation-reason {

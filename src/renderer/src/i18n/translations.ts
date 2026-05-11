@@ -49,6 +49,9 @@ export interface Translations {
   'providers.fetchModels': string
   'providers.addProvider': string
   'providers.deleteProvider': string
+  'providers.deleteConfirmTitle': string
+  'providers.deleteConfirmMessage': string
+  'providers.deleteConfirmBtn': string
   'providers.active': string
   'providers.unnamed': string
   'providers.chatModel': string
@@ -60,6 +63,9 @@ export interface Translations {
   'connections.title': string
   'connections.addConnection': string
   'connections.deleteConnection': string
+  'connections.deleteConfirmTitle': string
+  'connections.deleteConfirmMessage': string
+  'connections.deleteConfirmBtn': string
   'connections.save': string
   'connections.connect': string
   'connections.name': string
@@ -174,6 +180,9 @@ export interface Translations {
   'chat.commandOutput.label': string
   'chat.commandOutput.show': string
   'chat.commandOutput.noOutput': string
+  'chat.commandEdited.label': string
+  'chat.commandEdited.original': string
+  'chat.commandEdited.final': string
   'chat.thinking': string
   'chat.regenerate': string
   'chat.forkFromMessage': string
@@ -200,6 +209,7 @@ export interface Translations {
   'confirm.safetyUnavailable': string
   'confirm.review': string
   'confirm.warning': string
+  'confirm.command': string
   'confirm.reason': string
   'confirm.agentPaused': string
   'confirm.cancel': string
@@ -315,6 +325,9 @@ export const en: Translations = {
   'providers.fetchModels': 'Fetch models',
   'providers.addProvider': 'Add provider',
   'providers.deleteProvider': 'Delete provider',
+  'providers.deleteConfirmTitle': 'Delete provider?',
+  'providers.deleteConfirmMessage': 'This provider configuration and its saved keychain secret will be removed.',
+  'providers.deleteConfirmBtn': 'Delete',
   'providers.active': 'active',
   'providers.unnamed': 'Unnamed',
   'providers.chatModel': 'Chat model',
@@ -325,6 +338,9 @@ export const en: Translations = {
   'connections.title': 'SSH Connections',
   'connections.addConnection': 'Add connection',
   'connections.deleteConnection': 'Delete connection',
+  'connections.deleteConfirmTitle': 'Delete SSH connection?',
+  'connections.deleteConfirmMessage': 'This saved SSH connection will be removed.',
+  'connections.deleteConfirmBtn': 'Delete',
   'connections.save': 'Save',
   'connections.connect': 'Connect',
   'connections.name': 'Name',
@@ -433,6 +449,9 @@ export const en: Translations = {
   'chat.commandOutput.label': 'output sent to assistant',
   'chat.commandOutput.show': 'Show output',
   'chat.commandOutput.noOutput': '(no output)',
+  'chat.commandEdited.label': 'command edited before run',
+  'chat.commandEdited.original': 'Original',
+  'chat.commandEdited.final': 'Run',
   'chat.thinking': 'Thinking',
   'chat.regenerate': 'Regenerate',
   'chat.forkFromMessage': 'Fork from here',
@@ -458,6 +477,7 @@ export const en: Translations = {
   'confirm.safetyUnavailable': 'Safety check unavailable',
   'confirm.review': 'review',
   'confirm.warning': 'warning',
+  'confirm.command': 'Command',
   'confirm.reason': 'Reason',
   'confirm.agentPaused': 'Agent is paused until you choose what to do.',
   'confirm.cancel': 'Cancel',
@@ -567,6 +587,9 @@ export const ru: Translations = {
   'providers.fetchModels': 'Загрузить модели',
   'providers.addProvider': 'Добавить провайдера',
   'providers.deleteProvider': 'Удалить провайдера',
+  'providers.deleteConfirmTitle': 'Удалить провайдера?',
+  'providers.deleteConfirmMessage': 'Конфигурация провайдера и сохранённый секрет из keychain будут удалены.',
+  'providers.deleteConfirmBtn': 'Удалить',
   'providers.active': 'активный',
   'providers.unnamed': 'Без имени',
   'providers.chatModel': 'Модель чата',
@@ -577,6 +600,9 @@ export const ru: Translations = {
   'connections.title': 'SSH-подключения',
   'connections.addConnection': 'Добавить подключение',
   'connections.deleteConnection': 'Удалить подключение',
+  'connections.deleteConfirmTitle': 'Удалить SSH-подключение?',
+  'connections.deleteConfirmMessage': 'Сохранённое SSH-подключение будет удалено.',
+  'connections.deleteConfirmBtn': 'Удалить',
   'connections.save': 'Сохранить',
   'connections.connect': 'Подключиться',
   'connections.name': 'Имя',
@@ -685,6 +711,9 @@ export const ru: Translations = {
   'chat.commandOutput.label': 'вывод отправлен ассистенту',
   'chat.commandOutput.show': 'Показать вывод',
   'chat.commandOutput.noOutput': '(нет вывода)',
+  'chat.commandEdited.label': 'команда изменена перед запуском',
+  'chat.commandEdited.original': 'Было',
+  'chat.commandEdited.final': 'Запуск',
   'chat.thinking': 'Думаю',
   'chat.regenerate': 'Сгенерировать заново',
   'chat.forkFromMessage': 'Форкнуть отсюда',
@@ -710,6 +739,7 @@ export const ru: Translations = {
   'confirm.safetyUnavailable': 'Проверка безопасности недоступна',
   'confirm.review': 'проверка',
   'confirm.warning': 'предупреждение',
+  'confirm.command': 'Команда',
   'confirm.reason': 'Причина',
   'confirm.agentPaused': 'Агент приостановлен до вашего выбора.',
   'confirm.cancel': 'Отмена',
@@ -819,6 +849,9 @@ export const cn: Translations = {
   'providers.fetchModels': '获取模型',
   'providers.addProvider': '添加提供商',
   'providers.deleteProvider': '删除提供商',
+  'providers.deleteConfirmTitle': '删除提供商？',
+  'providers.deleteConfirmMessage': '此提供商配置及其保存的钥匙串密钥将被删除。',
+  'providers.deleteConfirmBtn': '删除',
   'providers.active': '活跃',
   'providers.unnamed': '未命名',
   'providers.chatModel': '聊天模型',
@@ -829,6 +862,9 @@ export const cn: Translations = {
   'connections.title': 'SSH 连接',
   'connections.addConnection': '添加连接',
   'connections.deleteConnection': '删除连接',
+  'connections.deleteConfirmTitle': '删除 SSH 连接？',
+  'connections.deleteConfirmMessage': '此保存的 SSH 连接将被删除。',
+  'connections.deleteConfirmBtn': '删除',
   'connections.save': '保存',
   'connections.connect': '连接',
   'connections.name': '名称',
@@ -937,6 +973,9 @@ export const cn: Translations = {
   'chat.commandOutput.label': '输出已发送给助手',
   'chat.commandOutput.show': '显示输出',
   'chat.commandOutput.noOutput': '（无输出）',
+  'chat.commandEdited.label': '命令在运行前已编辑',
+  'chat.commandEdited.original': '原命令',
+  'chat.commandEdited.final': '运行',
   'chat.thinking': '思考中',
   'chat.regenerate': '重新生成',
   'chat.forkFromMessage': '从此处分叉',
@@ -962,6 +1001,7 @@ export const cn: Translations = {
   'confirm.safetyUnavailable': '安全检查不可用',
   'confirm.review': '审查',
   'confirm.warning': '警告',
+  'confirm.command': '命令',
   'confirm.reason': '原因',
   'confirm.agentPaused': '代理已暂停，等待您的选择。',
   'confirm.cancel': '取消',

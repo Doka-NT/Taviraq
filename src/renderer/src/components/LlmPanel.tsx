@@ -2155,7 +2155,7 @@ export function LlmPanel({
                           )}
                         </div>
                         <div className="provider-actions">
-                          <button type="button" className="primary-button" onClick={() => void saveProvider()}>
+                          <button type="button" className="primary-button provider-save-button" onClick={() => void saveProvider()}>
                             <KeyRound size={14} aria-hidden />
                             {t('providers.save')}
                           </button>

@@ -1523,6 +1523,14 @@ textarea:focus {
   gap: 8px;
 }
 
+.provider-save-button {
+  min-height: 36px;
+  padding: 0 18px;
+  border-color: rgba(var(--accent-cyan-rgb), 0.78);
+  background: rgba(var(--accent-cyan-rgb), 0.18);
+  font-size: 12.5px;
+}
+
 .provider-connection-status {
   display: flex;
   align-items: center;

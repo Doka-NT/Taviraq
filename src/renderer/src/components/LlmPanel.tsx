@@ -2165,9 +2165,10 @@ export function LlmPanel({
                                     type="button"
                                     className="provider-list-item-delete icon-button"
                                     title={t('providers.deleteProvider')}
+                                    aria-label={t('providers.deleteProvider')}
                                     onClick={(e) => { e.stopPropagation(); void handleDeleteProvider(p.apiKeyRef) }}
                                   >
-                                    <Trash2 size={12} aria-hidden />
+                                    <Trash2 size={14} aria-hidden />
                                   </button>
                                 ) : null}
                               </div>
@@ -2322,9 +2323,10 @@ export function LlmPanel({
                                   type="button"
                                   className="provider-list-item-delete icon-button"
                                   title={t('connections.deleteConnection')}
+                                  aria-label={t('connections.deleteConnection')}
                                   onClick={(e) => { e.stopPropagation(); void deleteSshProfile(p.id) }}
                                 >
-                                  <Trash2 size={12} aria-hidden />
+                                  <Trash2 size={14} aria-hidden />
                                 </button>
                               </div>
                             )

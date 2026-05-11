@@ -1306,7 +1306,7 @@ textarea:focus {
   align-items: center;
   gap: 8px;
   height: 36px;
-  padding: 0 10px 0 8px;
+  padding: 0 0 0 8px;
   border: 0.5px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
@@ -1360,11 +1360,11 @@ textarea:focus {
 }
 
 .provider-list-item-delete {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 32px;
   flex-shrink: 0;
-  color: var(--text-muted);
-  opacity: 0.68;
+  color: rgba(var(--surface-rgb), 0.42);
+  opacity: 0.72;
   background: transparent;
 }
 

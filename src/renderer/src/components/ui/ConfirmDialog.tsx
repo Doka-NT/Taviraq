@@ -39,7 +39,7 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
           {message}
         </p>
-        <p className="modal-shortcut-hint">Enter confirms · Esc cancels</p>
+        <p className="modal-shortcut-hint">{t('confirm.shortcutHint')}</p>
         <div className="modal-actions">
           <button type="button" className="quiet-button" onClick={onCancel}>
             {t('confirm.cancel')}

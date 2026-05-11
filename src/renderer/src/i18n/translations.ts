@@ -220,6 +220,7 @@ export interface Translations {
   'confirm.cancel': string
   'confirm.runCommand': string
   'confirm.runAnyway': string
+  'confirm.shortcutHint': string
 
   // Status messages (chat inline status)
   'status.checkingSafety': string
@@ -493,6 +494,7 @@ export const en: Translations = {
   'confirm.cancel': 'Cancel',
   'confirm.runCommand': 'Run command',
   'confirm.runAnyway': 'Run anyway',
+  'confirm.shortcutHint': 'Enter confirms · Esc cancels',
 
   'status.checkingSafety': 'Checking command safety...',
   'status.agentStopped.riskyCommand': 'Agent stopped before running a risky command.',
@@ -760,6 +762,7 @@ export const ru: Translations = {
   'confirm.cancel': 'Отмена',
   'confirm.runCommand': 'Выполнить команду',
   'confirm.runAnyway': 'Всё равно выполнить',
+  'confirm.shortcutHint': 'Enter подтверждает · Esc отменяет',
 
   'status.checkingSafety': 'Проверка безопасности команды...',
   'status.agentStopped.riskyCommand': 'Агент остановлен перед выполнением опасной команды.',
@@ -1027,6 +1030,7 @@ export const cn: Translations = {
   'confirm.cancel': '取消',
   'confirm.runCommand': '执行命令',
   'confirm.runAnyway': '仍然执行',
+  'confirm.shortcutHint': 'Enter 确认 · Esc 取消',
 
   'status.checkingSafety': '正在检查命令安全性...',
   'status.agentStopped.riskyCommand': '代理在执行危险命令前已停止。',

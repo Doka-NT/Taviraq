@@ -788,9 +788,10 @@ button {
 }
 
 .panel-action-button {
-  width: 30px;
-  height: 30px;
-  background: transparent;
+  width: 32px;
+  height: 32px;
+  color: rgba(var(--surface-rgb), 0.56);
+  background: rgba(var(--surface-rgb), 0.035);
 }
 
 .agent-toggle-group {

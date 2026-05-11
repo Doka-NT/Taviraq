@@ -1961,7 +1961,7 @@ export function LlmPanel({
               title={t('panel.settings')}
               aria-label={t('panel.settings')}
             >
-              <Settings2 size={15} aria-hidden />
+              <Settings2 size={16} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1970,7 +1970,7 @@ export function LlmPanel({
               title={t('chat.history')}
               aria-label={t('chat.history')}
             >
-              <History size={15} aria-hidden />
+              <History size={16} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1980,7 +1980,7 @@ export function LlmPanel({
               title={t('chat.saveAsPrompt')}
               aria-label={t('chat.saveAsPrompt')}
             >
-              <BookmarkPlus size={15} aria-hidden />
+              <BookmarkPlus size={16} aria-hidden />
             </button>
             <button
               className="icon-button panel-action-button"
@@ -1989,7 +1989,7 @@ export function LlmPanel({
               title={t('panel.newChat')}
               aria-label={t('panel.newChat')}
             >
-              <MessageSquarePlus size={15} aria-hidden />
+              <MessageSquarePlus size={16} aria-hidden />
             </button>
           </div>
         </div>

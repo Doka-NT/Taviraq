@@ -94,6 +94,7 @@ export interface Translations {
   'prompts.deleteConfirmTitle': string
   'prompts.deleteConfirmMessage': string
   'prompts.deleteConfirmBtn': string
+  'prompts.duplicateName': string
 
   // Command snippets tab
   'snippets.title': string
@@ -108,6 +109,7 @@ export interface Translations {
   'snippets.deleteConfirmTitle': string
   'snippets.deleteConfirmMessage': string
   'snippets.deleteConfirmBtn': string
+  'snippets.duplicateName': string
 
   // Data tab
   'data.title': string
@@ -368,6 +370,7 @@ export const en: Translations = {
   'prompts.deleteConfirmTitle': 'Delete prompt?',
   'prompts.deleteConfirmMessage': 'This action cannot be undone.',
   'prompts.deleteConfirmBtn': 'Delete',
+  'prompts.duplicateName': 'A prompt with this name already exists.',
 
   'snippets.title': 'Command Snippets',
   'snippets.quickHint': 'Quick open with ⌘⇧K. Enter inserts, ⌘Enter runs.',
@@ -381,6 +384,7 @@ export const en: Translations = {
   'snippets.deleteConfirmTitle': 'Delete command snippet?',
   'snippets.deleteConfirmMessage': 'This action cannot be undone.',
   'snippets.deleteConfirmBtn': 'Delete',
+  'snippets.duplicateName': 'A command snippet with this name already exists.',
 
   'data.title': 'Data',
   'data.exportImport.label': 'Export / Import',
@@ -630,6 +634,7 @@ export const ru: Translations = {
   'prompts.deleteConfirmTitle': 'Удалить промпт?',
   'prompts.deleteConfirmMessage': 'Это действие нельзя отменить.',
   'prompts.deleteConfirmBtn': 'Удалить',
+  'prompts.duplicateName': 'Промпт с таким именем уже существует.',
 
   'snippets.title': 'Сниппеты команд',
   'snippets.quickHint': 'Быстрый вызов: ⌘⇧K. Enter вставляет, ⌘Enter запускает.',
@@ -643,6 +648,7 @@ export const ru: Translations = {
   'snippets.deleteConfirmTitle': 'Удалить сниппет команды?',
   'snippets.deleteConfirmMessage': 'Это действие нельзя отменить.',
   'snippets.deleteConfirmBtn': 'Удалить',
+  'snippets.duplicateName': 'Сниппет команды с таким именем уже существует.',
 
   'data.title': 'Данные',
   'data.exportImport.label': 'Экспорт / Импорт',
@@ -892,6 +898,7 @@ export const cn: Translations = {
   'prompts.deleteConfirmTitle': '删除提示词？',
   'prompts.deleteConfirmMessage': '此操作无法撤销。',
   'prompts.deleteConfirmBtn': '删除',
+  'prompts.duplicateName': '已存在同名提示词。',
 
   'snippets.title': '命令片段',
   'snippets.quickHint': '使用 ⌘⇧K 快速打开。Enter 插入，⌘Enter 运行。',
@@ -905,6 +912,7 @@ export const cn: Translations = {
   'snippets.deleteConfirmTitle': '删除命令片段？',
   'snippets.deleteConfirmMessage': '此操作无法撤销。',
   'snippets.deleteConfirmBtn': '删除',
+  'snippets.duplicateName': '已存在同名命令片段。',
 
   'data.title': '数据',
   'data.exportImport.label': '导出 / 导入',

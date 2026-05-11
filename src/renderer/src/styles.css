@@ -2166,6 +2166,13 @@ textarea:focus {
   margin: 0;
 }
 
+.form-warning {
+  margin: -4px 0 2px;
+  color: rgba(var(--accent-amber-rgb), 0.88);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .chat-message.user {
   align-items: flex-end;
 }

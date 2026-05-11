@@ -154,6 +154,10 @@ function isValidProviderBaseUrl(value: string): boolean {
   }
 }
 
+function normalizeLibraryName(value: string): string {
+  return value.trim().toLowerCase()
+}
+
 interface ThinkingBlockProps {
   content: string
   isStreaming: boolean
@@ -390,6 +394,7 @@ export function LlmPanel({
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
   const [savePromptName, setSavePromptName] = useState('')
   const [savePromptStatus, setSavePromptStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [savePromptDuplicateName, setSavePromptDuplicateName] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [promptPickerOpen, setPromptPickerOpen] = useState(false)
@@ -1015,6 +1020,7 @@ export function LlmPanel({
     setSavePromptDialog({ content: '' })
     setSavePromptName('')
     setSavePromptStatus('idle')
+    setSavePromptDuplicateName(false)
     try {
       const prompt = await window.api.llm.summarizeConversation({
         requestId,
@@ -1044,10 +1050,11 @@ export function LlmPanel({
     savePromptGenerationRequestIdRef.current = null
     if (requestId) void window.api.llm.cancelSummarizeConversation(requestId)
     setSavePromptDialog(null)
+    setSavePromptDuplicateName(false)
   }, [])
 
   const handleSavePromptFromChat = async (): Promise<void> => {
-    if (!savePromptName.trim()) return
+    if (!savePromptName.trim() || savePromptDuplicateName) return
     setSavePromptStatus('saving')
     try {
       await window.api.prompt.save({ id: '', name: savePromptName.trim(), content: savePromptDialog!.content, createdAt: '' })
@@ -1057,6 +1064,29 @@ export function LlmPanel({
       setSavePromptStatus('error')
     }
   }
+
+  useEffect(() => {
+    if (!savePromptDialog || savePromptDialog.content === '') {
+      setSavePromptDuplicateName(false)
+      return
+    }
+
+    const name = normalizeLibraryName(savePromptName)
+    if (!name) {
+      setSavePromptDuplicateName(false)
+      return
+    }
+
+    let cancelled = false
+    void window.api.prompt.list().then((prompts) => {
+      if (cancelled) return
+      setSavePromptDuplicateName(prompts.some((prompt) => normalizeLibraryName(prompt.name) === name))
+    }).catch(() => {
+      if (!cancelled) setSavePromptDuplicateName(false)
+    })
+
+    return () => { cancelled = true }
+  }, [savePromptDialog, savePromptName])
 
   const buildTerminalContext = useCallback((sessionId: string): TerminalContext => {
     const thread = getThread(sessionId)
@@ -2658,6 +2688,9 @@ export function LlmPanel({
                   placeholder={t('prompts.namePlaceholder')}
                   autoFocus
                 />
+                {savePromptDuplicateName ? (
+                  <p className="form-warning">{t('prompts.duplicateName')}</p>
+                ) : null}
                 <textarea
                   className="save-prompt-content-editor"
                   value={savePromptDialog.content}
@@ -2672,7 +2705,7 @@ export function LlmPanel({
                     type="button"
                     className="primary-button"
                     onClick={() => void handleSavePromptFromChat()}
-                    disabled={savePromptStatus === 'saving' || !savePromptName.trim() || !savePromptDialog.content.trim()}
+                    disabled={savePromptStatus === 'saving' || savePromptDuplicateName || !savePromptName.trim() || !savePromptDialog.content.trim()}
                   >
                     {savePromptStatus === 'saved'
                       ? t('chat.savePrompt.saved')
@@ -2949,6 +2982,11 @@ function PromptLibrarySection(): JSX.Element {
   const [newContent, setNewContent] = useState('')
   const [promptStatus, setPromptStatus] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const duplicateName = useMemo(() => {
+    const name = normalizeLibraryName(newName)
+    if (!name) return false
+    return prompts.some((prompt) => prompt.id !== editing?.id && normalizeLibraryName(prompt.name) === name)
+  }, [editing?.id, newName, prompts])
 
   const reload = useCallback(async () => {
     try {
@@ -2964,7 +3002,7 @@ function PromptLibrarySection(): JSX.Element {
   }, [reload])
 
   const handleSave = useCallback(async () => {
-    if (!newName.trim() || !newContent.trim()) return
+    if (!newName.trim() || !newContent.trim() || duplicateName) return
     setPromptStatus('Saving...')
     try {
       await window.api.prompt.save({
@@ -2982,7 +3020,7 @@ function PromptLibrarySection(): JSX.Element {
     } catch (err) {
       setPromptStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [editing, newContent, newName, reload, t])
+  }, [duplicateName, editing, newContent, newName, reload, t])
 
   const handleEdit = useCallback((prompt: PromptTemplate) => {
     setEditing(prompt)
@@ -3094,6 +3132,9 @@ function PromptLibrarySection(): JSX.Element {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
+          {duplicateName ? (
+            <p className="form-warning">{t('prompts.duplicateName')}</p>
+          ) : null}
           <textarea
             className="prompt-form-content"
             placeholder={t('prompts.contentPlaceholder')}
@@ -3105,7 +3146,7 @@ function PromptLibrarySection(): JSX.Element {
             <button
               type="button"
               className="primary-button"
-              disabled={!newName.trim() || !newContent.trim()}
+              disabled={!newName.trim() || !newContent.trim() || duplicateName}
               onClick={() => void handleSave()}
             >
               {editing ? t('prompts.savePrompt') : t('prompts.addPrompt')}
@@ -3153,6 +3194,11 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
   const [status, setStatus] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const handledSnippetDraftRequestRef = useRef<string>()
+  const duplicateName = useMemo(() => {
+    const normalizedName = normalizeLibraryName(name)
+    if (!normalizedName) return false
+    return snippets.some((snippet) => snippet.id !== editing?.id && normalizeLibraryName(snippet.name) === normalizedName)
+  }, [editing?.id, name, snippets])
 
   const reload = useCallback(async () => {
     try {
@@ -3168,7 +3214,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
   }, [reload])
 
   const handleSave = useCallback(async () => {
-    if (!name.trim() || !command.trim()) return
+    if (!name.trim() || !command.trim() || duplicateName) return
     setStatus('Saving...')
     try {
       await window.api.commandSnippet.save({
@@ -3187,7 +3233,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
     } catch (err) {
       setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`)
     }
-  }, [command, editing, name, reload, t])
+  }, [command, duplicateName, editing, name, reload, t])
 
   const handleEdit = useCallback((snippet: CommandSnippet) => {
     setEditing(snippet)
@@ -3297,6 +3343,9 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
+          {duplicateName ? (
+            <p className="form-warning">{t('snippets.duplicateName')}</p>
+          ) : null}
           <textarea
             className="prompt-form-content command-snippet-form-command"
             placeholder={t('snippets.commandPlaceholder')}
@@ -3308,7 +3357,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
             <button
               type="button"
               className="primary-button"
-              disabled={!name.trim() || !command.trim()}
+              disabled={!name.trim() || !command.trim() || duplicateName}
               onClick={() => void handleSave()}
             >
               {editing ? t('snippets.saveSnippet') : t('snippets.addSnippet')}

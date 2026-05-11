@@ -394,7 +394,7 @@ export const en: Translations = {
 
   'data.title': 'Data',
   'data.exportImport.label': 'Export / Import',
-  'data.exportImport.desc': 'Providers, prompts, command snippets and preferences',
+  'data.exportImport.desc': 'JSON backup with providers, prompts, command snippets and preferences',
   'data.export': 'Export',
   'data.import': 'Import',
   'data.restoreSessions.label': 'Restore tabs and history',
@@ -661,7 +661,7 @@ export const ru: Translations = {
 
   'data.title': 'Данные',
   'data.exportImport.label': 'Экспорт / Импорт',
-  'data.exportImport.desc': 'Провайдеры, промпты, сниппеты команд и настройки',
+  'data.exportImport.desc': 'JSON-бэкап: провайдеры, промпты, сниппеты команд и настройки',
   'data.export': 'Экспорт',
   'data.import': 'Импорт',
   'data.restoreSessions.label': 'Восстанавливать вкладки и историю',
@@ -928,7 +928,7 @@ export const cn: Translations = {
 
   'data.title': '数据',
   'data.exportImport.label': '导出 / 导入',
-  'data.exportImport.desc': '提供商、提示词、命令片段和偏好设置',
+  'data.exportImport.desc': 'JSON 备份，包含提供商、提示词、命令片段和偏好设置',
   'data.export': '导出',
   'data.import': '导入',
   'data.restoreSessions.label': '恢复标签页和历史',

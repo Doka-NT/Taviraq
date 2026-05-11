@@ -3001,12 +3001,14 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
       role="listbox"
       style={listPos ? (() => {
         const gap = 6
-        const maxHeight = Math.min(220, window.innerHeight - 24)
         const spaceBelow = window.innerHeight - listPos.bottom - 16
+        const spaceAbove = listPos.top - 16
         const opensUp = spaceBelow < 180 && listPos.top > spaceBelow
+        const availableSpace = opensUp ? spaceAbove : spaceBelow
+        const maxHeight = Math.min(220, Math.max(120, availableSpace - gap))
         return {
           position: 'fixed',
-          top: opensUp ? Math.max(12, listPos.top - maxHeight - gap) : listPos.bottom + gap,
+          top: opensUp ? Math.max(16, listPos.top - maxHeight - gap) : listPos.bottom + gap,
           left: listPos.left,
           width: listPos.width,
           maxHeight

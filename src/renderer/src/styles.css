@@ -1909,6 +1909,7 @@ textarea:focus {
   max-height: 220px;
   padding: 5px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 0.5px solid var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--bg-combobox-list);

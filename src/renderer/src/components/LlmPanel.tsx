@@ -2135,7 +2135,7 @@ export function LlmPanel({
                         <div className="providers-list-header">
                           <span>{t('providers.title')}</span>
                           <button type="button" className="quiet-button settings-add-button" title={t('providers.addProvider')} aria-label={t('providers.addProvider')} onClick={addProvider}>
-                            <Plus size={12} aria-hidden />
+                            <Plus size={15} aria-hidden />
                           </button>
                         </div>
                         <div className="provider-list">
@@ -2289,7 +2289,7 @@ export function LlmPanel({
                           <span>{t('connections.title')}</span>
                           {sshProfiles.length > 0 ? (
                             <button type="button" className="quiet-button settings-add-button" title={t('connections.addConnection')} aria-label={t('connections.addConnection')} onClick={addSshProfile}>
-                              <Plus size={12} aria-hidden />
+                              <Plus size={15} aria-hidden />
                             </button>
                           ) : null}
                         </div>

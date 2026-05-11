@@ -1986,8 +1986,8 @@ export function LlmPanel({
                 <Settings2 size={17} aria-hidden />
                 <h2 id="settings-title">{t('settings.title')}</h2>
               </div>
-              <button className="icon-button" type="button" onClick={onCloseSettings} title="Close settings">
-                <X size={16} aria-hidden />
+              <button className="icon-button settings-close-button" type="button" onClick={onCloseSettings} title="Close settings" aria-label="Close settings">
+                <X size={18} aria-hidden />
               </button>
             </header>
 

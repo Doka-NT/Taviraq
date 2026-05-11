@@ -977,6 +977,16 @@ textarea:focus {
   height: 32px;
 }
 
+.settings-close-button {
+  color: rgba(var(--surface-rgb), 0.62);
+  background: rgba(var(--surface-rgb), 0.075);
+}
+
+.settings-close-button:hover:not(:disabled) {
+  color: rgba(var(--surface-rgb), 0.90);
+  background: rgba(var(--surface-rgb), 0.13);
+}
+
 .settings-title {
   display: flex;
   align-items: center;

@@ -1498,6 +1498,12 @@ export function LlmPanel({
     setSshProfiles(result.sshProfiles ?? [])
   }, [sshProfile])
 
+  const chooseSshIdentityFile = useCallback(async () => {
+    const filePath = await window.api.ssh.chooseIdentityFile()
+    if (!filePath) return
+    setSshProfile((profile) => profile ? { ...profile, identityFile: filePath } : profile)
+  }, [])
+
   const deleteSshProfile = useCallback((id: string) => {
     const target = sshProfiles.find((candidate) => candidate.id === id)
     setDeleteConfirmation({
@@ -2159,11 +2165,16 @@ export function LlmPanel({
                           </div>
                           <div className="provider-field">
                             <span className="provider-field-label">{t('connections.identityFile')}</span>
-                            <input
-                              value={sshProfile.identityFile ?? ''}
-                              placeholder="~/.ssh/id_rsa"
-                              onChange={(event) => setSshProfile((p) => p ? { ...p, identityFile: event.target.value } : p)}
-                            />
+                            <div className="inline-field-action">
+                              <input
+                                value={sshProfile.identityFile ?? ''}
+                                placeholder="~/.ssh/id_rsa"
+                                onChange={(event) => setSshProfile((p) => p ? { ...p, identityFile: event.target.value } : p)}
+                              />
+                              <button type="button" className="quiet-button" onClick={() => void chooseSshIdentityFile()}>
+                                {t('connections.browseIdentityFile')}
+                              </button>
+                            </div>
                           </div>
                           <div className="provider-field">
                             <span className="provider-field-label">{t('connections.extraArgs')}</span>

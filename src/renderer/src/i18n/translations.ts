@@ -73,6 +73,7 @@ export interface Translations {
   'connections.user': string
   'connections.port': string
   'connections.identityFile': string
+  'connections.browseIdentityFile': string
   'connections.extraArgs': string
   'connections.unnamed': string
   'connections.noConnections': string
@@ -350,6 +351,7 @@ export const en: Translations = {
   'connections.user': 'User',
   'connections.port': 'Port',
   'connections.identityFile': 'Identity file',
+  'connections.browseIdentityFile': 'Browse',
   'connections.extraArgs': 'Extra args',
   'connections.unnamed': 'Unnamed',
   'connections.noConnections': 'No SSH connections yet.',
@@ -614,6 +616,7 @@ export const ru: Translations = {
   'connections.user': 'Пользователь',
   'connections.port': 'Порт',
   'connections.identityFile': 'Файл ключа',
+  'connections.browseIdentityFile': 'Выбрать',
   'connections.extraArgs': 'Доп. аргументы',
   'connections.unnamed': 'Без имени',
   'connections.noConnections': 'Нет SSH-подключений.',
@@ -878,6 +881,7 @@ export const cn: Translations = {
   'connections.user': '用户',
   'connections.port': '端口',
   'connections.identityFile': '密钥文件',
+  'connections.browseIdentityFile': '浏览',
   'connections.extraArgs': '额外参数',
   'connections.unnamed': '未命名',
   'connections.noConnections': '暂无 SSH 连接。',

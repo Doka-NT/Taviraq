@@ -1322,6 +1322,22 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.075);
 }
 
+.inline-field-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inline-field-action input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.inline-field-action .quiet-button {
+  flex: 0 0 auto;
+}
+
 .provider-toggle-field {
   display: flex;
   position: relative;

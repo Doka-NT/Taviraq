@@ -520,6 +520,15 @@ function registerIpc(): void {
     return configStore.deleteSshProfile(id)
   })
 
+  ipcMain.handle('ssh:chooseIdentityFile', async (): Promise<string | undefined> => {
+    const result = await dialog.showOpenDialog({
+      title: 'Choose SSH Identity File',
+      properties: ['openFile', 'showHiddenFiles']
+    })
+    if (result.canceled || result.filePaths.length === 0) return undefined
+    return result.filePaths[0]
+  })
+
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
     if (DEMO_MODE) {
       return demoConfig

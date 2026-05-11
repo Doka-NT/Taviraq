@@ -198,7 +198,7 @@ export function statusToInlineStatus(status: string): InlineStatus {
   const text = status.trim()
   const lower = text.toLowerCase()
 
-  if (/\b(failed|error|unavailable|could not|denied)\b/.test(lower)) {
+  if (/\b(failed|error|unavailable|could not|denied|invalid|valid)\b/.test(lower)) {
     return { tone: 'danger', label: text }
   }
 

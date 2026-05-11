@@ -2287,9 +2287,11 @@ export function LlmPanel({
                       <div>
                         <div className="providers-list-header">
                           <span>{t('connections.title')}</span>
-                          <button type="button" className="quiet-button settings-add-button" title={t('connections.addConnection')} aria-label={t('connections.addConnection')} onClick={addSshProfile}>
-                            <Plus size={12} aria-hidden />
-                          </button>
+                          {sshProfiles.length > 0 ? (
+                            <button type="button" className="quiet-button settings-add-button" title={t('connections.addConnection')} aria-label={t('connections.addConnection')} onClick={addSshProfile}>
+                              <Plus size={12} aria-hidden />
+                            </button>
+                          ) : null}
                         </div>
                         <div className="provider-list">
                           {sshProfiles.length === 0 ? (

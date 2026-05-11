@@ -1892,6 +1892,12 @@ export function LlmPanel({
   }, [settingsTabRequest, settingsTabRequestVersion])
 
   useEffect(() => {
+    if (settingsOpen && settingsTab === 'providers') {
+      setProviderStatus('')
+    }
+  }, [settingsOpen, settingsTab])
+
+  useEffect(() => {
     if (!settingsOpen) return
 
     const frameId = requestAnimationFrame(() => {

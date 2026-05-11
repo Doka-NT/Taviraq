@@ -1179,6 +1179,15 @@ textarea:focus {
   height: 32px;
   text-align: center;
   font-size: 12px;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.text-size-input::-webkit-outer-spin-button,
+.text-size-input::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .input-suffix {

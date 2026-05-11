@@ -112,6 +112,8 @@ const providerTypeDefaults: Record<LLMProviderType, Pick<LLMProviderConfig, 'nam
 const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio']
 const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
+const MIN_TEXT_SIZE = 8
+const MAX_TEXT_SIZE = 32
 
 type ThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status'
@@ -152,6 +154,17 @@ function isValidProviderBaseUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function isValidTextSize(value: string): boolean {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_TEXT_SIZE && parsed <= MAX_TEXT_SIZE
+}
+
+function clampTextSize(value: string, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, parsed))
 }
 
 function normalizeLibraryName(value: string): string {
@@ -1601,10 +1614,16 @@ export function LlmPanel({
     setTextSizeDraft(value)
 
     const parsed = Number(value)
-    if (Number.isFinite(parsed) && parsed >= 8 && parsed <= 32) {
+    if (isValidTextSize(value)) {
       onTextSizeChange(parsed)
     }
   }, [onTextSizeChange])
+
+  const commitTextSizeDraft = useCallback(() => {
+    const nextTextSize = clampTextSize(textSizeDraft, textSize)
+    setTextSizeDraft(String(nextTextSize))
+    onTextSizeChange(nextTextSize)
+  }, [onTextSizeChange, textSize, textSizeDraft])
 
   const handleMaxOutputContextChange = useCallback((value: string) => {
     setMaxOutputContextDraft(value)
@@ -1995,14 +2014,20 @@ export function LlmPanel({
                       </div>
                       <div className="appearance-row-right">
                         <input
-                          className="text-size-input"
+                          className={`text-size-input ${!isValidTextSize(textSizeDraft) ? 'invalid-input' : ''}`}
                           type="number"
                           step="0.5"
-                          min="8"
-                          max="32"
+                          min={MIN_TEXT_SIZE}
+                          max={MAX_TEXT_SIZE}
                           inputMode="decimal"
                           value={textSizeDraft}
                           onChange={(event) => handleTextSizeChange(event.target.value)}
+                          onBlur={commitTextSizeDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
                         />
                       </div>
                     </div>

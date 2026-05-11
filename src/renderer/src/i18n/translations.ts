@@ -298,7 +298,7 @@ export const en: Translations = {
 
   'appearance.title': 'Appearance',
   'appearance.fontSize.label': 'Terminal font size',
-  'appearance.fontSize.desc': 'Applied to all terminal sessions',
+  'appearance.fontSize.desc': 'Applied to all terminal sessions, 8-32 px',
   'appearance.fontSize.applied': '{value}px applied',
   'appearance.language.label': 'Language',
   'appearance.language.desc': 'UI language and LLM response language',
@@ -565,7 +565,7 @@ export const ru: Translations = {
 
   'appearance.title': 'Внешний вид',
   'appearance.fontSize.label': 'Размер шрифта терминала',
-  'appearance.fontSize.desc': 'Применяется ко всем сессиям терминала',
+  'appearance.fontSize.desc': 'Применяется ко всем сессиям терминала, 8-32 px',
   'appearance.fontSize.applied': 'применено {value}px',
   'appearance.language.label': 'Язык',
   'appearance.language.desc': 'Язык интерфейса и ответов ИИ',
@@ -832,7 +832,7 @@ export const cn: Translations = {
 
   'appearance.title': '外观',
   'appearance.fontSize.label': '终端字体大小',
-  'appearance.fontSize.desc': '应用于所有终端会话',
+  'appearance.fontSize.desc': '应用于所有终端会话，8-32 px',
   'appearance.fontSize.applied': '已应用 {value}px',
   'appearance.language.label': '语言',
   'appearance.language.desc': '界面语言和AI回复语言',

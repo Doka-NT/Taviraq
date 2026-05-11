@@ -188,6 +188,7 @@ export interface Translations {
   'chat.history': string
   'chat.historySearch': string
   'chat.historyEmpty': string
+  'chat.historyNoMatch': string
   'chat.historyMessages': string
   'chat.historyDelete': string
   'chat.historyDeleteConfirmTitle': string
@@ -446,6 +447,7 @@ export const en: Translations = {
   'chat.history': 'Chat History',
   'chat.historySearch': 'Search chats…',
   'chat.historyEmpty': 'No saved chats yet',
+  'chat.historyNoMatch': 'No chats matching "{query}"',
   'chat.historyMessages': 'messages',
   'chat.historyDelete': 'Delete',
   'chat.historyDeleteConfirmTitle': 'Delete chat?',
@@ -697,6 +699,7 @@ export const ru: Translations = {
   'chat.history': 'История чатов',
   'chat.historySearch': 'Поиск чатов…',
   'chat.historyEmpty': 'Нет сохранённых чатов',
+  'chat.historyNoMatch': 'Нет чатов по запросу «{query}»',
   'chat.historyMessages': 'сообщений',
   'chat.historyDelete': 'Удалить',
   'chat.historyDeleteConfirmTitle': 'Удалить чат?',
@@ -948,6 +951,7 @@ export const cn: Translations = {
   'chat.history': '聊天记录',
   'chat.historySearch': '搜索聊天…',
   'chat.historyEmpty': '暂无保存的聊天',
+  'chat.historyNoMatch': '没有匹配“{query}”的聊天',
   'chat.historyMessages': '条消息',
   'chat.historyDelete': '删除',
   'chat.historyDeleteConfirmTitle': '删除聊天？',

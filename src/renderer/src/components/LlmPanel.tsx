@@ -136,6 +136,21 @@ interface DeleteConfirmation {
   onConfirm: () => Promise<void> | void
 }
 
+function withObjectName(title: string, name?: string): string {
+  const cleaned = name?.trim()
+  if (!cleaned) return title
+  return title.replace(/\?$/, '') + ` "${cleaned}"?`
+}
+
+function isValidProviderBaseUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 interface ThinkingBlockProps {
   content: string
   isStreaming: boolean
@@ -438,6 +453,11 @@ export function LlmPanel({
     if (!recordingShortcut) return
     const unsubscribe = window.api.shortcuts.onRecorded((accelerator) => {
       void (async () => {
+        if (accelerator === 'Escape') {
+          setRecordingShortcut(false)
+          setShortcutError(null)
+          return
+        }
         setRecordingShortcut(false)
         setShortcutError(null)
         const success = await window.api.shortcuts.setHide(accelerator)
@@ -448,8 +468,16 @@ export function LlmPanel({
         }
       })()
     })
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setRecordingShortcut(false)
+      setShortcutError(null)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
     void window.api.shortcuts.startRecording()
     return () => {
+      window.removeEventListener('keydown', onKeyDown, true)
       unsubscribe()
       void window.api.shortcuts.stopRecording()
     }
@@ -927,8 +955,9 @@ export function LlmPanel({
   }, [promptLibraryRequestVersion])
 
   const handleDeleteHistoryChat = useCallback((chatId: string) => {
+    const chat = historyChats.find((candidate) => candidate.id === chatId)
     setDeleteConfirmation({
-      title: t('chat.historyDeleteConfirmTitle'),
+      title: withObjectName(t('chat.historyDeleteConfirmTitle'), chat?.title),
       message: t('chat.historyDeleteConfirmMessage'),
       confirmLabel: t('chat.historyDeleteConfirmBtn'),
       onConfirm: async () => {
@@ -936,7 +965,7 @@ export function LlmPanel({
         setHistoryChats((prev) => prev.filter((c) => c.id !== chatId))
       }
     })
-  }, [t])
+  }, [historyChats, t])
 
   const handleReopenChat = useCallback((chatId: string) => {
     setHistoryOpen(false)
@@ -1308,6 +1337,10 @@ export function LlmPanel({
 
   // Save provider
   const saveProvider = useCallback(async () => {
+    if (!isValidProviderBaseUrl(provider.baseUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// Base URL')
+      return
+    }
     setProviderStatus('Saving...')
     try {
       const result = await window.api.llm.saveProvider({ provider, apiKey })
@@ -1439,7 +1472,7 @@ export function LlmPanel({
     setTextSizeDraft(value)
 
     const parsed = Number(value)
-    if (Number.isFinite(parsed) && parsed > 0) {
+    if (Number.isFinite(parsed) && parsed >= 8 && parsed <= 32) {
       onTextSizeChange(parsed)
     }
   }, [onTextSizeChange])
@@ -1760,6 +1793,8 @@ export function LlmPanel({
                           className="text-size-input"
                           type="number"
                           step="0.5"
+                          min="8"
+                          max="32"
                           inputMode="decimal"
                           value={textSizeDraft}
                           onChange={(event) => handleTextSizeChange(event.target.value)}
@@ -1814,7 +1849,7 @@ export function LlmPanel({
                       <div>
                         <div className="providers-list-header">
                           <span>{t('providers.title')}</span>
-                          <button type="button" className="quiet-button" style={{ height: 28, fontSize: 11, padding: '0 7px' }} title={t('providers.addProvider')} onClick={addProvider}>
+                          <button type="button" className="quiet-button settings-add-button" title={t('providers.addProvider')} aria-label={t('providers.addProvider')} onClick={addProvider}>
                             <Plus size={12} aria-hidden />
                           </button>
                         </div>
@@ -1915,7 +1950,7 @@ export function LlmPanel({
                           )}
                         </div>
                         <div className="provider-actions">
-                          <button type="button" className="quiet-button" onClick={() => void saveProvider()}>
+                          <button type="button" className="primary-button" onClick={() => void saveProvider()}>
                             <KeyRound size={14} aria-hidden />
                             {t('providers.save')}
                           </button>
@@ -1965,7 +2000,7 @@ export function LlmPanel({
                       <div>
                         <div className="providers-list-header">
                           <span>{t('connections.title')}</span>
-                          <button type="button" className="quiet-button" style={{ height: 28, fontSize: 11, padding: '0 7px' }} title={t('connections.addConnection')} onClick={addSshProfile}>
+                          <button type="button" className="quiet-button settings-add-button" title={t('connections.addConnection')} aria-label={t('connections.addConnection')} onClick={addSshProfile}>
                             <Plus size={12} aria-hidden />
                           </button>
                         </div>
@@ -2032,6 +2067,9 @@ export function LlmPanel({
                             <span className="provider-field-label">{t('connections.port')}</span>
                             <input
                               type="number"
+                              min="1"
+                              max="65535"
+                              step="1"
                               value={sshProfile.port ?? ''}
                               placeholder="22"
                               onChange={(event) => {
@@ -2052,7 +2090,7 @@ export function LlmPanel({
                             <span className="provider-field-label">{t('connections.extraArgs')}</span>
                             <input
                               value={sshProfile.extraArgs?.join(' ') ?? ''}
-                              placeholder="-o StrictHostKeyChecking=no"
+                              placeholder="-o ServerAliveInterval=30"
                               onChange={(event) => {
                                 const val = event.target.value.trim()
                                 setSshProfile((p) => p ? { ...p, extraArgs: val ? val.split(/\s+/) : undefined } : p)
@@ -2060,11 +2098,11 @@ export function LlmPanel({
                             />
                           </div>
                           <div className="connection-actions">
-                            <button type="button" className="quiet-button" onClick={() => void saveSshProfile()}>
+                            <button type="button" className="primary-button" onClick={() => void saveSshProfile()}>
                               {t('connections.save')}
                             </button>
                             {sshProfile.host ? (
-                              <button type="button" className="quiet-button connection-connect-button" onClick={() => connectSshProfile(sshProfile)}>
+                              <button type="button" className="primary-button connection-connect-button" onClick={() => connectSshProfile(sshProfile)}>
                                 <Zap size={13} aria-hidden />
                                 {t('connections.connect')}
                               </button>
@@ -2119,6 +2157,7 @@ export function LlmPanel({
                           value={maxOutputContextDraft}
                           onChange={(event) => handleMaxOutputContextChange(event.target.value)}
                         />
+                        <span className="input-suffix">chars</span>
                       </div>
                     </div>
                     <div className="appearance-row">
@@ -2165,7 +2204,7 @@ export function LlmPanel({
                         </small>
                       </div>
                       <div className="appearance-row-right">
-                        <button type="button" className="quiet-button" onClick={() => void handleClearSavedSessionState()}>
+                        <button type="button" className="danger-outline-button" onClick={() => void handleClearSavedSessionState()}>
                           {t('data.clearSessions')}
                         </button>
                       </div>
@@ -2178,7 +2217,7 @@ export function LlmPanel({
                         </small>
                       </div>
                       <div className="appearance-row-right">
-                        <button type="button" className="quiet-button" onClick={handleClearChatHistory}>
+                        <button type="button" className="danger-outline-button" onClick={handleClearChatHistory}>
                           {t('data.clearChatHistory')}
                         </button>
                       </div>
@@ -2205,7 +2244,11 @@ export function LlmPanel({
           </div>
           <div className="history-list">
             {filteredHistoryChats.length === 0 ? (
-              <p className="history-empty">{t('chat.historyEmpty')}</p>
+              <p className="history-empty">
+                {historyChats.length > 0 && historySearch.trim()
+                  ? t('chat.historyNoMatch', { query: historySearch.trim() })
+                  : t('chat.historyEmpty')}
+              </p>
             ) : (
               filteredHistoryChats.map((chat) => (
                 <div key={chat.id} className="history-item" onClick={() => handleReopenChat(chat.id)}>
@@ -2550,7 +2593,7 @@ export function LlmPanel({
                   </button>
                   <button
                     type="button"
-                    className="save-prompt-confirm"
+                    className="primary-button"
                     onClick={() => void handleSavePromptFromChat()}
                     disabled={savePromptStatus === 'saving' || !savePromptName.trim() || !savePromptDialog.content.trim()}
                   >
@@ -2714,7 +2757,19 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
       className="model-combobox-list"
       id={listboxId}
       role="listbox"
-      style={listPos ? { position: 'fixed', top: listPos.bottom + 6, left: listPos.left, width: listPos.width } : undefined}
+      style={listPos ? (() => {
+        const gap = 6
+        const maxHeight = Math.min(220, window.innerHeight - 24)
+        const spaceBelow = window.innerHeight - listPos.bottom - 16
+        const opensUp = spaceBelow < 180 && listPos.top > spaceBelow
+        return {
+          position: 'fixed',
+          top: opensUp ? Math.max(12, listPos.top - maxHeight - gap) : listPos.bottom + gap,
+          left: listPos.left,
+          width: listPos.width,
+          maxHeight
+        }
+      })() : undefined}
     >
       {visibleModels.length > 0 ? (
         visibleModels.map((model, index) => {
@@ -2954,7 +3009,7 @@ function PromptLibrarySection(): JSX.Element {
         )}
       </div>
 
-      {(editing || addingPrompt || !prompts.length) ? (
+      {(editing || addingPrompt) ? (
         <div className="prompt-form">
           <input
             type="text"
@@ -2972,7 +3027,7 @@ function PromptLibrarySection(): JSX.Element {
           <div className="prompt-form-actions">
             <button
               type="button"
-              className="quiet-button"
+              className="primary-button"
               disabled={!newName.trim() || !newContent.trim()}
               onClick={() => void handleSave()}
             >
@@ -2991,7 +3046,7 @@ function PromptLibrarySection(): JSX.Element {
 
       {pendingDeleteId !== null ? (
         <ConfirmDialog
-          title={t('prompts.deleteConfirmTitle')}
+          title={withObjectName(t('prompts.deleteConfirmTitle'), prompts.find((prompt) => prompt.id === pendingDeleteId)?.name)}
           message={t('prompts.deleteConfirmMessage')}
           confirmLabel={t('prompts.deleteConfirmBtn')}
           onConfirm={() => void confirmDelete()}
@@ -3157,7 +3212,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
         )}
       </div>
 
-      {(editing || addingSnippet || !snippets.length) ? (
+      {(editing || addingSnippet) ? (
         <div className="prompt-form">
           <input
             type="text"
@@ -3175,7 +3230,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
           <div className="prompt-form-actions">
             <button
               type="button"
-              className="quiet-button"
+              className="primary-button"
               disabled={!name.trim() || !command.trim()}
               onClick={() => void handleSave()}
             >
@@ -3194,7 +3249,7 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
 
       {pendingDeleteId !== null ? (
         <ConfirmDialog
-          title={t('snippets.deleteConfirmTitle')}
+          title={withObjectName(t('snippets.deleteConfirmTitle'), snippets.find((snippet) => snippet.id === pendingDeleteId)?.name)}
           message={t('snippets.deleteConfirmMessage')}
           confirmLabel={t('snippets.deleteConfirmBtn')}
           onConfirm={() => void confirmDelete()}

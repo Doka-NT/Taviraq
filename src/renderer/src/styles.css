@@ -216,8 +216,8 @@ button {
 }
 
 .icon-button {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border: 0.5px solid transparent;
   border-radius: 7px;
   color: rgba(var(--surface-rgb), 0.45);
@@ -239,6 +239,47 @@ button {
   font-size: 12px;
 }
 
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.65);
+  border-radius: 7px;
+  color: rgba(var(--accent-cyan-rgb), 0.95);
+  background: rgba(var(--accent-cyan-rgb), 0.14);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition), opacity var(--transition);
+}
+
+.primary-button:hover:not(:disabled) {
+  border-color: rgba(var(--accent-cyan-rgb), 0.95);
+  background: rgba(var(--accent-cyan-rgb), 0.20);
+}
+
+.danger-outline-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0.5px solid rgba(var(--accent-red-rgb), 0.36);
+  border-radius: 7px;
+  color: var(--accent-red-text);
+  background: rgba(var(--accent-red-rgb), 0.08);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.danger-outline-button:hover:not(:disabled) {
+  border-color: rgba(var(--accent-red-rgb), 0.58);
+  background: rgba(var(--accent-red-rgb), 0.14);
+}
+
 .quiet-button:hover:not(:disabled) {
   color: rgba(var(--surface-rgb), 0.72);
   border-color: var(--border-strong);
@@ -247,11 +288,13 @@ button {
 
 .icon-button:disabled,
 .quiet-button:disabled,
+.primary-button:disabled,
+.danger-outline-button:disabled,
 .send-button:disabled,
 .stop-button:disabled,
 .danger-button:disabled,
 .msg-run-button:disabled {
-  opacity: 0.4;
+  opacity: 0.32;
   cursor: not-allowed;
 }
 
@@ -877,7 +920,7 @@ textarea:focus {
   z-index: 20;
   display: grid;
   place-items: center;
-  padding: 42px;
+  padding: 32px;
   background: var(--overlay-backdrop);
   backdrop-filter: blur(12px);
 }
@@ -886,8 +929,8 @@ textarea:focus {
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
   width: min(820px, 100%);
-  height: min(560px, 100%);
-  max-height: min(640px, 100%);
+  height: min(680px, calc(100vh - 64px));
+  max-height: calc(100vh - 64px);
   overflow: hidden;
   border: 0.5px solid var(--border-strong);
   border-radius: var(--radius-xl);
@@ -904,6 +947,11 @@ textarea:focus {
   padding: 0 18px;
   border-bottom: 0.5px solid var(--border-subtle);
   background: var(--bg-titlebar);
+}
+
+.settings-header > .icon-button {
+  width: 32px;
+  height: 32px;
 }
 
 .settings-title {
@@ -1052,6 +1100,11 @@ textarea:focus {
   font-size: 12px;
 }
 
+.input-suffix {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .language-select {
   height: 32px;
   padding: 0 8px;
@@ -1077,7 +1130,13 @@ textarea:focus {
   min-width: 100px;
   height: 32px;
   text-align: center;
+  outline: none;
   transition: border-color var(--transition), color var(--transition);
+}
+
+.shortcut-recorder:focus-visible {
+  border-color: rgba(var(--accent-cyan-rgb), 0.55);
+  box-shadow: 0 0 0 2px rgba(var(--accent-cyan-rgb), 0.18);
 }
 
 .shortcut-recorder.recording {
@@ -1113,6 +1172,12 @@ textarea:focus {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.settings-add-button {
+  width: 32px;
+  height: 30px;
+  padding: 0;
 }
 
 .provider-list {
@@ -1181,15 +1246,16 @@ textarea:focus {
 }
 
 .provider-list-item-delete {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   color: var(--text-muted);
-  opacity: 0;
+  opacity: 0.68;
   background: transparent;
 }
 
-.provider-list-item:hover .provider-list-item-delete {
+.provider-list-item:hover .provider-list-item-delete,
+.provider-list-item:focus-within .provider-list-item-delete {
   opacity: 1;
 }
 
@@ -1435,6 +1501,7 @@ textarea:focus {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-bottom: 18px;
 }
 
 .connection-actions {
@@ -2030,6 +2097,12 @@ textarea:focus {
   gap: 8px;
 }
 
+.modal-shortcut-hint {
+  margin: -2px 0 0;
+  color: var(--text-ghost);
+  font-size: 11px;
+}
+
 .terminal-block-send-panel {
   width: 440px;
 }
@@ -2052,9 +2125,9 @@ textarea:focus {
 }
 
 .save-prompt-confirm {
-  background: var(--accent-brand);
-  color: #fff;
-  border: none;
+  background: rgba(var(--accent-cyan-rgb), 0.14);
+  color: rgba(var(--accent-cyan-rgb), 0.95);
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.65);
   border-radius: var(--radius-sm);
   padding: 7px 18px;
   cursor: pointer;
@@ -3153,6 +3226,12 @@ textarea:focus {
   display: flex;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.prompt-list-item-actions .icon-button {
+  width: 30px;
+  height: 30px;
+  color: var(--text-secondary);
 }
 
 .prompt-list-empty {

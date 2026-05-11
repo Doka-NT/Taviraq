@@ -15,10 +15,13 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
   const { t } = useT()
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onCancel() }
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Enter') onConfirm()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onCancel])
+  }, [onCancel, onConfirm])
 
   return createPortal(
     <div
@@ -36,6 +39,7 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
         <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
           {message}
         </p>
+        <p className="modal-shortcut-hint">Enter confirms · Esc cancels</p>
         <div className="modal-actions">
           <button type="button" className="quiet-button" onClick={onCancel}>
             {t('confirm.cancel')}

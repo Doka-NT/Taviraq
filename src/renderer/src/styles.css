@@ -1202,7 +1202,7 @@ textarea:focus {
 .settings-content {
   min-width: 0;
   padding: 20px 24px 24px;
-  overflow-x: hidden;
+  overflow-x: clip;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;

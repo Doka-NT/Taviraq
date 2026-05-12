@@ -3247,6 +3247,8 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
   const [newContent, setNewContent] = useState('')
   const [promptStatus, setPromptStatus] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const promptNameInputRef = useRef<HTMLInputElement | null>(null)
+  const promptFormRef = useRef<HTMLDivElement | null>(null)
   const duplicateName = useMemo(() => {
     const name = normalizeLibraryName(newName)
     if (!name) return false
@@ -3338,6 +3340,14 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
     setNewContent('')
   }, [])
 
+  useEffect(() => {
+    if (!editing && !addingPrompt) return
+    requestAnimationFrame(() => {
+      promptNameInputRef.current?.focus()
+      promptFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }, [editing, addingPrompt])
+
   return (
     <section className="settings-section">
       <div className={`settings-section-heading ${settingsMatchClass([t('prompts.title'), t('prompts.importFromFile'), t('prompts.addPrompt'), 'prompt prompts template markdown import library'])}`}>
@@ -3393,8 +3403,9 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
       </div>
 
       {(editing || addingPrompt) ? (
-        <div className={`prompt-form ${settingsMatchClass([t('prompts.namePlaceholder'), t('prompts.contentPlaceholder'), t('prompts.savePrompt'), t('prompts.addPrompt'), newName, newContent, 'prompt name content'])}`}>
+        <div ref={promptFormRef} className={`prompt-form ${settingsMatchClass([t('prompts.namePlaceholder'), t('prompts.contentPlaceholder'), t('prompts.savePrompt'), t('prompts.addPrompt'), newName, newContent, 'prompt name content'])}`}>
           <input
+            ref={promptNameInputRef}
             type="text"
             placeholder={t('prompts.namePlaceholder')}
             value={newName}
@@ -3463,6 +3474,8 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
   const [status, setStatus] = useState('')
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const handledSnippetDraftRequestRef = useRef<string>()
+  const snippetNameInputRef = useRef<HTMLInputElement | null>(null)
+  const snippetFormRef = useRef<HTMLDivElement | null>(null)
   const duplicateName = useMemo(() => {
     const normalizedName = normalizeLibraryName(name)
     if (!normalizedName) return false
@@ -3563,6 +3576,14 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
     }
   }, [pendingDeleteId, reload])
 
+  useEffect(() => {
+    if (!editing && !addingSnippet) return
+    requestAnimationFrame(() => {
+      snippetNameInputRef.current?.focus()
+      snippetFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+  }, [editing, addingSnippet])
+
   return (
     <section className="settings-section">
       <div className={`settings-section-heading ${settingsMatchClass([t('snippets.title'), t('snippets.quickHint'), t('snippets.addSnippet'), 'snippet snippets command terminal shell quick open run insert'])}`}>
@@ -3610,8 +3631,9 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
       </div>
 
       {(editing || addingSnippet) ? (
-        <div className={`prompt-form ${settingsMatchClass([t('snippets.namePlaceholder'), t('snippets.commandPlaceholder'), t('snippets.saveSnippet'), t('snippets.addSnippet'), name, command, 'snippet command shell terminal'])}`}>
+        <div ref={snippetFormRef} className={`prompt-form ${settingsMatchClass([t('snippets.namePlaceholder'), t('snippets.commandPlaceholder'), t('snippets.saveSnippet'), t('snippets.addSnippet'), name, command, 'snippet command shell terminal'])}`}>
           <input
+            ref={snippetNameInputRef}
             type="text"
             placeholder={t('snippets.namePlaceholder')}
             value={name}

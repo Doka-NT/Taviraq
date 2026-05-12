@@ -33,8 +33,21 @@ The assistant receives only the context mode selected in the UI, for example:
 - current session context
 - no terminal context
 
-Before sharing logs or command output with a remote provider, remove secrets
-such as tokens, passwords, private hostnames, and customer data.
+When secret masking is enabled in Settings, Taviraq scans assistant requests
+locally before provider traffic leaves the app. This covers chat messages,
+selected text, terminal output, command-risk checks, and conversation summaries.
+Detected secrets are replaced with opaque placeholders for the model and shown
+as `[secret]` in the local UI.
+
+The bundled scanner uses Gitleaks plus Taviraq contextual checks for
+secret-looking values such as tokens, passwords, authorization headers, and
+credential URLs. If the bundled Gitleaks binary is unavailable in development,
+Taviraq still runs the contextual checks. Scanner failures and timeouts fail
+closed so raw content is not sent.
+
+Secret masking reduces accidental disclosure, but it is not a guarantee that
+all sensitive data will be detected. Be careful with private hostnames,
+customer data, and domain-specific identifiers that may not look like secrets.
 
 ## Command Safety
 
@@ -47,6 +60,10 @@ agent command to the terminal:
 3. Risky or unclear commands pause in an in-app confirmation modal.
 4. If the model is unavailable, times out, or returns unreadable output, Taviraq
    fails closed and requires confirmation.
+
+Commands that reference a masked local secret always pause for confirmation.
+Taviraq resolves the secret locally only after approval and immediately before
+writing the command to the terminal.
 
 Protected command classes include recursive deletion, elevated privileges,
 recursive permission changes, disk formatting, `curl | sh`, destructive

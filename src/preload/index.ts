@@ -17,6 +17,7 @@ import type {
   SavedChat,
   SavedChatSummary,
   SaveSessionStateRequest,
+  SecretMaskingMode,
   SessionStateSnapshot,
   SSHProfile,
   SSHProfileConfig,
@@ -56,7 +57,9 @@ const api = {
     notifyWindowReady: () => ipcRenderer.send('app:window-ready')
   },
   config: {
-    load: () => ipcRenderer.invoke('config:load') as Promise<AppConfig>
+    load: () => ipcRenderer.invoke('config:load') as Promise<AppConfig>,
+    setSecretMaskingMode: (mode: SecretMaskingMode) =>
+      ipcRenderer.invoke('config:setSecretMaskingMode', mode) as Promise<AppConfig>
   },
   terminal: {
     create: (request?: CreateTerminalRequest) =>

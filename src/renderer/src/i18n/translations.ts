@@ -7,6 +7,7 @@ export interface Translations {
   'settings.tab.appearance': string
   'settings.tab.providers': string
   'settings.tab.connections': string
+  'settings.tab.security': string
   'settings.tab.prompts': string
   'settings.tab.snippets': string
   'settings.tab.data': string
@@ -83,6 +84,19 @@ export interface Translations {
   'connections.emptyCta': string
   'connections.newConnection': string
   'connections.tab.newLocal': string
+
+  // Security tab
+  'security.title': string
+  'security.secretMasking.label': string
+  'security.secretMasking.desc': string
+  'security.secretMasking.off': string
+  'security.secretMasking.on': string
+  'security.secretMasking.onState': string
+  'security.secretMasking.offState': string
+  'security.secretMasking.onDesc': string
+  'security.secretMasking.offDesc': string
+  'security.secretMasking.warning': string
+  'security.maskedSecret.inline': string
 
   // Prompts tab
   'prompts.title': string
@@ -249,6 +263,7 @@ export interface Translations {
   'status.modelLoading': string
   'status.promptProcessing': string
   'status.blockPromptQueued': string
+  'status.privacyMasked': string
 
   // Suggestion chips
   'chip.space': string
@@ -306,6 +321,7 @@ export const en: Translations = {
   'settings.tab.appearance': 'Appearance',
   'settings.tab.providers': 'Providers',
   'settings.tab.connections': 'Connections',
+  'settings.tab.security': 'Security',
   'settings.tab.prompts': 'Prompts',
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
@@ -379,6 +395,18 @@ export const en: Translations = {
   'connections.emptyCta': 'Add first connection',
   'connections.newConnection': 'New Connection',
   'connections.tab.newLocal': 'New Local Terminal',
+
+  'security.title': 'Security',
+  'security.secretMasking.label': 'Secret masking',
+  'security.secretMasking.desc': 'Local scan for chat, terminal context, command checks, and summaries',
+  'security.secretMasking.off': 'Off',
+  'security.secretMasking.on': 'On',
+  'security.secretMasking.onState': 'Protected',
+  'security.secretMasking.offState': 'Unprotected',
+  'security.secretMasking.onDesc': 'Secret detection is active before provider requests.',
+  'security.secretMasking.offDesc': 'Secret detection is turned off.',
+  'security.secretMasking.warning': 'Sensitive values may be sent to the provider.',
+  'security.maskedSecret.inline': '[secret]',
 
   'prompts.title': 'Prompts',
   'prompts.importFromFile': 'Import from file',
@@ -537,6 +565,7 @@ export const en: Translations = {
   'status.modelLoading': 'Loading model {percent}%',
   'status.promptProcessing': 'Processing prompt {percent}%',
   'status.blockPromptQueued': 'Assistant is busy. Block prompt was placed in the input.',
+  'status.privacyMasked': '{count} secret(s) masked before sending to LLM.',
 
   'chip.space': "What's taking space?",
   'chip.spacePrompt': "What's taking the most disk space here?",
@@ -589,6 +618,7 @@ export const ru: Translations = {
   'settings.tab.appearance': 'Внешний вид',
   'settings.tab.providers': 'Провайдеры',
   'settings.tab.connections': 'Подключения',
+  'settings.tab.security': 'Безопасность',
   'settings.tab.prompts': 'Промпты',
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
@@ -662,6 +692,18 @@ export const ru: Translations = {
   'connections.emptyCta': 'Добавить первое подключение',
   'connections.newConnection': 'Новое подключение',
   'connections.tab.newLocal': 'Новый локальный терминал',
+
+  'security.title': 'Безопасность',
+  'security.secretMasking.label': 'Маскирование секретов',
+  'security.secretMasking.desc': 'Локальная проверка чата, контекста терминала, команд и саммари',
+  'security.secretMasking.off': 'Выкл.',
+  'security.secretMasking.on': 'Вкл.',
+  'security.secretMasking.onState': 'Защищено',
+  'security.secretMasking.offState': 'Не защищено',
+  'security.secretMasking.onDesc': 'Секреты маскируются перед отправкой провайдеру.',
+  'security.secretMasking.offDesc': 'Определение секретов отключено.',
+  'security.secretMasking.warning': 'Чувствительные данные могут быть отправлены провайдеру.',
+  'security.maskedSecret.inline': '[secret]',
 
   'prompts.title': 'Промпты',
   'prompts.importFromFile': 'Импорт из файла',
@@ -820,6 +862,7 @@ export const ru: Translations = {
   'status.modelLoading': 'Загрузка модели {percent}%',
   'status.promptProcessing': 'Обработка промпта {percent}%',
   'status.blockPromptQueued': 'Ассистент занят. Промпт по блоку помещён в поле ввода.',
+  'status.privacyMasked': 'Секретов скрыто перед отправкой в LLM: {count}.',
 
   'chip.space': 'Что занимает место?',
   'chip.spacePrompt': 'Что занимает больше всего места на диске?',
@@ -872,6 +915,7 @@ export const cn: Translations = {
   'settings.tab.appearance': '外观',
   'settings.tab.providers': '提供商',
   'settings.tab.connections': '连接',
+  'settings.tab.security': '安全',
   'settings.tab.prompts': '提示词',
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
@@ -945,6 +989,18 @@ export const cn: Translations = {
   'connections.emptyCta': '添加第一个连接',
   'connections.newConnection': '新连接',
   'connections.tab.newLocal': '新建本地终端',
+
+  'security.title': '安全',
+  'security.secretMasking.label': '密钥遮蔽',
+  'security.secretMasking.desc': '本地扫描聊天、终端上下文、命令检查和摘要',
+  'security.secretMasking.off': '关闭',
+  'security.secretMasking.on': '开启',
+  'security.secretMasking.onState': '已保护',
+  'security.secretMasking.offState': '未保护',
+  'security.secretMasking.onDesc': '发送给提供商前会检测密钥。',
+  'security.secretMasking.offDesc': '密钥检测已关闭。',
+  'security.secretMasking.warning': '敏感值可能会发送给提供商。',
+  'security.maskedSecret.inline': '[secret]',
 
   'prompts.title': '提示词',
   'prompts.importFromFile': '从文件导入',
@@ -1103,6 +1159,7 @@ export const cn: Translations = {
   'status.modelLoading': '正在加载模型 {percent}%',
   'status.promptProcessing': '正在处理提示 {percent}%',
   'status.blockPromptQueued': '助手正忙。块提示已放入输入框。',
+  'status.privacyMasked': '发送给 LLM 前已遮蔽 {count} 个密钥。',
 
   'chip.space': '什么占用了空间？',
   'chip.spacePrompt': '这里什么占用了最多磁盘空间？',

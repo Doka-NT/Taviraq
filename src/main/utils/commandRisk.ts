@@ -7,6 +7,10 @@ type ProtectedPattern = {
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
   {
+    pattern: /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/,
+    reason: 'This command uses a local secret and must be reviewed before Taviraq resolves it.'
+  },
+  {
     pattern: /\brm\s+(?:-[^\s]*[rf][^\s]*|-[^\s]*[fr][^\s]*)\b/i,
     reason: 'This command can recursively or forcefully delete files.'
   },

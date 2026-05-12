@@ -14,19 +14,21 @@ import type {
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
   SavedChat,
+  SecretMaskingMode,
   SSHProfile,
   SSHProfileConfig,
   SummarizeConversationRequest
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
-import { ConfigStore } from './services/configStore'
+import { ConfigStore, normalizeSecretMaskingMode } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
 import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
+import { resolveSecretPlaceholders, type SecretMaskContext } from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
@@ -41,7 +43,6 @@ let currentHideShortcut = ''
 let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
 let quitWindowBoundsSave: Promise<void> | undefined
-const terminalManager = new TerminalManager(() => mainWindow)
 const configStore = new ConfigStore()
 const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
@@ -49,6 +50,10 @@ const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
+const secretContextsBySession = new Map<string, SecretMaskContext>()
+const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
+  secretContextsBySession.delete(sessionId)
+})
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
 const demoProvider = {
@@ -63,10 +68,32 @@ const demoConfig: AppConfig = {
   providers: [demoProvider],
   activeProviderRef: demoProvider.apiKeyRef,
   hideShortcut: 'CommandOrControl+Shift+Space',
+  secretMasking: {
+    mode: 'on'
+  },
   windowBounds: {
     width: 1440,
     height: 920
   }
+}
+
+let secretMaskingModeCache: SecretMaskingMode = normalizeSecretMaskingMode(demoConfig.secretMasking?.mode)
+
+async function initializeSecretMaskingModeCache(): Promise<void> {
+  if (DEMO_MODE) {
+    updateSecretMaskingModeCache(demoConfig)
+    return
+  }
+
+  updateSecretMaskingModeCache(await configStore.load())
+}
+
+function updateSecretMaskingModeCache(config: AppConfig): void {
+  secretMaskingModeCache = normalizeSecretMaskingMode(config.secretMasking?.mode)
+}
+
+function getSecretMaskingMode(): SecretMaskingMode {
+  return DEMO_MODE ? normalizeSecretMaskingMode(demoConfig.secretMasking?.mode) : secretMaskingModeCache
 }
 
 function isAllowedExternalUrl(value: string): boolean {
@@ -444,7 +471,24 @@ async function createWindow(): Promise<void> {
 }
 
 function registerIpc(): void {
-  ipcMain.handle('config:load', () => DEMO_MODE ? demoConfig : configStore.load())
+  ipcMain.handle('config:load', async () => {
+    const config = DEMO_MODE ? demoConfig : await configStore.load()
+    updateSecretMaskingModeCache(config)
+    return config
+  })
+
+  ipcMain.handle('config:setSecretMaskingMode', async (_event, mode: SecretMaskingMode) => {
+    const normalizedMode = normalizeSecretMaskingMode(mode)
+    if (DEMO_MODE) {
+      demoConfig.secretMasking = { mode: normalizedMode }
+      updateSecretMaskingModeCache(demoConfig)
+      return demoConfig
+    }
+
+    const config = await configStore.updateSecretMaskingMode(normalizedMode)
+    updateSecretMaskingModeCache(config)
+    return config
+  })
 
   ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
     return openAllowedExternalUrl(url)
@@ -561,7 +605,7 @@ function registerIpc(): void {
     return listModels(request.provider)
   })
 
-  ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {
+  ipcMain.handle('llm:assessCommandRisk', async (_event, request: CommandRiskAssessmentRequest) => {
     if (DEMO_MODE) {
       return {
         dangerous: /\brm\s+-rf\b|sudo|chmod\s+-r/i.test(request.command),
@@ -569,7 +613,7 @@ function registerIpc(): void {
       }
     }
 
-    return assessCommandRisk(request)
+    return assessCommandRisk(request, getSecretMaskingMode())
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {
@@ -581,12 +625,13 @@ function registerIpc(): void {
     }
 
     const requestId = request.requestId
-    if (!requestId) return summarizeConversation(request)
+    const secretMaskingMode = getSecretMaskingMode()
+    if (!requestId) return summarizeConversation(request, undefined, secretMaskingMode)
 
     const controller = new AbortController()
     summarizeControllers.set(requestId, controller)
     try {
-      return await summarizeConversation(request, controller.signal)
+      return await summarizeConversation(request, controller.signal, secretMaskingMode)
     } finally {
       summarizeControllers.delete(requestId)
     }
@@ -603,7 +648,8 @@ function registerIpc(): void {
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
-    terminalManager.runConfirmed(sessionId, command)
+    const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
+    terminalManager.runConfirmed(sessionId, resolvedCommand)
   })
 
   // Prompts
@@ -707,8 +753,9 @@ function registerIpc(): void {
     const currentProviderRefs = new Set(currentConfig.providers.map((provider) => provider.apiKeyRef))
     const importedProviders = data.config?.providers ?? []
     const newProviders = importedProviders.filter((provider) => !currentProviderRefs.has(provider.apiKeyRef))
-    const mergedConfig = {
+    const mergedConfig: AppConfig = {
       ...currentConfig,
+      secretMasking: data.config?.secretMasking ?? currentConfig.secretMasking,
       providers: [...currentConfig.providers, ...newProviders]
     }
 
@@ -730,6 +777,7 @@ function registerIpc(): void {
     }
 
     await configStore.save(mergedConfig)
+    updateSecretMaskingModeCache(mergedConfig)
     for (const prompt of newPrompts) {
       await promptStore.save(prompt)
     }
@@ -778,54 +826,69 @@ function registerIpc(): void {
       return
     }
 
-    void streamChatCompletion(request, (chunk) => {
-      if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
-        event.sender.send('llm:chatStream:event', {
-          requestId: request.requestId,
-          type: 'progress',
-          stage: chunk.stage,
-          progress: chunk.progress
-        })
-      }
+    void (async () => {
+      try {
+        const result = await streamChatCompletion(request, (chunk) => {
+          if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
+            event.sender.send('llm:chatStream:event', {
+              requestId: request.requestId,
+              type: 'privacy',
+              maskedSecrets: chunk.maskedSecrets
+            })
+          }
 
-      if (chunk.reasoningContent) {
-        event.sender.send('llm:chatStream:event', {
-          requestId: request.requestId,
-          type: 'reasoning',
-          content: chunk.reasoningContent
-        })
-      }
+          if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
+            event.sender.send('llm:chatStream:event', {
+              requestId: request.requestId,
+              type: 'progress',
+              stage: chunk.stage,
+              progress: chunk.progress
+            })
+          }
 
-      if (chunk.content) {
-        event.sender.send('llm:chatStream:event', {
-          requestId: request.requestId,
-          type: 'chunk',
-          content: chunk.content
-        })
-      }
-    }, controller.signal)
-      .then(() => {
+          if (chunk.reasoningContent) {
+            event.sender.send('llm:chatStream:event', {
+              requestId: request.requestId,
+              type: 'reasoning',
+              content: chunk.reasoningContent
+            })
+          }
+
+          if (chunk.content) {
+            event.sender.send('llm:chatStream:event', {
+              requestId: request.requestId,
+              type: 'chunk',
+              content: chunk.content
+            })
+          }
+        }, controller.signal, getSecretMaskingMode())
+
         if (controller.signal.aborted) return
+        const sessionId = request.context.session?.id
+        if (sessionId && result.secretContext.bindings.length > 0) {
+          secretContextsBySession.set(sessionId, result.secretContext)
+        }
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
-          type: 'done'
+          type: 'done',
+          ...(result.maskedContent ? { maskedContent: result.maskedContent } : {})
         })
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (controller.signal.aborted) return
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
           type: 'error',
           message: error instanceof Error ? error.message : String(error)
         })
-      })
-      .finally(() => {
+      } finally {
         chatStreamControllers.delete(request.requestId)
-      })
+      }
+    })()
   })
 }
 
-void app.whenReady().then(() => {
+void app.whenReady().then(async () => {
+  await initializeSecretMaskingModeCache()
   registerApplicationMenu()
   registerIpc()
   void createWindow()

@@ -11,3 +11,4 @@ demo-artifacts
 .env.*
 .claude/worktrees/
 screenshots/
+resources/gitleaks/

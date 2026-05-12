@@ -36,7 +36,10 @@ interface ManagedSession {
 export class TerminalManager {
   private readonly sessions = new Map<string, ManagedSession>()
 
-  constructor(private readonly getWindow: () => BrowserWindow | undefined) {}
+  constructor(
+    private readonly getWindow: () => BrowserWindow | undefined,
+    private readonly onSessionClosed?: (sessionId: string) => void
+  ) {}
 
   createLocal(request: CreateTerminalRequest = {}): TerminalSessionInfo {
     const shell = process.env.SHELL || '/bin/zsh'
@@ -98,7 +101,9 @@ export class TerminalManager {
     }
 
     session.pty.kill()
-    this.sessions.delete(sessionId)
+    if (this.sessions.delete(sessionId)) {
+      this.onSessionClosed?.(sessionId)
+    }
     this.emit('terminal:exit', { sessionId, exitCode: 0 })
   }
 
@@ -217,7 +222,9 @@ export class TerminalManager {
       if (managed.zdotdir) {
         try { rmSync(managed.zdotdir, { recursive: true }) } catch { /* ignore */ }
       }
-      this.sessions.delete(id)
+      if (this.sessions.delete(id)) {
+        this.onSessionClosed?.(id)
+      }
       this.emit('terminal:exit', { sessionId: id, exitCode })
     })
 

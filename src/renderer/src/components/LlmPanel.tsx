@@ -5,12 +5,12 @@ import {
 import { createPortal } from 'react-dom'
 import {
   AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, GitFork, History, KeyRound, Pencil,
-  MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
+  MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
   RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
-  TerminalContext, TerminalSessionInfo
+  SecretMaskingMode, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
@@ -31,6 +31,21 @@ const ANSI_RE = new RegExp(
   'g'
 )
 const stripAnsi = (s: string): string => s.replace(OSC_RE, '').replace(ANSI_RE, '')
+const SECRET_PLACEHOLDER_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/
+const SECRET_PLACEHOLDER_GLOBAL_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g
+const SECRET_PLACEHOLDER_STORAGE_LABEL = '[secret]'
+
+function containsSecretPlaceholder(text: string): boolean {
+  return SECRET_PLACEHOLDER_RE.test(text)
+}
+
+function hideSecretPlaceholders(text: string, replacement: string): string {
+  return text.replace(SECRET_PLACEHOLDER_GLOBAL_RE, replacement)
+}
+
+function hidePersistedSecretPlaceholders(text?: string): string | undefined {
+  return text === undefined ? undefined : hideSecretPlaceholders(text, SECRET_PLACEHOLDER_STORAGE_LABEL)
+}
 
 function getTerminalDelta(before: string, after: string): string {
   if (after.startsWith(before)) return after.slice(before.length)
@@ -119,12 +134,13 @@ const MAX_SSH_PORT = 65535
 const MIN_OUTPUT_CONTEXT = 1000
 
 type ThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status'
   command?: string
   output?: string
+  maskedContent?: string
   reasoningContent?: string
 }
-type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
+type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 
 interface CommandConfirmation {
   sessionId: string
@@ -303,11 +319,11 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
   return {
     messages: thread.messages.map((message) => ({
       role: message.role,
-      content: message.content,
+      content: hideSecretPlaceholders(message.content, SECRET_PLACEHOLDER_STORAGE_LABEL),
       display: message.display,
-      command: message.command,
-      output: message.output,
-      reasoningContent: message.reasoningContent
+      command: hidePersistedSecretPlaceholders(message.command),
+      output: hidePersistedSecretPlaceholders(message.output),
+      reasoningContent: hidePersistedSecretPlaceholders(message.reasoningContent)
     })),
     draft: thread.draft,
     session: thread.session
@@ -461,6 +477,7 @@ export function LlmPanel({
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
+  const [secretMaskingMode, setSecretMaskingMode] = useState<SecretMaskingMode>('on')
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('providers')
   const [settingsSearch, setSettingsSearch] = useState('')
   const lastAutoOpenedSettingsQueryRef = useRef('')
@@ -607,10 +624,11 @@ export function LlmPanel({
       title,
       messages: thread.messages.map((m) => ({
         role: m.role,
-        content: m.content,
+        content: hideSecretPlaceholders(m.content, SECRET_PLACEHOLDER_STORAGE_LABEL),
         display: m.display,
-        command: m.command,
-        output: m.output
+        command: hidePersistedSecretPlaceholders(m.command),
+        output: hidePersistedSecretPlaceholders(m.output),
+        reasoningContent: hidePersistedSecretPlaceholders(m.reasoningContent)
       })),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -688,6 +706,7 @@ export function LlmPanel({
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
     setHasApiKey(Boolean(loaded.apiKeyRef && loadedActiveProviderRef))
+    setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
   }, [])
 
   // Load config on mount
@@ -919,6 +938,38 @@ export function LlmPanel({
         })
       }
 
+      if (event.type === 'privacy') {
+        updateThread(sessionId, (thread) => {
+          if (thread.activeRequestId !== event.requestId) return thread
+          const message: ThreadMessage = {
+            role: 'assistant',
+            content: t('status.privacyMasked', { count: event.maskedSecrets }),
+            display: 'privacy-status',
+            output: String(event.maskedSecrets)
+          }
+          const messages = [...thread.messages]
+          let lastAssistantIndex = -1
+          for (let index = messages.length - 1; index >= 0; index -= 1) {
+            if (messages[index]?.role === 'assistant') {
+              lastAssistantIndex = index
+              break
+            }
+          }
+          if (lastAssistantIndex === -1) {
+            messages.push(message)
+          } else {
+            messages.splice(lastAssistantIndex, 0, message)
+          }
+
+          return {
+            ...thread,
+            messages,
+            status: null
+          }
+        })
+        autoSaveThreadToHistory(sessionId)
+      }
+
       if (event.type === 'error') {
         requestSessionRef.current.delete(event.requestId)
         promptResolversRef.current.delete(sessionId)
@@ -940,13 +991,26 @@ export function LlmPanel({
         const doneThread = getThread(sessionId)
         const agenticContent =
           doneThread.activeRequestId === event.requestId && doneThread.agenticRunning
-            ? doneThread.streamingContent
+            ? event.maskedContent ?? doneThread.streamingContent
             : null
         requestSessionRef.current.delete(event.requestId)
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
+          const maskedResponseContent = event.maskedContent && containsSecretPlaceholder(event.maskedContent)
+            ? event.maskedContent
+            : undefined
+          const nextMessages = maskedResponseContent ? [...thread.messages] : thread.messages
+          const lastMessage = nextMessages.at(-1)
+          if (maskedResponseContent && lastMessage?.role === 'assistant') {
+            nextMessages[nextMessages.length - 1] = {
+              ...lastMessage,
+              maskedContent: maskedResponseContent
+            }
+          }
+
           return {
             ...thread,
+            messages: nextMessages,
             streaming: false,
             status: null,
             activeRequestId: undefined,
@@ -1643,6 +1707,15 @@ export function LlmPanel({
     })
   }, [])
 
+  const updateSecretMaskingMode = useCallback((mode: SecretMaskingMode) => {
+    setSecretMaskingMode(mode)
+    void window.api.config.setSecretMaskingMode(mode).then((result) => {
+      setSecretMaskingMode(result.secretMasking?.mode ?? mode)
+    }).catch((err: unknown) => {
+      setProviderStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }, [])
+
   const handleTextSizeChange = useCallback((value: string) => {
     setTextSizeDraft(value)
 
@@ -1804,6 +1877,14 @@ export function LlmPanel({
     prompt: t(`chip.${chip.id}Prompt` as Parameters<typeof t>[0])
   })), [activeSession?.cwd, assistMode, selectedText, strippedTerminalOutput, t])
   const inputDisabled = Boolean(commandConfirmation)
+  const maskedSecretLabel = t('security.maskedSecret.inline')
+  const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
+  const commandConfirmationUsesLocalSecret = commandConfirmation
+    ? containsSecretPlaceholder(commandConfirmation.command)
+    : false
+  const visibleCommandConfirmationCommand = commandConfirmation
+    ? hideSecretPlaceholders(commandConfirmation.command, maskedSecretLabel)
+    : ''
   const settingsNavItems = useMemo<Array<{ id: SettingsTab; label: string; terms: string[] }>>(() => [
     {
       id: 'appearance',
@@ -1834,6 +1915,16 @@ export function LlmPanel({
         t('connections.port'), t('connections.identityFile'), t('connections.browseIdentityFile'),
         t('connections.extraArgs'), t('connections.connect'),
         'ssh connection host user port identity file key pem rsa args'
+      ]
+    },
+    {
+      id: 'security',
+      label: t('settings.tab.security'),
+      terms: [
+        t('security.title'), t('security.secretMasking.label'), t('security.secretMasking.desc'),
+        t('security.secretMasking.off'), t('security.secretMasking.on'),
+        t('security.secretMasking.onState'), t('security.secretMasking.offState'), t('security.secretMasking.warning'),
+        'security privacy gitleaks secret masking token password'
       ]
     },
     {
@@ -2301,6 +2392,56 @@ export function LlmPanel({
                   </>
                 ) : null}
 
+                {!settingsNoResults && settingsTab === 'security' ? (
+                  <>
+                    <h3 className="settings-content-title">{t('security.title')}</h3>
+                    <div className={`appearance-row security-row ${secretMaskingMode === 'on' ? 'security-row--on' : 'security-row--off'} ${settingsMatchClass([t('security.secretMasking.label'), t('security.secretMasking.desc'), t('security.secretMasking.off'), t('security.secretMasking.on'), t('security.secretMasking.onState'), t('security.secretMasking.offState'), t('security.secretMasking.warning'), 'security privacy gitleaks secret masking token password'])}`}>
+                      <div className="appearance-row-left security-row-left">
+                        <div className="security-row-heading">
+                          <span className="security-row-icon" aria-hidden>
+                            {secretMaskingMode === 'on' ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                          </span>
+                          <span className="appearance-row-label"><HighlightSearchText text={t('security.secretMasking.label')} query={settingsSearch} /></span>
+                          <span className="security-row-state">
+                            <HighlightSearchText
+                              text={secretMaskingMode === 'on' ? t('security.secretMasking.onState') : t('security.secretMasking.offState')}
+                              query={settingsSearch}
+                            />
+                          </span>
+                        </div>
+                        <small className="appearance-row-desc">
+                          <HighlightSearchText
+                            text={secretMaskingMode === 'on' ? t('security.secretMasking.onDesc') : t('security.secretMasking.offDesc')}
+                            query={settingsSearch}
+                          />
+                        </small>
+                        <small className="security-row-footnote"><HighlightSearchText text={t('security.secretMasking.desc')} query={settingsSearch} /></small>
+                        <small className={`security-row-warning ${secretMaskingMode === 'off' ? '' : 'security-row-warning--reserved'}`}>
+                          {secretMaskingMode === 'off' ? <AlertTriangle size={11} aria-hidden /> : null}
+                          <span>
+                            {secretMaskingMode === 'off' ? (
+                              <HighlightSearchText text={t('security.secretMasking.warning')} query={settingsSearch} />
+                            ) : null}
+                          </span>
+                        </small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <button
+                          type="button"
+                          className={`security-switch ${secretMaskingMode === 'on' ? 'on' : ''}`}
+                          role="switch"
+                          aria-checked={secretMaskingMode === 'on'}
+                          aria-label={t('security.secretMasking.label')}
+                          title={secretMaskingMode === 'on' ? t('security.secretMasking.on') : t('security.secretMasking.off')}
+                          onClick={() => updateSecretMaskingMode(secretMaskingMode === 'on' ? 'off' : 'on')}
+                        >
+                          <span aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
                 {!settingsNoResults && settingsTab === 'connections' ? (
                   <>
                     <h3 className="settings-content-title">{t('connections.title')}</h3>
@@ -2642,22 +2783,37 @@ export function LlmPanel({
           const canFork = message.role === 'assistant'
 
           if (message.display === 'command-output') {
+            const visibleCommand = message.command ? hideSecretPlaceholders(message.command, maskedSecretLabel) : ''
+            const visibleOutput = hideSecretPlaceholders(message.output?.trim() ?? '', maskedSecretLabel)
             return (
               <div className="command-output-message" key={`command-output-${index}`}>
                 <div>
                   <span className="system-prefix">&gt;</span>
                   <span>{t('chat.commandOutput.label')}</span>
-                  {message.command ? <code>{message.command}</code> : null}
+                  {visibleCommand ? <code>{visibleCommand}</code> : null}
                 </div>
                 <details>
                   <summary>{t('chat.commandOutput.show')}</summary>
-                  <pre>{message.output?.trim() || t('chat.commandOutput.noOutput')}</pre>
+                  <pre>{visibleOutput || t('chat.commandOutput.noOutput')}</pre>
                 </details>
               </div>
             )
           }
 
+          if (message.display === 'privacy-status') {
+            return (
+              <div className="command-output-message privacy-status-message" key={`privacy-status-${index}`}>
+                <div>
+                  <span className="system-prefix">&gt;</span>
+                  <span>{message.content}</span>
+                </div>
+              </div>
+            )
+          }
+
           if (message.display === 'system-status') {
+            const visibleOriginalCommand = hideSecretPlaceholders(message.output ?? '', maskedSecretLabel)
+            const visibleFinalCommand = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
             return (
               <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
                 <div>
@@ -2667,11 +2823,11 @@ export function LlmPanel({
                 <div className="command-edit-details">
                   <div>
                     <span>{t('chat.commandEdited.original')}</span>
-                    <pre>{message.output}</pre>
+                    <pre>{visibleOriginalCommand}</pre>
                   </div>
                   <div>
                     <span>{t('chat.commandEdited.final')}</span>
-                    <pre>{message.command}</pre>
+                    <pre>{visibleFinalCommand}</pre>
                   </div>
                 </div>
               </div>
@@ -2690,7 +2846,7 @@ export function LlmPanel({
               </div>
               {message.role === 'assistant' && message.reasoningContent ? (
                 <ThinkingBlock
-                  content={message.reasoningContent}
+                  content={hideSecretPlaceholders(message.reasoningContent, maskedSecretLabel)}
                   isStreaming={reasoningIsStreaming}
                   title={t('chat.thinking')}
                 />
@@ -2701,14 +2857,15 @@ export function LlmPanel({
                 </div>
               ) : message.role === 'assistant' && message.content ? (
                 <MessageContent
-                  content={message.content}
+                  content={message.maskedContent ?? message.content}
+                  redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
                   disabled={!activeSession || agenticCommandRunning}
                   runLabel={t('chat.runInTerminal')}
                 />
               ) : message.role === 'assistant' ? null : (
-                <p>{message.content}</p>
+                <p>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
               )}
               {canRegenerate || canFork ? (
                 <div className="chat-message-actions">
@@ -2745,7 +2902,7 @@ export function LlmPanel({
         {agenticRunning && agenticStep > 0 ? (
           <div className="agentic-status">
             <Zap size={12} aria-hidden />
-            <span>{t('agent.step', { step: agenticStep, state: commandConfirmation ? t('agent.waiting') : t('agent.running') })} <code>{agenticCommand}</code></span>
+            <span>{t('agent.step', { step: agenticStep, state: commandConfirmation ? t('agent.waiting') : t('agent.running') })} <code>{visibleAgenticCommand}</code></span>
           </div>
         ) : null}
 
@@ -2773,10 +2930,16 @@ export function LlmPanel({
             <label className="command-confirmation-command">
               <span>{t('confirm.command')}</span>
               <textarea
-                value={commandConfirmation.command}
-                onChange={(event) => updateCommandConfirmationCommand(commandConfirmation.sessionId, event.target.value)}
+                value={visibleCommandConfirmationCommand}
+                onChange={(event) => {
+                  if (!commandConfirmationUsesLocalSecret) {
+                    updateCommandConfirmationCommand(commandConfirmation.sessionId, event.target.value)
+                  }
+                }}
+                readOnly={commandConfirmationUsesLocalSecret}
+                aria-readonly={commandConfirmationUsesLocalSecret}
                 spellCheck={false}
-                rows={Math.min(5, Math.max(2, commandConfirmation.command.split('\n').length))}
+                rows={Math.min(5, Math.max(2, visibleCommandConfirmationCommand.split('\n').length))}
               />
             </label>
             <div className="command-confirmation-reason">

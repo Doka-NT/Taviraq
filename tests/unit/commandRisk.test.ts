@@ -11,7 +11,8 @@ describe('protected command risk checks', () => {
     'DROP DATABASE app;',
     'git reset --hard HEAD',
     'brew install jq',
-    'killall node'
+    'killall node',
+    'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
   ])('requires confirmation for %s', (command) => {
     expect(assessProtectedCommandRisk({
       command,

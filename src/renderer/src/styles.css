@@ -888,6 +888,8 @@ button {
   color: rgba(var(--surface-rgb), 0.38);
   background: rgba(var(--surface-rgb), 0.06);
   font-size: 11px;
+  cursor: default;
+  user-select: none;
 }
 
 .permission-chip.shell span:last-child {
@@ -944,6 +946,8 @@ button {
   color: rgba(var(--surface-rgb), 0.38);
   background: rgba(var(--surface-rgb), 0.06);
   font-size: 11px;
+  cursor: default;
+  user-select: none;
 }
 
 .live-status-dot {

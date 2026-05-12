@@ -287,6 +287,7 @@ export interface Translations {
   'snippetPalette.addSnippet': string
   'snippetPalette.runNow': string
   'snippetPalette.empty': string
+  'snippetPalette.emptyCta': string
   'snippetPalette.noMatch': string
 
   // Prompt palette
@@ -295,6 +296,7 @@ export interface Translations {
   'promptPalette.enterInserts': string
   'promptPalette.addPrompt': string
   'promptPalette.empty': string
+  'promptPalette.emptyCta': string
   'promptPalette.noMatch': string
 }
 
@@ -568,14 +570,16 @@ export const en: Translations = {
   'snippetPalette.metaEnterRuns': '⌘Enter runs',
   'snippetPalette.addSnippet': 'Add snippet',
   'snippetPalette.runNow': 'Run now',
-  'snippetPalette.empty': 'No command snippets yet. Add them in Settings.',
+  'snippetPalette.empty': 'No command snippets yet.',
+  'snippetPalette.emptyCta': 'Add snippet',
   'snippetPalette.noMatch': 'No matching snippets.',
 
   'promptPalette.title': 'Prompts',
   'promptPalette.search': 'Search prompts...',
   'promptPalette.enterInserts': 'Enter inserts',
   'promptPalette.addPrompt': 'Add prompt',
-  'promptPalette.empty': 'No prompts yet. Add them in Settings.',
+  'promptPalette.empty': 'No prompts yet.',
+  'promptPalette.emptyCta': 'Add prompt',
   'promptPalette.noMatch': 'No matching prompts.',
 }
 
@@ -849,14 +853,16 @@ export const ru: Translations = {
   'snippetPalette.metaEnterRuns': '⌘Enter запускает',
   'snippetPalette.addSnippet': 'Добавить сниппет',
   'snippetPalette.runNow': 'Запустить сейчас',
-  'snippetPalette.empty': 'Сниппетов команд пока нет. Добавьте их в настройках.',
+  'snippetPalette.empty': 'Сниппетов команд пока нет.',
+  'snippetPalette.emptyCta': 'Добавить сниппет',
   'snippetPalette.noMatch': 'Подходящих сниппетов нет.',
 
   'promptPalette.title': 'Промпты',
   'promptPalette.search': 'Поиск промптов...',
   'promptPalette.enterInserts': 'Enter вставляет',
   'promptPalette.addPrompt': 'Добавить промпт',
-  'promptPalette.empty': 'Промптов пока нет. Добавьте их в настройках.',
+  'promptPalette.empty': 'Промптов пока нет.',
+  'promptPalette.emptyCta': 'Добавить промпт',
   'promptPalette.noMatch': 'Подходящих промптов нет.',
 }
 
@@ -1130,14 +1136,16 @@ export const cn: Translations = {
   'snippetPalette.metaEnterRuns': '⌘Enter 运行',
   'snippetPalette.addSnippet': '添加片段',
   'snippetPalette.runNow': '立即运行',
-  'snippetPalette.empty': '还没有命令片段。请在设置中添加。',
+  'snippetPalette.empty': '还没有命令片段。',
+  'snippetPalette.emptyCta': '添加片段',
   'snippetPalette.noMatch': '没有匹配的片段。',
 
   'promptPalette.title': '提示词',
   'promptPalette.search': '搜索提示词...',
   'promptPalette.enterInserts': 'Enter 插入',
   'promptPalette.addPrompt': '添加提示词',
-  'promptPalette.empty': '还没有提示词。请在设置中添加。',
+  'promptPalette.empty': '还没有提示词。',
+  'promptPalette.emptyCta': '添加提示词',
   'promptPalette.noMatch': '没有匹配的提示词。',
 }
 

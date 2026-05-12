@@ -2005,9 +2005,17 @@ textarea:focus {
 }
 
 .command-snippet-palette-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin: 16px 10px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.command-snippet-palette-empty p {
+  margin: 0;
 }
 
 /* Settings shared */
@@ -3500,9 +3508,17 @@ textarea:focus {
 }
 
 .prompt-picker-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin: 16px 10px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.prompt-picker-empty p {
+  margin: 0;
 }
 
 /* Prompt Library Settings Section */
@@ -3707,10 +3723,22 @@ textarea:focus {
 }
 
 .history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   text-align: center;
   color: var(--text-secondary);
   font-size: 13px;
   padding: 32px 16px;
+  margin: 0;
+}
+
+.history-empty svg {
+  opacity: 0.35;
+}
+
+.history-empty p {
   margin: 0;
 }
 

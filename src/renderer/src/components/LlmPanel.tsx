@@ -2577,11 +2577,12 @@ export function LlmPanel({
           </div>
           <div className="history-list">
             {filteredHistoryChats.length === 0 ? (
-              <p className="history-empty">
-                {historyChats.length > 0 && historySearch.trim()
+              <div className="history-empty">
+                <History size={28} aria-hidden />
+                <p>{historyChats.length > 0 && historySearch.trim()
                   ? t('chat.historyNoMatch', { query: historySearch.trim() })
-                  : t('chat.historyEmpty')}
-              </p>
+                  : t('chat.historyEmpty')}</p>
+              </div>
             ) : (
               filteredHistoryChats.map((chat) => (
                 <div key={chat.id} className="history-item" onClick={() => handleReopenChat(chat.id)}>
@@ -3384,12 +3385,6 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
         ) : (
           <div className="prompt-list-empty">
             <p>{t('prompts.noPrompts')}</p>
-            {!editing && !addingPrompt ? (
-              <button type="button" className="quiet-button" onClick={handleAddPrompt}>
-                <Plus size={12} aria-hidden />
-                {t('prompts.addPrompt')}
-              </button>
-            ) : null}
           </div>
         )}
       </div>
@@ -3607,12 +3602,6 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
         )) : (
           <div className="prompt-list-empty">
             <p>{t('snippets.noSnippets')}</p>
-            {!editing && !addingSnippet ? (
-              <button type="button" className="quiet-button" onClick={handleAddSnippet}>
-                <Plus size={12} aria-hidden />
-                {t('snippets.addSnippet')}
-              </button>
-            ) : null}
           </div>
         )}
       </div>

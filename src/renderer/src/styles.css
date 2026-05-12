@@ -676,10 +676,18 @@ button {
 
 .terminal-search-count {
   min-width: 50px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
   text-align: right;
   white-space: nowrap;
+}
+
+.terminal-search-count.no-results {
+  color: var(--accent-red-text);
+}
+
+.terminal-search-panel.no-results {
+  border-color: rgba(var(--accent-red-rgb), 0.45);
 }
 
 .terminal-search-button {

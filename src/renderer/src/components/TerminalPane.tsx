@@ -37,6 +37,12 @@ export interface TerminalPaneHandle {
   focus: () => void
 }
 
+const SEARCH_DECORATIONS = {
+  matchBackground: '#29C4E826',
+  matchOverviewRuler: '#29C4E8',
+  activeMatchColorOverviewRuler: '#29C4E8'
+}
+
 const DEFAULT_TERMINAL_THEME: TerminalColors = {
   background: '#0C0C0E',
   foreground: 'rgba(255,255,255,0.78)',
@@ -466,12 +472,12 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   const findNext = useCallback((): void => {
     if (!searchTerm.trim()) return
-    searchRef.current?.findNext(searchTerm)
+    searchRef.current?.findNext(searchTerm, { decorations: SEARCH_DECORATIONS })
   }, [searchTerm])
 
   const findPrevious = useCallback((): void => {
     if (!searchTerm.trim()) return
-    searchRef.current?.findPrevious(searchTerm)
+    searchRef.current?.findPrevious(searchTerm, { decorations: SEARCH_DECORATIONS })
   }, [searchTerm])
 
   useEffect(() => {
@@ -655,7 +661,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     if (!search || !isSearchOpen) return
 
     if (searchTerm.trim()) {
-      search.findNext(searchTerm, { incremental: true })
+      search.findNext(searchTerm, { incremental: true, decorations: SEARCH_DECORATIONS })
     } else {
       search.clearDecorations()
       setSearchResults(null)
@@ -973,7 +979,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         </div>
       ) : null}
       {isSearchOpen ? (
-        <div className="terminal-search-panel">
+        <div className={`terminal-search-panel${searchTerm.trim() && searchResults?.count === 0 ? ' no-results' : ''}`}>
           <Search size={14} aria-hidden="true" />
           <input
             ref={searchInputRef}
@@ -983,7 +989,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
             placeholder={t('terminal.searchPlaceholder')}
             aria-label={t('terminal.searchPlaceholder')}
           />
-          <span className="terminal-search-count">
+          <span className={`terminal-search-count${searchTerm.trim() && searchResults?.count === 0 ? ' no-results' : ''}`}>
             {searchTerm.trim() && searchResults
               ? searchResults.count > 0 && searchResults.index >= 0
                 ? `${searchResults.index + 1}/${searchResults.count}`

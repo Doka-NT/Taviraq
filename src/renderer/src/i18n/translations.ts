@@ -136,6 +136,7 @@ export interface Translations {
   'data.clearChatHistoryConfirmTitle': string
   'data.clearChatHistoryConfirmMessage': string
   'data.clearChatHistoryConfirmBtn': string
+  'data.dangerZone': string
 
   // Terminal
   'terminal.sshDisconnected': string
@@ -426,6 +427,7 @@ export const en: Translations = {
   'data.clearChatHistoryConfirmTitle': 'Clear chat history?',
   'data.clearChatHistoryConfirmMessage': 'All saved chat conversations will be deleted. This action cannot be undone.',
   'data.clearChatHistoryConfirmBtn': 'Clear',
+  'data.dangerZone': 'Danger zone',
 
   'terminal.sshDisconnected': 'SSH session disconnected',
   'terminal.reconnect': 'Reconnect',
@@ -706,6 +708,7 @@ export const ru: Translations = {
   'data.clearChatHistoryConfirmTitle': 'Очистить историю чатов?',
   'data.clearChatHistoryConfirmMessage': 'Все сохранённые разговоры будут удалены. Это действие нельзя отменить.',
   'data.clearChatHistoryConfirmBtn': 'Очистить',
+  'data.dangerZone': 'Зона опасности',
 
   'terminal.sshDisconnected': 'SSH-сессия отключена',
   'terminal.reconnect': 'Подключиться',
@@ -986,6 +989,7 @@ export const cn: Translations = {
   'data.clearChatHistoryConfirmTitle': '清除聊天记录？',
   'data.clearChatHistoryConfirmMessage': '所有保存的聊天对话都将被删除。此操作无法撤销。',
   'data.clearChatHistoryConfirmBtn': '清除',
+  'data.dangerZone': '危险区域',
 
   'terminal.sshDisconnected': 'SSH 会话已断开',
   'terminal.reconnect': '重新连接',

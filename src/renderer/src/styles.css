@@ -2037,6 +2037,37 @@ textarea:focus {
   font-weight: 500;
 }
 
+.danger-zone {
+  display: grid;
+  gap: 0;
+  margin-top: 16px;
+  border: 0.5px solid rgba(var(--accent-red-rgb), 0.30);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.danger-zone-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-bottom: 0.5px solid rgba(var(--accent-red-rgb), 0.20);
+  background: rgba(var(--accent-red-rgb), 0.06);
+  color: var(--accent-red-text);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.danger-zone .appearance-row {
+  border-bottom: 0.5px solid rgba(var(--accent-red-rgb), 0.12);
+  padding: 10px 14px;
+}
+
+.danger-zone .appearance-row:last-child {
+  border-bottom: none;
+}
+
 .model-combobox {
   position: relative;
   min-width: 0;

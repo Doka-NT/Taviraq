@@ -2524,30 +2524,35 @@ export function LlmPanel({
                         </button>
                       </div>
                     </div>
-                    <div className={`appearance-row ${settingsMatchClass([t('data.clearSessions.label'), t('data.clearSessions.desc'), t('data.clearSessions'), 'clear saved state session destructive'])}`}>
-                      <div className="appearance-row-left">
-                        <span className="appearance-row-label"><HighlightSearchText text={t('data.clearSessions.label')} query={settingsSearch} /></span>
-                        <small className="appearance-row-desc">
-                          <HighlightSearchText text={t('data.clearSessions.desc')} query={settingsSearch} />
-                        </small>
+                    <div className="danger-zone">
+                      <div className="danger-zone-header">
+                        <span>{t('data.dangerZone')}</span>
                       </div>
-                      <div className="appearance-row-right">
-                        <button type="button" className="danger-outline-button" onClick={() => void handleClearSavedSessionState()}>
-                          <HighlightSearchText text={t('data.clearSessions')} query={settingsSearch} />
-                        </button>
+                      <div className={`appearance-row ${settingsMatchClass([t('data.clearSessions.label'), t('data.clearSessions.desc'), t('data.clearSessions'), 'clear saved state session destructive'])}`}>
+                        <div className="appearance-row-left">
+                          <span className="appearance-row-label"><HighlightSearchText text={t('data.clearSessions.label')} query={settingsSearch} /></span>
+                          <small className="appearance-row-desc">
+                            <HighlightSearchText text={t('data.clearSessions.desc')} query={settingsSearch} />
+                          </small>
+                        </div>
+                        <div className="appearance-row-right">
+                          <button type="button" className="danger-outline-button" onClick={() => void handleClearSavedSessionState()}>
+                            <HighlightSearchText text={t('data.clearSessions')} query={settingsSearch} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <div className={`appearance-row ${settingsMatchClass([t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'), t('data.clearChatHistory'), 'clear chat history destructive'])}`}>
-                      <div className="appearance-row-left">
-                        <span className="appearance-row-label"><HighlightSearchText text={t('data.clearChatHistory.label')} query={settingsSearch} /></span>
-                        <small className="appearance-row-desc">
-                          <HighlightSearchText text={t('data.clearChatHistory.desc')} query={settingsSearch} />
-                        </small>
-                      </div>
-                      <div className="appearance-row-right">
-                        <button type="button" className="danger-outline-button" onClick={handleClearChatHistory}>
-                          <HighlightSearchText text={t('data.clearChatHistory')} query={settingsSearch} />
-                        </button>
+                      <div className={`appearance-row ${settingsMatchClass([t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'), t('data.clearChatHistory'), 'clear chat history destructive'])}`}>
+                        <div className="appearance-row-left">
+                          <span className="appearance-row-label"><HighlightSearchText text={t('data.clearChatHistory.label')} query={settingsSearch} /></span>
+                          <small className="appearance-row-desc">
+                            <HighlightSearchText text={t('data.clearChatHistory.desc')} query={settingsSearch} />
+                          </small>
+                        </div>
+                        <div className="appearance-row-right">
+                          <button type="button" className="danger-outline-button" onClick={handleClearChatHistory}>
+                            <HighlightSearchText text={t('data.clearChatHistory')} query={settingsSearch} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                     {dataStatus ? <p className="settings-status">{dataStatus}</p> : null}

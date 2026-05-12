@@ -6,6 +6,7 @@ interface MessageContentProps {
   onRun?: (command: string) => void | Promise<void>
   onPrompt?: (prompt: string) => void
   disabled?: boolean
+  runLabel?: string
 }
 
 type Segment =
@@ -138,7 +139,7 @@ function renderInline(text: string): (string | JSX.Element)[] {
   return parts
 }
 
-export function MessageContent({ content, onRun, onPrompt, disabled }: MessageContentProps): JSX.Element {
+export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 'Run in terminal' }: MessageContentProps): JSX.Element {
   const segments = parseContent(content)
   const actionChips = onPrompt ? buildActionChips(content) : []
 
@@ -159,8 +160,8 @@ export function MessageContent({ content, onRun, onPrompt, disabled }: MessageCo
                   type="button"
                   disabled={disabled}
                   onClick={() => { void onRun(seg.code) }}
-                  title="Run in terminal"
-                  aria-label="Run in terminal"
+                  title={runLabel}
+                  aria-label={runLabel}
                 >
                   <Play size={11} aria-hidden />
                 </button>

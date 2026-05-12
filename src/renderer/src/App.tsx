@@ -951,7 +951,7 @@ export function App(): JSX.Element {
           <div className="topbar-title">Taviraq</div>
           <div className="topbar-actions">
             <div className="tabbar-new-dropdown-wrapper">
-              <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title="New terminal (⌘T)">
+              <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title={appT('app.newTerminal')}>
                 <Plus size={16} aria-hidden />
               </button>
               {newTabDropdownOpen ? (
@@ -994,10 +994,10 @@ export function App(): JSX.Element {
             >
               <Command size={16} aria-hidden />
             </button>
-            <button className="icon-button" type="button" onClick={toggleSidebar} title={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`} aria-label={`${sidebarVisible ? 'Hide' : 'Show'} assistant sidebar (⌘\\)`}>
+            <button className="icon-button" type="button" onClick={toggleSidebar} title={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')} aria-label={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}>
               {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
             </button>
-            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title="Settings (⌘,)" aria-label="Settings (⌘,)">
+            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title={appT('app.settings')} aria-label={appT('app.settings')}>
               <Settings2 size={16} aria-hidden />
             </button>
           </div>
@@ -1030,7 +1030,7 @@ export function App(): JSX.Element {
                     className="tab-close"
                     role="button"
                     tabIndex={0}
-                    title="Close session (⌘W)"
+                    title={appT('app.closeSession')}
                     onClick={(event) => {
                       event.stopPropagation()
                       void closeSession(session.id)

@@ -2026,7 +2026,7 @@ export function LlmPanel({
                 <Settings2 size={17} aria-hidden />
                 <h2 id="settings-title">{t('settings.title')}</h2>
               </div>
-              <button className="icon-button settings-close-button" type="button" onClick={onCloseSettings} title="Close settings" aria-label="Close settings">
+              <button className="icon-button settings-close-button" type="button" onClick={onCloseSettings} title={t('settings.close')} aria-label={t('settings.close')}>
                 <X size={18} aria-hidden />
               </button>
             </header>
@@ -2696,6 +2696,7 @@ export function LlmPanel({
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
                   disabled={!activeSession || agenticCommandRunning}
+                  runLabel={t('chat.runInTerminal')}
                 />
               ) : message.role === 'assistant' ? null : (
                 <p>{message.content}</p>
@@ -2819,7 +2820,7 @@ export function LlmPanel({
           rows={1}
         />
         <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} />
+          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
           {streaming || agenticRunning ? (
             <button
               className="stop-button"

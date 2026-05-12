@@ -3,6 +3,7 @@ export type Language = 'en' | 'ru' | 'cn'
 export interface Translations {
   // Settings navigation
   'settings.title': string
+  'settings.close': string
   'settings.tab.appearance': string
   'settings.tab.providers': string
   'settings.tab.connections': string
@@ -177,6 +178,13 @@ export interface Translations {
   'panel.status.running': string
   'panel.status.waiting': string
   'sidebar.openHandle': string
+  'app.newTerminal': string
+  'app.closeSession': string
+  'app.settings': string
+  'app.showSidebar': string
+  'app.hideSidebar': string
+  'chat.runInTerminal': string
+  'panel.promptLibrary': string
 
   // Chat area
   'chat.empty.title': string
@@ -291,6 +299,7 @@ export interface Translations {
 
 export const en: Translations = {
   'settings.title': 'Settings',
+  'settings.close': 'Close settings',
   'settings.tab.appearance': 'Appearance',
   'settings.tab.providers': 'Providers',
   'settings.tab.connections': 'Connections',
@@ -457,6 +466,13 @@ export const en: Translations = {
   'panel.status.running': 'Running',
   'panel.status.waiting': 'Waiting',
   'sidebar.openHandle': 'Open assistant (⌘\\)',
+  'app.newTerminal': 'New terminal (⌘T)',
+  'app.closeSession': 'Close session (⌘W)',
+  'app.settings': 'Settings (⌘,)',
+  'app.showSidebar': 'Show assistant sidebar (⌘\\)',
+  'app.hideSidebar': 'Hide assistant sidebar (⌘\\)',
+  'chat.runInTerminal': 'Run in terminal',
+  'panel.promptLibrary': 'Prompt library (⌘⇧P)',
 
   'chat.empty.title': 'Ready to help',
   'chat.empty.body': 'Ask about your terminal, commands, or selected text',
@@ -563,6 +579,7 @@ export const en: Translations = {
 
 export const ru: Translations = {
   'settings.title': 'Настройки',
+  'settings.close': 'Закрыть настройки',
   'settings.tab.appearance': 'Внешний вид',
   'settings.tab.providers': 'Провайдеры',
   'settings.tab.connections': 'Подключения',
@@ -729,6 +746,13 @@ export const ru: Translations = {
   'panel.status.running': 'Работает',
   'panel.status.waiting': 'Ждёт подтв.',
   'sidebar.openHandle': 'Открыть ассистента (⌘\\)',
+  'app.newTerminal': 'Новый терминал (⌘T)',
+  'app.closeSession': 'Закрыть сессию (⌘W)',
+  'app.settings': 'Настройки (⌘,)',
+  'app.showSidebar': 'Показать ассистента (⌘\\)',
+  'app.hideSidebar': 'Скрыть ассистента (⌘\\)',
+  'chat.runInTerminal': 'Запустить в терминале',
+  'panel.promptLibrary': 'Библиотека промптов (⌘⇧P)',
 
   'chat.empty.title': 'Готов помочь',
   'chat.empty.body': 'Спросите о терминале, командах или выделенном тексте',
@@ -835,6 +859,7 @@ export const ru: Translations = {
 
 export const cn: Translations = {
   'settings.title': '设置',
+  'settings.close': '关闭设置',
   'settings.tab.appearance': '外观',
   'settings.tab.providers': '提供商',
   'settings.tab.connections': '连接',
@@ -1001,6 +1026,13 @@ export const cn: Translations = {
   'panel.status.running': '运行中',
   'panel.status.waiting': '等待确认',
   'sidebar.openHandle': '打开助手 (⌘\\)',
+  'app.newTerminal': '新建终端 (⌘T)',
+  'app.closeSession': '关闭会话 (⌘W)',
+  'app.settings': '设置 (⌘,)',
+  'app.showSidebar': '显示助手面板 (⌘\\)',
+  'app.hideSidebar': '隐藏助手面板 (⌘\\)',
+  'chat.runInTerminal': '在终端中运行',
+  'panel.promptLibrary': '提示词库 (⌘⇧P)',
 
   'chat.empty.title': '准备就绪',
   'chat.empty.body': '询问关于终端、命令或选定文本的问题',

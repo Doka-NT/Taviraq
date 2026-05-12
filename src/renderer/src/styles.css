@@ -813,7 +813,7 @@ button {
 .panel-title p {
   margin: 1px 0 0;
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -1105,7 +1105,7 @@ textarea:focus {
 
 .settings-nav-empty {
   margin: 6px 8px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.35;
 }
@@ -1216,7 +1216,7 @@ textarea:focus {
 
 .appearance-row-desc {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .appearance-row-right {
@@ -1258,7 +1258,7 @@ textarea:focus {
 }
 
 .input-suffix {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -1963,7 +1963,7 @@ textarea:focus {
 
 .command-snippet-palette-empty {
   margin: 16px 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -2079,7 +2079,7 @@ textarea:focus {
 
 .model-combobox-option small {
   flex: 0 0 auto;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
 }
 
@@ -2095,7 +2095,7 @@ textarea:focus {
 .model-combobox-empty,
 .model-combobox-count {
   padding: 8px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -2601,7 +2601,7 @@ textarea:focus {
 .command-output-message code {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2610,7 +2610,7 @@ textarea:focus {
 .command-output-message summary {
   width: max-content;
   cursor: pointer;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .command-output-message pre {
@@ -3418,7 +3418,7 @@ textarea:focus {
 
 .prompt-picker-item-preview {
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11.5px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -3427,7 +3427,7 @@ textarea:focus {
 
 .prompt-picker-empty {
   margin: 16px 10px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -3521,7 +3521,7 @@ textarea:focus {
 
 .prompt-list-item-preview {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3634,7 +3634,7 @@ textarea:focus {
 
 .history-empty {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 13px;
   padding: 32px 16px;
   margin: 0;
@@ -3672,7 +3672,7 @@ textarea:focus {
 
 .history-item-meta {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .history-item-actions {

@@ -1873,6 +1873,7 @@ export function LlmPanel({
       matchesSearchQuery(settingsSearch, [item.label, ...item.terms])
     )
   }, [settingsNavItems, settingsSearch])
+  const settingsNoResults = settingsSearch.trim().length > 0 && filteredSettingsNavItems.length === 0
   const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
     matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
   ), [settingsSearch])
@@ -2059,7 +2060,9 @@ export function LlmPanel({
               </nav>
 
               <div className="settings-content">
-                {settingsTab === 'appearance' ? (
+                {settingsNoResults ? (
+                  <p className="settings-content-empty">{t('settings.search.empty')}</p>
+                ) : settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.theme.label'), t('appearance.theme.desc'), 'theme color scheme ui terminal'])}`}>
@@ -2143,7 +2146,7 @@ export function LlmPanel({
                   </>
                 ) : null}
 
-                {settingsTab === 'providers' ? (
+                {!settingsNoResults && settingsTab === 'providers' ? (
                   <>
                     <h3 className="settings-content-title">{t('providers.title')}</h3>
                     <div className="providers-layout">
@@ -2298,7 +2301,7 @@ export function LlmPanel({
                   </>
                 ) : null}
 
-                {settingsTab === 'connections' ? (
+                {!settingsNoResults && settingsTab === 'connections' ? (
                   <>
                     <h3 className="settings-content-title">{t('connections.title')}</h3>
                     <div className="connections-layout">
@@ -2444,14 +2447,14 @@ export function LlmPanel({
                   </>
                 ) : null}
 
-                {settingsTab === 'prompts' ? (
+                {!settingsNoResults && settingsTab === 'prompts' ? (
                   <>
                     <h3 className="settings-content-title">{t('prompts.title')}</h3>
                     <PromptLibrarySection settingsSearch={settingsSearch} />
                   </>
                 ) : null}
 
-                {settingsTab === 'snippets' ? (
+                {!settingsNoResults && settingsTab === 'snippets' ? (
                   <>
                     <h3 className="settings-content-title">{t('snippets.title')}</h3>
                     <CommandSnippetLibrarySection
@@ -2462,7 +2465,7 @@ export function LlmPanel({
                   </>
                 ) : null}
 
-                {settingsTab === 'data' ? (
+                {!settingsNoResults && settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.outputContext.label'), t('appearance.outputContext.desc'), 'output context ai max characters chars terminal'])}`}>

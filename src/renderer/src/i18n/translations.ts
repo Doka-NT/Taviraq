@@ -173,6 +173,9 @@ export interface Translations {
   'panel.permission.read': string
   'panel.permission.execute': string
   'panel.permission.pending': string
+  'panel.status.idle': string
+  'panel.status.running': string
+  'panel.status.waiting': string
   'sidebar.openHandle': string
 
   // Chat area
@@ -450,6 +453,9 @@ export const en: Translations = {
   'panel.permission.read': 'Read',
   'panel.permission.execute': 'Execute',
   'panel.permission.pending': 'Pending',
+  'panel.status.idle': 'Idle',
+  'panel.status.running': 'Running',
+  'panel.status.waiting': 'Waiting',
   'sidebar.openHandle': 'Open assistant (⌘\\)',
 
   'chat.empty.title': 'Ready to help',
@@ -719,6 +725,9 @@ export const ru: Translations = {
   'panel.permission.read': 'Чтение',
   'panel.permission.execute': 'Выполнение',
   'panel.permission.pending': 'Ожидание',
+  'panel.status.idle': 'Ожидание',
+  'panel.status.running': 'Работает',
+  'panel.status.waiting': 'Ждёт подтв.',
   'sidebar.openHandle': 'Открыть ассистента (⌘\\)',
 
   'chat.empty.title': 'Готов помочь',
@@ -988,6 +997,9 @@ export const cn: Translations = {
   'panel.permission.read': '读取',
   'panel.permission.execute': '执行',
   'panel.permission.pending': '待处理',
+  'panel.status.idle': '空闲',
+  'panel.status.running': '运行中',
+  'panel.status.waiting': '等待确认',
   'sidebar.openHandle': '打开助手 (⌘\\)',
 
   'chat.empty.title': '准备就绪',

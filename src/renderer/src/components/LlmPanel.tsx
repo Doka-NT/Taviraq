@@ -513,6 +513,11 @@ export function LlmPanel({
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
 
+  const liveStatus: 'idle' | 'running' | 'waiting' =
+    commandConfirmation ? 'waiting' :
+    (streaming || agenticRunning || agenticCommandRunning) ? 'running' :
+    'idle'
+
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
   useEffect(() => { maxOutputContextRef.current = maxOutputContext }, [maxOutputContext])
@@ -2001,9 +2006,15 @@ export function LlmPanel({
           <span className={`permission-chip ${assistMode !== 'off' ? 'read' : ''}`}>
             <span>{t('panel.permission.read')}</span>
           </span>
-          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''} ${agenticRunning ? 'running' : ''} ${commandConfirmation ? 'pending' : ''}`}>
-            <span>{commandConfirmation ? t('panel.permission.pending') : t('panel.permission.execute')}</span>
+          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''}`}>
+            <span>{t('panel.permission.execute')}</span>
           </span>
+          {assistMode !== 'off' && activeSession?.status === 'running' && (
+            <span className={`live-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
+              <span className="live-status-dot" aria-hidden />
+              <span>{t(`panel.status.${liveStatus}`)}</span>
+            </span>
+          )}
         </div>
       </header>
 

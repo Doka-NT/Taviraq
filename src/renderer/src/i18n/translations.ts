@@ -248,6 +248,9 @@ export interface Translations {
   'confirm.runCommand': string
   'confirm.runAnyway': string
   'confirm.shortcutHint': string
+  'commandRisk.localSecret': string
+  'commandRisk.sshContext': string
+  'commandRisk.requiresConfirmation': string
 
   // Status messages (chat inline status)
   'status.checkingSafety': string
@@ -551,6 +554,9 @@ export const en: Translations = {
   'confirm.runCommand': 'Run command',
   'confirm.runAnyway': 'Run anyway',
   'confirm.shortcutHint': 'Enter confirms · Esc cancels',
+  'commandRisk.localSecret': 'This command uses a local secret and must be reviewed before Taviraq resolves it.',
+  'commandRisk.sshContext': 'The active session is SSH ({label}), so remote-side effects need explicit review.',
+  'commandRisk.requiresConfirmation': 'Taviraq requires confirmation before running it.',
 
   'status.checkingSafety': 'Checking command safety...',
   'status.agentStopped.riskyCommand': 'Agent stopped before running a risky command.',
@@ -848,6 +854,9 @@ export const ru: Translations = {
   'confirm.runCommand': 'Выполнить команду',
   'confirm.runAnyway': 'Всё равно выполнить',
   'confirm.shortcutHint': 'Enter подтверждает · Esc отменяет',
+  'commandRisk.localSecret': 'Команда использует локальный секрет. Перед запуском нужно подтвердить, что Taviraq может восстановить его значение.',
+  'commandRisk.sshContext': 'Активная сессия — SSH ({label}), поэтому удалённые изменения требуют явной проверки.',
+  'commandRisk.requiresConfirmation': 'Taviraq требует подтверждения перед выполнением.',
 
   'status.checkingSafety': 'Проверка безопасности команды...',
   'status.agentStopped.riskyCommand': 'Агент остановлен перед выполнением опасной команды.',
@@ -1145,6 +1154,9 @@ export const cn: Translations = {
   'confirm.runCommand': '执行命令',
   'confirm.runAnyway': '仍然执行',
   'confirm.shortcutHint': 'Enter 确认 · Esc 取消',
+  'commandRisk.localSecret': '此命令使用本地密钥，Taviraq 在解析前需要你确认。',
+  'commandRisk.sshContext': '当前会话是 SSH ({label})，远程影响需要明确检查。',
+  'commandRisk.requiresConfirmation': 'Taviraq 需要确认后才能运行。',
 
   'status.checkingSafety': '正在检查命令安全性...',
   'status.agentStopped.riskyCommand': '代理在执行危险命令前已停止。',

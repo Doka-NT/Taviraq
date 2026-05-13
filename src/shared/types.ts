@@ -161,6 +161,8 @@ export interface CommandRiskAssessmentRequest {
 export interface CommandRiskAssessment {
   dangerous: boolean
   reason: string
+  reasonCode?: 'local-secret'
+  reasonArgs?: Record<string, string>
 }
 
 export interface SummarizeConversationRequest {

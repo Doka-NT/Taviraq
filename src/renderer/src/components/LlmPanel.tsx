@@ -8,7 +8,7 @@ import {
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
+  AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
   RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingMode, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
@@ -17,7 +17,7 @@ import { PromptPicker } from './PromptPicker'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import type { InlineStatus } from '@renderer/utils/redesign'
-import { useT } from '@renderer/i18n/language'
+import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
@@ -45,6 +45,16 @@ function hideSecretPlaceholders(text: string, replacement: string): string {
 
 function hidePersistedSecretPlaceholders(text?: string): string | undefined {
   return text === undefined ? undefined : hideSecretPlaceholders(text, SECRET_PLACEHOLDER_STORAGE_LABEL)
+}
+
+function localizeCommandRiskReason(assessment: CommandRiskAssessment, t: LanguageContextValue['t']): string {
+  if (assessment.reasonCode !== 'local-secret') return assessment.reason
+
+  return [
+    t('commandRisk.localSecret'),
+    assessment.reasonArgs?.sshLabel ? t('commandRisk.sshContext', { label: assessment.reasonArgs.sshLabel }) : '',
+    t('commandRisk.requiresConfirmation')
+  ].filter(Boolean).join(' ')
 }
 
 function getTerminalDelta(before: string, after: string): string {
@@ -1269,7 +1279,7 @@ export function LlmPanel({
       updateThread(sessionId, (thread) => ({ ...thread, status: null }))
       const confirmed = await requestCommandConfirmation(sessionId, {
         title: t('confirm.reviewRisky'),
-        reason: assessment.reason,
+        reason: localizeCommandRiskReason(assessment, t),
         command,
         tone: 'danger',
         confirmLabel: t('confirm.runCommand')

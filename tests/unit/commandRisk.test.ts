@@ -43,6 +43,21 @@ describe('protected command risk checks', () => {
     expect(result?.reason).toContain('prod.example')
   })
 
+  it('marks local secret commands with a translatable reason code', () => {
+    const result = assessProtectedCommandRisk({
+      command: 'echo [[TAVIRAQ_SECRET_1_TOKEN]]',
+      context: {
+        selectedText: '',
+        assistMode: 'agent'
+      }
+    })
+
+    expect(result).toMatchObject({
+      dangerous: true,
+      reasonCode: 'local-secret'
+    })
+  })
+
   it.each([
     'pwd',
     'ls -la',

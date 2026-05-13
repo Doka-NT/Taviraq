@@ -854,7 +854,7 @@ export const ru: Translations = {
   'confirm.runCommand': 'Выполнить команду',
   'confirm.runAnyway': 'Всё равно выполнить',
   'confirm.shortcutHint': 'Enter подтверждает · Esc отменяет',
-  'commandRisk.localSecret': 'Команда использует локальный секрет. Перед запуском нужно подтвердить, что Taviraq может восстановить его значение.',
+  'commandRisk.localSecret': 'Команда содержит локальный секрет. Подтвердите подстановку секрета в команду.',
   'commandRisk.sshContext': 'Активная сессия — SSH ({label}), поэтому удалённые изменения требуют явной проверки.',
   'commandRisk.requiresConfirmation': 'Taviraq требует подтверждения перед выполнением.',
 

@@ -1,4 +1,5 @@
 import type { CommandRiskAssessment, CommandRiskAssessmentRequest } from '@shared/types'
+import { SECRET_PLACEHOLDER_RE } from '@shared/secretPlaceholders'
 
 type ProtectedPattern = {
   pattern: RegExp
@@ -8,7 +9,7 @@ type ProtectedPattern = {
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
   {
-    pattern: /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/,
+    pattern: SECRET_PLACEHOLDER_RE,
     reason: 'This command uses a local secret and must be reviewed before Taviraq resolves it.',
     reasonCode: 'local-secret'
   },

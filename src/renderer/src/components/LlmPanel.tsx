@@ -22,12 +22,13 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
+import {
+  DISPLAY_SECRET_LABEL,
+  SECRET_PLACEHOLDER_GLOBAL_RE,
+  SECRET_PLACEHOLDER_RE
+} from '@shared/secretPlaceholders'
 
 // ...existing code...
-
-const SECRET_PLACEHOLDER_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/
-const SECRET_PLACEHOLDER_GLOBAL_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g
-const SECRET_PLACEHOLDER_STORAGE_LABEL = '[secret]'
 
 function containsSecretPlaceholder(text: string): boolean {
   return SECRET_PLACEHOLDER_RE.test(text)
@@ -38,7 +39,7 @@ function hideSecretPlaceholders(text: string, replacement: string): string {
 }
 
 function hidePersistedSecretPlaceholders(text?: string): string | undefined {
-  return text === undefined ? undefined : hideSecretPlaceholders(text, SECRET_PLACEHOLDER_STORAGE_LABEL)
+  return text === undefined ? undefined : hideSecretPlaceholders(text, DISPLAY_SECRET_LABEL)
 }
 
 function localizeCommandRiskReason(assessment: CommandRiskAssessment, t: LanguageContextValue['t']): string {
@@ -291,7 +292,7 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
   return {
     messages: thread.messages.map((message) => ({
       role: message.role,
-      content: hideSecretPlaceholders(message.content, SECRET_PLACEHOLDER_STORAGE_LABEL),
+      content: hideSecretPlaceholders(message.content, DISPLAY_SECRET_LABEL),
       display: message.display,
       command: hidePersistedSecretPlaceholders(message.command),
       output: hidePersistedSecretPlaceholders(message.output),
@@ -596,7 +597,7 @@ export function LlmPanel({
       title,
       messages: thread.messages.map((m) => ({
         role: m.role,
-        content: hideSecretPlaceholders(m.content, SECRET_PLACEHOLDER_STORAGE_LABEL),
+        content: hideSecretPlaceholders(m.content, DISPLAY_SECRET_LABEL),
         display: m.display,
         command: hidePersistedSecretPlaceholders(m.command),
         output: hidePersistedSecretPlaceholders(m.output),

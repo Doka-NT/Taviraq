@@ -1,11 +1,14 @@
+import {
+  SECRET_PLACEHOLDER_GLOBAL_RE,
+  SECRET_PLACEHOLDER_RE
+} from '@shared/secretPlaceholders'
+
 const ANSI_ESCAPE = String.fromCharCode(27)
 const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
 const ANSI_RE = new RegExp(
   `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]|${ANSI_ESCAPE}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`,
   'g'
 )
-const SECRET_PLACEHOLDER_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/
-const SECRET_PLACEHOLDER_GLOBAL_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g
 
 export const stripAnsi = (s: string): string => s.replace(OSC_RE, '').replace(ANSI_RE, '')
 
@@ -21,7 +24,7 @@ function normalizeTerminalOutput(output: string): string {
 
 function matchesResolvedSecretEcho(command: string, line: string): boolean {
   if (!SECRET_PLACEHOLDER_RE.test(command)) return false
-  const pattern = command.split(SECRET_PLACEHOLDER_GLOBAL_RE).map(escapeRegExp).join('.+')
+  const pattern = command.split(SECRET_PLACEHOLDER_GLOBAL_RE).map(escapeRegExp).join('[^\\n]+')
   return new RegExp(`^${pattern}$`).test(line)
 }
 

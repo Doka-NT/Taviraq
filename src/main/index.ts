@@ -657,7 +657,7 @@ function registerIpc(): void {
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
     const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
-    terminalManager.runConfirmed(sessionId, resolvedCommand)
+    terminalManager.runConfirmed(sessionId, resolvedCommand, command)
   })
 
   ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string) => {
@@ -666,7 +666,7 @@ function registerIpc(): void {
       getSecretMaskingMode(),
       secretContextsBySession.get(sessionId)
     )
-    if (result.context.bindings.length > 0) {
+    if (result.context.bindings.length > (secretContextsBySession.get(sessionId)?.bindings.length ?? 0)) {
       secretContextsBySession.set(sessionId, result.context)
     }
     return result.text

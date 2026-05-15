@@ -79,6 +79,46 @@ describe('TerminalManager.runConfirmed', () => {
     expect(writes).toEqual(['\x03', 'pwd\r'])
   })
 
+  it('writes resolved SSH commands while emitting placeholder metadata', () => {
+    const sends: Array<{ channel: string; payload: unknown }> = []
+    const { manager, writes } = createManagerWithSession({ kind: 'ssh' }, undefined, sends)
+
+    manager.runConfirmed(
+      'session-1',
+      'curl -H "Authorization: Bearer real-token" https://example.test',
+      'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
+    )
+
+    expect(writes).toEqual(['curl -H "Authorization: Bearer real-token" https://example.test\r'])
+    expect(sends).toContainEqual({
+      channel: 'terminal:command',
+      payload: {
+        sessionId: 'session-1',
+        command: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
+      }
+    })
+  })
+
+  it('uses placeholder metadata for resolved local command markers', () => {
+    const { manager } = createManagerWithSession({})
+
+    manager.runConfirmed(
+      'session-1',
+      'curl -H "Authorization: Bearer real-token" https://example.test',
+      'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
+    )
+
+    const display = (manager as unknown as {
+      displayCommandForParsedMarker: (session: unknown, command: string) => string
+      sessions: Map<string, unknown>
+    }).displayCommandForParsedMarker(
+      (manager as unknown as { sessions: Map<string, unknown> }).sessions.get('session-1'),
+      'curl -H "Authorization: Bearer real-token" https://example.test'
+    )
+
+    expect(display).toBe('curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test')
+  })
+
   it('emits command events for commands typed inside direct SSH sessions', () => {
     const sends: Array<{ channel: string; payload: unknown }> = []
     const { manager, writes } = createManagerWithSession({ kind: 'ssh' }, undefined, sends)

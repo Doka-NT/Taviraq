@@ -78,7 +78,7 @@ describe('llmService', () => {
       requestBody = typeof init?.body === 'string' ? init.body : ''
       return Promise.resolve(new Response(new ReadableStream({
         start(controller) {
-          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"Use ${placeholder}"}}]}\n\n`))
+          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"reasoning_content":"Thinking ${placeholder}","content":"Use ${placeholder}"}}]}\n\n`))
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
         }
@@ -87,6 +87,7 @@ describe('llmService', () => {
 
     const { streamChatCompletion } = await import('@main/services/llmService')
     const chunks: string[] = []
+    const reasoningChunks: string[] = []
     const privacy: number[] = []
     const result = await streamChatCompletion({
       requestId: 'request-1',
@@ -105,12 +106,14 @@ describe('llmService', () => {
       }
     }, (event) => {
       if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
+      if (event.reasoningContent) reasoningChunks.push(event.reasoningContent)
       if (event.content) chunks.push(event.content)
     })
 
     expect(privacy).toEqual([1])
     expect(requestBody).not.toContain(secret)
     expect(requestBody).toContain(placeholder)
+    expect(reasoningChunks.join('')).toBe('Thinking [secret]')
     expect(chunks.join('')).toBe('Use [secret]')
     expect(result.maskedContent).toBe(`Use ${placeholder}`)
 

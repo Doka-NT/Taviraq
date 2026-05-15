@@ -104,7 +104,6 @@ export async function streamChatCompletion(
     if (chunk.reasoningContent) {
       const content = reasoningRedactor.push(chunk.reasoningContent)
       if (content) onChunk({ type: 'reasoning', reasoningContent: content })
-      return
     }
 
     if (chunk.content) {

@@ -10,14 +10,16 @@ import type {
   SecretMaskingMode,
   SummarizeConversationRequest
 } from '@shared/types'
+import {
+  DISPLAY_SECRET_LABEL,
+  SECRET_PLACEHOLDER_GLOBAL_RE,
+  SECRET_PLACEHOLDER_PREFIX,
+  SECRET_PLACEHOLDER_RE
+} from '@shared/secretPlaceholders'
 
 const GITLEAKS_TIMEOUT_MS = 5_000
 const GITLEAKS_UNAVAILABLE_MESSAGE = 'Gitleaks secret scanner is not available.'
-const PLACEHOLDER_PREFIX = '[[TAVIRAQ_SECRET_'
-const PLACEHOLDER_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/
-const PLACEHOLDER_GLOBAL_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g
 const GIT_SHA_RE = /\b(?:[a-f0-9]{40}|[a-f0-9]{64})\b/i
-const DISPLAY_SECRET_LABEL = '[secret]'
 
 type ProcessWithResourcesPath = NodeJS.Process & {
   resourcesPath?: string
@@ -72,7 +74,7 @@ export function cloneSecretMaskContext(ctx: SecretMaskContext): SecretMaskContex
 }
 
 export function containsSecretPlaceholder(text: string): boolean {
-  return PLACEHOLDER_RE.test(text)
+  return SECRET_PLACEHOLDER_RE.test(text)
 }
 
 export function resolveSecretPlaceholders(text: string, ctx?: SecretMaskContext): string {
@@ -80,7 +82,7 @@ export function resolveSecretPlaceholders(text: string, ctx?: SecretMaskContext)
   if (!ctx) throw new Error('This command references a local secret that is no longer available.')
 
   const unresolved = new Set<string>()
-  const resolved = text.replace(PLACEHOLDER_GLOBAL_RE, (placeholder) => {
+  const resolved = text.replace(SECRET_PLACEHOLDER_GLOBAL_RE, (placeholder) => {
     const binding = ctx.byPlaceholder.get(placeholder)
     if (!binding) {
       unresolved.add(placeholder)
@@ -351,9 +353,10 @@ export function unmaskText(text: string, ctx: SecretMaskContext): string {
 }
 
 export function redactSecretPlaceholders(text: string): string {
-  return text.replace(PLACEHOLDER_GLOBAL_RE, DISPLAY_SECRET_LABEL)
+  return text.replace(SECRET_PLACEHOLDER_GLOBAL_RE, DISPLAY_SECRET_LABEL)
 }
 
+// Kept as a semantic alias for UI/storage call sites that want display-safe text.
 export function displaySecretPlaceholders(text: string): string {
   return redactSecretPlaceholders(text)
 }
@@ -384,9 +387,9 @@ export function createStreamingPlaceholderRedactor(): {
 }
 
 function safePlaceholderEmitLength(text: string): number {
-  const lastPrefixIndex = text.lastIndexOf(PLACEHOLDER_PREFIX)
+  const lastPrefixIndex = text.lastIndexOf(SECRET_PLACEHOLDER_PREFIX)
   if (lastPrefixIndex !== -1) {
-    const candidateTail = text.slice(lastPrefixIndex + PLACEHOLDER_PREFIX.length)
+    const candidateTail = text.slice(lastPrefixIndex + SECRET_PLACEHOLDER_PREFIX.length)
     const closeIndex = candidateTail.indexOf(']]')
     if (closeIndex === -1 && /^[A-Z0-9_]*$/.test(candidateTail)) {
       return lastPrefixIndex
@@ -397,9 +400,9 @@ function safePlaceholderEmitLength(text: string): number {
 }
 
 function trailingPlaceholderPrefixLength(text: string): number {
-  const maxLength = Math.min(PLACEHOLDER_PREFIX.length - 1, text.length)
+  const maxLength = Math.min(SECRET_PLACEHOLDER_PREFIX.length - 1, text.length)
   for (let length = maxLength; length > 0; length -= 1) {
-    if (PLACEHOLDER_PREFIX.startsWith(text.slice(-length))) {
+    if (SECRET_PLACEHOLDER_PREFIX.startsWith(text.slice(-length))) {
       return length
     }
   }
@@ -455,7 +458,7 @@ function registerFinding(context: SecretMaskContext, finding: SecretFinding): vo
   if (existing) return
 
   const kind = kindFromLabel(finding.ruleId || finding.description || 'secret')
-  const placeholder = `${PLACEHOLDER_PREFIX}${context.bindings.length + 1}_${kind}]]`
+  const placeholder = `${SECRET_PLACEHOLDER_PREFIX}${context.bindings.length + 1}_${kind}]]`
   const binding = { placeholder, value, kind }
   context.bindings.push(binding)
   context.byValue.set(value, binding)
@@ -474,7 +477,6 @@ function kindFromLabel(label: string): string {
   const normalized = label
     .replace(/^taviraq-/i, '')
     .replace(/^gitleaks-/i, '')
-    .replace(/(?:secret|token|key)$/i, (suffix) => suffix)
     .replace(/[^a-z0-9]+/gi, '_')
     .replace(/^_+|_+$/g, '')
     .toUpperCase()

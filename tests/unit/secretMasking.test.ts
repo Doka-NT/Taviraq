@@ -8,6 +8,7 @@ import {
   createStreamingUnmasker,
   displaySecretPlaceholders,
   findSupplementalStrictSecrets,
+  maskTextForDisplay,
   maskText,
   parseGitleaksReport,
   resolveSecretPlaceholders,
@@ -176,5 +177,28 @@ describe('secret masking utilities', () => {
     ))
 
     expect(output).toBe('token [secret]')
+  })
+
+  it('scans command output for new secrets before displaying it', async () => {
+    const existing = createSecretMaskContext()
+    addSecretFindingsToContext(existing, [
+      { ruleId: 'generic-api-key', secret: 'sk-live-ABCdef1234567890_ABCdef1234567890' }
+    ])
+
+    const result = await maskTextForDisplay([
+      'OPENAI_API_KEY=sk-live-ABCdef1234567890_ABCdef1234567890',
+      'DEPLOY_TOKEN=DeployABC1234567890_DeployABC1234567890'
+    ].join('\n'), 'on', existing)
+
+    expect(result.text).toBe([
+      'OPENAI_API_KEY=[secret]',
+      'DEPLOY_TOKEN=[secret]'
+    ].join('\n'))
+    expect(result.context.bindings.map((binding) => binding.placeholder)).toEqual([
+      '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]',
+      '[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]'
+    ])
+    expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]', result.context))
+      .toBe('DeployABC1234567890_DeployABC1234567890')
   })
 })

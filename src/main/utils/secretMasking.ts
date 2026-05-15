@@ -46,6 +46,11 @@ export interface MaskedRequest<T> {
   context: SecretMaskContext
 }
 
+export interface MaskedTextResult {
+  text: string
+  context: SecretMaskContext
+}
+
 export function createSecretMaskContext(): SecretMaskContext {
   return {
     bindings: [],
@@ -164,6 +169,19 @@ export async function maskSummarizeConversationRequest(
       ...request,
       messages: maskMessages(request.messages, context)
     }
+  }
+}
+
+export async function maskTextForDisplay(
+  text: string,
+  mode: SecretMaskingMode,
+  existingContext?: SecretMaskContext,
+  signal?: AbortSignal
+): Promise<MaskedTextResult> {
+  const context = await createContextFromTexts([text], mode, signal, existingContext)
+  return {
+    context,
+    text: displaySecretPlaceholders(maskText(text, context))
   }
 }
 

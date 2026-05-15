@@ -29,8 +29,7 @@ import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
-  displaySecretPlaceholders,
-  maskText,
+  maskTextForDisplay,
   resolveSecretPlaceholders,
   type SecretMaskContext
 } from './utils/secretMasking'
@@ -657,9 +656,16 @@ function registerIpc(): void {
     terminalManager.runConfirmed(sessionId, resolvedCommand)
   })
 
-  ipcMain.handle('secret:maskOutput', (_event, sessionId: string, text: string) => {
-    const context = secretContextsBySession.get(sessionId)
-    return displaySecretPlaceholders(context ? maskText(text, context) : text)
+  ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string) => {
+    const result = await maskTextForDisplay(
+      text,
+      getSecretMaskingMode(),
+      secretContextsBySession.get(sessionId)
+    )
+    if (result.context.bindings.length > 0) {
+      secretContextsBySession.set(sessionId, result.context)
+    }
+    return result.text
   })
 
   // Prompts

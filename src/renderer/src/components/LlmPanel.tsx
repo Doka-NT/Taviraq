@@ -327,7 +327,7 @@ function fromRestorableThreads(threads: RestorableAssistantThreads): AssistantTh
 function toChatMessage(message: ThreadMessage): ChatMessage {
   return {
     role: message.role,
-    content: message.content
+    content: message.maskedContent ?? message.content
   }
 }
 
@@ -1684,7 +1684,6 @@ export function LlmPanel({
   }, [])
 
   const updateSecretMaskingMode = useCallback((mode: SecretMaskingMode) => {
-    setSecretMaskingMode(mode)
     void window.api.config.setSecretMaskingMode(mode).then((result) => {
       setSecretMaskingMode(result.secretMasking?.mode ?? mode)
     }).catch((err: unknown) => {

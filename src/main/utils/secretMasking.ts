@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   ChatStreamRequest,
   CommandRiskAssessmentRequest,
+  SavedChat,
   SecretMaskingMode,
   SummarizeConversationRequest
 } from '@shared/types'
@@ -182,6 +183,38 @@ export async function maskTextForDisplay(
   return {
     context,
     text: displaySecretPlaceholders(maskText(text, context))
+  }
+}
+
+export async function sanitizeSavedChatForStorage(
+  chat: SavedChat,
+  mode: SecretMaskingMode,
+  signal?: AbortSignal
+): Promise<SavedChat> {
+  const textParts = [
+    chat.title,
+    ...chat.messages.flatMap((message) => [
+      message.content,
+      message.command ?? '',
+      message.output ?? '',
+      message.reasoningContent ?? ''
+    ])
+  ]
+  const context = await createContextFromTexts(textParts, mode, signal)
+  const redact = (value?: string): string | undefined => (
+    value === undefined ? undefined : displaySecretPlaceholders(maskText(value, context))
+  )
+
+  return {
+    ...chat,
+    title: redact(chat.title) || chat.title,
+    messages: chat.messages.map((message) => ({
+      ...message,
+      content: redact(message.content) ?? '',
+      command: redact(message.command),
+      output: redact(message.output),
+      reasoningContent: redact(message.reasoningContent)
+    }))
   }
 }
 

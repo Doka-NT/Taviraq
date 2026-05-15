@@ -31,6 +31,7 @@ import { extractCommandProposals } from './utils/commandProposals'
 import {
   maskTextForDisplay,
   resolveSecretPlaceholders,
+  sanitizeSavedChatForStorage,
   type SecretMaskContext
 } from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
@@ -535,7 +536,10 @@ function registerIpc(): void {
 
   ipcMain.handle('chatHistory:list', () => chatHistoryStore.list())
   ipcMain.handle('chatHistory:get', (_event, id: string) => chatHistoryStore.get(id))
-  ipcMain.handle('chatHistory:save', (_event, chat: SavedChat) => chatHistoryStore.save(chat))
+  ipcMain.handle('chatHistory:save', async (_event, chat: SavedChat) => {
+    const sanitizedChat = await sanitizeSavedChatForStorage(chat, getSecretMaskingMode())
+    await chatHistoryStore.save(sanitizedChat)
+  })
   ipcMain.handle('chatHistory:delete', (_event, id: string) => chatHistoryStore.delete(id))
   ipcMain.handle('chatHistory:clear', () => chatHistoryStore.clear())
 

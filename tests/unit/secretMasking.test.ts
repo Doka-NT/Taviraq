@@ -12,6 +12,7 @@ import {
   maskText,
   parseGitleaksReport,
   resolveSecretPlaceholders,
+  sanitizeSavedChatForStorage,
   unmaskText
 } from '@main/utils/secretMasking'
 
@@ -200,5 +201,33 @@ describe('secret masking utilities', () => {
     ])
     expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]', result.context))
       .toBe('DeployABC1234567890_DeployABC1234567890')
+  })
+
+  it('redacts raw scanned secrets before saving chat history', async () => {
+    const secret = 'sk-live-ABCdef1234567890_ABCdef1234567890'
+    const sanitized = await sanitizeSavedChatForStorage({
+      id: 'chat-1',
+      title: `OPENAI_API_KEY=${secret}`,
+      messages: [
+        {
+          role: 'user',
+          content: `OPENAI_API_KEY=${secret}`
+        },
+        {
+          role: 'assistant',
+          content: 'done',
+          output: `token ${secret}`,
+          reasoningContent: `saw ${secret}`
+        }
+      ],
+      createdAt: '2026-05-15T00:00:00.000Z',
+      updatedAt: '2026-05-15T00:00:00.000Z'
+    }, 'on')
+
+    expect(JSON.stringify(sanitized)).not.toContain(secret)
+    expect(sanitized.title).toBe('OPENAI_API_KEY=[secret]')
+    expect(sanitized.messages[0].content).toBe('OPENAI_API_KEY=[secret]')
+    expect(sanitized.messages[1].output).toBe('token [secret]')
+    expect(sanitized.messages[1].reasoningContent).toBe('saw [secret]')
   })
 })

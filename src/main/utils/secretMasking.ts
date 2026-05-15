@@ -54,6 +54,17 @@ export function createSecretMaskContext(): SecretMaskContext {
   }
 }
 
+export function cloneSecretMaskContext(ctx: SecretMaskContext): SecretMaskContext {
+  const clone = createSecretMaskContext()
+  for (const binding of ctx.bindings) {
+    const clonedBinding = { ...binding }
+    clone.bindings.push(clonedBinding)
+    clone.byValue.set(clonedBinding.value, clonedBinding)
+    clone.byPlaceholder.set(clonedBinding.placeholder, clonedBinding)
+  }
+  return clone
+}
+
 export function containsSecretPlaceholder(text: string): boolean {
   return PLACEHOLDER_RE.test(text)
 }
@@ -82,14 +93,15 @@ export function resolveSecretPlaceholders(text: string, ctx?: SecretMaskContext)
 export async function maskChatStreamRequest(
   request: ChatStreamRequest,
   mode: SecretMaskingMode,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<ChatStreamRequest>> {
   const textParts = [
     ...request.messages.map((message) => message.content),
     request.context.selectedText,
     request.context.terminalOutput ?? ''
   ]
-  const context = await createContextFromTexts(textParts, mode, signal)
+  const context = await createContextFromTexts(textParts, mode, signal, existingContext)
 
   return {
     context,
@@ -111,14 +123,15 @@ export async function maskChatStreamRequest(
 export async function maskCommandRiskAssessmentRequest(
   request: CommandRiskAssessmentRequest,
   mode: SecretMaskingMode,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<CommandRiskAssessmentRequest>> {
   const textParts = [
     request.command,
     request.context.selectedText,
     request.context.terminalOutput ?? ''
   ]
-  const context = await createContextFromTexts(textParts, mode, signal)
+  const context = await createContextFromTexts(textParts, mode, signal, existingContext)
 
   return {
     context,
@@ -140,9 +153,10 @@ export async function maskCommandRiskAssessmentRequest(
 export async function maskSummarizeConversationRequest(
   request: SummarizeConversationRequest,
   mode: SecretMaskingMode,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<SummarizeConversationRequest>> {
-  const context = await createContextFromTexts(request.messages.map((message) => message.content), mode, signal)
+  const context = await createContextFromTexts(request.messages.map((message) => message.content), mode, signal, existingContext)
 
   return {
     context,
@@ -156,10 +170,11 @@ export async function maskSummarizeConversationRequest(
 export async function createContextFromTexts(
   texts: string[],
   mode: SecretMaskingMode,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  existingContext?: SecretMaskContext
 ): Promise<SecretMaskContext> {
-  const context = createSecretMaskContext()
-  if (mode === 'off') return context
+  if (mode === 'off') return createSecretMaskContext()
+  const context = existingContext ? cloneSecretMaskContext(existingContext) : createSecretMaskContext()
 
   const combined = texts.filter(Boolean).join('\n\n--- taviraq-secret-scan-boundary ---\n\n')
   if (!combined.trim()) return context
@@ -286,6 +301,10 @@ export function unmaskText(text: string, ctx: SecretMaskContext): string {
 
 export function redactSecretPlaceholders(text: string): string {
   return text.replace(PLACEHOLDER_GLOBAL_RE, DISPLAY_SECRET_LABEL)
+}
+
+export function displaySecretPlaceholders(text: string): string {
+  return redactSecretPlaceholders(text)
 }
 
 export function createStreamingPlaceholderRedactor(): {

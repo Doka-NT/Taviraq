@@ -21,16 +21,10 @@ import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
+import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 
 // ...existing code...
 
-const ANSI_ESCAPE = String.fromCharCode(27)
-const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
-const ANSI_RE = new RegExp(
-  `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]|${ANSI_ESCAPE}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`,
-  'g'
-)
-const stripAnsi = (s: string): string => s.replace(OSC_RE, '').replace(ANSI_RE, '')
 const SECRET_PLACEHOLDER_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/
 const SECRET_PLACEHOLDER_GLOBAL_RE = /\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g
 const SECRET_PLACEHOLDER_STORAGE_LABEL = '[secret]'
@@ -67,38 +61,6 @@ function getTerminalDelta(before: string, after: string): string {
   }
 
   return after.slice(prefixLength)
-}
-
-function normalizeTerminalOutput(output: string): string {
-  return stripAnsi(output)
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-}
-
-function cleanCommandOutput(command: string, output: string): string {
-  const normalizedCommand = command.trim()
-  const normalizedOutput = normalizeTerminalOutput(output)
-  const endedWithNewline = /[\r\n]$/.test(normalizedOutput)
-  const lines = normalizedOutput.split('\n')
-  const shouldDropTrailingPrompt = !endedWithNewline && lines.length > 1
-
-  while (lines.length > 0 && lines[0].trim() === '') {
-    lines.shift()
-  }
-
-  if (lines[0]?.trim() === normalizedCommand) {
-    lines.shift()
-  }
-
-  if (shouldDropTrailingPrompt) {
-    lines.pop()
-  }
-
-  while (lines.length > 0 && lines.at(-1)?.trim() === '') {
-    lines.pop()
-  }
-
-  return lines.join('\n').trim()
 }
 
 function extractFirstCommand(content: string): string | undefined {
@@ -1385,7 +1347,10 @@ export function LlmPanel({
 
     runningCommandsRef.current.delete(sessionId)
     const afterOutput = getOutputForSessionRef.current(sessionId)
-    const output = cleanCommandOutput(command, getTerminalDelta(beforeOutput, afterOutput)).slice(-maxOutputContextRef.current)
+    const cleanedOutput = cleanCommandOutput(command, getTerminalDelta(beforeOutput, afterOutput)).slice(-maxOutputContextRef.current)
+    const output = await window.api.secret.maskOutput(session.id, cleanedOutput).catch(() => (
+      '[command output hidden because secret masking failed]'
+    ))
     updateThread(sessionId, (thread) => ({ ...thread, agenticCommandRunning: false }))
     const continuation =
       `Command \`${command}\` finished.\nOutput:\n\`\`\`\n${output}\n\`\`\`\nContinue.`

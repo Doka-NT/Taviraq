@@ -83,9 +83,10 @@ export async function streamChatCompletion(
   request: ChatStreamRequest,
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
-  secretMaskingMode: SecretMaskingMode = 'on'
+  secretMaskingMode: SecretMaskingMode = 'on',
+  existingSecretContext?: SecretMaskContext
 ): Promise<ChatStreamCompletionResult> {
-  const masked = await maskChatStreamRequest(request, secretMaskingMode, signal)
+  const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
   const contentRedactor = createStreamingPlaceholderRedactor()
   const reasoningRedactor = createStreamingPlaceholderRedactor()
   let maskedContent = ''

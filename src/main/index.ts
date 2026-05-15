@@ -28,7 +28,12 @@ import { SessionStateStore } from './services/sessionStateStore'
 import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
-import { resolveSecretPlaceholders, type SecretMaskContext } from './utils/secretMasking'
+import {
+  displaySecretPlaceholders,
+  maskText,
+  resolveSecretPlaceholders,
+  type SecretMaskContext
+} from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
@@ -652,6 +657,11 @@ function registerIpc(): void {
     terminalManager.runConfirmed(sessionId, resolvedCommand)
   })
 
+  ipcMain.handle('secret:maskOutput', (_event, sessionId: string, text: string) => {
+    const context = secretContextsBySession.get(sessionId)
+    return displaySecretPlaceholders(context ? maskText(text, context) : text)
+  })
+
   // Prompts
   ipcMain.handle('prompt:list', () => promptStore.list())
 
@@ -828,6 +838,7 @@ function registerIpc(): void {
 
     void (async () => {
       try {
+        const sessionId = request.context.session?.id
         const result = await streamChatCompletion(request, (chunk) => {
           if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
             event.sender.send('llm:chatStream:event', {
@@ -861,10 +872,9 @@ function registerIpc(): void {
               content: chunk.content
             })
           }
-        }, controller.signal, getSecretMaskingMode())
+        }, controller.signal, getSecretMaskingMode(), sessionId ? secretContextsBySession.get(sessionId) : undefined)
 
         if (controller.signal.aborted) return
-        const sessionId = request.context.session?.id
         if (sessionId && result.secretContext.bindings.length > 0) {
           secretContextsBySession.set(sessionId, result.secretContext)
         }

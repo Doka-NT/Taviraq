@@ -166,6 +166,10 @@ const api = {
     runConfirmed: (sessionId: string, command: string) =>
       ipcRenderer.invoke('command:runConfirmed', sessionId, command) as Promise<void>
   },
+  secret: {
+    maskOutput: (sessionId: string, text: string) =>
+      ipcRenderer.invoke('secret:maskOutput', sessionId, text) as Promise<string>
+  },
   prompt: {
     list: () => ipcRenderer.invoke('prompt:list') as Promise<PromptTemplate[]>,
     save: (prompt: PromptTemplate) =>

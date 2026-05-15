@@ -6,6 +6,7 @@ import {
   createSecretMaskContext,
   createStreamingPlaceholderRedactor,
   createStreamingUnmasker,
+  displaySecretPlaceholders,
   findSupplementalStrictSecrets,
   maskText,
   parseGitleaksReport,
@@ -141,5 +142,39 @@ describe('secret masking utilities', () => {
 
     expect(containsSecretPlaceholder(command)).toBe(true)
     expect(resolveSecretPlaceholders(command, context)).toContain('token-ABC1234567890_token-ABC1234567890')
+  })
+
+  it('extends an existing context without reusing old placeholder ids', async () => {
+    const existing = createSecretMaskContext()
+    addSecretFindingsToContext(existing, [
+      { ruleId: 'generic-api-key', secret: 'sk-live-ABCdef1234567890_ABCdef1234567890' }
+    ])
+
+    const next = await createContextFromTexts([
+      'DEPLOY_TOKEN=DeployABC1234567890_DeployABC1234567890'
+    ], 'on', undefined, existing)
+
+    expect(next.bindings.map((binding) => binding.placeholder)).toEqual([
+      '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]',
+      '[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]'
+    ])
+    expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]', next))
+      .toBe('sk-live-ABCdef1234567890_ABCdef1234567890')
+    expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]', next))
+      .toBe('DeployABC1234567890_DeployABC1234567890')
+  })
+
+  it('masks real secret values in command output for display', () => {
+    const context = createSecretMaskContext()
+    addSecretFindingsToContext(context, [
+      { ruleId: 'generic-api-key', secret: 'sk-live-ABCdef1234567890_ABCdef1234567890' }
+    ])
+
+    const output = displaySecretPlaceholders(maskText(
+      'token sk-live-ABCdef1234567890_ABCdef1234567890',
+      context
+    ))
+
+    expect(output).toBe('token [secret]')
   })
 })

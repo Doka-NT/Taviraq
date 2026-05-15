@@ -83,7 +83,9 @@ describe('secret masking utilities', () => {
   it('does not flag long filesystem paths as contextual secrets', () => {
     const findings = findSupplementalStrictSecrets([
       'TOKEN_PATH=/Users/artem/AbCdEf1234567890_AbCdEf1234567890',
-      'PASSWORD_FILE=~/secrets/AbCdEf1234567890_AbCdEf1234567890'
+      'PASSWORD_FILE=~/secrets/AbCdEf1234567890_AbCdEf1234567890',
+      'API_KEY=C:\\Users\\artem\\AbCdEf1234567890_AbCdEf1234567890',
+      'SECRET=\\\\server\\share\\AbCdEf1234567890_AbCdEf1234567890'
     ].join('\n'))
 
     expect(findings).toHaveLength(0)

@@ -337,10 +337,10 @@ export function findSupplementalStrictSecrets(text: string): SecretFinding[] {
 export function maskText(text: string, ctx: SecretMaskContext): string {
   if (!text || ctx.bindings.length === 0) return text
 
-  return sortedBindings(ctx).reduce(
-    (masked, binding) => masked.split(binding.value).join(binding.placeholder),
-    text
-  )
+  const bindings = sortedBindings(ctx)
+  const byValue = new Map(bindings.map((binding) => [binding.value, binding.placeholder]))
+  const pattern = new RegExp(bindings.map((binding) => escapeRegExp(binding.value)).join('|'), 'g')
+  return text.replace(pattern, (value) => byValue.get(value) ?? value)
 }
 
 export function unmaskText(text: string, ctx: SecretMaskContext): string {
@@ -422,6 +422,7 @@ export function createStreamingUnmasker(ctx: SecretMaskContext): {
 
   let pending = ''
   const maxPlaceholderLength = Math.max(...ctx.bindings.map((binding) => binding.placeholder.length))
+  // Keep a little extra overlap beyond the longest placeholder for adjacent punctuation/quotes.
   const keep = maxPlaceholderLength + 8
 
   return {
@@ -505,7 +506,11 @@ function isLikelySafeToken(value: string): boolean {
 }
 
 function isLikelyFilesystemPath(value: string): boolean {
-  return /^(?:\/|~|\.{1,2}\/)/.test(value)
+  return /^(?:\/|~|\.{1,2}[/\\]|[A-Za-z]:[\\/]|\\\\)/.test(value)
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 async function runGitleaks(input: string, signal?: AbortSignal): Promise<SecretFinding[]> {

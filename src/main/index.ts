@@ -56,8 +56,10 @@ const chatHistoryStore = new ChatHistoryStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
+const secretContextLocksBySession = new Map<string, Promise<void>>()
 const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextsBySession.delete(sessionId)
+  secretContextLocksBySession.delete(sessionId)
 })
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
@@ -99,6 +101,26 @@ function updateSecretMaskingModeCache(config: AppConfig): void {
 
 function getSecretMaskingMode(): SecretMaskingMode {
   return DEMO_MODE ? normalizeSecretMaskingMode(demoConfig.secretMasking?.mode) : secretMaskingModeCache
+}
+
+async function withSessionSecretContextLock<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+  const previous = secretContextLocksBySession.get(sessionId) ?? Promise.resolve()
+  let release = (): void => {}
+  const current = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const queued = previous.catch(() => undefined).then(() => current)
+  secretContextLocksBySession.set(sessionId, queued)
+
+  await previous.catch(() => undefined)
+  try {
+    return await task()
+  } finally {
+    release()
+    if (secretContextLocksBySession.get(sessionId) === queued) {
+      secretContextLocksBySession.delete(sessionId)
+    }
+  }
 }
 
 function isAllowedExternalUrl(value: string): boolean {
@@ -656,20 +678,26 @@ function registerIpc(): void {
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
-    const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
-    terminalManager.runConfirmed(sessionId, resolvedCommand, command)
+    try {
+      const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
+      terminalManager.runConfirmed(sessionId, resolvedCommand, command)
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Unable to resolve local secret placeholders.')
+    }
   })
 
   ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string) => {
-    const result = await maskTextForDisplay(
-      text,
-      getSecretMaskingMode(),
-      secretContextsBySession.get(sessionId)
-    )
-    if (result.context.bindings.length > (secretContextsBySession.get(sessionId)?.bindings.length ?? 0)) {
-      secretContextsBySession.set(sessionId, result.context)
-    }
-    return result.text
+    return withSessionSecretContextLock(sessionId, async () => {
+      const result = await maskTextForDisplay(
+        text,
+        getSecretMaskingMode(),
+        secretContextsBySession.get(sessionId)
+      )
+      if (result.context.bindings.length > (secretContextsBySession.get(sessionId)?.bindings.length ?? 0)) {
+        secretContextsBySession.set(sessionId, result.context)
+      }
+      return result.text
+    })
   })
 
   // Prompts
@@ -849,50 +877,58 @@ function registerIpc(): void {
     void (async () => {
       try {
         const sessionId = request.context.session?.id
-        const result = await streamChatCompletion(request, (chunk) => {
-          if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
-            event.sender.send('llm:chatStream:event', {
-              requestId: request.requestId,
-              type: 'privacy',
-              maskedSecrets: chunk.maskedSecrets
-            })
-          }
+        const runStream = async (): Promise<void> => {
+          const result = await streamChatCompletion(request, (chunk) => {
+            if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'privacy',
+                maskedSecrets: chunk.maskedSecrets
+              })
+            }
 
-          if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
-            event.sender.send('llm:chatStream:event', {
-              requestId: request.requestId,
-              type: 'progress',
-              stage: chunk.stage,
-              progress: chunk.progress
-            })
-          }
+            if (chunk.type === 'progress' && chunk.stage && typeof chunk.progress === 'number') {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'progress',
+                stage: chunk.stage,
+                progress: chunk.progress
+              })
+            }
 
-          if (chunk.reasoningContent) {
-            event.sender.send('llm:chatStream:event', {
-              requestId: request.requestId,
-              type: 'reasoning',
-              content: chunk.reasoningContent
-            })
-          }
+            if (chunk.reasoningContent) {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'reasoning',
+                content: chunk.reasoningContent
+              })
+            }
 
-          if (chunk.content) {
-            event.sender.send('llm:chatStream:event', {
-              requestId: request.requestId,
-              type: 'chunk',
-              content: chunk.content
-            })
-          }
-        }, controller.signal, getSecretMaskingMode(), sessionId ? secretContextsBySession.get(sessionId) : undefined)
+            if (chunk.content) {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'chunk',
+                content: chunk.content
+              })
+            }
+          }, controller.signal, getSecretMaskingMode(), sessionId ? secretContextsBySession.get(sessionId) : undefined)
 
-        if (controller.signal.aborted) return
-        if (sessionId && result.secretContext.bindings.length > 0) {
-          secretContextsBySession.set(sessionId, result.secretContext)
+          if (controller.signal.aborted) return
+          if (sessionId && result.secretContext.bindings.length > 0) {
+            secretContextsBySession.set(sessionId, result.secretContext)
+          }
+          event.sender.send('llm:chatStream:event', {
+            requestId: request.requestId,
+            type: 'done',
+            ...(result.maskedContent ? { maskedContent: result.maskedContent } : {})
+          })
         }
-        event.sender.send('llm:chatStream:event', {
-          requestId: request.requestId,
-          type: 'done',
-          ...(result.maskedContent ? { maskedContent: result.maskedContent } : {})
-        })
+
+        if (sessionId) {
+          await withSessionSecretContextLock(sessionId, runStream)
+        } else {
+          await runStream()
+        }
       } catch (error: unknown) {
         if (controller.signal.aborted) return
         event.sender.send('llm:chatStream:event', {

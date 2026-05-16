@@ -23,6 +23,13 @@ function candidateIndex(value: string, candidate: string, preference: CommandSta
   return preference === 'first' ? value.indexOf(candidate) : value.lastIndexOf(candidate)
 }
 
+function lineMatchesEchoCandidate(line: string, candidate: string, firstLine: boolean): boolean {
+  if (line === candidate) return true
+  if (firstLine) return line.endsWith(candidate)
+
+  return line.endsWith(`> ${candidate}`)
+}
+
 export function commandLineCandidates(command: string): string[] {
   const candidates = new Set<string>()
   const normalized = normalizeCommand(command)
@@ -130,9 +137,7 @@ export function stripCommandEcho(command: string, text: string): string {
 
     const trimmedLine = line.trim()
     const matches = candidatesForLine(commandLine).some((candidate) =>
-      commandLineIndex === 0
-        ? trimmedLine === candidate || trimmedLine.endsWith(candidate)
-        : trimmedLine === candidate
+      lineMatchesEchoCandidate(trimmedLine, candidate, commandLineIndex === 0)
     )
     if (!matches) return text
 

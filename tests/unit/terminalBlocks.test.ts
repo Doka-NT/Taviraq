@@ -43,6 +43,14 @@ describe('terminal block command matching', () => {
       '  -n phpcs-report.xml',
       ': Visibility must be declared on all constants'
     ].join('\n'))).toBe(': Visibility must be declared on all constants')
+
+    expect(stripCommandEcho(command, [
+      '➜  artifacts (2) xmlstarlet sel -t \\',
+      '> -m \'//*[local-name()="error" or local-name()="warning" or local-name()="failure"]\' \\',
+      'quote> -v \'concat(@line, ":", @column, " ", @message, " ", @source)\' \\',
+      '> -n phpcs-report.xml',
+      ': Visibility must be declared on all constants'
+    ].join('\n'))).toBe(': Visibility must be declared on all constants')
   })
 
   it('keeps the full command as a candidate for single-line commands', () => {

@@ -3,9 +3,11 @@ import {
   commandLineCandidates,
   commandStartLineCandidates,
   commandVisibleLineCount,
+  findCommandStartOffset,
   lineMatchesCommand,
   lineMatchesCommandStart,
-  stripCommandEcho
+  stripCommandEcho,
+  terminalTailStartOffset
 } from '../../src/renderer/src/utils/terminalBlocks'
 
 describe('terminal block command matching', () => {
@@ -37,5 +39,29 @@ describe('terminal block command matching', () => {
     expect(commandLineCandidates('git status')).toEqual(['git status'])
     expect(lineMatchesCommand('➜  project git status', 'git status')).toBe(true)
     expect(stripCommandEcho('git status', '➜  project git status\nOn branch main')).toBe('On branch main')
+  })
+
+  it('keeps command start matching scoped to the current terminal block', () => {
+    const command = 'xmlstarlet sel -t \\\n  -n phpcs-report.xml'
+    const previousRun = [
+      '➜  artifacts (2) xmlstarlet sel -t \\',
+      '  -n phpcs-report.xml',
+      'old output'
+    ].join('\n')
+    const beforeCurrentEcho = `${previousRun}\n➜  artifacts (2) `
+    const currentEcho = [
+      'xmlstarlet sel -t \\',
+      '  -n phpcs-report.xml'
+    ].join('\n')
+    const output = `${beforeCurrentEcho}${currentEcho}\nnew output\nxmlstarlet sel -t \\`
+
+    expect(findCommandStartOffset(beforeCurrentEcho, command, {
+      searchStart: terminalTailStartOffset(beforeCurrentEcho, 1)
+    })).toBe(beforeCurrentEcho.length)
+
+    expect(findCommandStartOffset(output, command, {
+      searchStart: previousRun.length + 1,
+      preference: 'first'
+    })).toBe(previousRun.length + 1)
   })
 })

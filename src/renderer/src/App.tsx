@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { commandStartLineCandidates, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
+import { findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho, terminalTailStartOffset } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -32,6 +32,7 @@ const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
 const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
+const COMMAND_START_TAIL_LINES = 20
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
@@ -122,19 +123,10 @@ function lineCount(output: string): number {
   return output.split('\n').length - 1
 }
 
-function findCommandStart(output: string, command: string, searchEnd = output.length): number {
-  const searchableOutput = output.slice(0, searchEnd)
-  const commandIndex = searchableOutput.lastIndexOf(command)
-  const matchedIndex = commandIndex === -1
-    ? commandStartLineCandidates(command)
-      .map((candidate) => searchableOutput.lastIndexOf(candidate))
-      .find((index) => index !== -1)
-    : commandIndex
-
-  if (matchedIndex === undefined || matchedIndex === -1) return output.length
-
-  const previousNewline = searchableOutput.lastIndexOf('\n', matchedIndex)
-  return previousNewline === -1 ? 0 : previousNewline + 1
+function findCommandStart(output: string, command: string): number {
+  return findCommandStartOffset(output, command, {
+    searchStart: terminalTailStartOffset(output, COMMAND_START_TAIL_LINES)
+  })
 }
 
 function findBlockVisualStartLine(output: string, command: string): number {
@@ -154,7 +146,10 @@ function updateBlockBounds(block: TerminalBlock, output: string): TerminalBlock 
     lineMatchesCommandStart(storedCommandLine, block.command)
   const commandStart = hasCommandAtStoredStart
     ? block.startOffset
-    : findCommandStart(output, block.command, block.endOffset)
+    : findCommandStartOffset(output, block.command, {
+      searchStart: block.startOffset,
+      preference: 'first'
+    })
   const hasCommandInBuffer = commandStart < output.length
   const startOffset = hasCommandInBuffer ? commandStart : block.startOffset
   const startLine = hasCommandInBuffer

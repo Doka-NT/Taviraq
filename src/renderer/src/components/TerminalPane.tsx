@@ -255,10 +255,11 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
       }
     }
 
+    const visualStartOffset = Math.max(0, block.startLine - start)
     const storedEndBoundary = block.complete
       ? Math.min(
         terminal.buffer.active.length,
-        start + Math.max(0, block.endLine - block.startLine) + 1
+        start + visualStartOffset + Math.max(0, block.endLine - block.startLine) + 1
       )
       : terminal.buffer.active.length
     const endBoundary = Math.min(

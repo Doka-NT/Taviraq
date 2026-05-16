@@ -53,6 +53,22 @@ describe('terminal block command matching', () => {
     ].join('\n'))).toBe(': Visibility must be declared on all constants')
   })
 
+  it('strips echoed blank rows from multiline commands', () => {
+    const command = 'cat <<EOF\nalpha\n\nomega\nEOF'
+
+    expect(commandVisibleLineCount(command)).toBe(5)
+    expect(stripCommandEcho(command, [
+      '➜  project cat <<EOF',
+      '> alpha',
+      '>',
+      '> omega',
+      '> EOF',
+      'alpha',
+      '',
+      'omega'
+    ].join('\n'))).toBe('alpha\n\nomega')
+  })
+
   it('keeps the full command as a candidate for single-line commands', () => {
     expect(commandLineCandidates('git status')).toEqual(['git status'])
     expect(lineMatchesCommand('➜  project git status', 'git status')).toBe(true)

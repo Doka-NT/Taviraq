@@ -30,6 +30,10 @@ function lineMatchesEchoCandidate(line: string, candidate: string, firstLine: bo
   return line.endsWith(`> ${candidate}`)
 }
 
+function lineMatchesBlankEcho(line: string): boolean {
+  return line === '' || /^\S*>\s*$/.test(line)
+}
+
 export function commandLineCandidates(command: string): string[] {
   const candidates = new Set<string>()
   const normalized = normalizeCommand(command)
@@ -59,7 +63,8 @@ export function commandStartLineCandidates(command: string): string[] {
 }
 
 export function commandVisibleLineCount(command: string): number {
-  return normalizeCommand(command).split('\n').filter((line) => line.trim()).length
+  const normalized = normalizeCommand(command)
+  return normalized ? normalized.split('\n').length : 0
 }
 
 export function lineMatchesCommand(line: string, command: string): boolean {
@@ -125,7 +130,8 @@ export function findCommandStartOffset(
 }
 
 export function stripCommandEcho(command: string, text: string): string {
-  const commandLines = normalizeCommand(command).split('\n').filter((line) => line.trim())
+  const normalizedCommand = normalizeCommand(command)
+  const commandLines = normalizedCommand ? normalizedCommand.split('\n') : []
   if (commandLines.length === 0) return text
 
   const lines = text.split('\n')
@@ -136,6 +142,12 @@ export function stripCommandEcho(command: string, text: string): string {
     if (line === undefined) return text
 
     const trimmedLine = line.trim()
+    if (!commandLine.trim()) {
+      if (!lineMatchesBlankEcho(trimmedLine)) return text
+      index += 1
+      continue
+    }
+
     const matches = candidatesForLine(commandLine).some((candidate) =>
       lineMatchesEchoCandidate(trimmedLine, candidate, commandLineIndex === 0)
     )

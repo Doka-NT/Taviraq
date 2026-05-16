@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { commandStartLineCandidates, stripCommandEcho } from './utils/terminalBlocks'
+import { commandStartLineCandidates, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -122,17 +122,18 @@ function lineCount(output: string): number {
   return output.split('\n').length - 1
 }
 
-function findCommandStart(output: string, command: string): number {
-  const commandIndex = output.lastIndexOf(command)
+function findCommandStart(output: string, command: string, searchEnd = output.length): number {
+  const searchableOutput = output.slice(0, searchEnd)
+  const commandIndex = searchableOutput.lastIndexOf(command)
   const matchedIndex = commandIndex === -1
     ? commandStartLineCandidates(command)
-      .map((candidate) => output.lastIndexOf(candidate))
+      .map((candidate) => searchableOutput.lastIndexOf(candidate))
       .find((index) => index !== -1)
     : commandIndex
 
   if (matchedIndex === undefined || matchedIndex === -1) return output.length
 
-  const previousNewline = output.lastIndexOf('\n', matchedIndex)
+  const previousNewline = searchableOutput.lastIndexOf('\n', matchedIndex)
   return previousNewline === -1 ? 0 : previousNewline + 1
 }
 
@@ -149,8 +150,11 @@ function findBlockVisualStartLine(output: string, command: string): number {
 function updateBlockBounds(block: TerminalBlock, output: string): TerminalBlock {
   const lineEnd = output.indexOf('\n', block.startOffset)
   const storedCommandLine = output.slice(block.startOffset, lineEnd === -1 ? output.length : lineEnd)
-  const hasCommandAtStoredStart = storedCommandLine.includes(block.command)
-  const commandStart = hasCommandAtStoredStart ? block.startOffset : findCommandStart(output, block.command)
+  const hasCommandAtStoredStart = storedCommandLine.includes(block.command) ||
+    lineMatchesCommandStart(storedCommandLine, block.command)
+  const commandStart = hasCommandAtStoredStart
+    ? block.startOffset
+    : findCommandStart(output, block.command, block.endOffset)
   const hasCommandInBuffer = commandStart < output.length
   const startOffset = hasCommandInBuffer ? commandStart : block.startOffset
   const startLine = hasCommandInBuffer

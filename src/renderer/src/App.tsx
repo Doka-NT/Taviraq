@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
+import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -125,6 +125,23 @@ function lineCount(output: string): number {
 function findBlockVisualStartLine(output: string): number {
   const lines = output.split('\n')
   return Math.max(0, lines.length - 2)
+}
+
+function resolveNewBlockStart(output: string, command: string, echoed: boolean): { offset: number; line: number } {
+  if (echoed) {
+    const offset = findBufferedCommandStartOffset(output, command)
+    if (offset < output.length) {
+      return {
+        offset,
+        line: lineCount(output.slice(0, offset))
+      }
+    }
+  }
+
+  return {
+    offset: output.length,
+    line: findBlockVisualStartLine(output)
+  }
 }
 
 function updateBlockBounds(block: TerminalBlock, output: string): TerminalBlock {
@@ -270,28 +287,28 @@ export function App(): JSX.Element {
     Object.assign(block, updateBlockBounds(block, output))
   }, [])
 
-  const handleCommandBlockStart = useCallback((sessionId: string, command: string): void => {
+  const handleCommandBlockStart = useCallback((sessionId: string, command: string, echoed: boolean): void => {
     const output = outputBuffers.current.get(sessionId) ?? ''
+    const start = resolveNewBlockStart(output, command, echoed)
     const activeBlockId = activeBlockIdsRef.current.get(sessionId)
     if (activeBlockId) {
       const currentBlocks = terminalBlocksRef.current.get(sessionId) ?? []
+      const previousOutput = start.offset < output.length ? output.slice(0, start.offset) : output
       terminalBlocksRef.current.set(sessionId, currentBlocks.map((block) =>
         block.id === activeBlockId
-          ? { ...updateBlockBounds(block, output), complete: true }
+          ? { ...updateBlockBounds(block, previousOutput), complete: true }
           : block
       ))
     }
 
-    const startOffset = output.length
-    const startLine = findBlockVisualStartLine(output)
     const block: TerminalBlock = {
       id: crypto.randomUUID(),
       sessionId,
       command,
-      startOffset,
+      startOffset: start.offset,
       endOffset: output.length,
-      startLine,
-      endLine: Math.max(startLine, lineCount(output)),
+      startLine: start.line,
+      endLine: Math.max(start.line, lineCount(output)),
       complete: false
     }
 
@@ -698,8 +715,8 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    const offCommand = window.api.terminal.onCommand(({ sessionId, command }) => {
-      handleCommandBlockStart(sessionId, command)
+    const offCommand = window.api.terminal.onCommand(({ sessionId, command, echoed }) => {
+      handleCommandBlockStart(sessionId, command, echoed)
     })
     const offPrompt = window.api.terminal.onPrompt(({ sessionId }) => {
       handleCommandBlockComplete(sessionId)

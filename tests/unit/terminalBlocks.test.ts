@@ -3,6 +3,7 @@ import {
   commandLineCandidates,
   commandStartLineCandidates,
   commandVisibleLineCount,
+  findBufferedCommandStartOffset,
   findCommandStartOffset,
   lineMatchesCommand,
   lineMatchesCommandStart,
@@ -109,6 +110,24 @@ describe('terminal block command matching', () => {
     })).toBe(previousRun.length + 1)
 
     expect(findCommandStartOffset(output, command, { searchStart: output.length + 100 })).toBe(output.length)
+  })
+
+  it('finds an already-buffered command echo at the terminal tail', () => {
+    const command = 'xmlstarlet sel -t \\\n  -n phpcs-report.xml'
+    const previousRun = [
+      '➜  artifacts (2) xmlstarlet sel -t \\',
+      '> -n phpcs-report.xml',
+      'old output'
+    ].join('\n')
+    const currentRunLineStart = previousRun.length + 1
+    const output = [
+      previousRun,
+      '➜  artifacts (2) xmlstarlet sel -t \\',
+      '> -n phpcs-report.xml'
+    ].join('\n')
+
+    expect(findBufferedCommandStartOffset(output, command)).toBe(currentRunLineStart)
+    expect(findBufferedCommandStartOffset('old output\n➜  artifacts (2) ', command)).toBe('old output\n➜  artifacts (2) '.length)
   })
 
   it('can include the first row of long multiline commands in tail searches', () => {

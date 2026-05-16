@@ -21,6 +21,7 @@ import type {
   SSHProfile,
   SSHProfileConfig,
   SummarizeConversationRequest,
+  TerminalCommandEvent,
   TerminalSessionInfo
 } from '@shared/types'
 
@@ -73,8 +74,8 @@ const api = {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
-    onCommand: (callback: (payload: { sessionId: string; command: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; command: string }) => callback(payload)
+    onCommand: (callback: (payload: TerminalCommandEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TerminalCommandEvent) => callback(payload)
       ipcRenderer.on('terminal:command', listener)
       return () => {
         ipcRenderer.removeListener('terminal:command', listener)

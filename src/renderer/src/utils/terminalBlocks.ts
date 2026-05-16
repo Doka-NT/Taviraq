@@ -87,6 +87,16 @@ export function terminalTailStartOffset(output: string, lineLimit: number): numb
   return start + 1
 }
 
+export function findBufferedCommandStartOffset(output: string, command: string): number {
+  const visibleLineCount = commandVisibleLineCount(command)
+  if (visibleLineCount === 0) return output.length
+
+  return findCommandStartOffset(output, command, {
+    searchStart: terminalTailStartOffset(output, visibleLineCount + 2),
+    preference: 'last'
+  })
+}
+
 export function findCommandStartOffset(
   output: string,
   command: string,

@@ -34,6 +34,7 @@ export interface CreateTerminalRequest {
 export interface TerminalCommandEvent {
   sessionId: string
   command: string
+  echoed: boolean
 }
 
 export interface TerminalPromptEvent {

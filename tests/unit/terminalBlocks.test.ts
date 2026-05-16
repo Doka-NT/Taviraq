@@ -11,6 +11,16 @@ import {
 } from '../../src/renderer/src/utils/terminalBlocks'
 
 describe('terminal block command matching', () => {
+  it('handles empty and whitespace-only commands', () => {
+    expect(commandLineCandidates('')).toEqual([])
+    expect(commandLineCandidates('   \n\t')).toEqual([])
+    expect(commandStartLineCandidates('')).toEqual([])
+    expect(commandVisibleLineCount('   ')).toBe(0)
+    expect(lineMatchesCommand('anything', '')).toBe(false)
+    expect(lineMatchesCommandStart('anything', '   ')).toBe(false)
+    expect(stripCommandEcho('', 'output')).toBe('output')
+  })
+
   it('matches multiline commands by their visible command lines', () => {
     const command = [
       'xmlstarlet sel -t \\',
@@ -39,6 +49,16 @@ describe('terminal block command matching', () => {
     expect(commandLineCandidates('git status')).toEqual(['git status'])
     expect(lineMatchesCommand('➜  project git status', 'git status')).toBe(true)
     expect(stripCommandEcho('git status', '➜  project git status\nOn branch main')).toBe('On branch main')
+    expect(stripCommandEcho('git status', 'On branch main')).toBe('On branch main')
+    expect(stripCommandEcho('git status', 'prefix git status suffix\nOn branch main')).toBe('prefix git status suffix\nOn branch main')
+  })
+
+  it('normalizes CRLF commands', () => {
+    const command = 'printf one \\\r\n  && printf two'
+
+    expect(commandVisibleLineCount(command)).toBe(2)
+    expect(lineMatchesCommandStart('➜  project printf one \\', command)).toBe(true)
+    expect(stripCommandEcho(command, '➜  project printf one \\\n  && printf two\none two')).toBe('one two')
   })
 
   it('keeps command start matching scoped to the current terminal block', () => {
@@ -63,6 +83,8 @@ describe('terminal block command matching', () => {
       searchStart: previousRun.length + 1,
       preference: 'first'
     })).toBe(previousRun.length + 1)
+
+    expect(findCommandStartOffset(output, command, { searchStart: output.length + 100 })).toBe(output.length)
   })
 
   it('can include the first row of long multiline commands in tail searches', () => {

@@ -28,6 +28,10 @@ export function commandLineCandidates(command: string): string[] {
   const normalized = normalizeCommand(command)
   if (!normalized) return []
 
+  if (!normalized.includes('\n') && !/\\\s*$/.test(normalized)) {
+    return [normalized]
+  }
+
   candidates.add(normalized)
 
   for (const line of normalized.split('\n')) {
@@ -90,9 +94,14 @@ export function findCommandStartOffset(
   const candidates = [normalized, ...commandStartLineCandidates(command)]
   let matchedIndex: number | undefined
 
-  for (const candidate of candidates) {
+  for (const [candidatePosition, candidate] of candidates.entries()) {
     const index = candidateIndex(searchableOutput, candidate, preference)
     if (index === -1) continue
+
+    if (candidatePosition === 0) {
+      matchedIndex = index
+      break
+    }
 
     matchedIndex = matchedIndex === undefined
       ? index
@@ -115,11 +124,16 @@ export function stripCommandEcho(command: string, text: string): string {
   const lines = text.split('\n')
   let index = 0
 
-  for (const commandLine of commandLines) {
+  for (const [commandLineIndex, commandLine] of commandLines.entries()) {
     const line = lines[index]
     if (line === undefined) return text
 
-    const matches = candidatesForLine(commandLine).some((candidate) => line.includes(candidate))
+    const trimmedLine = line.trim()
+    const matches = candidatesForLine(commandLine).some((candidate) =>
+      commandLineIndex === 0
+        ? trimmedLine === candidate || trimmedLine.endsWith(candidate)
+        : trimmedLine === candidate
+    )
     if (!matches) return text
 
     index += 1

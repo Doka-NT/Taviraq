@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho, terminalTailStartOffset } from './utils/terminalBlocks'
+import { commandVisibleLineCount, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho, terminalTailStartOffset } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -124,8 +124,9 @@ function lineCount(output: string): number {
 }
 
 function findCommandStart(output: string, command: string): number {
+  const tailLines = Math.max(COMMAND_START_TAIL_LINES, commandVisibleLineCount(command) + 2)
   return findCommandStartOffset(output, command, {
-    searchStart: terminalTailStartOffset(output, COMMAND_START_TAIL_LINES)
+    searchStart: terminalTailStartOffset(output, tailLines)
   })
 }
 

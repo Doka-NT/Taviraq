@@ -64,4 +64,14 @@ describe('terminal block command matching', () => {
       preference: 'first'
     })).toBe(previousRun.length + 1)
   })
+
+  it('can include the first row of long multiline commands in tail searches', () => {
+    const command = Array.from({ length: 24 }, (_, index) => `echo line-${index} \\`).join('\n')
+    const output = `➜  project ${command}\n`
+    const fixedTailStart = terminalTailStartOffset(output, 20)
+    const commandAwareTailStart = terminalTailStartOffset(output, commandVisibleLineCount(command) + 2)
+
+    expect(findCommandStartOffset(output, command, { searchStart: fixedTailStart })).toBe(output.length)
+    expect(findCommandStartOffset(output, command, { searchStart: commandAwareTailStart })).toBe(0)
+  })
 })

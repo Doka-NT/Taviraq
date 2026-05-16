@@ -19,23 +19,70 @@ function candidatesForLine(line: string): string[] {
 
 type CommandStartPreference = 'first' | 'last'
 
+function isWhitespace(value: string): boolean {
+  return value.trim() === ''
+}
+
+function isCommandBoundaryBefore(value: string | undefined): boolean {
+  return value === undefined || isWhitespace(value) || '>$#%❯➜'.includes(value)
+}
+
+function isCommandBoundaryAfter(value: string, start: number): boolean {
+  for (let index = start; index < value.length; index += 1) {
+    const char = value[index]
+    if (char === '\n' || char === '\r') return true
+    if (!isWhitespace(char)) return false
+  }
+
+  return true
+}
+
+function candidateMatchesAtLineEnd(value: string, candidate: string, index: number): boolean {
+  if (index < 0) return false
+
+  return isCommandBoundaryBefore(value[index - 1]) &&
+    isCommandBoundaryAfter(value, index + candidate.length)
+}
+
 function candidateIndex(value: string, candidate: string, preference: CommandStartPreference): number {
-  return preference === 'first' ? value.indexOf(candidate) : value.lastIndexOf(candidate)
+  if (!candidate) return -1
+
+  if (preference === 'first') {
+    for (let index = value.indexOf(candidate); index !== -1; index = value.indexOf(candidate, index + 1)) {
+      if (candidateMatchesAtLineEnd(value, candidate, index)) return index
+    }
+
+    return -1
+  }
+
+  let index = value.lastIndexOf(candidate)
+  while (index !== -1) {
+    if (candidateMatchesAtLineEnd(value, candidate, index)) return index
+    if (index === 0) break
+    index = value.lastIndexOf(candidate, index - 1)
+  }
+
+  return -1
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function lineEndsWithCommandCandidate(line: string, candidate: string): boolean {
+  const value = line.trimEnd()
+  if (!candidate || !value.endsWith(candidate)) return false
+
+  return isCommandBoundaryBefore(value[value.length - candidate.length - 1])
 }
 
-function lineMatchesEchoCandidate(line: string, candidate: string, firstLine: boolean): boolean {
-  if (line === candidate) return true
-  if (firstLine) return line.endsWith(candidate)
-
-  return new RegExp(`^\\S*>\\s*${escapeRegExp(candidate)}$`).test(line)
+function lineMatchesEchoCandidate(line: string, candidate: string): boolean {
+  return lineEndsWithCommandCandidate(line, candidate)
 }
 
 function lineMatchesBlankEcho(line: string): boolean {
-  return line === '' || /^\S*>\s*$/.test(line)
+  if (line === '') return true
+
+  const promptEnd = line.indexOf('>')
+  return promptEnd !== -1 &&
+    ![...line.slice(0, promptEnd)].some(isWhitespace) &&
+    line.slice(promptEnd + 1).trim() === ''
 }
 
 export function commandLineCandidates(command: string): string[] {
@@ -43,11 +90,9 @@ export function commandLineCandidates(command: string): string[] {
   const normalized = normalizeCommand(command)
   if (!normalized) return []
 
-  if (!normalized.includes('\n') && !/\\\s*$/.test(normalized)) {
-    return [normalized]
+  if (!normalized.includes('\n')) {
+    return candidatesForLine(normalized)
   }
-
-  candidates.add(normalized)
 
   for (const line of normalized.split('\n')) {
     for (const candidate of candidatesForLine(line)) {
@@ -72,15 +117,15 @@ export function commandVisibleLineCount(command: string): number {
 }
 
 export function lineMatchesCommand(line: string, command: string): boolean {
-  return commandLineCandidates(command).some((candidate) => line.includes(candidate))
+  return commandLineCandidates(command).some((candidate) => lineEndsWithCommandCandidate(line, candidate))
 }
 
 export function lineMatchesCommandStart(line: string, command: string): boolean {
-  return commandStartLineCandidates(command).some((candidate) => line.includes(candidate))
+  return commandStartLineCandidates(command).some((candidate) => lineEndsWithCommandCandidate(line, candidate))
 }
 
 export function terminalTailStartOffset(output: string, lineLimit: number): number {
-  let start = output.length
+  let start = output.endsWith('\n') ? output.length - 1 : output.length
 
   for (let count = 0; count < lineLimit; count += 1) {
     const previousNewline = output.lastIndexOf('\n', start - 1)
@@ -117,17 +162,12 @@ export function findCommandStartOffset(
   const searchEnd = Math.max(searchStart, Math.min(output.length, options.searchEnd ?? output.length))
   const preference = options.preference ?? 'last'
   const searchableOutput = output.slice(searchStart, searchEnd)
-  const candidates = [normalized, ...commandStartLineCandidates(command)]
+  const candidates = commandStartLineCandidates(command)
   let matchedIndex: number | undefined
 
-  for (const [candidatePosition, candidate] of candidates.entries()) {
+  for (const candidate of candidates) {
     const index = candidateIndex(searchableOutput, candidate, preference)
     if (index === -1) continue
-
-    if (candidatePosition === 0) {
-      matchedIndex = index
-      break
-    }
 
     matchedIndex = matchedIndex === undefined
       ? index
@@ -151,7 +191,7 @@ export function stripCommandEcho(command: string, text: string): string {
   const lines = text.split('\n')
   let index = 0
 
-  for (const [commandLineIndex, commandLine] of commandLines.entries()) {
+  for (const commandLine of commandLines) {
     const line = lines[index]
     if (line === undefined) return text
 
@@ -163,7 +203,7 @@ export function stripCommandEcho(command: string, text: string): string {
     }
 
     const matches = candidatesForLine(commandLine).some((candidate) =>
-      lineMatchesEchoCandidate(trimmedLine, candidate, commandLineIndex === 0)
+      lineMatchesEchoCandidate(trimmedLine, candidate)
     )
     if (!matches) return text
 

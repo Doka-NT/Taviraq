@@ -35,6 +35,7 @@ describe('terminal block command matching', () => {
     expect(lineMatchesCommandStart('➜  artifacts (2) xmlstarlet sel -t \\', command)).toBe(true)
     expect(lineMatchesCommandStart('  -n phpcs-report.xml', command)).toBe(false)
     expect(commandVisibleLineCount(command)).toBe(4)
+    expect(commandLineCandidates(command)).not.toContain(command)
     expect(commandStartLineCandidates(command)).toEqual(['xmlstarlet sel -t \\', 'xmlstarlet sel -t'])
 
     expect(stripCommandEcho(command, [
@@ -73,6 +74,10 @@ describe('terminal block command matching', () => {
   it('keeps the full command as a candidate for single-line commands', () => {
     expect(commandLineCandidates('git status')).toEqual(['git status'])
     expect(lineMatchesCommand('➜  project git status', 'git status')).toBe(true)
+    expect(lineMatchesCommand('prefix git status suffix', 'git status')).toBe(false)
+    expect(lineMatchesCommand('false', 'ls')).toBe(false)
+    expect(lineMatchesCommandStart('false', 'ls')).toBe(false)
+    expect(findCommandStartOffset('false\n', 'ls')).toBe('false\n'.length)
     expect(stripCommandEcho('git status', '➜  project git status\nOn branch main')).toBe('On branch main')
     expect(stripCommandEcho('git status', 'On branch main')).toBe('On branch main')
     expect(stripCommandEcho('git status', 'prefix git status suffix\nOn branch main')).toBe('prefix git status suffix\nOn branch main')
@@ -138,5 +143,7 @@ describe('terminal block command matching', () => {
 
     expect(findCommandStartOffset(output, command, { searchStart: fixedTailStart })).toBe(output.length)
     expect(findCommandStartOffset(output, command, { searchStart: commandAwareTailStart })).toBe(0)
+    expect(terminalTailStartOffset('one\ntwo\n', 1)).toBe('one\n'.length)
+    expect(terminalTailStartOffset('one\ntwo', 1)).toBe('one\n'.length)
   })
 })

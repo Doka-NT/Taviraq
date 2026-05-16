@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { commandVisibleLineCount, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho, terminalTailStartOffset } from './utils/terminalBlocks'
+import { findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -32,8 +32,6 @@ const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
 const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
-// Search enough terminal tail to cover normal prompts, while expanding for pasted multiline commands.
-const COMMAND_START_TAIL_LINES = 20
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
@@ -124,19 +122,7 @@ function lineCount(output: string): number {
   return output.split('\n').length - 1
 }
 
-function findCommandStart(output: string, command: string): number {
-  const tailLines = Math.max(COMMAND_START_TAIL_LINES, commandVisibleLineCount(command) + 2)
-  return findCommandStartOffset(output, command, {
-    searchStart: terminalTailStartOffset(output, tailLines)
-  })
-}
-
-function findBlockVisualStartLine(output: string, command: string): number {
-  const commandStart = findCommandStart(output, command)
-  if (commandStart < output.length) {
-    return lineCount(output.slice(0, commandStart))
-  }
-
+function findBlockVisualStartLine(output: string): number {
   const lines = output.split('\n')
   return Math.max(0, lines.length - 2)
 }
@@ -296,8 +282,8 @@ export function App(): JSX.Element {
       ))
     }
 
-    const startOffset = findCommandStart(output, command)
-    const startLine = findBlockVisualStartLine(output, command)
+    const startOffset = output.length
+    const startLine = findBlockVisualStartLine(output)
     const block: TerminalBlock = {
       id: crypto.randomUUID(),
       sessionId,

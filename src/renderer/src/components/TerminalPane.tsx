@@ -11,6 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -93,9 +94,7 @@ function normalizeBlockOutput(block: TerminalBlock, output: string): string {
     .filter((line) => !isPromptOnlyLine(line))
     .join('\n')
     .trim()
-  const lines = clean.split('\n')
-  const withoutEcho = lines[0]?.includes(block.command) ? lines.slice(1).join('\n').trim() : clean
-  return withoutEcho
+  return stripCommandEcho(block.command, clean)
 }
 
 function blockText(block: TerminalBlock, output: string): string {
@@ -188,29 +187,44 @@ function terminalBlockDecorationColor(container: HTMLElement, alpha = 0.16): str
 function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map<string, number> {
   const result = new Map<string, number>()
   let searchFrom = 0
+  const findMatchingLine = (
+    start: number,
+    end: number,
+    command: string,
+    matcher: (line: string, command: string) => boolean
+  ): number | undefined => {
+    for (let line = start; line <= end; line += 1) {
+      if (matcher(lineTextAt(terminal, line), command)) {
+        return line
+      }
+    }
+
+    return undefined
+  }
 
   for (const block of blocks.slice().sort((a, b) => a.startOffset - b.startOffset)) {
     const command = block.command.trim()
     if (!command) continue
 
-    const nearbyStart = Math.max(searchFrom, block.startLine - 2)
+    const nearbyStart = Math.max(searchFrom, block.startLine - commandVisibleLineCount(command) - 2)
     const nearbyEnd = Math.min(terminal.buffer.active.length - 1, block.startLine + 4)
-    for (let line = nearbyStart; line <= nearbyEnd; line += 1) {
-      if (lineTextAt(terminal, line).includes(command)) {
-        result.set(block.id, line)
-        searchFrom = line + 1
-        break
-      }
+    const nearbyLine = findMatchingLine(nearbyStart, nearbyEnd, command, lineMatchesCommandStart) ??
+      findMatchingLine(nearbyStart, nearbyEnd, command, lineMatchesCommand)
+
+    if (nearbyLine !== undefined) {
+      result.set(block.id, nearbyLine)
+      searchFrom = nearbyLine + 1
     }
 
     if (result.has(block.id)) continue
 
-    for (let line = searchFrom; line < terminal.buffer.active.length; line += 1) {
-      if (lineTextAt(terminal, line).includes(command)) {
-        result.set(block.id, line)
-        searchFrom = line + 1
-        break
-      }
+    const fallbackEnd = terminal.buffer.active.length - 1
+    const fallbackLine = findMatchingLine(searchFrom, fallbackEnd, command, lineMatchesCommandStart) ??
+      findMatchingLine(searchFrom, fallbackEnd, command, lineMatchesCommand)
+
+    if (fallbackLine !== undefined) {
+      result.set(block.id, fallbackLine)
+      searchFrom = fallbackLine + 1
     }
   }
 
@@ -241,10 +255,11 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
       }
     }
 
+    const visualStartOffset = Math.max(0, block.startLine - start)
     const storedEndBoundary = block.complete
       ? Math.min(
         terminal.buffer.active.length,
-        start + Math.max(0, block.endLine - block.startLine) + 1
+        start + visualStartOffset + Math.max(0, block.endLine - block.startLine) + 1
       )
       : terminal.buffer.active.length
     const endBoundary = Math.min(

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import pty from 'node-pty'
-import type { CreateTerminalRequest, SSHProfile, TerminalSessionInfo } from '@shared/types'
+import type { CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
 import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 import { resolveExistingCwd } from '@main/utils/cwd'
 
@@ -127,7 +127,7 @@ export class TerminalManager {
 
       const wasSshSession = session.info.kind === 'ssh'
       if (wasSshSession) {
-        this.emit('terminal:command', { sessionId, command: normalized })
+        this.emitCommand({ sessionId, command: normalized, echoed: false })
       } else {
         this.captureSubmittedCommand(session, normalized)
       }
@@ -198,7 +198,7 @@ export class TerminalManager {
         this.emit('terminal:data', { sessionId: id, data: parsed.data })
       }
       for (const command of parsed.commands) {
-        this.emit('terminal:command', { sessionId: id, command })
+        this.emitCommand({ sessionId: id, command, echoed: true })
       }
       if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
@@ -278,7 +278,7 @@ export class TerminalManager {
         } else if (session.info.kind === 'ssh') {
           const command = (session.inputLine ?? '').trim()
           if (command) {
-            this.emit('terminal:command', { sessionId: session.info.id, command })
+            this.emitCommand({ sessionId: session.info.id, command, echoed: false })
           }
         }
         session.inputLine = ''
@@ -353,6 +353,10 @@ export class TerminalManager {
 
   private emit(channel: string, payload: unknown): void {
     this.getWindow()?.webContents.send(channel, payload)
+  }
+
+  private emitCommand(payload: TerminalCommandEvent): void {
+    this.emit('terminal:command', payload)
   }
 }
 

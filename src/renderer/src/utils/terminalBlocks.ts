@@ -23,11 +23,15 @@ function candidateIndex(value: string, candidate: string, preference: CommandSta
   return preference === 'first' ? value.indexOf(candidate) : value.lastIndexOf(candidate)
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function lineMatchesEchoCandidate(line: string, candidate: string, firstLine: boolean): boolean {
   if (line === candidate) return true
   if (firstLine) return line.endsWith(candidate)
 
-  return line.endsWith(`> ${candidate}`)
+  return new RegExp(`^\\S*>\\s*${escapeRegExp(candidate)}$`).test(line)
 }
 
 function lineMatchesBlankEcho(line: string): boolean {

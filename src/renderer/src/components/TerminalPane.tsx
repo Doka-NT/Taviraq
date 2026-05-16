@@ -11,7 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
-import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -94,9 +94,7 @@ function normalizeBlockOutput(block: TerminalBlock, output: string): string {
     .filter((line) => !isPromptOnlyLine(line))
     .join('\n')
     .trim()
-  const lines = clean.split('\n')
-  const withoutEcho = lines[0]?.includes(block.command) ? lines.slice(1).join('\n').trim() : clean
-  return withoutEcho
+  return stripCommandEcho(block.command, clean)
 }
 
 function blockText(block: TerminalBlock, output: string): string {

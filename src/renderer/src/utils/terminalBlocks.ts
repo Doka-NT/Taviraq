@@ -52,3 +52,23 @@ export function lineMatchesCommand(line: string, command: string): boolean {
 export function lineMatchesCommandStart(line: string, command: string): boolean {
   return commandStartLineCandidates(command).some((candidate) => line.includes(candidate))
 }
+
+export function stripCommandEcho(command: string, text: string): string {
+  const commandLines = normalizeCommand(command).split('\n').filter((line) => line.trim())
+  if (commandLines.length === 0) return text
+
+  const lines = text.split('\n')
+  let index = 0
+
+  for (const commandLine of commandLines) {
+    const line = lines[index]
+    if (line === undefined) return text
+
+    const matches = candidatesForLine(commandLine).some((candidate) => line.includes(candidate))
+    if (!matches) return text
+
+    index += 1
+  }
+
+  return lines.slice(index).join('\n').trim()
+}

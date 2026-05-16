@@ -9,7 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { commandStartLineCandidates } from './utils/terminalBlocks'
+import { commandStartLineCandidates, stripCommandEcho } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -354,10 +354,7 @@ export function App(): JSX.Element {
           .filter((line) => !isPromptOnlyLine(line))
           .join('\n')
           .trim()
-        const outputLines = rawOutput.split('\n')
-        const cleanOutput = outputLines[0]?.includes(block.command)
-          ? outputLines.slice(1).join('\n').trim()
-          : rawOutput
+        const cleanOutput = stripCommandEcho(block.command, rawOutput)
         const text = [`$ ${block.command}`, cleanOutput].filter(Boolean).join('\n')
         return `${appT('terminal.blocks.label', { index: index + 1 })}\n\`\`\`text\n${text}\n\`\`\``
       })

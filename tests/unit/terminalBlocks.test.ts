@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { commandLineCandidates, lineMatchesCommand } from '../../src/renderer/src/utils/terminalBlocks'
+import {
+  commandLineCandidates,
+  commandStartLineCandidates,
+  commandVisibleLineCount,
+  lineMatchesCommand,
+  lineMatchesCommandStart
+} from '../../src/renderer/src/utils/terminalBlocks'
 
 describe('terminal block command matching', () => {
   it('matches multiline commands by their visible command lines', () => {
@@ -12,6 +18,10 @@ describe('terminal block command matching', () => {
 
     expect(lineMatchesCommand('➜  artifacts (2) xmlstarlet sel -t \\', command)).toBe(true)
     expect(lineMatchesCommand('  -n phpcs-report.xml', command)).toBe(true)
+    expect(lineMatchesCommandStart('➜  artifacts (2) xmlstarlet sel -t \\', command)).toBe(true)
+    expect(lineMatchesCommandStart('  -n phpcs-report.xml', command)).toBe(false)
+    expect(commandVisibleLineCount(command)).toBe(4)
+    expect(commandStartLineCandidates(command)).toEqual(['xmlstarlet sel -t \\', 'xmlstarlet sel -t'])
   })
 
   it('keeps the full command as a candidate for single-line commands', () => {

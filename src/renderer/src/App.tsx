@@ -9,6 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
+import { commandStartLineCandidates } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -123,9 +124,15 @@ function lineCount(output: string): number {
 
 function findCommandStart(output: string, command: string): number {
   const commandIndex = output.lastIndexOf(command)
-  if (commandIndex === -1) return output.length
+  const matchedIndex = commandIndex === -1
+    ? commandStartLineCandidates(command)
+      .map((candidate) => output.lastIndexOf(candidate))
+      .find((index) => index !== -1)
+    : commandIndex
 
-  const previousNewline = output.lastIndexOf('\n', commandIndex)
+  if (matchedIndex === undefined || matchedIndex === -1) return output.length
+
+  const previousNewline = output.lastIndexOf('\n', matchedIndex)
   return previousNewline === -1 ? 0 : previousNewline + 1
 }
 

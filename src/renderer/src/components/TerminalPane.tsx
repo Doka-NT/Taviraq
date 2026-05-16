@@ -11,7 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
-import { lineMatchesCommand } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -189,29 +189,44 @@ function terminalBlockDecorationColor(container: HTMLElement, alpha = 0.16): str
 function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map<string, number> {
   const result = new Map<string, number>()
   let searchFrom = 0
+  const findMatchingLine = (
+    start: number,
+    end: number,
+    command: string,
+    matcher: (line: string, command: string) => boolean
+  ): number | undefined => {
+    for (let line = start; line <= end; line += 1) {
+      if (matcher(lineTextAt(terminal, line), command)) {
+        return line
+      }
+    }
+
+    return undefined
+  }
 
   for (const block of blocks.slice().sort((a, b) => a.startOffset - b.startOffset)) {
     const command = block.command.trim()
     if (!command) continue
 
-    const nearbyStart = Math.max(searchFrom, block.startLine - 2)
+    const nearbyStart = Math.max(searchFrom, block.startLine - commandVisibleLineCount(command) - 2)
     const nearbyEnd = Math.min(terminal.buffer.active.length - 1, block.startLine + 4)
-    for (let line = nearbyStart; line <= nearbyEnd; line += 1) {
-      if (lineMatchesCommand(lineTextAt(terminal, line), command)) {
-        result.set(block.id, line)
-        searchFrom = line + 1
-        break
-      }
+    const nearbyLine = findMatchingLine(nearbyStart, nearbyEnd, command, lineMatchesCommandStart) ??
+      findMatchingLine(nearbyStart, nearbyEnd, command, lineMatchesCommand)
+
+    if (nearbyLine !== undefined) {
+      result.set(block.id, nearbyLine)
+      searchFrom = nearbyLine + 1
     }
 
     if (result.has(block.id)) continue
 
-    for (let line = searchFrom; line < terminal.buffer.active.length; line += 1) {
-      if (lineMatchesCommand(lineTextAt(terminal, line), command)) {
-        result.set(block.id, line)
-        searchFrom = line + 1
-        break
-      }
+    const fallbackEnd = terminal.buffer.active.length - 1
+    const fallbackLine = findMatchingLine(searchFrom, fallbackEnd, command, lineMatchesCommandStart) ??
+      findMatchingLine(searchFrom, fallbackEnd, command, lineMatchesCommand)
+
+    if (fallbackLine !== undefined) {
+      result.set(block.id, fallbackLine)
+      searchFrom = fallbackLine + 1
     }
   }
 

@@ -11,6 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
+import { lineMatchesCommand } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -196,7 +197,7 @@ function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map
     const nearbyStart = Math.max(searchFrom, block.startLine - 2)
     const nearbyEnd = Math.min(terminal.buffer.active.length - 1, block.startLine + 4)
     for (let line = nearbyStart; line <= nearbyEnd; line += 1) {
-      if (lineTextAt(terminal, line).includes(command)) {
+      if (lineMatchesCommand(lineTextAt(terminal, line), command)) {
         result.set(block.id, line)
         searchFrom = line + 1
         break
@@ -206,7 +207,7 @@ function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map
     if (result.has(block.id)) continue
 
     for (let line = searchFrom; line < terminal.buffer.active.length; line += 1) {
-      if (lineTextAt(terminal, line).includes(command)) {
+      if (lineMatchesCommand(lineTextAt(terminal, line), command)) {
         result.set(block.id, line)
         searchFrom = line + 1
         break

@@ -88,6 +88,11 @@ export interface SaveLLMProviderRequest {
   proxyPassword?: string
 }
 
+export interface ListModelsResult {
+  models: LLMModel[]
+  provider: LLMProviderConfig
+}
+
 export interface LLMModel {
   id: string
   ownedBy?: string

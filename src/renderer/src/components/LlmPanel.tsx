@@ -1541,14 +1541,19 @@ export function LlmPanel({
     }
   }, [apiKey, editingProxyPassword, provider, proxyPassword, t])
 
-  const saveProxySettings = useCallback(async (nextProxyPassword = proxyPassword) => {
+  const saveProxySettings = useCallback(async (nextProxyPassword?: string) => {
     if (!isValidProviderProxyUrl(provider.proxyUrl)) {
       setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
       return
     }
     setProviderStatus('Saving proxy...')
     try {
-      const result = await window.api.llm.saveProvider({ provider, apiKey, proxyPassword: nextProxyPassword })
+      const shouldSendProxyPassword = nextProxyPassword !== undefined || editingProxyPassword || proxyPassword
+      const result = await window.api.llm.saveProvider({
+        provider,
+        apiKey,
+        ...(shouldSendProxyPassword ? { proxyPassword: nextProxyPassword ?? proxyPassword } : {})
+      })
       const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
       setProvider(savedProvider)
       setAllProviders(result.providers)
@@ -1562,7 +1567,7 @@ export function LlmPanel({
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, provider, proxyPassword, t])
+  }, [apiKey, editingProxyPassword, provider, proxyPassword, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
     setProvider(target)
@@ -1695,15 +1700,22 @@ export function LlmPanel({
     loadingModelsRef.current = true
     setProviderStatus('Loading models...')
     try {
-      const loaded = await window.api.llm.listModels({
+      const result = await window.api.llm.listModels({
         provider,
         apiKey,
         ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
       })
-      setModels(loaded)
+      setModels(result.models)
+      setProvider(result.provider)
+      setAllProviders((providers) => upsertProviderInOrder(providers, result.provider))
       setApiKey('')
       if (apiKey) setHasApiKey(true)
-      setProviderStatus(`${loaded.length} models loaded`)
+      if (editingProxyPassword || proxyPassword) {
+        setProxyPassword('')
+        setEditingProxyPassword(false)
+        setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
+      }
+      setProviderStatus(`${result.models.length} models loaded`)
     } catch (error) {
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
     } finally {

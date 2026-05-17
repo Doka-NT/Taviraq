@@ -10,6 +10,7 @@ import type {
   CreateTerminalRequest,
   ExportData,
   ImportResult,
+  ListModelsResult,
   LLMProviderConfig,
   PromptTemplate,
   SaveSessionStateRequest,
@@ -647,15 +648,22 @@ function registerIpc(): void {
     return configStore.deleteProvider(apiKeyRef)
   })
 
-  ipcMain.handle('llm:listModels', async (_event, request: SaveLLMProviderRequest) => {
+  ipcMain.handle('llm:listModels', async (_event, request: SaveLLMProviderRequest): Promise<ListModelsResult> => {
     if (DEMO_MODE) {
-      return [
-        { id: 'demo-agent', ownedBy: 'Taviraq' },
-        { id: 'demo-safety', ownedBy: 'Taviraq' }
-      ]
+      return {
+        models: [
+          { id: 'demo-agent', ownedBy: 'Taviraq' },
+          { id: 'demo-safety', ownedBy: 'Taviraq' }
+        ],
+        provider: request.provider
+      }
     }
 
-    return listModels(await prepareProviderRequest(request, { deleteDisabledProxyPassword: false }))
+    const provider = await prepareProviderRequest(request, { deleteDisabledProxyPassword: false })
+    return {
+      models: await listModels(provider),
+      provider
+    }
   })
 
   ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {

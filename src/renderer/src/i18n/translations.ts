@@ -246,6 +246,21 @@ export interface Translations {
   'chat.historyDeleteConfirmMessage': string
   'chat.historyDeleteConfirmBtn': string
 
+  // First-run onboarding
+  'onboarding.title': string
+  'onboarding.body': string
+  'onboarding.provider': string
+  'onboarding.apiKey': string
+  'onboarding.endpoint': string
+  'onboarding.apiKeyPlaceholder': string
+  'onboarding.localProviderNote': string
+  'onboarding.test': string
+  'onboarding.testConnection': string
+  'onboarding.apiKeyRequired': string
+  'onboarding.model': string
+  'onboarding.firstQuestion': string
+  'onboarding.firstQuestionPrompt': string
+
   // Command confirmation dialog
   'confirm.reviewRisky': string
   'confirm.safetyUnavailable': string
@@ -563,6 +578,20 @@ export const en: Translations = {
   'chat.historyDeleteConfirmMessage': 'This saved chat will be deleted. This action cannot be undone.',
   'chat.historyDeleteConfirmBtn': 'Delete',
 
+  'onboarding.title': 'Activate Taviraq',
+  'onboarding.body': 'Connect a provider, pick a model, then ask about the active terminal.',
+  'onboarding.provider': 'Choose provider',
+  'onboarding.apiKey': 'Add API key',
+  'onboarding.endpoint': 'Check local endpoint',
+  'onboarding.apiKeyPlaceholder': 'Paste API key stored in Keychain...',
+  'onboarding.localProviderNote': 'Local providers can run without an API key. Make sure the server is running.',
+  'onboarding.test': 'Test connection',
+  'onboarding.testConnection': 'Test and load models',
+  'onboarding.apiKeyRequired': 'Enter an API key before testing this provider.',
+  'onboarding.model': 'Pick model',
+  'onboarding.firstQuestion': 'Ask first question',
+  'onboarding.firstQuestionPrompt': 'Explain what is happening in this terminal and suggest the next useful command.',
+
   'confirm.reviewRisky': 'Review risky command',
   'confirm.safetyUnavailable': 'Safety check unavailable',
   'confirm.review': 'review',
@@ -873,6 +902,20 @@ export const ru: Translations = {
   'chat.historyDeleteConfirmMessage': 'Сохранённый чат будет удалён. Это действие нельзя отменить.',
   'chat.historyDeleteConfirmBtn': 'Удалить',
 
+  'onboarding.title': 'Активируйте Taviraq',
+  'onboarding.body': 'Подключите провайдера, выберите модель и задайте первый вопрос по активному терминалу.',
+  'onboarding.provider': 'Выберите провайдера',
+  'onboarding.apiKey': 'Добавьте API-ключ',
+  'onboarding.endpoint': 'Проверьте локальный endpoint',
+  'onboarding.apiKeyPlaceholder': 'Вставьте API-ключ для хранения в Keychain...',
+  'onboarding.localProviderNote': 'Локальные провайдеры могут работать без API-ключа. Убедитесь, что сервер запущен.',
+  'onboarding.test': 'Проверьте подключение',
+  'onboarding.testConnection': 'Проверить и загрузить модели',
+  'onboarding.apiKeyRequired': 'Введите API-ключ перед проверкой этого провайдера.',
+  'onboarding.model': 'Выберите модель',
+  'onboarding.firstQuestion': 'Задать первый вопрос',
+  'onboarding.firstQuestionPrompt': 'Объясни, что происходит в этом терминале, и предложи следующую полезную команду.',
+
   'confirm.reviewRisky': 'Проверьте опасную команду',
   'confirm.safetyUnavailable': 'Проверка безопасности недоступна',
   'confirm.review': 'проверка',
@@ -1182,6 +1225,20 @@ export const cn: Translations = {
   'chat.historyDeleteConfirmTitle': '删除聊天？',
   'chat.historyDeleteConfirmMessage': '此保存的聊天将被删除。此操作无法撤销。',
   'chat.historyDeleteConfirmBtn': '删除',
+
+  'onboarding.title': '激活 Taviraq',
+  'onboarding.body': '连接提供商，选择模型，然后询问当前终端。',
+  'onboarding.provider': '选择提供商',
+  'onboarding.apiKey': '添加 API 密钥',
+  'onboarding.endpoint': '检查本地端点',
+  'onboarding.apiKeyPlaceholder': '粘贴要存入 Keychain 的 API 密钥...',
+  'onboarding.localProviderNote': '本地提供商可以不使用 API 密钥。请确保服务器正在运行。',
+  'onboarding.test': '测试连接',
+  'onboarding.testConnection': '测试并加载模型',
+  'onboarding.apiKeyRequired': '测试此提供商前请输入 API 密钥。',
+  'onboarding.model': '选择模型',
+  'onboarding.firstQuestion': '提出第一个问题',
+  'onboarding.firstQuestionPrompt': '解释此终端中正在发生什么，并建议下一个有用的命令。',
 
   'confirm.reviewRisky': '审查危险命令',
   'confirm.safetyUnavailable': '安全检查不可用',

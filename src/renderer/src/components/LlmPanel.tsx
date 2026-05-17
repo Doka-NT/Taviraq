@@ -100,6 +100,7 @@ const providerTypeDefaults: Record<LLMProviderType, Pick<LLMProviderConfig, 'nam
   anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com' }
 }
 const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio', 'anthropic']
+const providerTypesWithApiKey: LLMProviderType[] = ['openai', 'anthropic']
 const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
@@ -204,6 +205,10 @@ function matchesSearchQuery(query: string, terms: Array<string | undefined>): bo
   const normalizedQuery = query.trim().toLowerCase()
   if (!normalizedQuery) return false
   return terms.some((term) => term?.toLowerCase().includes(normalizedQuery))
+}
+
+function providerNeedsApiKey(providerType: LLMProviderType): boolean {
+  return providerTypesWithApiKey.includes(providerType)
 }
 
 function escapeRegExp(value: string): string {
@@ -698,7 +703,7 @@ export function LlmPanel({
     setProvider(loaded)
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
-    setHasApiKey(Boolean(loaded.apiKeyRef && loadedActiveProviderRef))
+    setHasApiKey(await window.api.llm.hasApiKey(loaded.apiKeyRef))
     setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
     setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
   }, [])
@@ -1604,10 +1609,11 @@ export function LlmPanel({
     setProxyPassword('')
     setEditingApiKey(false)
     setEditingProxyPassword(false)
-    setHasApiKey(Boolean(target.apiKeyRef))
+    setHasApiKey(false)
     setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
+    void window.api.llm.hasApiKey(target.apiKeyRef).then(setHasApiKey).catch(() => setHasApiKey(false))
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
       setAllProviders(result.providers)
       setActiveProviderRef(result.activeProviderRef ?? target.apiKeyRef)
@@ -1931,6 +1937,39 @@ export function LlmPanel({
     label: t(`chip.${chip.id}` as Parameters<typeof t>[0]),
     prompt: t(`chip.${chip.id}Prompt` as Parameters<typeof t>[0])
   })), [activeSession?.cwd, assistMode, selectedText, strippedTerminalOutput, t])
+  const activeProviderType = getProviderType(provider)
+  const activeProviderNeedsApiKey = providerNeedsApiKey(activeProviderType)
+  const activationHasCredential = !activeProviderNeedsApiKey || hasApiKey || apiKey.trim().length > 0
+  const providerReady = Boolean(provider.selectedModel?.trim()) && (!activeProviderNeedsApiKey || hasApiKey)
+  const showActivationFlow = messages.length === 0 && !providerReady
+  const canTestActivationProvider =
+    isValidProviderBaseUrl(provider.baseUrl) &&
+    isValidProviderProxyUrl(provider.proxyUrl) &&
+    activationHasCredential
+  const activationStatus = providerStatus ? statusToInlineStatus(providerStatus) : null
+  const handleActivationProviderTypeChange = useCallback((providerType: LLMProviderType) => {
+    setProvider((current) => ({
+      ...applyProviderTypeDefaults(current, providerType),
+      selectedModel: '',
+      commandRiskModel: ''
+    }))
+    setModels([])
+    setApiKey('')
+    setHasApiKey(false)
+    setProviderStatus('')
+    setEditingApiKey(false)
+  }, [])
+  const handleActivationTest = useCallback(async () => {
+    if (activeProviderNeedsApiKey && !hasApiKey && !apiKey.trim()) {
+      setProviderStatus(t('onboarding.apiKeyRequired'))
+      return
+    }
+
+    await loadModels()
+  }, [activeProviderNeedsApiKey, apiKey, hasApiKey, loadModels, t])
+  const handleFirstQuestion = useCallback(() => {
+    setPromptDraft(t('onboarding.firstQuestionPrompt'))
+  }, [setPromptDraft, t])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
@@ -2870,10 +2909,127 @@ export function LlmPanel({
       ) : (
       <>
       <section className="chat-log" aria-live="polite" ref={chatLogRef}>
-        {messages.length === 0 ? (
+        {showActivationFlow ? (
+          <div className="activation-empty-state">
+            <div className="activation-heading">
+              <span className="activation-icon" aria-hidden><Zap size={17} /></span>
+              <div>
+                <strong>{t('onboarding.title')}</strong>
+                <p>{t('onboarding.body')}</p>
+              </div>
+            </div>
+
+            <div className="activation-step">
+              <div className="activation-step-label">
+                <span>1</span>
+                <strong>{t('onboarding.provider')}</strong>
+              </div>
+              <div className="activation-provider-grid" role="group" aria-label={t('onboarding.provider')}>
+                {providerTypeOptions.map((providerType) => (
+                  <button
+                    key={providerType}
+                    type="button"
+                    className={providerType === activeProviderType ? 'active' : ''}
+                    onClick={() => handleActivationProviderTypeChange(providerType)}
+                  >
+                    {t(`providers.type.${providerType}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="activation-step">
+              <div className="activation-step-label">
+                <span>2</span>
+                <strong>{activeProviderNeedsApiKey ? t('onboarding.apiKey') : t('onboarding.endpoint')}</strong>
+              </div>
+              <div className="activation-fields">
+                <input
+                  value={provider.baseUrl}
+                  className={provider.baseUrl.trim() && !isValidProviderBaseUrl(provider.baseUrl) ? 'invalid-input' : undefined}
+                  aria-invalid={Boolean(provider.baseUrl.trim() && !isValidProviderBaseUrl(provider.baseUrl))}
+                  placeholder={t('providers.baseUrl')}
+                  onChange={(event) => setProvider((current) => ({ ...current, baseUrl: event.target.value }))}
+                />
+                {activeProviderNeedsApiKey ? (
+                  !editingApiKey && hasApiKey ? (
+                    <div className="apikey-masked activation-key-saved">
+                      <span className="apikey-masked-text">●●●●●●●●</span>
+                      <span className="apikey-masked-hint">{t('providers.apiKey.saved')}</span>
+                      <button type="button" className="apikey-change-btn" onClick={() => setEditingApiKey(true)}>
+                        {t('providers.apiKey.change')}
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="password"
+                      value={apiKey}
+                      className={activeProviderNeedsApiKey && !hasApiKey && !apiKey.trim() && providerStatus === t('onboarding.apiKeyRequired') ? 'invalid-input' : undefined}
+                      placeholder={t('onboarding.apiKeyPlaceholder')}
+                      onChange={(event) => setApiKey(event.target.value)}
+                    />
+                  )
+                ) : (
+                  <p className="activation-field-note">{t('onboarding.localProviderNote')}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="activation-step">
+              <div className="activation-step-label">
+                <span>3</span>
+                <strong>{t('onboarding.test')}</strong>
+              </div>
+              <div className="activation-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={!canTestActivationProvider}
+                  onClick={() => void handleActivationTest()}
+                >
+                  <RefreshCw size={13} aria-hidden />
+                  {t('onboarding.testConnection')}
+                </button>
+                {activationStatus ? (
+                  <div className={`inline-status ${activationStatus.tone}`}>
+                    <span>{activationStatus.label}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="activation-step">
+              <div className="activation-step-label">
+                <span>4</span>
+                <strong>{t('onboarding.model')}</strong>
+              </div>
+              <ModelCombobox
+                value={provider.selectedModel ?? ''}
+                models={models}
+                placeholder={t('providers.searchChatModel')}
+                onOpen={() => void handleActivationTest()}
+                onChange={(modelId) => {
+                  const updated = {
+                    ...provider,
+                    selectedModel: modelId,
+                    commandRiskModel: provider.commandRiskModel || modelId
+                  }
+                  updateProvider(updated)
+                }}
+              />
+            </div>
+
+          </div>
+        ) : messages.length === 0 ? (
           <div className="empty-chat">
             <strong>{t('chat.empty.title')}</strong>
             <p>{t('chat.empty.body')}</p>
+            {providerReady ? (
+              <button type="button" className="primary-button empty-chat-primary" onClick={handleFirstQuestion}>
+                <Send size={13} aria-hidden />
+                {t('onboarding.firstQuestion')}
+              </button>
+            ) : null}
             <div className="suggestion-chips">
               {suggestionChips.map((suggestion) => (
                 <button type="button" key={suggestion.id} onClick={() => setPromptDraft(suggestion.prompt)}>
@@ -3674,6 +3830,10 @@ function PromptLibrarySection({ settingsSearch }: PromptLibrarySectionProps): JS
         ) : (
           <div className="prompt-list-empty">
             <p>{t('prompts.noPrompts')}</p>
+            <button type="button" className="quiet-button" onClick={handleAddPrompt}>
+              <Plus size={12} aria-hidden />
+              {t('prompts.addPrompt')}
+            </button>
           </div>
         )}
       </div>
@@ -3902,6 +4062,10 @@ function CommandSnippetLibrarySection({ addSnippetRequestVersion, snippetDraftRe
         )) : (
           <div className="prompt-list-empty">
             <p>{t('snippets.noSnippets')}</p>
+            <button type="button" className="quiet-button" onClick={handleAddSnippet}>
+              <Plus size={12} aria-hidden />
+              {t('snippets.addSnippet')}
+            </button>
           </div>
         )}
       </div>

@@ -716,6 +716,14 @@ function registerIpc(): void {
     return configStore.upsertProvider(provider)
   })
 
+  ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: string): Promise<boolean> => {
+    if (DEMO_MODE) {
+      return true
+    }
+
+    return Boolean(await getApiKey(apiKeyRef))
+  })
+
   ipcMain.handle('llm:deleteProvider', async (_event, apiKeyRef: string) => {
     await deleteApiKey(apiKeyRef)
     await deleteProxyPasswordIfPresent(buildProxyPasswordRef(apiKeyRef))

@@ -945,17 +945,11 @@ export function LlmPanel({
             output: String(event.maskedSecrets)
           }
           const messages = [...thread.messages]
-          let lastAssistantIndex = -1
-          for (let index = messages.length - 1; index >= 0; index -= 1) {
-            if (messages[index]?.role === 'assistant') {
-              lastAssistantIndex = index
-              break
-            }
-          }
-          if (lastAssistantIndex === -1) {
-            messages.push(message)
+          const last = messages.at(-1)
+          if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
+            messages.splice(messages.length - 1, 0, message)
           } else {
-            messages.splice(lastAssistantIndex, 0, message)
+            messages.push(message)
           }
 
           return {

@@ -41,8 +41,9 @@ secrets are replaced with opaque placeholders for the model and shown as
 
 The scanner combines Gitleaks rules with Taviraq contextual checks for
 secret-looking values such as tokens, passwords, authorization headers, and
-credential URLs. If the scanner fails or times out, the content is blocked
-from being sent.
+credential URLs. If the bundled Gitleaks binary is unavailable, Taviraq still
+runs its contextual checks. If an available scanner fails or times out, the
+content is blocked from being sent.
 
 Secret masking reduces accidental disclosure but cannot guarantee that every
 sensitive value will be caught. Private hostnames, customer data, and

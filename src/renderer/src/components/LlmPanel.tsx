@@ -1962,6 +1962,7 @@ export function LlmPanel({
     activationHasCredential
   const activationStatus = providerStatus ? statusToInlineStatus(providerStatus) : null
   const handleActivationProviderTypeChange = useCallback((providerType: LLMProviderType) => {
+    providerSecretCheckVersionRef.current += 1
     setProvider((current) => ({
       ...applyProviderTypeDefaults(current, providerType),
       selectedModel: '',

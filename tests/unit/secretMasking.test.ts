@@ -140,6 +140,24 @@ describe('secret masking utilities', () => {
     expect(result.context.bindings[0]?.kind).toBe('CUSTOM_INTERNAL_TOKEN')
   })
 
+  it('skips unsafe custom regex patterns', () => {
+    const findings = findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', {
+      mode: 'on',
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'bad',
+        name: 'Bad pattern',
+        pattern: '(a+)+$',
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    })
+
+    expect(findings).toHaveLength(0)
+  })
+
   it('does not flag long filesystem paths as contextual secrets', () => {
     const findings = findSupplementalStrictSecrets([
       'TOKEN_PATH=/Users/artem/AbCdEf1234567890_AbCdEf1234567890',

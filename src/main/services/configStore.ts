@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import type { AppConfig, LLMProviderConfig, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings, SSHProfileConfig } from '@shared/types'
-import { createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
+import { createDefaultSecretMaskingSettings, isSafeCustomSecretPatternSource } from '@shared/secretMaskingConfig'
 
 const CONFIG_FILE = 'config.json'
 
@@ -162,6 +162,7 @@ function normalizeCustomPattern(pattern: unknown): SecretMaskingCustomPattern[] 
   const name = typeof record.name === 'string' ? record.name.trim() : ''
   const source = typeof record.pattern === 'string' ? record.pattern.trim() : ''
   if (!name || !source) return []
+  if (!isSafeCustomSecretPatternSource(source)) return []
 
   return [{
     id,

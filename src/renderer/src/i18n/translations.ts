@@ -143,6 +143,7 @@ export interface Translations {
   'security.customPatterns.empty': string
   'security.customPatterns.required': string
   'security.customPatterns.invalid': string
+  'security.customPatterns.unsafe': string
   'security.customPatterns.enable': string
   'security.customPatterns.disable': string
   'security.audit.title': string
@@ -531,6 +532,7 @@ export const en: Translations = {
   'security.customPatterns.empty': 'No custom patterns yet.',
   'security.customPatterns.required': 'Enter a pattern name and regex.',
   'security.customPatterns.invalid': 'Regex is not valid.',
+  'security.customPatterns.unsafe': 'Regex is too broad or complex for real-time masking.',
   'security.customPatterns.enable': 'Enable pattern',
   'security.customPatterns.disable': 'Disable pattern',
   'security.audit.title': 'Masking audit log',
@@ -905,6 +907,7 @@ export const ru: Translations = {
   'security.customPatterns.empty': 'Пользовательских правил пока нет.',
   'security.customPatterns.required': 'Введите название и regex.',
   'security.customPatterns.invalid': 'Regex некорректен.',
+  'security.customPatterns.unsafe': 'Regex слишком широкий или сложный для маскирования в реальном времени.',
   'security.customPatterns.enable': 'Включить правило',
   'security.customPatterns.disable': 'Отключить правило',
   'security.audit.title': 'Журнал маскирования',
@@ -1279,6 +1282,7 @@ export const cn: Translations = {
   'security.customPatterns.empty': '还没有自定义模式。',
   'security.customPatterns.required': '请输入名称和正则。',
   'security.customPatterns.invalid': '正则无效。',
+  'security.customPatterns.unsafe': '正则过宽或过于复杂，不能用于实时遮蔽。',
   'security.customPatterns.enable': '启用模式',
   'security.customPatterns.disable': '停用模式',
   'security.audit.title': '遮蔽审计日志',

@@ -11,7 +11,12 @@ import type {
   SecretMaskingSettings,
   SummarizeConversationRequest
 } from '@shared/types'
-import { createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
+import {
+  CUSTOM_SECRET_PATTERN_MAX_MATCHES,
+  CUSTOM_SECRET_SCAN_MAX_TEXT_LENGTH,
+  createDefaultSecretMaskingSettings,
+  isSafeCustomSecretPatternSource
+} from '@shared/secretMaskingConfig'
 import {
   DISPLAY_SECRET_LABEL,
   SECRET_PLACEHOLDER_GLOBAL_RE,
@@ -346,8 +351,12 @@ export function findCustomPatternSecrets(text: string, mode: SecretMaskingInput)
   if (settings.mode === 'off') return []
 
   const findings: SecretFinding[] = []
+  const scanText = text.length > CUSTOM_SECRET_SCAN_MAX_TEXT_LENGTH
+    ? text.slice(-CUSTOM_SECRET_SCAN_MAX_TEXT_LENGTH)
+    : text
   for (const pattern of settings.customPatterns) {
     if (!pattern.enabled) continue
+    if (!isSafeCustomSecretPatternSource(pattern.pattern)) continue
 
     let matcher: RegExp
     try {
@@ -356,7 +365,8 @@ export function findCustomPatternSecrets(text: string, mode: SecretMaskingInput)
       continue
     }
 
-    for (const match of text.matchAll(matcher)) {
+    let matches = 0
+    for (const match of scanText.matchAll(matcher)) {
       const secret = match[1] || match[0]
       if (!secret) continue
       findings.push({
@@ -365,7 +375,8 @@ export function findCustomPatternSecrets(text: string, mode: SecretMaskingInput)
         secret,
         match: match[0]
       })
-      if (match[0] === '') break
+      matches += 1
+      if (matches >= CUSTOM_SECRET_PATTERN_MAX_MATCHES || match[0] === '') break
     }
   }
 

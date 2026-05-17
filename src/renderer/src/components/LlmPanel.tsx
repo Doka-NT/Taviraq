@@ -14,7 +14,11 @@ import type {
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
-import { createDefaultSecretMaskingSettings, SECRET_MASKING_AUDIT_LIMIT } from '@shared/secretMaskingConfig'
+import {
+  createDefaultSecretMaskingSettings,
+  isSafeCustomSecretPatternSource,
+  SECRET_MASKING_AUDIT_LIMIT
+} from '@shared/secretMaskingConfig'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
 import { ConfirmDialog } from './ui/ConfirmDialog'
@@ -605,6 +609,7 @@ export function LlmPanel({
   const commandConfirmationResolversRef = useRef(new Map<string, (result: CommandConfirmationResult) => void>())
   const handledBlockPromptRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
+  const pendingStreamStartsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
   const providerSecretCheckVersionRef = useRef(0)
   const optimisticApiKeyRef = useRef<string | undefined>()
@@ -936,42 +941,53 @@ export function LlmPanel({
     currentMessages: ThreadMessage[],
     userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
   ) => {
-    const requestId = crypto.randomUUID()
-    const thread = getThread(sessionId)
-    const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
-    const displayContent = await maskChatDisplayContent(sessionId, userContent)
-    const nextMessages: ThreadMessage[] = [
-      ...currentMessages,
-      { role: 'user', content: userContent, displayContent, ...userMeta },
-      { role: 'assistant', content: '' }
-    ]
-    requestSessionRef.current.set(requestId, sessionId)
-    updateThread(sessionId, (thread) => ({
-      ...thread,
-      messages: nextMessages,
-      streaming: true,
-      activeRequestId: requestId,
-      streamingContent: '',
-      status: null,
-      session
-    }))
-
-    const mode = assistModeRef.current
-    const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
-
-    window.api.llm.chatStream({
-      requestId,
-      provider: providerRef.current,
-      messages: nextMessages.slice(0, -1).map(toChatMessage),
-      context: {
-        selectedText: selectedTextRef.current,
-        assistMode: mode,
-        terminalOutput: terminalOutput || undefined,
-        language: languageRef.current,
+    if (pendingStreamStartsRef.current.has(sessionId)) return
+    pendingStreamStartsRef.current.add(sessionId)
+    try {
+      const requestId = crypto.randomUUID()
+      const thread = getThread(sessionId)
+      const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
+      const displayContent = await maskChatDisplayContent(sessionId, userContent)
+      const nextMessages: ThreadMessage[] = [
+        ...currentMessages,
+        { role: 'user', content: userContent, displayContent, ...userMeta },
+        { role: 'assistant', content: '' }
+      ]
+      requestSessionRef.current.set(requestId, sessionId)
+      updateThread(sessionId, (thread) => ({
+        ...thread,
+        messages: nextMessages,
+        streaming: true,
+        activeRequestId: requestId,
+        streamingContent: '',
+        status: null,
         session
-      }
-    })
-    autoSaveThreadToHistory(sessionId)
+      }))
+
+      const mode = assistModeRef.current
+      const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+
+      window.api.llm.chatStream({
+        requestId,
+        provider: providerRef.current,
+        messages: nextMessages.slice(0, -1).map(toChatMessage),
+        context: {
+          selectedText: selectedTextRef.current,
+          assistMode: mode,
+          terminalOutput: terminalOutput || undefined,
+          language: languageRef.current,
+          session
+        }
+      })
+      autoSaveThreadToHistory(sessionId)
+    } catch (error) {
+      updateThread(sessionId, (thread) => ({
+        ...thread,
+        status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
+      }))
+    } finally {
+      pendingStreamStartsRef.current.delete(sessionId)
+    }
   }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, summarizeSession, updateThread])
 
   useEffect(() => {
@@ -1549,6 +1565,7 @@ export function LlmPanel({
     const thread = getThread(sessionId)
     const content = draft.trim()
     if (!content || streaming || commandConfirmation) return
+    if (pendingStreamStartsRef.current.has(sessionId)) return
     if (thread.agenticCommandRunning || runningCommandsRef.current.has(sessionId)) {
       updateThread(sessionId, (thread) => ({
         ...thread,
@@ -1972,6 +1989,10 @@ export function LlmPanel({
       new RegExp(pattern)
     } catch {
       setCustomPatternError(t('security.customPatterns.invalid'))
+      return
+    }
+    if (!isSafeCustomSecretPatternSource(pattern)) {
+      setCustomPatternError(t('security.customPatterns.unsafe'))
       return
     }
 

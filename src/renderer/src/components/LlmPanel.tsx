@@ -161,6 +161,21 @@ function isValidProviderBaseUrl(value: string): boolean {
   }
 }
 
+function isValidProviderProxyUrl(value: string | undefined): boolean {
+  const trimmed = value?.trim()
+  if (!trimmed) return true
+  try {
+    const parsed = new URL(trimmed)
+    return (
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      !parsed.username &&
+      !parsed.password
+    )
+  } catch {
+    return false
+  }
+}
+
 function isValidTextSize(value: string): boolean {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed >= MIN_TEXT_SIZE && parsed <= MAX_TEXT_SIZE
@@ -458,6 +473,7 @@ export function LlmPanel({
   const [allProviders, setAllProviders] = useState<LLMProviderConfig[]>([defaultProvider])
   const [activeProviderRef, setActiveProviderRef] = useState(defaultProvider.apiKeyRef)
   const [apiKey, setApiKey] = useState('')
+  const [proxyPassword, setProxyPassword] = useState('')
   const [models, setModels] = useState<LLMModel[]>([])
   const [threadsBySessionId, setThreadsBySessionId] = useState<AssistantThreads>({})
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
@@ -469,6 +485,8 @@ export function LlmPanel({
   const settingsSearchRef = useRef<HTMLInputElement | null>(null)
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [editingProxyPassword, setEditingProxyPassword] = useState(false)
+  const [hasProxyPassword, setHasProxyPassword] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
@@ -690,6 +708,7 @@ export function LlmPanel({
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
     setHasApiKey(Boolean(loaded.apiKeyRef && loadedActiveProviderRef))
+    setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
   }, [])
 
   // Load config on mount
@@ -1494,25 +1513,37 @@ export function LlmPanel({
       setProviderStatus('Enter a valid http:// or https:// Base URL')
       return
     }
+    if (!isValidProviderProxyUrl(provider.proxyUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      return
+    }
     setProviderStatus('Saving...')
     try {
-      const result = await window.api.llm.saveProvider({ provider, apiKey })
+      const result = await window.api.llm.saveProvider({ provider, apiKey, proxyPassword })
+      const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+      setProvider(savedProvider)
       setAllProviders(result.providers)
       setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
       setApiKey('')
+      setProxyPassword('')
       setEditingApiKey(false)
+      setEditingProxyPassword(false)
       if (apiKey) setHasApiKey(true)
+      setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, provider, t])
+  }, [apiKey, provider, proxyPassword, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
     setProvider(target)
     setModels([])
+    setProxyPassword('')
     setEditingApiKey(false)
+    setEditingProxyPassword(false)
     setHasApiKey(Boolean(target.apiKeyRef))
+    setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
@@ -1534,8 +1565,11 @@ export function LlmPanel({
     })
     setModels([])
     setApiKey('')
+    setProxyPassword('')
     setEditingApiKey(false)
+    setEditingProxyPassword(false)
     setHasApiKey(false)
+    setHasProxyPassword(false)
   }, [])
 
   const handleDeleteProvider = useCallback((apiKeyRef: string) => {
@@ -1553,6 +1587,9 @@ export function LlmPanel({
             const next = result.providers[0] ?? defaultProvider
             setProvider(next)
             setModels([])
+            setProxyPassword('')
+            setEditingProxyPassword(false)
+            setHasProxyPassword(Boolean(next.proxyPasswordRef))
           }
         } catch (error) {
           setProviderStatus(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -1623,19 +1660,24 @@ export function LlmPanel({
   // Load models
   const loadModels = useCallback(async () => {
     if (loadingModelsRef.current) return
+    if (!isValidProviderProxyUrl(provider.proxyUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      return
+    }
     loadingModelsRef.current = true
     setProviderStatus('Loading models...')
     try {
-      const loaded = await window.api.llm.listModels({ provider, apiKey })
+      const loaded = await window.api.llm.listModels({ provider, apiKey, proxyPassword })
       setModels(loaded)
       setApiKey('')
+      if (proxyPassword) setHasProxyPassword(true)
       setProviderStatus(`${loaded.length} models loaded`)
     } catch (error) {
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       loadingModelsRef.current = false
     }
-  }, [apiKey, provider])
+  }, [apiKey, provider, proxyPassword])
 
   const updateProvider = useCallback((updated: LLMProviderConfig) => {
     setProvider(updated)
@@ -1826,9 +1868,10 @@ export function LlmPanel({
       label: t('settings.tab.providers'),
       terms: [
         t('providers.title'), t('providers.type'), t('providers.name'), t('providers.baseUrl'),
+        t('providers.proxyUrl'), t('providers.proxyUsername'), t('providers.proxyPassword'),
         t('providers.apiKey'), t('providers.allowInsecureTls'), t('providers.apiKey.saved'),
         t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
-        'openai ollama lm studio anthropic claude model api key base url tls provider safety'
+        'openai ollama lm studio anthropic claude model api key base url proxy http https tls provider safety'
       ]
     },
     {
@@ -2226,6 +2269,48 @@ export function LlmPanel({
                             value={provider.baseUrl}
                             onChange={(event) => setProvider((p) => ({ ...p, baseUrl: event.target.value }))}
                           />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.proxyUrl'), provider.proxyUrl, 'proxy http https corporate network'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyUrl')} query={settingsSearch} /></span>
+                          <input
+                            className={provider.proxyUrl?.trim() && !isValidProviderProxyUrl(provider.proxyUrl) ? 'invalid-input' : undefined}
+                            aria-invalid={Boolean(provider.proxyUrl?.trim() && !isValidProviderProxyUrl(provider.proxyUrl))}
+                            value={provider.proxyUrl ?? ''}
+                            placeholder="http://127.0.0.1:8080"
+                            onChange={(event) => setProvider((p) => ({ ...p, proxyUrl: event.target.value }))}
+                          />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.proxyUsername'), provider.proxyUsername, 'proxy username login auth'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyUsername')} query={settingsSearch} /></span>
+                          <input
+                            value={provider.proxyUsername ?? ''}
+                            autoComplete="off"
+                            onChange={(event) => setProvider((p) => ({ ...p, proxyUsername: event.target.value }))}
+                          />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.proxyPassword'), t('providers.proxyPassword.saved'), t('providers.proxyPassword.change'), 'proxy password secret auth keychain'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyPassword')} query={settingsSearch} /></span>
+                          {!editingProxyPassword && hasProxyPassword ? (
+                            <div className="apikey-masked">
+                              <span className="apikey-masked-text">●●●●●●●●</span>
+                              <span className="apikey-masked-hint"><HighlightSearchText text={t('providers.proxyPassword.saved')} query={settingsSearch} /></span>
+                              <button
+                                type="button"
+                                className="apikey-change-btn"
+                                onClick={() => setEditingProxyPassword(true)}
+                              >
+                                <HighlightSearchText text={t('providers.proxyPassword.change')} query={settingsSearch} />
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="password"
+                              value={proxyPassword}
+                              autoComplete="off"
+                              onChange={(event) => setProxyPassword(event.target.value)}
+                              placeholder={hasProxyPassword ? t('providers.proxyPassword.replacePlaceholder') : t('providers.proxyPassword.placeholder')}
+                            />
+                          )}
                         </div>
                         <label className={`provider-toggle-field ${settingsMatchClass([t('providers.allowInsecureTls'), t('providers.allowInsecureTls.desc'), 'tls ssl insecure certificate'])}`}>
                           <span>

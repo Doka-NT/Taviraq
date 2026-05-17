@@ -9,7 +9,7 @@ import type {
   LLMProviderConfig,
   SummarizeConversationRequest
 } from '@shared/types'
-import { Agent } from 'undici'
+import { Agent, ProxyAgent, type Dispatcher } from 'undici'
 import {
   buildAnthropicUrl,
   buildLmStudioNativeUrl,
@@ -24,16 +24,17 @@ import {
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
-import { getApiKey } from './secretStore'
+import { getApiKey, getProxyPassword } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
 const ANTHROPIC_API_VERSION = '2023-06-01'
 const ANTHROPIC_MAX_TOKENS = 4096
 const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const proxyAgents = new Map<string, ProxyAgent>()
 
 type ProviderRequestInit = RequestInit & {
-  dispatcher?: Agent
+  dispatcher?: Dispatcher
 }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -52,7 +53,7 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
     : providerType === 'ollama'
       ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
       : buildProviderUrl(provider, 'models')
-  const response = await fetchProvider(url, withProviderTls(provider, {
+  const response = await fetchProvider(url, await withProviderTransport(provider, {
     headers: await buildHeaders(provider)
   }), 'Model')
 
@@ -72,7 +73,7 @@ async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMMode
 
   while (true) {
     const url = buildAnthropicModelsPageUrl(provider, afterId)
-    const response = await fetchProvider(url, withProviderTls(provider, {
+    const response = await fetchProvider(url, await withProviderTransport(provider, {
       headers: await buildHeaders(provider)
     }), 'Model')
 
@@ -128,7 +129,7 @@ export async function streamChatCompletion(
   }
 
   const url = buildProviderUrl(request.provider, 'chat/completions')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -185,7 +186,7 @@ async function streamAnthropicChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const url = buildAnthropicUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -243,7 +244,7 @@ async function streamOllamaNativeChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const url = buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -305,7 +306,7 @@ async function streamLmStudioNativeChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const url = buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -405,7 +406,7 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
 
   const response = await fetchWithTimeout(
     buildProviderUrl(request.provider, 'chat/completions'),
-    withProviderTls(request.provider, {
+    await withProviderTransport(request.provider, {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
@@ -529,7 +530,7 @@ async function postOpenAICompatibleChatCompletion(
     'Content-Type': 'application/json'
   }
 
-  const response = await fetchProvider(url, withProviderTls(provider, {
+  const response = await fetchProvider(url, await withProviderTransport(provider, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -545,7 +546,7 @@ async function postOpenAICompatibleChatCompletion(
 
   const defaultTemperatureBody = { ...body }
   delete defaultTemperatureBody.temperature
-  return fetchProvider(url, withProviderTls(provider, {
+  return fetchProvider(url, await withProviderTransport(provider, {
     method: 'POST',
     headers,
     body: JSON.stringify(defaultTemperatureBody),
@@ -632,12 +633,72 @@ async function fetchProvider(url: string, init: RequestInit, label = 'Provider')
   }
 }
 
-function withProviderTls(provider: LLMProviderConfig, init: RequestInit): ProviderRequestInit {
-  if (!provider.allowInsecureTls) return init
+async function withProviderTransport(provider: LLMProviderConfig, init: RequestInit): Promise<ProviderRequestInit> {
+  const proxyUrl = provider.proxyUrl?.trim()
+  if (!proxyUrl) {
+    if (!provider.allowInsecureTls) return init
+    return {
+      ...init,
+      dispatcher: insecureTlsAgent
+    }
+  }
+
   return {
     ...init,
-    dispatcher: insecureTlsAgent
+    dispatcher: await getProxyAgent(provider, proxyUrl)
   }
+}
+
+async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string): Promise<ProxyAgent> {
+  const proxy = normalizeHttpProxyUrl(proxyUrl)
+  const token = await buildProxyAuthToken(provider)
+  const cacheKey = [
+    proxy,
+    provider.allowInsecureTls ? 'insecure-target-tls' : 'default-target-tls',
+    token ?? ''
+  ].join('\0')
+
+  const cached = proxyAgents.get(cacheKey)
+  if (cached) return cached
+
+  const agent = new ProxyAgent({
+    uri: proxy,
+    ...(token ? { token } : {}),
+    ...(provider.allowInsecureTls ? { requestTls: { rejectUnauthorized: false } } : {})
+  })
+  proxyAgents.set(cacheKey, agent)
+  return agent
+}
+
+function normalizeHttpProxyUrl(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('Proxy URL must be a valid http:// or https:// URL.')
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Proxy URL must start with http:// or https://')
+  }
+  if (url.username || url.password) {
+    throw new Error('Enter proxy credentials in the username and password fields.')
+  }
+
+  url.pathname = ''
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
+
+async function buildProxyAuthToken(provider: LLMProviderConfig): Promise<string | undefined> {
+  const username = provider.proxyUsername?.trim()
+  if (!username) return undefined
+
+  const password = provider.proxyPasswordRef
+    ? await getProxyPassword(provider.proxyPasswordRef)
+    : undefined
+  return `Basic ${Buffer.from(`${username}:${password ?? ''}`).toString('base64')}`
 }
 
 function buildAnthropicModelsPageUrl(provider: LLMProviderConfig, afterId: string | undefined): string {
@@ -690,7 +751,7 @@ async function postOllamaNativeChat(
   }
 ): Promise<unknown> {
   const url = buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const init = withProviderTls(provider, {
+  const init = await withProviderTransport(provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(provider),
@@ -728,7 +789,7 @@ async function postAnthropicMessage(
   }
 ): Promise<unknown> {
   const url = buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
-  const init = withProviderTls(provider, {
+  const init = await withProviderTransport(provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(provider),

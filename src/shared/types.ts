@@ -74,6 +74,9 @@ export interface LLMProviderConfig {
   commandRiskModel?: string
   defaultHeaders?: Record<string, string>
   allowInsecureTls?: boolean
+  proxyUrl?: string
+  proxyUsername?: string
+  proxyPasswordRef?: string
 }
 
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
@@ -81,6 +84,7 @@ export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 export interface SaveLLMProviderRequest {
   provider: LLMProviderConfig
   apiKey?: string
+  proxyPassword?: string
 }
 
 export interface LLMModel {

@@ -10,6 +10,7 @@ import type {
   CreateTerminalRequest,
   ExportData,
   ImportResult,
+  LLMProviderConfig,
   PromptTemplate,
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
@@ -24,7 +25,14 @@ import { ConfigStore } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
-import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
+import {
+  buildProxyPasswordRef,
+  deleteApiKey,
+  deleteProxyPassword,
+  getApiKey,
+  saveApiKey,
+  saveProxyPassword
+} from './services/secretStore'
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
@@ -76,6 +84,63 @@ function isAllowedExternalUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function normalizeHttpProxyUrl(value: string): string {
+  const url = new URL(value)
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Proxy URL must start with http:// or https://')
+  }
+  if (url.username || url.password) {
+    throw new Error('Enter proxy credentials in the username and password fields.')
+  }
+  url.pathname = ''
+  url.search = ''
+  url.hash = ''
+  return url.toString()
+}
+
+function normalizeProviderProxy(provider: LLMProviderConfig): LLMProviderConfig {
+  const proxyUrl = provider.proxyUrl?.trim()
+  const proxyUsername = provider.proxyUsername?.trim()
+  if (!proxyUrl) {
+    return {
+      ...provider,
+      proxyUrl: undefined,
+      proxyUsername: undefined,
+      proxyPasswordRef: undefined
+    }
+  }
+
+  return {
+    ...provider,
+    proxyUrl: normalizeHttpProxyUrl(proxyUrl),
+    proxyUsername: proxyUsername || undefined,
+    proxyPasswordRef: proxyUsername ? provider.proxyPasswordRef : undefined
+  }
+}
+
+async function prepareProviderRequest(request: SaveLLMProviderRequest): Promise<LLMProviderConfig> {
+  if (request.apiKey?.trim()) {
+    await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
+  }
+
+  const proxyPasswordRef = buildProxyPasswordRef(request.provider.apiKeyRef)
+  const proxyPassword = request.proxyPassword?.trim()
+  const provider = normalizeProviderProxy({
+    ...request.provider,
+    ...(proxyPassword ? { proxyPasswordRef } : {})
+  })
+
+  if (proxyPassword && provider.proxyPasswordRef) {
+    await saveProxyPassword(provider.proxyPasswordRef, proxyPassword)
+  }
+
+  if (!provider.proxyUrl || !provider.proxyUsername) {
+    await deleteProxyPassword(proxyPasswordRef)
+  }
+
+  return provider
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -534,19 +599,16 @@ function registerIpc(): void {
       return demoConfig
     }
 
-    if (request.apiKey?.trim()) {
-      await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
-    }
-
-    return configStore.upsertProvider(request.provider)
+    return configStore.upsertProvider(await prepareProviderRequest(request))
   })
 
   ipcMain.handle('llm:deleteProvider', async (_event, apiKeyRef: string) => {
     await deleteApiKey(apiKeyRef)
+    await deleteProxyPassword(buildProxyPasswordRef(apiKeyRef))
     return configStore.deleteProvider(apiKeyRef)
   })
 
-  ipcMain.handle('llm:listModels', (_event, request: SaveLLMProviderRequest) => {
+  ipcMain.handle('llm:listModels', async (_event, request: SaveLLMProviderRequest) => {
     if (DEMO_MODE) {
       return [
         { id: 'demo-agent', ownedBy: 'Taviraq' },
@@ -554,11 +616,7 @@ function registerIpc(): void {
       ]
     }
 
-    if (request.apiKey?.trim()) {
-      return saveApiKey(request.provider.apiKeyRef, request.apiKey.trim()).then(() => listModels(request.provider))
-    }
-
-    return listModels(request.provider)
+    return listModels(await prepareProviderRequest(request))
   })
 
   ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {

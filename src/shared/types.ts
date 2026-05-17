@@ -247,6 +247,7 @@ export interface ExportData {
   exportedAt: string
   config: AppConfig
   apiKeys?: Record<string, string>
+  proxyPasswords?: Record<string, string>
   prompts: PromptTemplate[]
   commandSnippets?: CommandSnippet[]
   sshProfiles?: SSHProfileConfig[]

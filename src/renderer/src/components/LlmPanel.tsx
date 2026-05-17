@@ -1667,10 +1667,23 @@ export function LlmPanel({
     loadingModelsRef.current = true
     setProviderStatus('Loading models...')
     try {
-      const loaded = await window.api.llm.listModels({ provider, apiKey, proxyPassword })
+      let providerForRequest = provider
+      if (proxyPassword) {
+        const result = await window.api.llm.saveProvider({ provider, apiKey, proxyPassword })
+        const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+        providerForRequest = savedProvider
+        setProvider(savedProvider)
+        setAllProviders(result.providers)
+        setActiveProviderRef(result.activeProviderRef ?? savedProvider.apiKeyRef)
+      }
+      const loaded = await window.api.llm.listModels({ provider: providerForRequest, apiKey })
       setModels(loaded)
       setApiKey('')
-      if (proxyPassword) setHasProxyPassword(true)
+      if (proxyPassword) {
+        setProxyPassword('')
+        setEditingProxyPassword(false)
+        setHasProxyPassword(Boolean(providerForRequest.proxyPasswordRef))
+      }
       setProviderStatus(`${loaded.length} models loaded`)
     } catch (error) {
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)

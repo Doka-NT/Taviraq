@@ -30,6 +30,7 @@ import {
   deleteApiKey,
   deleteProxyPassword,
   getApiKey,
+  getProxyPassword,
   saveApiKey,
   saveProxyPassword
 } from './services/secretStore'
@@ -126,7 +127,7 @@ async function prepareProviderRequest(request: SaveLLMProviderRequest): Promise<
   }
 
   const proxyPasswordRef = buildProxyPasswordRef(request.provider.apiKeyRef)
-  const proxyPassword = request.proxyPassword?.trim()
+  const proxyPassword = request.proxyPassword
   const provider = normalizeProviderProxy({
     ...request.provider,
     ...(proxyPassword ? { proxyPasswordRef } : {})
@@ -141,6 +142,23 @@ async function prepareProviderRequest(request: SaveLLMProviderRequest): Promise<
   }
 
   return provider
+}
+
+function withExportableProxyRefs(config: AppConfig, proxyPasswords: Record<string, string>): AppConfig {
+  return {
+    ...config,
+    providers: config.providers.map((provider) => {
+      if (!provider.proxyPasswordRef || proxyPasswords[provider.proxyPasswordRef]) return provider
+      return { ...provider, proxyPasswordRef: undefined }
+    })
+  }
+}
+
+function withImportableProxyRefs(providers: LLMProviderConfig[], proxyPasswords: Record<string, string> | undefined): LLMProviderConfig[] {
+  return providers.map((provider) => {
+    if (!provider.proxyPasswordRef || proxyPasswords?.[provider.proxyPasswordRef]) return provider
+    return { ...provider, proxyPasswordRef: undefined }
+  })
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -710,26 +728,32 @@ function registerIpc(): void {
       cancelId: 1,
       defaultId: 0,
       message: 'Export Taviraq data',
-      detail: 'Choose whether this export should include plaintext API keys.',
-      checkboxLabel: 'Include API keys in export file',
+      detail: 'Choose whether this export should include plaintext API keys and proxy passwords.',
+      checkboxLabel: 'Include secrets in export file',
       checkboxChecked: false
     })
 
     if (includeKeysResult.response === 1) return
 
     const apiKeys: Record<string, string> = {}
+    const proxyPasswords: Record<string, string> = {}
     if (includeKeysResult.checkboxChecked) {
       for (const provider of config.providers) {
         const apiKey = await getApiKey(provider.apiKeyRef)
         if (apiKey) apiKeys[provider.apiKeyRef] = apiKey
+        if (provider.proxyPasswordRef) {
+          const proxyPassword = await getProxyPassword(provider.proxyPasswordRef)
+          if (proxyPassword) proxyPasswords[provider.proxyPasswordRef] = proxyPassword
+        }
       }
     }
 
     const exportData: ExportData = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      config,
+      config: withExportableProxyRefs(config, proxyPasswords),
       ...(Object.keys(apiKeys).length > 0 ? { apiKeys } : {}),
+      ...(Object.keys(proxyPasswords).length > 0 ? { proxyPasswords } : {}),
       prompts,
       commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
@@ -763,7 +787,7 @@ function registerIpc(): void {
 
     const currentConfig = await configStore.load()
     const currentProviderRefs = new Set(currentConfig.providers.map((provider) => provider.apiKeyRef))
-    const importedProviders = data.config?.providers ?? []
+    const importedProviders = withImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords)
     const newProviders = importedProviders.filter((provider) => !currentProviderRefs.has(provider.apiKeyRef))
     const mergedConfig = {
       ...currentConfig,
@@ -783,6 +807,18 @@ function registerIpc(): void {
       for (const [ref, apiKey] of Object.entries(data.apiKeys)) {
         if (newProviderRefs.has(ref)) {
           await saveApiKey(ref, apiKey)
+        }
+      }
+    }
+    if (data.proxyPasswords) {
+      const newProxyPasswordRefs = new Set(
+        newProviders
+          .map((provider) => provider.proxyPasswordRef)
+          .filter((ref): ref is string => Boolean(ref))
+      )
+      for (const [ref, password] of Object.entries(data.proxyPasswords)) {
+        if (newProxyPasswordRefs.has(ref)) {
+          await saveProxyPassword(ref, password)
         }
       }
     }

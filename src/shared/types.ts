@@ -74,6 +74,9 @@ export interface LLMProviderConfig {
   commandRiskModel?: string
   defaultHeaders?: Record<string, string>
   allowInsecureTls?: boolean
+  proxyUrl?: string
+  proxyUsername?: string
+  proxyPasswordRef?: string
 }
 
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
@@ -81,6 +84,13 @@ export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 export interface SaveLLMProviderRequest {
   provider: LLMProviderConfig
   apiKey?: string
+  /** Empty string clears the saved proxy password; omitted keeps it unchanged. */
+  proxyPassword?: string
+}
+
+export interface ListModelsResult {
+  models: LLMModel[]
+  provider: LLMProviderConfig
 }
 
 export interface LLMModel {
@@ -243,6 +253,7 @@ export interface ExportData {
   exportedAt: string
   config: AppConfig
   apiKeys?: Record<string, string>
+  proxyPasswords?: Record<string, string>
   prompts: PromptTemplate[]
   commandSnippets?: CommandSnippet[]
   sshProfiles?: SSHProfileConfig[]

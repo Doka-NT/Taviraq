@@ -11,7 +11,7 @@ import type {
   CreateTerminalRequest,
   GeneratedPrompt,
   ImportResult,
-  LLMModel,
+  ListModelsResult,
   PromptTemplate,
   SaveLLMProviderRequest,
   SavedChat,
@@ -141,7 +141,7 @@ const api = {
     deleteProvider: (apiKeyRef: string) =>
       ipcRenderer.invoke('llm:deleteProvider', apiKeyRef) as Promise<AppConfig>,
     listModels: (request: SaveLLMProviderRequest) =>
-      ipcRenderer.invoke('llm:listModels', request) as Promise<LLMModel[]>,
+      ipcRenderer.invoke('llm:listModels', request) as Promise<ListModelsResult>,
     assessCommandRisk: (request: CommandRiskAssessmentRequest) =>
       ipcRenderer.invoke('llm:assessCommandRisk', request) as Promise<CommandRiskAssessment>,
     summarizeConversation: (request: SummarizeConversationRequest) =>

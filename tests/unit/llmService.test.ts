@@ -1,14 +1,17 @@
 import type { ChatStreamRequest, CommandRiskAssessmentRequest } from '@shared/types'
-import { getApiKey } from '@main/services/secretStore'
+import { getApiKey, getProxyPassword } from '@main/services/secretStore'
 
 vi.mock('@main/services/secretStore', () => ({
-  getApiKey: vi.fn().mockResolvedValue(undefined)
+  getApiKey: vi.fn().mockResolvedValue(undefined),
+  getProxyPassword: vi.fn().mockResolvedValue(undefined)
 }))
 
 describe('llmService', () => {
   beforeEach(() => {
     vi.mocked(getApiKey).mockReset()
+    vi.mocked(getProxyPassword).mockReset()
     vi.mocked(getApiKey).mockResolvedValue(undefined)
+    vi.mocked(getProxyPassword).mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -87,6 +90,55 @@ describe('llmService', () => {
     expect(headers['anthropic-version']).toBe('2023-06-01')
     expect(headers['x-api-key']).toBe('sk-ant-test')
     expect(headers.Authorization).toBeUndefined()
+  })
+
+  it('attaches an HTTP proxy dispatcher to provider requests', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listModels } = await import('@main/services/llmService')
+    await listModels({
+      name: 'OpenAI Compatible',
+      baseUrl: 'https://example.test',
+      apiKeyRef: 'openai',
+      proxyUrl: 'http://proxy.local:8080'
+    })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher?: { constructor?: { name?: string } } }
+    expect(init.dispatcher?.constructor?.name).toBe('ProxyAgent')
+  })
+
+  it('loads proxy passwords from the keychain when proxy auth is configured', async () => {
+    vi.mocked(getProxyPassword).mockResolvedValue('secret-proxy-password')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listModels } = await import('@main/services/llmService')
+    await listModels({
+      name: 'OpenAI Compatible',
+      baseUrl: 'https://example.test',
+      apiKeyRef: 'openai',
+      proxyUrl: 'https://proxy.local:8443',
+      proxyUsername: 'proxy-user',
+      proxyPasswordRef: 'proxy-password:openai'
+    })
+
+    expect(getProxyPassword).toHaveBeenCalledWith('proxy-password:openai')
+  })
+
+  it('rejects SOCKS proxy URLs for provider requests', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listModels } = await import('@main/services/llmService')
+    await expect(listModels({
+      name: 'OpenAI Compatible',
+      baseUrl: 'https://example.test',
+      apiKeyRef: 'openai',
+      proxyUrl: 'socks5://127.0.0.1:1080'
+    })).rejects.toThrow('Proxy URL must start with http:// or https://')
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('streams Anthropic message text deltas', async () => {

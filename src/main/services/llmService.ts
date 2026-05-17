@@ -655,6 +655,7 @@ async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string): Pro
   const proxy = normalizeHttpProxyUrl(proxyUrl)
   const token = await buildProxyAuthToken(provider)
   const cacheKey = [
+    provider.apiKeyRef,
     proxy,
     provider.allowInsecureTls ? 'insecure-target-tls' : 'default-target-tls',
     token ?? ''
@@ -686,6 +687,15 @@ function rememberProxyAgent(cacheKey: string, agent: ProxyAgent): void {
   const [oldestKey, oldestAgent] = oldest
   proxyAgents.delete(oldestKey)
   void oldestAgent.close().catch(() => undefined)
+}
+
+export function invalidateProviderProxyAgents(apiKeyRef: string): void {
+  const cacheKeyPrefix = `${apiKeyRef}\0`
+  for (const [cacheKey, agent] of proxyAgents) {
+    if (!cacheKey.startsWith(cacheKeyPrefix)) continue
+    proxyAgents.delete(cacheKey)
+    void agent.close().catch(() => undefined)
+  }
 }
 
 async function buildProxyAuthToken(provider: LLMProviderConfig): Promise<string | undefined> {

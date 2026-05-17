@@ -34,7 +34,13 @@ import {
   saveApiKey,
   saveProxyPassword
 } from './services/secretStore'
-import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
+import {
+  assessCommandRisk,
+  invalidateProviderProxyAgents,
+  listModels,
+  streamChatCompletion,
+  summarizeConversation
+} from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
 import { normalizeHttpProxyUrl } from './utils/proxy'
@@ -134,10 +140,18 @@ async function prepareProviderRequest(
     options.deleteDisabledProxyPassword !== false &&
     ((hasProxyPasswordField && !proxyPassword) || !provider.proxyUrl || !provider.proxyUsername)
   ) {
-    await deleteProxyPassword(proxyPasswordRef)
+    await deleteProxyPasswordIfPresent(proxyPasswordRef)
   }
 
   return provider
+}
+
+async function deleteProxyPasswordIfPresent(proxyPasswordRef: string): Promise<void> {
+  try {
+    await deleteProxyPassword(proxyPasswordRef)
+  } catch {
+    // Removing a missing or inaccessible keychain entry should not block saving provider settings.
+  }
 }
 
 function withExportableProxyRefs(config: AppConfig, proxyPasswords: Record<string, string>): AppConfig {
@@ -621,12 +635,15 @@ function registerIpc(): void {
       return demoConfig
     }
 
-    return configStore.upsertProvider(await prepareProviderRequest(request))
+    const provider = await prepareProviderRequest(request)
+    invalidateProviderProxyAgents(provider.apiKeyRef)
+    return configStore.upsertProvider(provider)
   })
 
   ipcMain.handle('llm:deleteProvider', async (_event, apiKeyRef: string) => {
     await deleteApiKey(apiKeyRef)
-    await deleteProxyPassword(buildProxyPasswordRef(apiKeyRef))
+    await deleteProxyPasswordIfPresent(buildProxyPasswordRef(apiKeyRef))
+    invalidateProviderProxyAgents(apiKeyRef)
     return configStore.deleteProvider(apiKeyRef)
   })
 

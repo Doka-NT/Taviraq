@@ -121,7 +121,10 @@ function normalizeProviderProxy(provider: LLMProviderConfig): LLMProviderConfig 
   }
 }
 
-async function prepareProviderRequest(request: SaveLLMProviderRequest): Promise<LLMProviderConfig> {
+async function prepareProviderRequest(
+  request: SaveLLMProviderRequest,
+  options: { deleteDisabledProxyPassword?: boolean } = {}
+): Promise<LLMProviderConfig> {
   if (request.apiKey?.trim()) {
     await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
   }
@@ -137,7 +140,7 @@ async function prepareProviderRequest(request: SaveLLMProviderRequest): Promise<
     await saveProxyPassword(provider.proxyPasswordRef, proxyPassword)
   }
 
-  if (!provider.proxyUrl || !provider.proxyUsername) {
+  if (options.deleteDisabledProxyPassword !== false && (!provider.proxyUrl || !provider.proxyUsername)) {
     await deleteProxyPassword(proxyPasswordRef)
   }
 
@@ -154,10 +157,18 @@ function withExportableProxyRefs(config: AppConfig, proxyPasswords: Record<strin
   }
 }
 
-function withImportableProxyRefs(providers: LLMProviderConfig[], proxyPasswords: Record<string, string> | undefined): LLMProviderConfig[] {
+function withImportableProxyRefs(
+  providers: LLMProviderConfig[],
+  proxyPasswords: Record<string, string> | undefined,
+  canonicalProxyPasswords: Record<string, string>
+): LLMProviderConfig[] {
   return providers.map((provider) => {
-    if (!provider.proxyPasswordRef || proxyPasswords?.[provider.proxyPasswordRef]) return provider
-    return { ...provider, proxyPasswordRef: undefined }
+    if (!provider.proxyPasswordRef) return provider
+    const proxyPassword = proxyPasswords?.[provider.proxyPasswordRef]
+    if (!proxyPassword) return { ...provider, proxyPasswordRef: undefined }
+    const canonicalRef = buildProxyPasswordRef(provider.apiKeyRef)
+    canonicalProxyPasswords[canonicalRef] = proxyPassword
+    return { ...provider, proxyPasswordRef: canonicalRef }
   })
 }
 
@@ -634,7 +645,7 @@ function registerIpc(): void {
       ]
     }
 
-    return listModels(await prepareProviderRequest(request))
+    return listModels(await prepareProviderRequest(request, { deleteDisabledProxyPassword: false }))
   })
 
   ipcMain.handle('llm:assessCommandRisk', (_event, request: CommandRiskAssessmentRequest) => {
@@ -787,7 +798,8 @@ function registerIpc(): void {
 
     const currentConfig = await configStore.load()
     const currentProviderRefs = new Set(currentConfig.providers.map((provider) => provider.apiKeyRef))
-    const importedProviders = withImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords)
+    const canonicalProxyPasswords: Record<string, string> = {}
+    const importedProviders = withImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords, canonicalProxyPasswords)
     const newProviders = importedProviders.filter((provider) => !currentProviderRefs.has(provider.apiKeyRef))
     const mergedConfig = {
       ...currentConfig,
@@ -810,13 +822,13 @@ function registerIpc(): void {
         }
       }
     }
-    if (data.proxyPasswords) {
+    if (Object.keys(canonicalProxyPasswords).length > 0) {
       const newProxyPasswordRefs = new Set(
         newProviders
           .map((provider) => provider.proxyPasswordRef)
           .filter((ref): ref is string => Boolean(ref))
       )
-      for (const [ref, password] of Object.entries(data.proxyPasswords)) {
+      for (const [ref, password] of Object.entries(canonicalProxyPasswords)) {
         if (newProxyPasswordRefs.has(ref)) {
           await saveProxyPassword(ref, password)
         }

@@ -703,7 +703,7 @@ export function LlmPanel({
     setProvider(loaded)
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
-    setHasApiKey(await window.api.llm.hasApiKey(loaded.apiKeyRef))
+    setHasApiKey(await window.api.llm.hasApiKey(loaded.apiKeyRef).catch(() => false))
     setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
     setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
   }, [])
@@ -1613,7 +1613,15 @@ export function LlmPanel({
     setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
-    void window.api.llm.hasApiKey(target.apiKeyRef).then(setHasApiKey).catch(() => setHasApiKey(false))
+    void window.api.llm.hasApiKey(target.apiKeyRef).then((hasKey) => {
+      if (providerRef.current.apiKeyRef === target.apiKeyRef) {
+        setHasApiKey(hasKey)
+      }
+    }).catch(() => {
+      if (providerRef.current.apiKeyRef === target.apiKeyRef) {
+        setHasApiKey(false)
+      }
+    })
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
       setAllProviders(result.providers)
       setActiveProviderRef(result.activeProviderRef ?? target.apiKeyRef)

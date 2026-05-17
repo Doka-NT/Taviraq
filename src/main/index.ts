@@ -720,6 +720,9 @@ function registerIpc(): void {
     if (DEMO_MODE) {
       return true
     }
+    if (!apiKeyRef.trim()) {
+      return false
+    }
 
     return Boolean(await getApiKey(apiKeyRef))
   })

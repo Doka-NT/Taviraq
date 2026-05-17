@@ -1358,9 +1358,15 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
               </span>
             </button>
           )) : (
-            <p className="command-snippet-palette-empty">
-              {snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}
-            </p>
+            <div className="command-snippet-palette-empty">
+              <p>{snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}</p>
+              {snippets.length === 0 ? (
+                <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
+                  <Plus size={12} aria-hidden />
+                  {t('snippetPalette.emptyCta')}
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       </section>

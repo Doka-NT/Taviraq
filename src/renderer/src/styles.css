@@ -2371,6 +2371,136 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.16);
 }
 
+.activation-empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(100%, 360px);
+  margin: auto;
+  padding: 8px 0;
+}
+
+.activation-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.activation-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.26);
+  border-radius: var(--radius-md);
+  color: var(--accent-cyan);
+  background: rgba(var(--accent-cyan-rgb), 0.10);
+}
+
+.activation-heading strong {
+  display: block;
+  color: rgba(var(--surface-rgb), 0.78);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.activation-heading p {
+  margin: 4px 0 0;
+  color: rgba(var(--surface-rgb), 0.44);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.activation-step {
+  display: grid;
+  gap: 8px;
+  padding-left: 2px;
+}
+
+.activation-step-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+}
+
+.activation-step-label span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0.5px solid rgba(var(--surface-rgb), 0.10);
+  border-radius: 50%;
+  color: rgba(var(--surface-rgb), 0.44);
+  background: rgba(var(--surface-rgb), 0.055);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.activation-step-label strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.activation-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.activation-provider-grid button {
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0.5px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: rgba(var(--surface-rgb), 0.045);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.activation-provider-grid button:hover,
+.activation-provider-grid button.active {
+  border-color: rgba(var(--accent-cyan-rgb), 0.42);
+  color: rgba(var(--surface-rgb), 0.74);
+  background: rgba(var(--accent-cyan-rgb), 0.10);
+}
+
+.activation-fields {
+  display: grid;
+  gap: 7px;
+}
+
+.activation-fields input {
+  height: 34px;
+  font-size: 12px;
+}
+
+.activation-key-saved {
+  height: 34px;
+}
+
+.activation-field-note {
+  margin: 0;
+  color: var(--text-ghost);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.activation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.activation-actions .inline-status {
+  min-height: 32px;
+  padding-block: 0;
+}
+
 .empty-chat {
   display: flex;
   flex: 1 1 auto;
@@ -2391,10 +2521,14 @@ textarea:focus {
 
 .empty-chat p {
   max-width: 240px;
-  margin: 7px 0 16px;
+  margin: 7px 0 12px;
   color: rgba(var(--surface-rgb), 0.42);
   font-size: 12.5px;
   line-height: 1.5;
+}
+
+.empty-chat-primary {
+  margin-bottom: 12px;
 }
 
 .suggestion-chips {
@@ -3805,6 +3939,10 @@ textarea:focus {
 
 .prompt-list-empty p {
   margin: 0;
+}
+
+.prompt-list-empty .quiet-button {
+  flex: 0 0 auto;
 }
 
 .prompt-list-empty code {

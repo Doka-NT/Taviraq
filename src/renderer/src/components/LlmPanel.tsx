@@ -2010,6 +2010,9 @@ export function LlmPanel({
   const activationStatus = providerStatus ? statusToInlineStatus(providerStatus) : null
   const handleActivationProviderTypeChange = useCallback((providerType: LLMProviderType) => {
     providerSecretCheckVersionRef.current += 1
+    optimisticApiKeyRef.current = undefined
+    // Provider type changes keep the same apiKeyRef, so the api-key effect will not rerun.
+    setCheckedApiKeyRef(provider.apiKeyRef)
     setProvider((current) => ({
       ...applyProviderTypeDefaults(current, providerType),
       selectedModel: '',
@@ -2021,7 +2024,7 @@ export function LlmPanel({
     setProviderSecretsLoaded(true)
     setProviderStatus('')
     setEditingApiKey(false)
-  }, [])
+  }, [provider.apiKeyRef])
   const handleActivationTest = useCallback(async () => {
     if (activeProviderNeedsApiKey && !activeHasApiKey && !apiKey.trim()) {
       setProviderStatus(t('onboarding.apiKeyRequired'))

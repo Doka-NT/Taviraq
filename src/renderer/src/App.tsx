@@ -71,6 +71,10 @@ function maxSidebarWidthForViewport(): number {
   )
 }
 
+function clampStoredSidebarWidth(value: number): number {
+  return clamp(value, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+}
+
 function clampSidebarWidth(value: number): number {
   return clamp(value, MIN_SIDEBAR_WIDTH, maxSidebarWidthForViewport())
 }
@@ -78,15 +82,15 @@ function clampSidebarWidth(value: number): number {
 function storedSidebarWidth(): number {
   const rawValue = window.localStorage.getItem(SIDEBAR_WIDTH_KEY)
   if (rawValue === null) {
-    return clampSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
+    return clampStoredSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
   }
 
   const value = Number(rawValue)
   if (!Number.isFinite(value)) {
-    return clampSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
+    return clampStoredSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
   }
 
-  return clampSidebarWidth(value)
+  return clampStoredSidebarWidth(value)
 }
 
 function storedPositiveNumber(key: string, fallback: number): number {

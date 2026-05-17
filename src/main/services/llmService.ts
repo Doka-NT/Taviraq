@@ -11,20 +11,25 @@ import type {
 } from '@shared/types'
 import { Agent } from 'undici'
 import {
+  buildAnthropicUrl,
   buildLmStudioNativeUrl,
   buildOllamaNativeUrl,
   buildProviderUrl,
   getProviderType,
+  parseAnthropicModelList,
   parseLmStudioNativeModelList,
   parseModelList,
   parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
-import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
+import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { getApiKey } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
+const ANTHROPIC_API_VERSION = '2023-06-01'
+const ANTHROPIC_MAX_TOKENS = 4096
+const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
 
 type ProviderRequestInit = RequestInit & {
@@ -38,6 +43,10 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
   const providerType = getProviderType(provider)
+  if (providerType === 'anthropic') {
+    return listAnthropicModels(provider)
+  }
+
   const url = providerType === 'lmstudio'
     ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
     : providerType === 'ollama'
@@ -57,6 +66,36 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
   return parseModelList(payload)
 }
 
+async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
+  const modelsById = new Map<string, LLMModel>()
+  let afterId: string | undefined
+
+  while (true) {
+    const url = buildAnthropicModelsPageUrl(provider, afterId)
+    const response = await fetchProvider(url, withProviderTls(provider, {
+      headers: await buildHeaders(provider)
+    }), 'Model')
+
+    if (!response.ok) {
+      throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
+    }
+
+    const payload = await response.json() as unknown
+    for (const model of parseAnthropicModelList(payload)) {
+      modelsById.set(model.id, model)
+    }
+
+    if (!readAnthropicHasMore(payload)) {
+      return [...modelsById.values()].sort((a, b) => a.id.localeCompare(b.id))
+    }
+
+    afterId = readAnthropicLastId(payload)
+    if (!afterId) {
+      throw new Error('Anthropic model list response did not include last_id for the next page.')
+    }
+  }
+}
+
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
   content?: string
   reasoningContent?: string
@@ -74,12 +113,18 @@ export async function streamChatCompletion(
     throw new Error('Select a model before sending a message.')
   }
 
-  if (getProviderType(request.provider) === 'lmstudio') {
+  const providerType = getProviderType(request.provider)
+
+  if (providerType === 'lmstudio') {
     return streamLmStudioNativeChatCompletion(request, model, onChunk, signal)
   }
 
-  if (getProviderType(request.provider) === 'ollama') {
+  if (providerType === 'ollama') {
     return streamOllamaNativeChatCompletion(request, model, onChunk, signal)
+  }
+
+  if (providerType === 'anthropic') {
+    return streamAnthropicChatCompletion(request, model, onChunk, signal)
   }
 
   const url = buildProviderUrl(request.provider, 'chat/completions')
@@ -128,6 +173,64 @@ export async function streamChatCompletion(
       const chunk = parseChatCompletionChunk(JSON.parse(event) as unknown)
       if (chunk?.content || chunk?.reasoningContent) {
         onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
+      }
+    }
+  }
+}
+
+async function streamAnthropicChatCompletion(
+  request: ChatStreamRequest,
+  model: string,
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = buildAnthropicUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
+  const response = await fetchProvider(url, withProviderTls(request.provider, {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(request.provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: ANTHROPIC_MAX_TOKENS,
+      stream: true,
+      ...buildAnthropicMessageInput(buildMessages(request.messages, request.context))
+    }),
+    signal
+  }), 'Anthropic chat')
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Anthropic chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  if (!response.body) {
+    throw new Error('Anthropic chat response did not include a readable stream.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    const parsed = parseSseEvents(buffer)
+    buffer = parsed.remainder
+
+    for (const event of parsed.events) {
+      if (event.event === 'message_stop') {
+        return
+      }
+
+      const chunk = parseAnthropicStreamEvent(event)
+      if (chunk?.content) {
+        onChunk({ type: 'chunk', content: chunk.content })
       }
     }
   }
@@ -289,9 +392,20 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
     return parseCommandRiskAssessment(extractOllamaMessageContent(response))
   }
 
+  if (getProviderType(request.provider) === 'anthropic') {
+    const response = await postAnthropicMessage(
+      request.provider,
+      model,
+      buildCommandRiskMessages(request),
+      { temperature: 0, timeoutMs: COMMAND_RISK_TIMEOUT_MS }
+    )
+
+    return parseCommandRiskAssessment(extractAnthropicMessageContent(response))
+  }
+
   const response = await fetchWithTimeout(
     buildProviderUrl(request.provider, 'chat/completions'),
-    {
+    withProviderTls(request.provider, {
       method: 'POST',
       headers: {
         ...await buildHeaders(request.provider),
@@ -303,7 +417,7 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
         temperature: 0,
         messages: buildCommandRiskMessages(request)
       })
-    },
+    }),
     COMMAND_RISK_TIMEOUT_MS,
     'Command safety check timed out, so the command is treated as risky.'
   )
@@ -361,6 +475,18 @@ export async function summarizeConversation(
         { options: { temperature: 0.3 }, signal }
       )
       const content = extractOllamaMessageContent(payload)
+      if (!content.trim()) throw new Error('Empty response from model.')
+      return parseGeneratedPrompt(content)
+    }
+
+    if (getProviderType(request.provider) === 'anthropic') {
+      const payload = await postAnthropicMessage(
+        request.provider,
+        model,
+        messages,
+        { temperature: 0.3, signal }
+      )
+      const content = extractAnthropicMessageContent(payload)
       if (!content.trim()) throw new Error('Empty response from model.')
       return parseGeneratedPrompt(content)
     }
@@ -514,6 +640,27 @@ function withProviderTls(provider: LLMProviderConfig, init: RequestInit): Provid
   }
 }
 
+function buildAnthropicModelsPageUrl(provider: LLMProviderConfig, afterId: string | undefined): string {
+  const url = new URL(buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'models'))
+  url.searchParams.set('limit', String(ANTHROPIC_MODEL_PAGE_LIMIT))
+  if (afterId) {
+    url.searchParams.set('after_id', afterId)
+  }
+
+  return url.toString()
+}
+
+function readAnthropicHasMore(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  return (payload as { has_more?: unknown }).has_more === true
+}
+
+function readAnthropicLastId(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const lastId = (payload as { last_id?: unknown }).last_id
+  return typeof lastId === 'string' && lastId.trim() ? lastId : undefined
+}
+
 function formatFetchError(error: unknown): string {
   if (!(error instanceof Error)) return String(error)
 
@@ -570,6 +717,45 @@ async function postOllamaNativeChat(
   return response.json() as Promise<unknown>
 }
 
+async function postAnthropicMessage(
+  provider: LLMProviderConfig,
+  model: string,
+  messages: ChatMessage[],
+  options?: {
+    temperature?: number
+    signal?: AbortSignal
+    timeoutMs?: number
+  }
+): Promise<unknown> {
+  const url = buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
+  const init = withProviderTls(provider, {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: ANTHROPIC_MAX_TOKENS,
+      stream: false,
+      ...(typeof options?.temperature === 'number' ? { temperature: options.temperature } : {}),
+      ...buildAnthropicMessageInput(messages)
+    }),
+    signal: options?.signal
+  })
+
+  const response = options?.timeoutMs
+    ? await fetchWithTimeout(url, init, options.timeoutMs, 'Command safety check timed out, so the command is treated as risky.')
+    : await fetchProvider(url, init, 'Anthropic message')
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Anthropic message request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  return response.json() as Promise<unknown>
+}
+
 function buildLmStudioNativeInput(
   messages: ChatMessage[],
   context: ChatStreamRequest['context']
@@ -619,6 +805,21 @@ function extractOllamaMessageContent(payload: unknown): string {
   return readOllamaMessageText(payload as Record<string, unknown>, 'content')
 }
 
+function extractAnthropicMessageContent(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return ''
+
+  const content = (payload as { content?: unknown }).content
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return ''
+      const text = (part as { text?: unknown }).text
+      return typeof text === 'string' ? text : ''
+    })
+    .join('')
+}
+
 function readProgress(payload: Record<string, unknown> | undefined): number {
   const value = payload?.progress
   return typeof value === 'number' && Number.isFinite(value)
@@ -644,12 +845,45 @@ async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string,
     ...(provider.defaultHeaders ?? {})
   }
 
+  const providerType = getProviderType(provider)
+  if (providerType === 'anthropic') {
+    headers['anthropic-version'] = headers['anthropic-version'] ?? ANTHROPIC_API_VERSION
+  }
+
   const apiKey = await getApiKey(provider.apiKeyRef)
   if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`
+    if (providerType === 'anthropic') {
+      headers['x-api-key'] = apiKey
+    } else {
+      headers.Authorization = `Bearer ${apiKey}`
+    }
   }
 
   return headers
+}
+
+function buildAnthropicMessageInput(messages: ChatMessage[]): {
+  system?: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+} {
+  const system = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  const anthropicMessages = messages
+    .filter((message): message is ChatMessage & { role: 'user' | 'assistant' } => message.role !== 'system')
+    .map((message) => ({
+      role: message.role,
+      content: message.content
+    }))
+    .filter((message) => message.content.trim())
+
+  return {
+    ...(system ? { system } : {}),
+    messages: anthropicMessages
+  }
 }
 
 function buildCommandRiskMessages(request: CommandRiskAssessmentRequest): ChatMessage[] {

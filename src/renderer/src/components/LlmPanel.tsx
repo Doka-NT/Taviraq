@@ -108,9 +108,10 @@ const defaultProvider: LLMProviderConfig = {
 const providerTypeDefaults: Record<LLMProviderType, Pick<LLMProviderConfig, 'name' | 'baseUrl'>> = {
   openai: { name: 'OpenAI Compatible', baseUrl: 'https://api.openai.com' },
   ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434' },
-  lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234' }
+  lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234' },
+  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com' }
 }
-const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio']
+const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio', 'anthropic']
 const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
@@ -1827,7 +1828,7 @@ export function LlmPanel({
         t('providers.title'), t('providers.type'), t('providers.name'), t('providers.baseUrl'),
         t('providers.apiKey'), t('providers.allowInsecureTls'), t('providers.apiKey.saved'),
         t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
-        'openai ollama lm studio model api key base url tls provider safety'
+        'openai ollama lm studio anthropic claude model api key base url tls provider safety'
       ]
     },
     {
@@ -2197,7 +2198,7 @@ export function LlmPanel({
 
                       {/* Right column — provider form */}
                       <div className="provider-form">
-                        <div className={`provider-field ${settingsMatchClass([t('providers.type'), t('providers.type.openai'), t('providers.type.ollama'), t('providers.type.lmstudio'), 'provider type openai ollama lm studio'])}`}>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.type'), t('providers.type.openai'), t('providers.type.ollama'), t('providers.type.lmstudio'), t('providers.type.anthropic'), 'provider type openai ollama lm studio anthropic claude'])}`}>
                           <span className="provider-field-label"><HighlightSearchText text={t('providers.type')} query={settingsSearch} /></span>
                           <select
                             value={getProviderType(provider)}
@@ -3079,11 +3080,9 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
   }, [onChange])
 
   const openList = useCallback(() => {
-    setOpen((current) => {
-      if (!current) onOpen?.()
-      return true
-    })
-  }, [onOpen])
+    if (!open) onOpen?.()
+    setOpen(true)
+  }, [onOpen, open])
 
   const closeList = useCallback(() => {
     setOpen(false)

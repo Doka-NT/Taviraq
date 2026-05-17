@@ -3080,11 +3080,9 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
   }, [onChange])
 
   const openList = useCallback(() => {
-    setOpen((current) => {
-      if (!current) onOpen?.()
-      return true
-    })
-  }, [onOpen])
+    if (!open) onOpen?.()
+    setOpen(true)
+  }, [onOpen, open])
 
   const closeList = useCallback(() => {
     setOpen(false)

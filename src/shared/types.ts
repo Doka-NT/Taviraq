@@ -1,5 +1,6 @@
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
+export type SecretMaskingMode = 'off' | 'on'
 export type AppShortcutAction =
   | 'clear-terminal'
   | 'open-prompt-library'
@@ -106,7 +107,7 @@ export interface ChatMessage {
 }
 
 export type RestorableThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status'
   command?: string
   output?: string
   reasoningContent?: string
@@ -151,6 +152,7 @@ export interface TerminalContext {
   assistMode?: AssistMode
   terminalOutput?: string
   language?: string
+  maskedSecretCount?: number
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
 }
 
@@ -170,6 +172,8 @@ export interface CommandRiskAssessmentRequest {
 export interface CommandRiskAssessment {
   dangerous: boolean
   reason: string
+  reasonCode?: 'local-secret'
+  reasonArgs?: Record<string, string>
 }
 
 export interface SummarizeConversationRequest {
@@ -187,9 +191,10 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
+  | { requestId: string; type: 'privacy'; maskedSecrets: number }
   | { requestId: string; type: 'progress'; stage: 'model_load' | 'prompt_processing'; progress: number }
   | { requestId: string; type: 'error'; message: string }
-  | { requestId: string; type: 'done' }
+  | { requestId: string; type: 'done'; maskedContent?: string }
 
 export interface CommandProposal {
   id: string
@@ -239,6 +244,9 @@ export interface AppConfig {
   activeProviderRef?: string
   hideShortcut?: string
   sshProfiles?: SSHProfileConfig[]
+  secretMasking?: {
+    mode: SecretMaskingMode
+  }
   windowBounds?: {
     x?: number
     y?: number

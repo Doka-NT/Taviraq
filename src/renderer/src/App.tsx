@@ -32,7 +32,7 @@ const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
 const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
-type SettingsTab = 'appearance' | 'providers' | 'connections' | 'prompts' | 'snippets' | 'data'
+type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
 interface BlockPromptRequest {

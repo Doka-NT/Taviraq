@@ -1,11 +1,18 @@
 import type { CommandRiskAssessment, CommandRiskAssessmentRequest } from '@shared/types'
+import { SECRET_PLACEHOLDER_RE } from '@shared/secretPlaceholders'
 
 type ProtectedPattern = {
   pattern: RegExp
   reason: string
+  reasonCode?: CommandRiskAssessment['reasonCode']
 }
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
+  {
+    pattern: SECRET_PLACEHOLDER_RE,
+    reason: 'This command uses a local secret and must be reviewed before Taviraq resolves it.',
+    reasonCode: 'local-secret'
+  },
   {
     pattern: /\brm\s+(?:-[^\s]*[rf][^\s]*|-[^\s]*[fr][^\s]*)\b/i,
     reason: 'This command can recursively or forcefully delete files.'
@@ -61,12 +68,15 @@ export function assessProtectedCommandRisk(
   const match = PROTECTED_PATTERNS.find(({ pattern }) => pattern.test(command))
   if (!match) return undefined
 
-  const host = request.context.session?.kind === 'ssh'
-    ? ` The active session is SSH (${request.context.session.label}), so remote-side effects need explicit review.`
+  const sshLabel = request.context.session?.kind === 'ssh' ? request.context.session.label : undefined
+  const host = sshLabel
+    ? ` The active session is SSH (${sshLabel}), so remote-side effects need explicit review.`
     : ''
 
   return {
     dangerous: true,
-    reason: `${match.reason}${host} Taviraq requires confirmation before running it.`
+    reason: `${match.reason}${host} Taviraq requires confirmation before running it.`,
+    ...(match.reasonCode ? { reasonCode: match.reasonCode } : {}),
+    ...(sshLabel ? { reasonArgs: { sshLabel } } : {})
   }
 }

@@ -7,6 +7,7 @@ import type {
   GeneratedPrompt,
   LLMModel,
   LLMProviderConfig,
+  SecretMaskingMode,
   SummarizeConversationRequest
 } from '@shared/types'
 import { Agent, ProxyAgent, type Dispatcher } from 'undici'
@@ -25,6 +26,13 @@ import {
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
+import {
+  createStreamingPlaceholderRedactor,
+  maskChatStreamRequest,
+  maskCommandRiskAssessmentRequest,
+  maskSummarizeConversationRequest,
+  type SecretMaskContext
+} from '@main/utils/secretMasking'
 import { getApiKey, getProxyPassword } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
@@ -102,11 +110,65 @@ async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMMode
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
   content?: string
   reasoningContent?: string
+  maskedSecrets?: number
   stage?: 'model_load' | 'prompt_processing'
   progress?: number
 }
 
+export interface ChatStreamCompletionResult {
+  maskedContent: string
+  maskedSecretCount: number
+  secretContext: SecretMaskContext
+}
+
 export async function streamChatCompletion(
+  request: ChatStreamRequest,
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal,
+  secretMaskingMode: SecretMaskingMode = 'on',
+  existingSecretContext?: SecretMaskContext
+): Promise<ChatStreamCompletionResult> {
+  const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
+  const contentRedactor = createStreamingPlaceholderRedactor()
+  const reasoningRedactor = createStreamingPlaceholderRedactor()
+  let maskedContent = ''
+
+  if (masked.context.bindings.length > 0) {
+    onChunk({ type: 'privacy', maskedSecrets: masked.context.bindings.length })
+  }
+
+  await streamChatCompletionUnsafe(masked.request, (chunk) => {
+    if (chunk.type === 'progress') {
+      onChunk(chunk)
+      return
+    }
+
+    if (chunk.reasoningContent) {
+      const content = reasoningRedactor.push(chunk.reasoningContent)
+      if (content) onChunk({ type: 'reasoning', reasoningContent: content })
+    }
+
+    if (chunk.content) {
+      maskedContent += chunk.content
+      const content = contentRedactor.push(chunk.content)
+      if (content) onChunk({ type: 'chunk', content })
+    }
+  }, signal)
+
+  const finalReasoning = reasoningRedactor.flush()
+  if (finalReasoning) onChunk({ type: 'reasoning', reasoningContent: finalReasoning })
+
+  const finalContent = contentRedactor.flush()
+  if (finalContent) onChunk({ type: 'chunk', content: finalContent })
+
+  return {
+    maskedContent,
+    maskedSecretCount: masked.context.bindings.length,
+    secretContext: masked.context
+  }
+}
+
+async function streamChatCompletionUnsafe(
   request: ChatStreamRequest,
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal
@@ -375,31 +437,37 @@ async function streamLmStudioNativeChatCompletion(
   }
 }
 
-export async function assessCommandRisk(request: CommandRiskAssessmentRequest): Promise<CommandRiskAssessment> {
-  const protectedAssessment = assessProtectedCommandRisk(request)
+export async function assessCommandRisk(
+  request: CommandRiskAssessmentRequest,
+  secretMaskingMode: SecretMaskingMode = 'on',
+  existingSecretContext?: SecretMaskContext
+): Promise<CommandRiskAssessment> {
+  const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
+  const safeRequest = masked.request
+  const protectedAssessment = assessProtectedCommandRisk(safeRequest)
   if (protectedAssessment) return protectedAssessment
 
-  const model = request.provider.commandRiskModel?.trim()
+  const model = safeRequest.provider.commandRiskModel?.trim()
   if (!model) {
     throw new Error('Select a command safety model before checking command safety.')
   }
 
-  if (getProviderType(request.provider) === 'ollama') {
+  if (getProviderType(safeRequest.provider) === 'ollama') {
     const response = await postOllamaNativeChat(
-      request.provider,
+      safeRequest.provider,
       model,
-      buildCommandRiskMessages(request),
+      buildCommandRiskMessages(safeRequest),
       { options: { temperature: 0 }, timeoutMs: COMMAND_RISK_TIMEOUT_MS }
     )
 
     return parseCommandRiskAssessment(extractOllamaMessageContent(response))
   }
 
-  if (getProviderType(request.provider) === 'anthropic') {
+  if (getProviderType(safeRequest.provider) === 'anthropic') {
     const response = await postAnthropicMessage(
-      request.provider,
+      safeRequest.provider,
       model,
-      buildCommandRiskMessages(request),
+      buildCommandRiskMessages(safeRequest),
       { temperature: 0, timeoutMs: COMMAND_RISK_TIMEOUT_MS }
     )
 
@@ -407,18 +475,18 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
   }
 
   const response = await fetchWithTimeout(
-    buildProviderUrl(request.provider, 'chat/completions'),
-    await withProviderTransport(request.provider, {
+    buildProviderUrl(safeRequest.provider, 'chat/completions'),
+    await withProviderTransport(safeRequest.provider, {
       method: 'POST',
       headers: {
-        ...await buildHeaders(request.provider),
+        ...await buildHeaders(safeRequest.provider),
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model,
         stream: false,
         temperature: 0,
-        messages: buildCommandRiskMessages(request)
+        messages: buildCommandRiskMessages(safeRequest)
       })
     }),
     COMMAND_RISK_TIMEOUT_MS,
@@ -435,17 +503,20 @@ export async function assessCommandRisk(request: CommandRiskAssessmentRequest): 
 
 export async function summarizeConversation(
   request: SummarizeConversationRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  secretMaskingMode: SecretMaskingMode = 'on'
 ): Promise<GeneratedPrompt> {
-  const model = request.provider.selectedModel?.trim()
+  const masked = await maskSummarizeConversationRequest(request, secretMaskingMode, signal)
+  const safeRequest = masked.request
+  const model = safeRequest.provider.selectedModel?.trim()
   if (!model) {
     throw new Error('No model selected.')
   }
 
-  const languageName = request.language ? LANGUAGE_NAMES[request.language] : undefined
+  const languageName = safeRequest.language ? LANGUAGE_NAMES[safeRequest.language] : undefined
   const langInstruction = languageName ? ` Write the prompt in ${languageName}.` : ''
 
-  const conversation = request.messages
+  const conversation = safeRequest.messages
     .filter((m) => m.role !== 'system')
     .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
     .join('\n\n')
@@ -459,8 +530,11 @@ export async function summarizeConversation(
         'The generated prompt will be inserted into the chat input and sent as a normal user message, not as a system/developer instruction.',
         'Write the prompt so it asks the assistant to do the task now: start with a clear action verb, preserve the user intent, include only the necessary constraints, and avoid persona/setup language such as "You are...".',
         'For terminal assistant workflows, prefer prompts that ask the assistant to inspect, diagnose, explain, fix, or propose commands/results instead of merely acknowledging instructions.',
+        masked.context.bindings.length > 0
+          ? 'Some values were replaced with opaque local secret placeholders. Do not include those placeholders or their real values in the generated reusable prompt.'
+          : undefined,
         `${langInstruction} Return only valid JSON with exactly this shape: {"name":"Prompt title","content":"Prompt text"}. Do not include explanations, headings, quotes around the JSON, or Markdown fences.`
-      ].join(' ')
+      ].filter(Boolean).join(' ')
     },
     {
       role: 'user',
@@ -470,9 +544,9 @@ export async function summarizeConversation(
 
   let response: Response
   try {
-    if (getProviderType(request.provider) === 'ollama') {
+    if (getProviderType(safeRequest.provider) === 'ollama') {
       const payload = await postOllamaNativeChat(
-        request.provider,
+        safeRequest.provider,
         model,
         messages,
         { options: { temperature: 0.3 }, signal }
@@ -482,9 +556,9 @@ export async function summarizeConversation(
       return parseGeneratedPrompt(content)
     }
 
-    if (getProviderType(request.provider) === 'anthropic') {
+    if (getProviderType(safeRequest.provider) === 'anthropic') {
       const payload = await postAnthropicMessage(
-        request.provider,
+        safeRequest.provider,
         model,
         messages,
         { temperature: 0.3, signal }
@@ -495,7 +569,7 @@ export async function summarizeConversation(
     }
 
     response = await postOpenAICompatibleChatCompletion(
-      request.provider,
+      safeRequest.provider,
       { model, stream: false, temperature: 0.3, messages },
       signal
     )
@@ -975,9 +1049,12 @@ function buildCommandRiskMessages(request: CommandRiskAssessmentRequest): ChatMe
         'You are a shell command safety classifier.',
         'Analyze only the command and terminal context in this request.',
         `Return JSON only, with this exact shape: ${reasonFormat}.`,
+        context.maskedSecretCount && context.maskedSecretCount > 0
+          ? 'Secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]] represent local secrets. Mark dangerous true for commands that print, upload, echo, log, commit, or otherwise expose those placeholders.'
+          : undefined,
         'Mark dangerous true for commands that can delete, overwrite, move, chmod/chown, install/uninstall, change config, expose secrets, modify remote systems, escalate privileges, kill processes, shutdown/reboot, perform destructive git/package operations, or otherwise cause persistent side effects.',
         'Mark dangerous false for read-only inspection commands such as pwd, ls, cat, grep, find, git status, and help/version commands.'
-      ].join('\n')
+      ].filter(Boolean).join('\n')
     },
     {
       role: 'user',
@@ -1042,6 +1119,9 @@ function buildMessages(messages: ChatMessage[], context: ChatStreamRequest['cont
     'Prefer concise, actionable terminal help.',
     languageInstruction,
     ...buildModeInstructions(mode),
+    context.maskedSecretCount && context.maskedSecretCount > 0
+      ? `Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.`
+      : undefined,
     context.session ? `Active session: ${context.session.label} (${context.session.kind}).` : undefined,
     context.session?.cwd ? `Current directory: ${context.session.cwd}.` : undefined,
     context.selectedText ? `Selected terminal output:\n${context.selectedText}` : undefined,

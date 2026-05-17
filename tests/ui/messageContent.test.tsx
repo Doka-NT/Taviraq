@@ -79,4 +79,23 @@ describe('MessageContent', () => {
     expect(screen.getByText('npm run typecheck')).toBeInTheDocument()
     expect(onRun).toHaveBeenCalledWith('npm run typecheck')
   })
+
+  it('redacts displayed shell commands without changing the runnable command', () => {
+    const onRun = vi.fn()
+    const command = 'echo "[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]"'
+
+    render(
+      <MessageContent
+        content={`\`\`\`bash\n${command}\n\`\`\``}
+        onRun={onRun}
+        redactContent={(value) => value.replace(/\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g, '[secret]')}
+      />
+    )
+
+    screen.getByRole('button', { name: 'Run in terminal' }).click()
+
+    expect(screen.getByText('echo "[secret]"')).toBeInTheDocument()
+    expect(screen.queryByText(command)).not.toBeInTheDocument()
+    expect(onRun).toHaveBeenCalledWith(command)
+  })
 })

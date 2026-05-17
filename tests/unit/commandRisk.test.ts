@@ -11,7 +11,8 @@ describe('protected command risk checks', () => {
     'DROP DATABASE app;',
     'git reset --hard HEAD',
     'brew install jq',
-    'killall node'
+    'killall node',
+    'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
   ])('requires confirmation for %s', (command) => {
     expect(assessProtectedCommandRisk({
       command,
@@ -40,6 +41,21 @@ describe('protected command risk checks', () => {
 
     expect(result?.reason).toContain('SSH')
     expect(result?.reason).toContain('prod.example')
+  })
+
+  it('marks local secret commands with a translatable reason code', () => {
+    const result = assessProtectedCommandRisk({
+      command: 'echo [[TAVIRAQ_SECRET_1_TOKEN]]',
+      context: {
+        selectedText: '',
+        assistMode: 'agent'
+      }
+    })
+
+    expect(result).toMatchObject({
+      dangerous: true,
+      reasonCode: 'local-secret'
+    })
   })
 
   it.each([

@@ -5,6 +5,7 @@ interface MessageContentProps {
   content: string
   onRun?: (command: string) => void | Promise<void>
   onPrompt?: (prompt: string) => void
+  redactContent?: (text: string) => string
   disabled?: boolean
   runLabel?: string
 }
@@ -121,25 +122,32 @@ function isTableSeparator(cells: string[]): boolean {
   return cells.every((cell) => /^:?-{3,}:?$/.test(cell))
 }
 
-function renderInline(text: string): (string | JSX.Element)[] {
+function renderInline(text: string, redactContent: (text: string) => string = (value) => value): (string | JSX.Element)[] {
   const parts: (string | JSX.Element)[] = []
   const re = /(`[^`]+`|\*\*[^*]+\*\*)/g
   let last = 0
   for (const m of text.matchAll(re)) {
-    if (m.index > last) parts.push(text.slice(last, m.index))
+    if (m.index > last) parts.push(redactContent(text.slice(last, m.index)))
     const token = m[0]
     if (token.startsWith('`')) {
-      parts.push(<code key={m.index} className="inline-code">{token.slice(1, -1)}</code>)
+      parts.push(<code key={m.index} className="inline-code">{redactContent(token.slice(1, -1))}</code>)
     } else {
-      parts.push(<strong key={m.index}>{token.slice(2, -2)}</strong>)
+      parts.push(<strong key={m.index}>{redactContent(token.slice(2, -2))}</strong>)
     }
     last = m.index + m[0].length
   }
-  if (last < text.length) parts.push(text.slice(last))
+  if (last < text.length) parts.push(redactContent(text.slice(last)))
   return parts
 }
 
-export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 'Run in terminal' }: MessageContentProps): JSX.Element {
+export function MessageContent({
+  content,
+  onRun,
+  onPrompt,
+  redactContent = (value) => value,
+  disabled,
+  runLabel = 'Run in terminal'
+}: MessageContentProps): JSX.Element {
   const segments = parseContent(content)
   const actionChips = onPrompt ? buildActionChips(content) : []
 
@@ -153,7 +161,7 @@ export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 
               {isShell ? <TerminalSquare size={12} aria-hidden /> : (
                 <span className="msg-code-lang">{seg.lang || 'code'}</span>
               )}
-              <code>{seg.code}</code>
+              <code>{redactContent(seg.code)}</code>
               {isShell && onRun ? (
                 <button
                   className="msg-run-button"
@@ -181,7 +189,7 @@ export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 
                     <thead>
                       <tr>
                         {block.header.map((cell, cellIndex) => (
-                          <th key={cellIndex}>{renderInline(cell)}</th>
+                          <th key={cellIndex}>{renderInline(cell, redactContent)}</th>
                         ))}
                       </tr>
                     </thead>
@@ -189,7 +197,7 @@ export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 
                       {block.rows.map((row, rowIndex) => (
                         <tr key={rowIndex}>
                           {row.map((cell, cellIndex) => (
-                            <td key={cellIndex}>{renderInline(cell)}</td>
+                            <td key={cellIndex}>{renderInline(cell, redactContent)}</td>
                           ))}
                         </tr>
                       ))}
@@ -220,12 +228,12 @@ export function MessageContent({ content, onRun, onPrompt, disabled, runLabel = 
 
             return (
               <HeadingTag className={`message-heading message-heading--${block.level}`} key={`${i}-${j}`}>
-                {renderInline(block.text)}
+                {renderInline(block.text, redactContent)}
               </HeadingTag>
             )
           }
 
-          return <p key={`${i}-${j}`}>{renderInline(block.text)}</p>
+          return <p key={`${i}-${j}`}>{renderInline(block.text, redactContent)}</p>
         })
       })}
       {actionChips.length > 0 ? (

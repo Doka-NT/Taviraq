@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import type { AppConfig, LLMProviderConfig, SSHProfileConfig } from '@shared/types'
+import type { AppConfig, LLMProviderConfig, SecretMaskingMode, SSHProfileConfig } from '@shared/types'
 
 const CONFIG_FILE = 'config.json'
 
@@ -19,6 +19,9 @@ const defaultConfig: AppConfig = {
   ],
   activeProviderRef: 'openai-compatible-default',
   hideShortcut: 'CommandOrControl+Shift+Space',
+  secretMasking: {
+    mode: 'on'
+  },
   windowBounds: {
     width: 1440,
     height: 920
@@ -32,7 +35,7 @@ export class ConfigStore {
   async load(): Promise<AppConfig> {
     try {
       const raw = await readFile(this.path, 'utf8')
-      return { ...defaultConfig, ...JSON.parse(raw) as AppConfig }
+      return normalizeConfig({ ...defaultConfig, ...JSON.parse(raw) as AppConfig })
     } catch {
       return defaultConfig
     }
@@ -41,7 +44,7 @@ export class ConfigStore {
   async save(config: AppConfig): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true })
     const tmpPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`
-    await writeFile(tmpPath, JSON.stringify(config, null, 2), 'utf8')
+    await writeFile(tmpPath, JSON.stringify(normalizeConfig(config), null, 2), 'utf8')
     await rename(tmpPath, this.path)
   }
 
@@ -49,7 +52,7 @@ export class ConfigStore {
     let nextConfig: AppConfig | undefined
     const write = this.writeQueue.then(async () => {
       const config = await this.load()
-      nextConfig = mutator(config)
+      nextConfig = normalizeConfig(mutator(config))
       await this.save(nextConfig)
     })
     this.writeQueue = write.catch(() => undefined)
@@ -104,4 +107,24 @@ export class ConfigStore {
       return { ...config, sshProfiles: nextProfiles }
     })
   }
+
+  async updateSecretMaskingMode(mode: SecretMaskingMode): Promise<AppConfig> {
+    return this.update((config) => ({
+      ...config,
+      secretMasking: { mode: normalizeSecretMaskingMode(mode) }
+    }))
+  }
+}
+
+function normalizeConfig(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    secretMasking: {
+      mode: normalizeSecretMaskingMode(config.secretMasking?.mode)
+    }
+  }
+}
+
+export function normalizeSecretMaskingMode(mode: unknown): SecretMaskingMode {
+  return mode === 'off' ? 'off' : 'on'
 }

@@ -31,12 +31,19 @@ interface ManagedSession {
   inputLine?: string
   inputEscapeSequence?: boolean
   transientSsh?: boolean
+  pendingCommandDisplay?: {
+    written: string
+    display: string
+  }
 }
 
 export class TerminalManager {
   private readonly sessions = new Map<string, ManagedSession>()
 
-  constructor(private readonly getWindow: () => BrowserWindow | undefined) {}
+  constructor(
+    private readonly getWindow: () => BrowserWindow | undefined,
+    private readonly onSessionClosed?: (sessionId: string) => void
+  ) {}
 
   createLocal(request: CreateTerminalRequest = {}): TerminalSessionInfo {
     const shell = process.env.SHELL || '/bin/zsh'
@@ -98,7 +105,9 @@ export class TerminalManager {
     }
 
     session.pty.kill()
-    this.sessions.delete(sessionId)
+    if (this.sessions.delete(sessionId)) {
+      this.onSessionClosed?.(sessionId)
+    }
     this.emit('terminal:exit', { sessionId, exitCode: 0 })
   }
 
@@ -108,8 +117,9 @@ export class TerminalManager {
     }
   }
 
-  runConfirmed(sessionId: string, command: string): void {
+  runConfirmed(sessionId: string, command: string, displayCommand = command): void {
     const normalized = command.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+    const normalizedDisplay = displayCommand.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
     if (!normalized) {
       return
     }
@@ -127,8 +137,14 @@ export class TerminalManager {
 
       const wasSshSession = session.info.kind === 'ssh'
       if (wasSshSession) {
-        this.emitCommand({ sessionId, command: normalized, echoed: false })
+        this.emitCommand({ sessionId, command: normalizedDisplay || normalized, echoed: false })
       } else {
+        if (normalizedDisplay && normalizedDisplay !== normalized) {
+          session.pendingCommandDisplay = {
+            written: normalized,
+            display: normalizedDisplay
+          }
+        }
         this.captureSubmittedCommand(session, normalized)
       }
 
@@ -198,7 +214,11 @@ export class TerminalManager {
         this.emit('terminal:data', { sessionId: id, data: parsed.data })
       }
       for (const command of parsed.commands) {
-        this.emitCommand({ sessionId: id, command, echoed: true })
+        this.emitCommand({
+          sessionId: id,
+          command: this.displayCommandForParsedMarker(managed, command),
+          echoed: true
+        })
       }
       if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
@@ -217,7 +237,9 @@ export class TerminalManager {
       if (managed.zdotdir) {
         try { rmSync(managed.zdotdir, { recursive: true }) } catch { /* ignore */ }
       }
-      this.sessions.delete(id)
+      if (this.sessions.delete(id)) {
+        this.onSessionClosed?.(id)
+      }
       this.emit('terminal:exit', { sessionId: id, exitCode })
     })
 
@@ -310,6 +332,16 @@ export class TerminalManager {
 
     this.updateTransientSsh(session, parsed)
     session.info.reconnectCommand = command
+  }
+
+  private displayCommandForParsedMarker(session: ManagedSession, command: string): string {
+    const pending = session.pendingCommandDisplay
+    if (!pending || pending.written !== command.trim()) {
+      return command
+    }
+
+    session.pendingCommandDisplay = undefined
+    return pending.display
   }
 
   private updateTransientSsh(session: ManagedSession, parsed: { remoteHost: string; remoteTarget: string }): void {

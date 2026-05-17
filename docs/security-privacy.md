@@ -6,13 +6,13 @@ execution is controlled.
 
 ## Storage
 
-- API keys are stored in the macOS Keychain through `keytar`.
+- API keys are stored in the macOS Keychain.
 - Provider settings, prompts, command snippets, chat history, and session state
   are stored locally in Electron app data.
-- Renderer preferences such as sidebar width and terminal text size are stored
-  in `localStorage`.
-- Taviraq does not persist API keys in `config.json`, exports, prompts, or
-  command snippets.
+- UI preferences such as sidebar width and terminal text size are stored in
+  `localStorage`.
+- API keys are never written to config files, prompt definitions,
+  or snippet definitions.
 
 ## Model Providers
 
@@ -20,9 +20,9 @@ Taviraq supports Anthropic, OpenAI-compatible APIs, Ollama, and LM Studio. The
 provider you configure receives the assistant request when you send a message
 or when agent mode checks command risk.
 
-Local providers such as Ollama and LM Studio can keep model traffic on your
-machine, subject to how those tools are configured. Remote providers receive
-the selected prompt, selected context, and command-risk requests.
+Local providers such as Ollama and LM Studio keep traffic on your machine as
+long as they are configured to run locally. Remote providers receive the
+selected prompt, selected context, and command-risk requests.
 
 ## Assistant Context
 
@@ -33,20 +33,37 @@ The assistant receives only the context mode selected in the UI, for example:
 - current session context
 - no terminal context
 
-Before sharing logs or command output with a remote provider, remove secrets
-such as tokens, passwords, private hostnames, and customer data.
+When secret masking is enabled in Settings, Taviraq scans assistant requests
+before they are sent to the provider. This covers chat messages, selected text,
+terminal output, command-risk checks, and conversation summaries. Detected
+secrets are replaced with opaque placeholders for the model and shown as
+`[secret]` in the UI.
+
+The scanner combines Gitleaks rules with Taviraq contextual checks for
+secret-looking values such as tokens, passwords, authorization headers, and
+credential URLs. If the bundled Gitleaks binary is unavailable, Taviraq still
+runs its contextual checks. If an available scanner fails or times out, the
+content is blocked from being sent.
+
+Secret masking reduces accidental disclosure but cannot guarantee that every
+sensitive value will be caught. Private hostnames, customer data, and
+domain-specific identifiers may not match known secret patterns.
 
 ## Command Safety
 
-Agent mode can run one fenced shell command at a time. Before Taviraq writes an
-agent command to the terminal:
+Agent mode can run one fenced shell command at a time. Before a command is
+written to the terminal:
 
-1. Built-in protected-command checks flag known risky command classes.
-2. A dedicated command-risk model reviews commands that are not caught by the
-   built-in checks.
-3. Risky or unclear commands pause in an in-app confirmation modal.
-4. If the model is unavailable, times out, or returns unreadable output, Taviraq
-   fails closed and requires confirmation.
+1. Built-in checks flag known risky command classes.
+2. A dedicated command-risk model reviews commands not flagged by the built-in
+   checks.
+3. Risky or unclear commands require confirmation in an in-app modal.
+4. If the model is unavailable, times out, or returns unreadable output, the
+   command requires confirmation.
+
+Commands that reference a masked secret always require confirmation. The actual
+secret value is resolved only after approval, immediately before the command is
+written to the terminal.
 
 Protected command classes include recursive deletion, elevated privileges,
 recursive permission changes, disk formatting, `curl | sh`, destructive
@@ -56,16 +73,15 @@ package installation/removal, process termination, and shutdown/reboot commands.
 ## SSH
 
 SSH sessions use the system `ssh` binary, so existing SSH config, keys, agents,
-and jump hosts continue to apply. The same command gate is used for local and
-SSH sessions. Built-in safety reasons call out SSH context when a protected
-command would run in a remote session.
+and jump hosts continue to work. The same command safety checks apply to both
+local and SSH sessions. When a protected command targets a remote session, the
+confirmation message notes the SSH context.
 
 ## Telemetry
 
-The app does not contain a product analytics or telemetry pipeline. Network
-traffic is limited to the providers and endpoints you configure, release/update
-checks performed by your installation method, and normal web links you choose
-to open.
+The app does not include analytics or telemetry. Network traffic goes only to
+the providers you configure, update checks from your installation method, and
+any links you open manually.
 
 ## Reporting Concerns
 

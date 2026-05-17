@@ -84,6 +84,7 @@ export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 export interface SaveLLMProviderRequest {
   provider: LLMProviderConfig
   apiKey?: string
+  /** Empty string clears the saved proxy password; omitted keeps it unchanged. */
   proxyPassword?: string
 }
 

@@ -130,17 +130,23 @@ async function prepareProviderRequest(
   }
 
   const proxyPasswordRef = buildProxyPasswordRef(request.provider.apiKeyRef)
+  const hasProxyPasswordField = Object.prototype.hasOwnProperty.call(request, 'proxyPassword')
   const proxyPassword = request.proxyPassword
   const provider = normalizeProviderProxy({
     ...request.provider,
-    ...(proxyPassword ? { proxyPasswordRef } : {})
+    ...(hasProxyPasswordField
+      ? proxyPassword ? { proxyPasswordRef } : { proxyPasswordRef: undefined }
+      : {})
   })
 
   if (proxyPassword && provider.proxyPasswordRef) {
     await saveProxyPassword(provider.proxyPasswordRef, proxyPassword)
   }
 
-  if (options.deleteDisabledProxyPassword !== false && (!provider.proxyUrl || !provider.proxyUsername)) {
+  if (
+    options.deleteDisabledProxyPassword !== false &&
+    (hasProxyPasswordField && !proxyPassword || !provider.proxyUrl || !provider.proxyUsername)
+  ) {
     await deleteProxyPassword(proxyPasswordRef)
   }
 

@@ -16,6 +16,7 @@ import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
+import { stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
@@ -822,11 +823,14 @@ export function LlmPanel({
   }, [blockPromptRequest, getThread, startStream, t, updateThread])
 
   const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
+    const requestMessages = stripTrailingAssistantMessages(currentMessages)
+    if (requestMessages.length === 0) return
+
     const requestId = crypto.randomUUID()
     const thread = getThread(sessionId)
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
     const nextMessages: ThreadMessage[] = [
-      ...currentMessages,
+      ...requestMessages,
       { role: 'assistant', content: '' }
     ]
     requestSessionRef.current.set(requestId, sessionId)
@@ -847,7 +851,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: currentMessages.map(toChatMessage),
+      messages: requestMessages.map(toChatMessage),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1377,7 +1381,7 @@ export function LlmPanel({
     const message = thread.messages[messageIndex]
     if (!message || message.role !== 'assistant') return
 
-    const baseMessages = thread.messages.slice(0, messageIndex)
+    const baseMessages = stripTrailingAssistantMessages(thread.messages.slice(0, messageIndex))
     if (baseMessages.length === 0) return
 
     updateThread(sessionId, (thread) => ({

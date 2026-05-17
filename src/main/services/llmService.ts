@@ -439,9 +439,10 @@ async function streamLmStudioNativeChatCompletion(
 
 export async function assessCommandRisk(
   request: CommandRiskAssessmentRequest,
-  secretMaskingMode: SecretMaskingMode = 'on'
+  secretMaskingMode: SecretMaskingMode = 'on',
+  existingSecretContext?: SecretMaskContext
 ): Promise<CommandRiskAssessment> {
-  const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode)
+  const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
   const safeRequest = masked.request
   const protectedAssessment = assessProtectedCommandRisk(safeRequest)
   if (protectedAssessment) return protectedAssessment

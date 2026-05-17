@@ -337,7 +337,9 @@ export function findSupplementalStrictSecrets(text: string): SecretFinding[] {
 export function maskText(text: string, ctx: SecretMaskContext): string {
   if (!text || ctx.bindings.length === 0) return text
 
-  const bindings = sortedBindings(ctx)
+  const bindings = sortedBindings(ctx).filter((binding) => binding.value.length > 0)
+  if (bindings.length === 0) return text
+
   const byValue = new Map(bindings.map((binding) => [binding.value, binding.placeholder]))
   const pattern = new RegExp(bindings.map((binding) => escapeRegExp(binding.value)).join('|'), 'g')
   return text.replace(pattern, (value) => byValue.get(value) ?? value)

@@ -749,7 +749,11 @@ function registerIpc(): void {
       }
     }
 
-    return assessCommandRisk(request, getSecretMaskingMode())
+    return assessCommandRisk(
+      request,
+      getSecretMaskingMode(),
+      request.context.session?.id ? secretContextsBySession.get(request.context.session.id) : undefined
+    )
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {

@@ -65,6 +65,17 @@ describe('secret masking utilities', () => {
     expect(unmaskText(masked, context)).toBe(input)
   })
 
+  it('ignores malformed empty bindings when masking text defensively', () => {
+    const context = createSecretMaskContext()
+    context.bindings.push({
+      placeholder: '[[TAVIRAQ_SECRET_1_EMPTY]]',
+      value: '',
+      kind: 'empty'
+    })
+
+    expect(maskText('abc', context)).toBe('abc')
+  })
+
   it('replaces longer overlapping secrets first', () => {
     const context = createSecretMaskContext()
     addSecretFindingsToContext(context, [

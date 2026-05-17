@@ -8,14 +8,15 @@ import {
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
-  RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingMode, TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
+import { stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
@@ -95,9 +96,10 @@ const defaultProvider: LLMProviderConfig = {
 const providerTypeDefaults: Record<LLMProviderType, Pick<LLMProviderConfig, 'name' | 'baseUrl'>> = {
   openai: { name: 'OpenAI Compatible', baseUrl: 'https://api.openai.com' },
   ollama: { name: 'Ollama', baseUrl: 'http://localhost:11434' },
-  lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234' }
+  lmstudio: { name: 'LM Studio', baseUrl: 'http://localhost:1234' },
+  anthropic: { name: 'Anthropic', baseUrl: 'https://api.anthropic.com' }
 }
-const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio']
+const providerTypeOptions: LLMProviderType[] = ['openai', 'ollama', 'lmstudio', 'anthropic']
 const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
@@ -143,6 +145,21 @@ function isValidProviderBaseUrl(value: string): boolean {
   try {
     const parsed = new URL(value)
     return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function isValidProviderProxyUrl(value: string | undefined): boolean {
+  const trimmed = value?.trim()
+  if (!trimmed) return true
+  try {
+    const parsed = new URL(trimmed)
+    return (
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      !parsed.username &&
+      !parsed.password
+    )
   } catch {
     return false
   }
@@ -445,6 +462,7 @@ export function LlmPanel({
   const [allProviders, setAllProviders] = useState<LLMProviderConfig[]>([defaultProvider])
   const [activeProviderRef, setActiveProviderRef] = useState(defaultProvider.apiKeyRef)
   const [apiKey, setApiKey] = useState('')
+  const [proxyPassword, setProxyPassword] = useState('')
   const [models, setModels] = useState<LLMModel[]>([])
   const [threadsBySessionId, setThreadsBySessionId] = useState<AssistantThreads>({})
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
@@ -457,6 +475,8 @@ export function LlmPanel({
   const settingsSearchRef = useRef<HTMLInputElement | null>(null)
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [editingProxyPassword, setEditingProxyPassword] = useState(false)
+  const [hasProxyPassword, setHasProxyPassword] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
@@ -680,6 +700,7 @@ export function LlmPanel({
     setActiveProviderRef(loadedActiveProviderRef)
     setHasApiKey(Boolean(loaded.apiKeyRef && loadedActiveProviderRef))
     setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
+    setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
   }, [])
 
   // Load config on mount
@@ -814,11 +835,14 @@ export function LlmPanel({
   }, [blockPromptRequest, getThread, startStream, t, updateThread])
 
   const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
+    const requestMessages = stripTrailingAssistantMessages(currentMessages)
+    if (requestMessages.length === 0) return
+
     const requestId = crypto.randomUUID()
     const thread = getThread(sessionId)
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
     const nextMessages: ThreadMessage[] = [
-      ...currentMessages,
+      ...requestMessages,
       { role: 'assistant', content: '' }
     ]
     requestSessionRef.current.set(requestId, sessionId)
@@ -839,7 +863,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: currentMessages.map(toChatMessage),
+      messages: requestMessages.map(toChatMessage),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1417,7 +1441,7 @@ export function LlmPanel({
     const message = thread.messages[messageIndex]
     if (!message || message.role !== 'assistant') return
 
-    const baseMessages = thread.messages.slice(0, messageIndex)
+    const baseMessages = stripTrailingAssistantMessages(thread.messages.slice(0, messageIndex))
     if (baseMessages.length === 0) return
 
     updateThread(sessionId, (thread) => ({
@@ -1523,31 +1547,71 @@ export function LlmPanel({
     }))
   }, [activeSessionId, appendCommandEditNotice, confirmAgenticCommand, getThread, t, updateThread])
 
-  // Save provider
+  const applySavedProviderResult = useCallback((result: AppConfig, savedApiKey: string): void => {
+    const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+    setProvider(savedProvider)
+    setAllProviders(result.providers)
+    setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
+    setApiKey('')
+    setProxyPassword('')
+    setEditingProxyPassword(false)
+    if (savedApiKey) setHasApiKey(true)
+    setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
+  }, [provider])
+
   const saveProvider = useCallback(async () => {
     if (!isValidProviderBaseUrl(provider.baseUrl)) {
       setProviderStatus('Enter a valid http:// or https:// Base URL')
       return
     }
+    if (!isValidProviderProxyUrl(provider.proxyUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      return
+    }
     setProviderStatus('Saving...')
     try {
-      const result = await window.api.llm.saveProvider({ provider, apiKey })
-      setAllProviders(result.providers)
-      setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
-      setApiKey('')
+      const request = {
+        provider,
+        apiKey,
+        ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
+      }
+      const result = await window.api.llm.saveProvider(request)
+      applySavedProviderResult(result, apiKey)
       setEditingApiKey(false)
-      if (apiKey) setHasApiKey(true)
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, provider, t])
+  }, [apiKey, applySavedProviderResult, editingProxyPassword, provider, proxyPassword, t])
+
+  const saveProxySettings = useCallback(async (nextProxyPassword?: string) => {
+    if (!isValidProviderProxyUrl(provider.proxyUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      return
+    }
+    setProviderStatus('Saving proxy...')
+    try {
+      const shouldSendProxyPassword = nextProxyPassword !== undefined || editingProxyPassword || proxyPassword
+      const result = await window.api.llm.saveProvider({
+        provider,
+        apiKey,
+        ...(shouldSendProxyPassword ? { proxyPassword: nextProxyPassword ?? proxyPassword } : {})
+      })
+      applySavedProviderResult(result, apiKey)
+      setProviderStatus(t('status.saved'))
+    } catch (error) {
+      setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [apiKey, applySavedProviderResult, editingProxyPassword, provider, proxyPassword, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
     setProvider(target)
     setModels([])
+    setProxyPassword('')
     setEditingApiKey(false)
+    setEditingProxyPassword(false)
     setHasApiKey(Boolean(target.apiKeyRef))
+    setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
@@ -1569,8 +1633,11 @@ export function LlmPanel({
     })
     setModels([])
     setApiKey('')
+    setProxyPassword('')
     setEditingApiKey(false)
+    setEditingProxyPassword(false)
     setHasApiKey(false)
+    setHasProxyPassword(false)
   }, [])
 
   const handleDeleteProvider = useCallback((apiKeyRef: string) => {
@@ -1588,6 +1655,9 @@ export function LlmPanel({
             const next = result.providers[0] ?? defaultProvider
             setProvider(next)
             setModels([])
+            setProxyPassword('')
+            setEditingProxyPassword(false)
+            setHasProxyPassword(Boolean(next.proxyPasswordRef))
           }
         } catch (error) {
           setProviderStatus(`Delete failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -1658,19 +1728,35 @@ export function LlmPanel({
   // Load models
   const loadModels = useCallback(async () => {
     if (loadingModelsRef.current) return
+    if (!isValidProviderProxyUrl(provider.proxyUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      return
+    }
     loadingModelsRef.current = true
     setProviderStatus('Loading models...')
     try {
-      const loaded = await window.api.llm.listModels({ provider, apiKey })
-      setModels(loaded)
+      const result = await window.api.llm.listModels({
+        provider,
+        apiKey,
+        ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
+      })
+      setModels(result.models)
+      setProvider(result.provider)
+      setAllProviders((providers) => upsertProviderInOrder(providers, result.provider))
       setApiKey('')
-      setProviderStatus(`${loaded.length} models loaded`)
+      if (apiKey) setHasApiKey(true)
+      if (editingProxyPassword || proxyPassword) {
+        setProxyPassword('')
+        setEditingProxyPassword(false)
+        setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
+      }
+      setProviderStatus(`${result.models.length} models loaded`)
     } catch (error) {
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       loadingModelsRef.current = false
     }
-  }, [apiKey, provider])
+  }, [apiKey, editingProxyPassword, provider, proxyPassword])
 
   const updateProvider = useCallback((updated: LLMProviderConfig) => {
     setProvider(updated)
@@ -1877,9 +1963,10 @@ export function LlmPanel({
       label: t('settings.tab.providers'),
       terms: [
         t('providers.title'), t('providers.type'), t('providers.name'), t('providers.baseUrl'),
+        t('providers.proxyUrl'), t('providers.proxyUsername'), t('providers.proxyPassword'),
         t('providers.apiKey'), t('providers.allowInsecureTls'), t('providers.apiKey.saved'),
         t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
-        'openai ollama lm studio model api key base url tls provider safety'
+        'openai ollama lm studio anthropic claude model api key base url proxy http https tls provider safety'
       ]
     },
     {
@@ -2259,7 +2346,7 @@ export function LlmPanel({
 
                       {/* Right column — provider form */}
                       <div className="provider-form">
-                        <div className={`provider-field ${settingsMatchClass([t('providers.type'), t('providers.type.openai'), t('providers.type.ollama'), t('providers.type.lmstudio'), 'provider type openai ollama lm studio'])}`}>
+                        <div className={`provider-field ${settingsMatchClass([t('providers.type'), t('providers.type.openai'), t('providers.type.ollama'), t('providers.type.lmstudio'), t('providers.type.anthropic'), 'provider type openai ollama lm studio anthropic claude'])}`}>
                           <span className="provider-field-label"><HighlightSearchText text={t('providers.type')} query={settingsSearch} /></span>
                           <select
                             value={getProviderType(provider)}
@@ -2360,6 +2447,65 @@ export function LlmPanel({
                                 updateProvider(updated)
                               }}
                             />
+                          </div>
+                        </div>
+                        <div className="provider-proxy-settings">
+                          <div className={`provider-field ${settingsMatchClass([t('providers.proxyUrl'), provider.proxyUrl, 'proxy http https corporate network'])}`}>
+                            <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyUrl')} query={settingsSearch} /></span>
+                            <input
+                              className={provider.proxyUrl?.trim() && !isValidProviderProxyUrl(provider.proxyUrl) ? 'invalid-input' : undefined}
+                              aria-invalid={Boolean(provider.proxyUrl?.trim() && !isValidProviderProxyUrl(provider.proxyUrl))}
+                              value={provider.proxyUrl ?? ''}
+                              placeholder="http://127.0.0.1:8080"
+                              onChange={(event) => setProvider((p) => ({ ...p, proxyUrl: event.target.value }))}
+                            />
+                          </div>
+                          <div className={`provider-field ${settingsMatchClass([t('providers.proxyUsername'), provider.proxyUsername, 'proxy username login auth'])}`}>
+                            <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyUsername')} query={settingsSearch} /></span>
+                            <input
+                              value={provider.proxyUsername ?? ''}
+                              autoComplete="off"
+                              onChange={(event) => setProvider((p) => ({ ...p, proxyUsername: event.target.value }))}
+                            />
+                          </div>
+                          <div className={`provider-field ${settingsMatchClass([t('providers.proxyPassword'), t('providers.proxyPassword.saved'), t('providers.proxyPassword.change'), t('providers.proxyPassword.clear'), 'proxy password secret auth keychain'])}`}>
+                            <span className="provider-field-label"><HighlightSearchText text={t('providers.proxyPassword')} query={settingsSearch} /></span>
+                            {!editingProxyPassword && hasProxyPassword ? (
+                              <div className="apikey-masked">
+                                <span className="apikey-masked-text">●●●●●●●●</span>
+                                <span className="apikey-masked-hint"><HighlightSearchText text={t('providers.proxyPassword.saved')} query={settingsSearch} /></span>
+                                <button
+                                  type="button"
+                                  className="apikey-change-btn"
+                                  onClick={() => setEditingProxyPassword(true)}
+                                >
+                                  <HighlightSearchText text={t('providers.proxyPassword.change')} query={settingsSearch} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-button apikey-clear-btn"
+                                  title={t('providers.proxyPassword.clear')}
+                                  aria-label={t('providers.proxyPassword.clear')}
+                                  onClick={() => void saveProxySettings('')}
+                                >
+                                  <Trash2 size={13} aria-hidden />
+                                </button>
+                              </div>
+                            ) : (
+                              <input
+                                type="password"
+                                value={proxyPassword}
+                                autoComplete="off"
+                                onChange={(event) => setProxyPassword(event.target.value)}
+                                placeholder={hasProxyPassword ? t('providers.proxyPassword.replacePlaceholder') : t('providers.proxyPassword.placeholder')}
+                              />
+                            )}
+                          </div>
+                          <div className="provider-actions">
+                            <button type="button" className="primary-button provider-save-button" onClick={() => void saveProxySettings()}>
+                              <KeyRound size={14} aria-hidden />
+                              {t('providers.proxy.save')}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -3213,11 +3359,9 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
   }, [onChange])
 
   const openList = useCallback(() => {
-    setOpen((current) => {
-      if (!current) onOpen?.()
-      return true
-    })
-  }, [onOpen])
+    if (!open) onOpen?.()
+    setOpen(true)
+  }, [onOpen, open])
 
   const closeList = useCallback(() => {
     setOpen(false)

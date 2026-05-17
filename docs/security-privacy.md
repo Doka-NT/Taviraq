@@ -16,9 +16,9 @@ execution is controlled.
 
 ## Model Providers
 
-Taviraq supports OpenAI-compatible APIs, Ollama, and LM Studio. The provider you
-configure receives the assistant request when you send a message or when agent
-mode checks command risk.
+Taviraq supports Anthropic, OpenAI-compatible APIs, Ollama, and LM Studio. The
+provider you configure receives the assistant request when you send a message
+or when agent mode checks command risk.
 
 Local providers such as Ollama and LM Studio keep traffic on your machine as
 long as they are configured to run locally. Remote providers receive the

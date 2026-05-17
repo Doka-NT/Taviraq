@@ -1806,6 +1806,10 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.10);
 }
 
+.apikey-clear-btn {
+  flex-shrink: 0;
+}
+
 .provider-actions {
   display: flex;
   align-items: center;
@@ -1864,6 +1868,13 @@ textarea:focus {
 .provider-model-selectors .model-field span {
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.provider-proxy-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
 }
 
 /* Settings shared */

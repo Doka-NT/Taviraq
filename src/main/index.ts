@@ -10,6 +10,8 @@ import type {
   CreateTerminalRequest,
   ExportData,
   ImportResult,
+  ListModelsResult,
+  LLMProviderConfig,
   PromptTemplate,
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
@@ -25,8 +27,22 @@ import { ConfigStore, normalizeSecretMaskingMode } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
-import { deleteApiKey, getApiKey, saveApiKey } from './services/secretStore'
-import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
+import {
+  buildProxyPasswordRef,
+  deleteApiKey,
+  deleteProxyPassword,
+  getApiKey,
+  getProxyPassword,
+  saveApiKey,
+  saveProxyPassword
+} from './services/secretStore'
+import {
+  assessCommandRisk,
+  invalidateProviderProxyAgents,
+  listModels,
+  streamChatCompletion,
+  summarizeConversation
+} from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
   maskTextForDisplay,
@@ -35,6 +51,7 @@ import {
   type SecretMaskContext
 } from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
+import { normalizeHttpProxyUrl } from './utils/proxy'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -130,6 +147,92 @@ function isAllowedExternalUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function normalizeProviderProxy(provider: LLMProviderConfig): LLMProviderConfig {
+  const proxyUrl = provider.proxyUrl?.trim()
+  const proxyUsername = provider.proxyUsername?.trim()
+  if (!proxyUrl) {
+    return {
+      ...provider,
+      proxyUrl: undefined,
+      proxyUsername: undefined,
+      proxyPasswordRef: undefined
+    }
+  }
+
+  return {
+    ...provider,
+    proxyUrl: normalizeHttpProxyUrl(proxyUrl),
+    proxyUsername: proxyUsername || undefined,
+    proxyPasswordRef: proxyUsername ? provider.proxyPasswordRef : undefined
+  }
+}
+
+async function prepareProviderRequest(
+  request: SaveLLMProviderRequest,
+  options: { deleteDisabledProxyPassword?: boolean } = {}
+): Promise<LLMProviderConfig> {
+  if (request.apiKey?.trim()) {
+    await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
+  }
+
+  const proxyPasswordRef = buildProxyPasswordRef(request.provider.apiKeyRef)
+  const hasProxyPasswordField = Object.prototype.hasOwnProperty.call(request, 'proxyPassword')
+  const proxyPassword = request.proxyPassword
+  const provider = normalizeProviderProxy({
+    ...request.provider,
+    ...(hasProxyPasswordField
+      ? proxyPassword ? { proxyPasswordRef } : { proxyPasswordRef: undefined }
+      : {})
+  })
+
+  if (proxyPassword && provider.proxyPasswordRef) {
+    await saveProxyPassword(provider.proxyPasswordRef, proxyPassword)
+  }
+
+  if (
+    options.deleteDisabledProxyPassword !== false &&
+    ((hasProxyPasswordField && !proxyPassword) || !provider.proxyUrl || !provider.proxyUsername)
+  ) {
+    await deleteProxyPasswordIfPresent(proxyPasswordRef)
+  }
+
+  return provider
+}
+
+async function deleteProxyPasswordIfPresent(proxyPasswordRef: string): Promise<void> {
+  try {
+    await deleteProxyPassword(proxyPasswordRef)
+  } catch {
+    // Removing a missing or inaccessible keychain entry should not block saving provider settings.
+  }
+}
+
+function withExportableProxyRefs(config: AppConfig, proxyPasswords: Record<string, string>): AppConfig {
+  return {
+    ...config,
+    providers: config.providers.map((provider) => {
+      if (!provider.proxyPasswordRef || proxyPasswords[provider.proxyPasswordRef]) return provider
+      return { ...provider, proxyPasswordRef: undefined }
+    })
+  }
+}
+
+function buildImportableProxyRefs(
+  providers: LLMProviderConfig[],
+  proxyPasswords: Record<string, string> | undefined
+): { providers: LLMProviderConfig[]; proxyPasswords: Record<string, string> } {
+  const canonicalProxyPasswords: Record<string, string> = {}
+  const importableProviders = providers.map((provider) => {
+    if (!provider.proxyPasswordRef) return provider
+    const proxyPassword = proxyPasswords?.[provider.proxyPasswordRef]
+    if (!proxyPassword) return { ...provider, proxyPasswordRef: undefined }
+    const canonicalRef = buildProxyPasswordRef(provider.apiKeyRef)
+    canonicalProxyPasswords[canonicalRef] = proxyPassword
+    return { ...provider, proxyPasswordRef: canonicalRef }
+  })
+  return { providers: importableProviders, proxyPasswords: canonicalProxyPasswords }
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -608,31 +711,34 @@ function registerIpc(): void {
       return demoConfig
     }
 
-    if (request.apiKey?.trim()) {
-      await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
-    }
-
-    return configStore.upsertProvider(request.provider)
+    const provider = await prepareProviderRequest(request)
+    invalidateProviderProxyAgents(provider.apiKeyRef)
+    return configStore.upsertProvider(provider)
   })
 
   ipcMain.handle('llm:deleteProvider', async (_event, apiKeyRef: string) => {
     await deleteApiKey(apiKeyRef)
+    await deleteProxyPasswordIfPresent(buildProxyPasswordRef(apiKeyRef))
+    invalidateProviderProxyAgents(apiKeyRef)
     return configStore.deleteProvider(apiKeyRef)
   })
 
-  ipcMain.handle('llm:listModels', (_event, request: SaveLLMProviderRequest) => {
+  ipcMain.handle('llm:listModels', async (_event, request: SaveLLMProviderRequest): Promise<ListModelsResult> => {
     if (DEMO_MODE) {
-      return [
-        { id: 'demo-agent', ownedBy: 'Taviraq' },
-        { id: 'demo-safety', ownedBy: 'Taviraq' }
-      ]
+      return {
+        models: [
+          { id: 'demo-agent', ownedBy: 'Taviraq' },
+          { id: 'demo-safety', ownedBy: 'Taviraq' }
+        ],
+        provider: request.provider
+      }
     }
 
-    if (request.apiKey?.trim()) {
-      return saveApiKey(request.provider.apiKeyRef, request.apiKey.trim()).then(() => listModels(request.provider))
+    const provider = await prepareProviderRequest(request, { deleteDisabledProxyPassword: false })
+    return {
+      models: await listModels(provider),
+      provider
     }
-
-    return listModels(request.provider)
   })
 
   ipcMain.handle('llm:assessCommandRisk', async (_event, request: CommandRiskAssessmentRequest) => {
@@ -746,26 +852,32 @@ function registerIpc(): void {
       cancelId: 1,
       defaultId: 0,
       message: 'Export Taviraq data',
-      detail: 'Choose whether this export should include plaintext API keys.',
-      checkboxLabel: 'Include API keys in export file',
+      detail: 'Choose whether this export should include plaintext API keys and proxy passwords.',
+      checkboxLabel: 'Include secrets in export file',
       checkboxChecked: false
     })
 
     if (includeKeysResult.response === 1) return
 
     const apiKeys: Record<string, string> = {}
+    const proxyPasswords: Record<string, string> = {}
     if (includeKeysResult.checkboxChecked) {
       for (const provider of config.providers) {
         const apiKey = await getApiKey(provider.apiKeyRef)
         if (apiKey) apiKeys[provider.apiKeyRef] = apiKey
+        if (provider.proxyPasswordRef) {
+          const proxyPassword = await getProxyPassword(provider.proxyPasswordRef)
+          if (proxyPassword) proxyPasswords[provider.proxyPasswordRef] = proxyPassword
+        }
       }
     }
 
     const exportData: ExportData = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      config,
+      config: withExportableProxyRefs(config, proxyPasswords),
       ...(Object.keys(apiKeys).length > 0 ? { apiKeys } : {}),
+      ...(Object.keys(proxyPasswords).length > 0 ? { proxyPasswords } : {}),
       prompts,
       commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
@@ -799,7 +911,8 @@ function registerIpc(): void {
 
     const currentConfig = await configStore.load()
     const currentProviderRefs = new Set(currentConfig.providers.map((provider) => provider.apiKeyRef))
-    const importedProviders = data.config?.providers ?? []
+    const importableProxyRefs = buildImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords)
+    const importedProviders = importableProxyRefs.providers
     const newProviders = importedProviders.filter((provider) => !currentProviderRefs.has(provider.apiKeyRef))
     const mergedConfig: AppConfig = {
       ...currentConfig,
@@ -820,6 +933,18 @@ function registerIpc(): void {
       for (const [ref, apiKey] of Object.entries(data.apiKeys)) {
         if (newProviderRefs.has(ref)) {
           await saveApiKey(ref, apiKey)
+        }
+      }
+    }
+    if (Object.keys(importableProxyRefs.proxyPasswords).length > 0) {
+      const newProxyPasswordRefs = new Set(
+        newProviders
+          .map((provider) => provider.proxyPasswordRef)
+          .filter((ref): ref is string => Boolean(ref))
+      )
+      for (const [ref, password] of Object.entries(importableProxyRefs.proxyPasswords)) {
+        if (newProxyPasswordRefs.has(ref)) {
+          await saveProxyPassword(ref, password)
         }
       }
     }

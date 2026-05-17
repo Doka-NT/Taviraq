@@ -11,7 +11,7 @@ import type {
   CreateTerminalRequest,
   GeneratedPrompt,
   ImportResult,
-  LLMModel,
+  ListModelsResult,
   PromptTemplate,
   SaveLLMProviderRequest,
   SavedChat,
@@ -22,6 +22,7 @@ import type {
   SSHProfile,
   SSHProfileConfig,
   SummarizeConversationRequest,
+  TerminalCommandEvent,
   TerminalSessionInfo
 } from '@shared/types'
 
@@ -76,8 +77,8 @@ const api = {
         ipcRenderer.removeListener('terminal:data', listener)
       }
     },
-    onCommand: (callback: (payload: { sessionId: string; command: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; command: string }) => callback(payload)
+    onCommand: (callback: (payload: TerminalCommandEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TerminalCommandEvent) => callback(payload)
       ipcRenderer.on('terminal:command', listener)
       return () => {
         ipcRenderer.removeListener('terminal:command', listener)
@@ -143,7 +144,7 @@ const api = {
     deleteProvider: (apiKeyRef: string) =>
       ipcRenderer.invoke('llm:deleteProvider', apiKeyRef) as Promise<AppConfig>,
     listModels: (request: SaveLLMProviderRequest) =>
-      ipcRenderer.invoke('llm:listModels', request) as Promise<LLMModel[]>,
+      ipcRenderer.invoke('llm:listModels', request) as Promise<ListModelsResult>,
     assessCommandRisk: (request: CommandRiskAssessmentRequest) =>
       ipcRenderer.invoke('llm:assessCommandRisk', request) as Promise<CommandRiskAssessment>,
     summarizeConversation: (request: SummarizeConversationRequest) =>

@@ -10,19 +10,22 @@ import type {
   SecretMaskingMode,
   SummarizeConversationRequest
 } from '@shared/types'
-import { Agent } from 'undici'
+import { Agent, ProxyAgent, type Dispatcher } from 'undici'
 import {
+  buildAnthropicUrl,
   buildLmStudioNativeUrl,
   buildOllamaNativeUrl,
   buildProviderUrl,
   getProviderType,
+  parseAnthropicModelList,
   parseLmStudioNativeModelList,
   parseModelList,
   parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
-import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
+import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
+import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 import {
   createStreamingPlaceholderRedactor,
   maskChatStreamRequest,
@@ -30,13 +33,18 @@ import {
   maskSummarizeConversationRequest,
   type SecretMaskContext
 } from '@main/utils/secretMasking'
-import { getApiKey } from './secretStore'
+import { getApiKey, getProxyPassword } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
+const ANTHROPIC_API_VERSION = '2023-06-01'
+const ANTHROPIC_MAX_TOKENS = 4096
+const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
+const MAX_PROXY_AGENTS = 16
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
+const proxyAgents = new Map<string, ProxyAgent>()
 
 type ProviderRequestInit = RequestInit & {
-  dispatcher?: Agent
+  dispatcher?: Dispatcher
 }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -46,12 +54,16 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
   const providerType = getProviderType(provider)
+  if (providerType === 'anthropic') {
+    return listAnthropicModels(provider)
+  }
+
   const url = providerType === 'lmstudio'
     ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
     : providerType === 'ollama'
       ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
       : buildProviderUrl(provider, 'models')
-  const response = await fetchProvider(url, withProviderTls(provider, {
+  const response = await fetchProvider(url, await withProviderTransport(provider, {
     headers: await buildHeaders(provider)
   }), 'Model')
 
@@ -63,6 +75,36 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
   if (providerType === 'lmstudio') return parseLmStudioNativeModelList(payload)
   if (providerType === 'ollama') return parseOllamaNativeModelList(payload)
   return parseModelList(payload)
+}
+
+async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
+  const modelsById = new Map<string, LLMModel>()
+  let afterId: string | undefined
+
+  while (true) {
+    const url = buildAnthropicModelsPageUrl(provider, afterId)
+    const response = await fetchProvider(url, await withProviderTransport(provider, {
+      headers: await buildHeaders(provider)
+    }), 'Model')
+
+    if (!response.ok) {
+      throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
+    }
+
+    const payload = await response.json() as unknown
+    for (const model of parseAnthropicModelList(payload)) {
+      modelsById.set(model.id, model)
+    }
+
+    if (!readAnthropicHasMore(payload)) {
+      return [...modelsById.values()].sort((a, b) => a.id.localeCompare(b.id))
+    }
+
+    afterId = readAnthropicLastId(payload)
+    if (!afterId) {
+      throw new Error('Anthropic model list response did not include last_id for the next page.')
+    }
+  }
 }
 
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
@@ -136,16 +178,22 @@ async function streamChatCompletionUnsafe(
     throw new Error('Select a model before sending a message.')
   }
 
-  if (getProviderType(request.provider) === 'lmstudio') {
+  const providerType = getProviderType(request.provider)
+
+  if (providerType === 'lmstudio') {
     return streamLmStudioNativeChatCompletion(request, model, onChunk, signal)
   }
 
-  if (getProviderType(request.provider) === 'ollama') {
+  if (providerType === 'ollama') {
     return streamOllamaNativeChatCompletion(request, model, onChunk, signal)
   }
 
+  if (providerType === 'anthropic') {
+    return streamAnthropicChatCompletion(request, model, onChunk, signal)
+  }
+
   const url = buildProviderUrl(request.provider, 'chat/completions')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -195,6 +243,64 @@ async function streamChatCompletionUnsafe(
   }
 }
 
+async function streamAnthropicChatCompletion(
+  request: ChatStreamRequest,
+  model: string,
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = buildAnthropicUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(request.provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: ANTHROPIC_MAX_TOKENS,
+      stream: true,
+      ...buildAnthropicMessageInput(buildMessages(request.messages, request.context))
+    }),
+    signal
+  }), 'Anthropic chat')
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Anthropic chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  if (!response.body) {
+    throw new Error('Anthropic chat response did not include a readable stream.')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      break
+    }
+
+    buffer += decoder.decode(value, { stream: true })
+    const parsed = parseSseEvents(buffer)
+    buffer = parsed.remainder
+
+    for (const event of parsed.events) {
+      if (event.event === 'message_stop') {
+        return
+      }
+
+      const chunk = parseAnthropicStreamEvent(event)
+      if (chunk?.content) {
+        onChunk({ type: 'chunk', content: chunk.content })
+      }
+    }
+  }
+}
+
 async function streamOllamaNativeChatCompletion(
   request: ChatStreamRequest,
   model: string,
@@ -202,7 +308,7 @@ async function streamOllamaNativeChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const url = buildOllamaNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -264,7 +370,7 @@ async function streamLmStudioNativeChatCompletion(
   signal?: AbortSignal
 ): Promise<void> {
   const url = buildLmStudioNativeUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'chat')
-  const response = await fetchProvider(url, withProviderTls(request.provider, {
+  const response = await fetchProvider(url, await withProviderTransport(request.provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(request.provider),
@@ -356,9 +462,20 @@ export async function assessCommandRisk(
     return parseCommandRiskAssessment(extractOllamaMessageContent(response))
   }
 
+  if (getProviderType(safeRequest.provider) === 'anthropic') {
+    const response = await postAnthropicMessage(
+      safeRequest.provider,
+      model,
+      buildCommandRiskMessages(safeRequest),
+      { temperature: 0, timeoutMs: COMMAND_RISK_TIMEOUT_MS }
+    )
+
+    return parseCommandRiskAssessment(extractAnthropicMessageContent(response))
+  }
+
   const response = await fetchWithTimeout(
     buildProviderUrl(safeRequest.provider, 'chat/completions'),
-    {
+    await withProviderTransport(safeRequest.provider, {
       method: 'POST',
       headers: {
         ...await buildHeaders(safeRequest.provider),
@@ -370,7 +487,7 @@ export async function assessCommandRisk(
         temperature: 0,
         messages: buildCommandRiskMessages(safeRequest)
       })
-    },
+    }),
     COMMAND_RISK_TIMEOUT_MS,
     'Command safety check timed out, so the command is treated as risky.'
   )
@@ -438,6 +555,18 @@ export async function summarizeConversation(
       return parseGeneratedPrompt(content)
     }
 
+    if (getProviderType(safeRequest.provider) === 'anthropic') {
+      const payload = await postAnthropicMessage(
+        safeRequest.provider,
+        model,
+        messages,
+        { temperature: 0.3, signal }
+      )
+      const content = extractAnthropicMessageContent(payload)
+      if (!content.trim()) throw new Error('Empty response from model.')
+      return parseGeneratedPrompt(content)
+    }
+
     response = await postOpenAICompatibleChatCompletion(
       safeRequest.provider,
       { model, stream: false, temperature: 0.3, messages },
@@ -476,7 +605,7 @@ async function postOpenAICompatibleChatCompletion(
     'Content-Type': 'application/json'
   }
 
-  const response = await fetchProvider(url, withProviderTls(provider, {
+  const response = await fetchProvider(url, await withProviderTransport(provider, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -492,7 +621,7 @@ async function postOpenAICompatibleChatCompletion(
 
   const defaultTemperatureBody = { ...body }
   delete defaultTemperatureBody.temperature
-  return fetchProvider(url, withProviderTls(provider, {
+  return fetchProvider(url, await withProviderTransport(provider, {
     method: 'POST',
     headers,
     body: JSON.stringify(defaultTemperatureBody),
@@ -579,12 +708,98 @@ async function fetchProvider(url: string, init: RequestInit, label = 'Provider')
   }
 }
 
-function withProviderTls(provider: LLMProviderConfig, init: RequestInit): ProviderRequestInit {
-  if (!provider.allowInsecureTls) return init
+async function withProviderTransport(provider: LLMProviderConfig, init: RequestInit): Promise<ProviderRequestInit> {
+  const proxyUrl = provider.proxyUrl?.trim()
+  if (!proxyUrl) {
+    if (!provider.allowInsecureTls) return init
+    return {
+      ...init,
+      dispatcher: insecureTlsAgent
+    }
+  }
+
   return {
     ...init,
-    dispatcher: insecureTlsAgent
+    dispatcher: await getProxyAgent(provider, proxyUrl)
   }
+}
+
+async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string): Promise<ProxyAgent> {
+  const proxy = normalizeHttpProxyUrl(proxyUrl)
+  const token = await buildProxyAuthToken(provider)
+  const cacheKey = [
+    provider.apiKeyRef,
+    proxy,
+    provider.allowInsecureTls ? 'insecure-target-tls' : 'default-target-tls',
+    token ?? ''
+  ].join('\0')
+
+  const cached = proxyAgents.get(cacheKey)
+  if (cached) {
+    proxyAgents.delete(cacheKey)
+    proxyAgents.set(cacheKey, cached)
+    return cached
+  }
+
+  const agent = new ProxyAgent({
+    uri: proxy,
+    ...(token ? { token } : {}),
+    ...(provider.allowInsecureTls ? { requestTls: { rejectUnauthorized: false } } : {})
+  })
+  rememberProxyAgent(cacheKey, agent)
+  return agent
+}
+
+function rememberProxyAgent(cacheKey: string, agent: ProxyAgent): void {
+  proxyAgents.set(cacheKey, agent)
+  if (proxyAgents.size <= MAX_PROXY_AGENTS) return
+
+  const oldest = proxyAgents.entries().next().value
+  if (!oldest) return
+
+  const [oldestKey, oldestAgent] = oldest
+  proxyAgents.delete(oldestKey)
+  void oldestAgent.close().catch(() => undefined)
+}
+
+export function invalidateProviderProxyAgents(apiKeyRef: string): void {
+  const cacheKeyPrefix = `${apiKeyRef}\0`
+  for (const [cacheKey, agent] of proxyAgents) {
+    if (!cacheKey.startsWith(cacheKeyPrefix)) continue
+    proxyAgents.delete(cacheKey)
+    void agent.close().catch(() => undefined)
+  }
+}
+
+async function buildProxyAuthToken(provider: LLMProviderConfig): Promise<string | undefined> {
+  const username = provider.proxyUsername?.trim()
+  if (!username) return undefined
+
+  const password = provider.proxyPasswordRef
+    ? await getProxyPassword(provider.proxyPasswordRef)
+    : undefined
+  return `Basic ${Buffer.from(`${username}:${password ?? ''}`).toString('base64')}`
+}
+
+function buildAnthropicModelsPageUrl(provider: LLMProviderConfig, afterId: string | undefined): string {
+  const url = new URL(buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'models'))
+  url.searchParams.set('limit', String(ANTHROPIC_MODEL_PAGE_LIMIT))
+  if (afterId) {
+    url.searchParams.set('after_id', afterId)
+  }
+
+  return url.toString()
+}
+
+function readAnthropicHasMore(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  return (payload as { has_more?: unknown }).has_more === true
+}
+
+function readAnthropicLastId(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const lastId = (payload as { last_id?: unknown }).last_id
+  return typeof lastId === 'string' && lastId.trim() ? lastId : undefined
 }
 
 function formatFetchError(error: unknown): string {
@@ -616,7 +831,7 @@ async function postOllamaNativeChat(
   }
 ): Promise<unknown> {
   const url = buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'chat')
-  const init = withProviderTls(provider, {
+  const init = await withProviderTransport(provider, {
     method: 'POST',
     headers: {
       ...await buildHeaders(provider),
@@ -638,6 +853,45 @@ async function postOllamaNativeChat(
   if (!response.ok) {
     const body = await response.text().catch(() => '')
     throw new Error(`Ollama chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+  }
+
+  return response.json() as Promise<unknown>
+}
+
+async function postAnthropicMessage(
+  provider: LLMProviderConfig,
+  model: string,
+  messages: ChatMessage[],
+  options?: {
+    temperature?: number
+    signal?: AbortSignal
+    timeoutMs?: number
+  }
+): Promise<unknown> {
+  const url = buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages')
+  const init = await withProviderTransport(provider, {
+    method: 'POST',
+    headers: {
+      ...await buildHeaders(provider),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: ANTHROPIC_MAX_TOKENS,
+      stream: false,
+      ...(typeof options?.temperature === 'number' ? { temperature: options.temperature } : {}),
+      ...buildAnthropicMessageInput(messages)
+    }),
+    signal: options?.signal
+  })
+
+  const response = options?.timeoutMs
+    ? await fetchWithTimeout(url, init, options.timeoutMs, 'Command safety check timed out, so the command is treated as risky.')
+    : await fetchProvider(url, init, 'Anthropic message')
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '')
+    throw new Error(`Anthropic message request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
   }
 
   return response.json() as Promise<unknown>
@@ -692,6 +946,21 @@ function extractOllamaMessageContent(payload: unknown): string {
   return readOllamaMessageText(payload as Record<string, unknown>, 'content')
 }
 
+function extractAnthropicMessageContent(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return ''
+
+  const content = (payload as { content?: unknown }).content
+  if (!Array.isArray(content)) return ''
+
+  return content
+    .map((part) => {
+      if (!part || typeof part !== 'object') return ''
+      const text = (part as { text?: unknown }).text
+      return typeof text === 'string' ? text : ''
+    })
+    .join('')
+}
+
 function readProgress(payload: Record<string, unknown> | undefined): number {
   const value = payload?.progress
   return typeof value === 'number' && Number.isFinite(value)
@@ -717,12 +986,45 @@ async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string,
     ...(provider.defaultHeaders ?? {})
   }
 
+  const providerType = getProviderType(provider)
+  if (providerType === 'anthropic') {
+    headers['anthropic-version'] = headers['anthropic-version'] ?? ANTHROPIC_API_VERSION
+  }
+
   const apiKey = await getApiKey(provider.apiKeyRef)
   if (apiKey) {
-    headers.Authorization = `Bearer ${apiKey}`
+    if (providerType === 'anthropic') {
+      headers['x-api-key'] = apiKey
+    } else {
+      headers.Authorization = `Bearer ${apiKey}`
+    }
   }
 
   return headers
+}
+
+function buildAnthropicMessageInput(messages: ChatMessage[]): {
+  system?: string
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>
+} {
+  const system = messages
+    .filter((message) => message.role === 'system')
+    .map((message) => message.content.trim())
+    .filter(Boolean)
+    .join('\n\n')
+
+  const anthropicMessages = messages
+    .filter((message): message is ChatMessage & { role: 'user' | 'assistant' } => message.role !== 'system')
+    .map((message) => ({
+      role: message.role,
+      content: message.content
+    }))
+    .filter((message) => message.content.trim())
+
+  return {
+    ...(system ? { system } : {}),
+    messages: anthropicMessages
+  }
 }
 
 function buildCommandRiskMessages(request: CommandRiskAssessmentRequest): ChatMessage[] {

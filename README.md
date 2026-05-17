@@ -50,7 +50,7 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 - **Context-aware assistant** — ask about selected text, recent output, the current session, or what command should come next.
 - **Agent mode with safety checks** — commands run one at a time, with a dedicated risk model and confirmation modal for dangerous steps.
 - **Local secret masking** — detect and mask likely secrets before chat context, command checks, or summaries are sent to a provider.
-- **Provider choice** — connect OpenAI-compatible APIs, Ollama, or LM Studio, with separate chat and command-risk models.
+- **Provider choice** — connect Anthropic, OpenAI-compatible APIs, Ollama, or LM Studio, with separate chat and command-risk models.
 - **Prompt and command libraries** — save reusable prompts, turn chats into prompts, and keep command snippets close to the terminal.
 - **Personal workspace** — restore sessions, reopen chat history, tune themes and font size, change language, and import or export settings.
 - **macOS-native storage** — non-secret settings live in app data, while API keys stay in the system keychain.
@@ -59,7 +59,7 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 
 - API keys are stored in the macOS Keychain through `keytar`, not in project config files.
 - Non-secret provider settings, prompts, and app configuration are stored locally in app data.
-- You choose which provider receives assistant context: OpenAI-compatible APIs, Ollama, or LM Studio.
+- You choose which provider receives assistant context: Anthropic, OpenAI-compatible APIs, Ollama, or LM Studio.
 - The assistant only receives the context mode you select, such as selected text, recent output, or the current session.
 - When secret masking is enabled, Taviraq scans assistant requests locally and replaces detected secrets before provider traffic leaves the app.
 - Commands that reference a masked local secret always require confirmation before Taviraq resolves the value locally and writes to the terminal.

@@ -40,8 +40,18 @@ export interface Translations {
   'providers.type.openai': string
   'providers.type.ollama': string
   'providers.type.lmstudio': string
+  'providers.type.anthropic': string
   'providers.name': string
   'providers.baseUrl': string
+  'providers.proxyUrl': string
+  'providers.proxyUsername': string
+  'providers.proxyPassword': string
+  'providers.proxyPassword.saved': string
+  'providers.proxyPassword.change': string
+  'providers.proxyPassword.clear': string
+  'providers.proxyPassword.placeholder': string
+  'providers.proxyPassword.replacePlaceholder': string
+  'providers.proxy.save': string
   'providers.apiKey': string
   'providers.allowInsecureTls': string
   'providers.allowInsecureTls.desc': string
@@ -355,8 +365,18 @@ export const en: Translations = {
   'providers.type.openai': 'OpenAI-compatible',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': 'Provider name',
   'providers.baseUrl': 'Base URL',
+  'providers.proxyUrl': 'HTTP(S) proxy URL',
+  'providers.proxyUsername': 'Proxy username',
+  'providers.proxyPassword': 'Proxy password',
+  'providers.proxyPassword.saved': 'saved in keychain',
+  'providers.proxyPassword.change': 'Change',
+  'providers.proxyPassword.clear': 'Clear saved proxy password',
+  'providers.proxyPassword.placeholder': 'Enter proxy password…',
+  'providers.proxyPassword.replacePlaceholder': 'Enter new proxy password…',
+  'providers.proxy.save': 'Save proxy',
   'providers.apiKey': 'API key',
   'providers.allowInsecureTls': 'Allow insecure TLS',
   'providers.allowInsecureTls.desc': 'Use only for trusted internal endpoints with self-signed certificates.',
@@ -655,8 +675,18 @@ export const ru: Translations = {
   'providers.type.openai': 'OpenAI-совместимый',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': 'Название провайдера',
   'providers.baseUrl': 'Базовый URL',
+  'providers.proxyUrl': 'URL HTTP(S)-прокси',
+  'providers.proxyUsername': 'Логин прокси',
+  'providers.proxyPassword': 'Пароль прокси',
+  'providers.proxyPassword.saved': 'сохранён в связке ключей',
+  'providers.proxyPassword.change': 'Изменить',
+  'providers.proxyPassword.clear': 'Удалить сохранённый пароль прокси',
+  'providers.proxyPassword.placeholder': 'Введите пароль прокси…',
+  'providers.proxyPassword.replacePlaceholder': 'Введите новый пароль прокси…',
+  'providers.proxy.save': 'Сохранить прокси',
   'providers.apiKey': 'API-ключ',
   'providers.allowInsecureTls': 'Разрешить небезопасный TLS',
   'providers.allowInsecureTls.desc': 'Используйте только для доверенных внутренних endpoints с самоподписанными сертификатами.',
@@ -955,8 +985,18 @@ export const cn: Translations = {
   'providers.type.openai': 'OpenAI兼容',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': '提供商名称',
   'providers.baseUrl': '基础URL',
+  'providers.proxyUrl': 'HTTP(S) 代理 URL',
+  'providers.proxyUsername': '代理用户名',
+  'providers.proxyPassword': '代理密码',
+  'providers.proxyPassword.saved': '已保存到密钥链',
+  'providers.proxyPassword.change': '更改',
+  'providers.proxyPassword.clear': '清除已保存的代理密码',
+  'providers.proxyPassword.placeholder': '输入代理密码…',
+  'providers.proxyPassword.replacePlaceholder': '输入新的代理密码…',
+  'providers.proxy.save': '保存代理',
   'providers.apiKey': 'API密钥',
   'providers.allowInsecureTls': '允许不安全TLS',
   'providers.allowInsecureTls.desc': '仅用于带有自签名证书的可信内部端点。',

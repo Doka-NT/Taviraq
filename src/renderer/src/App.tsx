@@ -9,6 +9,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
+import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
 
 interface SessionState extends TerminalSessionInfo {
   status: 'running' | 'exited' | 'disconnected'
@@ -121,29 +122,39 @@ function lineCount(output: string): number {
   return output.split('\n').length - 1
 }
 
-function findCommandStart(output: string, command: string): number {
-  const commandIndex = output.lastIndexOf(command)
-  if (commandIndex === -1) return output.length
-
-  const previousNewline = output.lastIndexOf('\n', commandIndex)
-  return previousNewline === -1 ? 0 : previousNewline + 1
-}
-
-function findBlockVisualStartLine(output: string, command: string): number {
-  const commandStart = findCommandStart(output, command)
-  if (commandStart < output.length) {
-    return lineCount(output.slice(0, commandStart))
-  }
-
+function findBlockVisualStartLine(output: string): number {
   const lines = output.split('\n')
   return Math.max(0, lines.length - 2)
+}
+
+function resolveNewBlockStart(output: string, command: string, echoed: boolean): { offset: number; line: number } {
+  if (echoed) {
+    const offset = findBufferedCommandStartOffset(output, command)
+    if (offset < output.length) {
+      return {
+        offset,
+        line: lineCount(output.slice(0, offset))
+      }
+    }
+  }
+
+  return {
+    offset: output.length,
+    line: findBlockVisualStartLine(output)
+  }
 }
 
 function updateBlockBounds(block: TerminalBlock, output: string): TerminalBlock {
   const lineEnd = output.indexOf('\n', block.startOffset)
   const storedCommandLine = output.slice(block.startOffset, lineEnd === -1 ? output.length : lineEnd)
-  const hasCommandAtStoredStart = storedCommandLine.includes(block.command)
-  const commandStart = hasCommandAtStoredStart ? block.startOffset : findCommandStart(output, block.command)
+  const hasCommandAtStoredStart = storedCommandLine.includes(block.command) ||
+    lineMatchesCommandStart(storedCommandLine, block.command)
+  const commandStart = hasCommandAtStoredStart
+    ? block.startOffset
+    : findCommandStartOffset(output, block.command, {
+      searchStart: block.startOffset,
+      preference: 'first'
+    })
   const hasCommandInBuffer = commandStart < output.length
   const startOffset = hasCommandInBuffer ? commandStart : block.startOffset
   const startLine = hasCommandInBuffer
@@ -276,28 +287,28 @@ export function App(): JSX.Element {
     Object.assign(block, updateBlockBounds(block, output))
   }, [])
 
-  const handleCommandBlockStart = useCallback((sessionId: string, command: string): void => {
+  const handleCommandBlockStart = useCallback((sessionId: string, command: string, echoed: boolean): void => {
     const output = outputBuffers.current.get(sessionId) ?? ''
+    const start = resolveNewBlockStart(output, command, echoed)
     const activeBlockId = activeBlockIdsRef.current.get(sessionId)
     if (activeBlockId) {
       const currentBlocks = terminalBlocksRef.current.get(sessionId) ?? []
+      const previousOutput = start.offset < output.length ? output.slice(0, start.offset) : output
       terminalBlocksRef.current.set(sessionId, currentBlocks.map((block) =>
         block.id === activeBlockId
-          ? { ...updateBlockBounds(block, output), complete: true }
+          ? { ...updateBlockBounds(block, previousOutput), complete: true }
           : block
       ))
     }
 
-    const startOffset = findCommandStart(output, command)
-    const startLine = findBlockVisualStartLine(output, command)
     const block: TerminalBlock = {
       id: crypto.randomUUID(),
       sessionId,
       command,
-      startOffset,
+      startOffset: start.offset,
       endOffset: output.length,
-      startLine,
-      endLine: Math.max(startLine, lineCount(output)),
+      startLine: start.line,
+      endLine: Math.max(start.line, lineCount(output)),
       complete: false
     }
 
@@ -347,10 +358,7 @@ export function App(): JSX.Element {
           .filter((line) => !isPromptOnlyLine(line))
           .join('\n')
           .trim()
-        const outputLines = rawOutput.split('\n')
-        const cleanOutput = outputLines[0]?.includes(block.command)
-          ? outputLines.slice(1).join('\n').trim()
-          : rawOutput
+        const cleanOutput = stripCommandEcho(block.command, rawOutput)
         const text = [`$ ${block.command}`, cleanOutput].filter(Boolean).join('\n')
         return `${appT('terminal.blocks.label', { index: index + 1 })}\n\`\`\`text\n${text}\n\`\`\``
       })
@@ -707,8 +715,8 @@ export function App(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    const offCommand = window.api.terminal.onCommand(({ sessionId, command }) => {
-      handleCommandBlockStart(sessionId, command)
+    const offCommand = window.api.terminal.onCommand(({ sessionId, command, echoed }) => {
+      handleCommandBlockStart(sessionId, command, echoed)
     })
     const offPrompt = window.api.terminal.onPrompt(({ sessionId }) => {
       handleCommandBlockComplete(sessionId)

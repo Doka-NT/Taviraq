@@ -94,7 +94,8 @@ describe('TerminalManager.runConfirmed', () => {
       channel: 'terminal:command',
       payload: {
         sessionId: 'session-1',
-        command: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
+        command: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test',
+        echoed: false
       }
     })
   })
@@ -128,7 +129,7 @@ describe('TerminalManager.runConfirmed', () => {
     expect(writes).toEqual(['ls -la\r'])
     expect(sends).toContainEqual({
       channel: 'terminal:command',
-      payload: { sessionId: 'session-1', command: 'ls -la' }
+      payload: { sessionId: 'session-1', command: 'ls -la', echoed: false }
     })
   })
 })

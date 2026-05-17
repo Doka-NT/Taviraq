@@ -12,6 +12,10 @@ export const PROVIDER_DEFAULTS: Record<LLMProviderType, { name: string; baseUrl:
   lmstudio: {
     name: 'LM Studio',
     baseUrl: 'http://localhost:1234'
+  },
+  anthropic: {
+    name: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com'
   }
 }
 
@@ -42,6 +46,13 @@ export function buildOpenAICompatibleUrl(baseUrl: string, path: 'models' | 'chat
 }
 
 export function buildProviderUrl(provider: LLMProviderConfig, path: 'models' | 'chat/completions'): string {
+  if (getProviderType(provider) === 'anthropic') {
+    return buildAnthropicUrl(
+      provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl,
+      path === 'models' ? 'models' : 'messages'
+    )
+  }
+
   return buildOpenAICompatibleUrl(provider.baseUrl || PROVIDER_DEFAULTS[getProviderType(provider)].baseUrl, path)
 }
 
@@ -81,6 +92,24 @@ export function buildLmStudioNativeUrl(baseUrl: string, path: 'models' | 'chat')
   url.hash = ''
 
   return `${url.toString().replace(/\/+$/, '')}/api/v1/${path}`
+}
+
+export function buildAnthropicUrl(baseUrl: string, path: 'models' | 'messages'): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+
+  if (!trimmed) {
+    throw new Error('Base URL is required.')
+  }
+
+  const url = new URL(trimmed)
+  url.pathname = url.pathname
+    .replace(/\/+$/, '')
+    .replace(/\/v1\/(?:models|messages)$/, '')
+    .replace(/\/v1$/, '')
+  url.search = ''
+  url.hash = ''
+
+  return `${url.toString().replace(/\/+$/, '')}/v1/${path}`
 }
 
 export function parseModelList(payload: unknown): LLMModel[] {
@@ -160,6 +189,33 @@ export function parseLmStudioNativeModelList(payload: unknown): LLMModel[] {
     models.push({
       id: entry.key,
       ownedBy: typeof entry.publisher === 'string' ? entry.publisher : undefined
+    })
+  }
+
+  return models.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+export function parseAnthropicModelList(payload: unknown): LLMModel[] {
+  if (!payload || typeof payload !== 'object' || !('data' in payload)) {
+    throw new Error('Anthropic model list response did not include a data array.')
+  }
+
+  const data = payload.data
+  if (!Array.isArray(data)) {
+    throw new Error('Anthropic model list data is not an array.')
+  }
+
+  const models: LLMModel[] = []
+  const entries: unknown[] = data
+
+  for (const entry of entries) {
+    if (!isRecord(entry) || typeof entry.id !== 'string') {
+      continue
+    }
+
+    models.push({
+      id: entry.id,
+      ownedBy: typeof entry.display_name === 'string' ? entry.display_name : undefined
     })
   }
 

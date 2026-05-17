@@ -123,7 +123,7 @@ describe('secret masking utilities', () => {
 
   it('applies custom regexes while masking display text', async () => {
     const result = await maskTextForDisplay('INTERNAL_TOKEN=ABCDEF-123456-ZYXW', {
-      mode: 'on',
+      mode: 'on' as const,
       applyToChatDisplay: true,
       applyToProviderPayloads: true,
       strictTerminalContext: false,
@@ -141,21 +141,25 @@ describe('secret masking utilities', () => {
   })
 
   it('skips unsafe custom regex patterns', () => {
-    const findings = findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', {
-      mode: 'on',
+    const makeSettings = (pattern: string) => ({
+      mode: 'on' as const,
       applyToChatDisplay: true,
       applyToProviderPayloads: true,
       strictTerminalContext: false,
       customPatterns: [{
         id: 'bad',
         name: 'Bad pattern',
-        pattern: '(a+)+$',
+        pattern,
         enabled: true,
         createdAt: '2026-05-17T00:00:00.000Z'
       }]
     })
 
-    expect(findings).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a+)+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a|a)+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('((a+))+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a+)\\1'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(?=a+)a+'))).toHaveLength(0)
   })
 
   it('does not flag long filesystem paths as contextual secrets', () => {

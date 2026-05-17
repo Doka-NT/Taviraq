@@ -20,11 +20,18 @@ export function isSafeCustomSecretPatternSource(source: string): boolean {
 
   const withoutEscapes = source.replace(/\\./g, '')
   if (/\\[1-9]/.test(source)) return false
-  if (/\(\?<[=!]/.test(withoutEscapes)) return false
+  if (/\(\?(?:[=!]|<[=!])/.test(withoutEscapes)) return false
 
   const quantifiedGroupWithQuantifier =
     /\((?:[^()[\]\\]|\\.|\[[^\]]*\])*(?:[+*]|\{\d*,?\d*\})(?:[^()[\]\\]|\\.|\[[^\]]*\])*\)(?:[+*]|\{\d*,?\d*\})/
   if (quantifiedGroupWithQuantifier.test(withoutEscapes)) return false
+
+  const repeatedGroupWithAlternation =
+    /\((?:[^()[\]\\]|\\.|\[[^\]]*\])*\|(?:[^()[\]\\]|\\.|\[[^\]]*\])*\)(?:[+*]|\{\d*,?\d*\})/
+  if (repeatedGroupWithAlternation.test(withoutEscapes)) return false
+
+  const repeatedNestedGroup = /\([^)]*\([^)]*\)[^)]*\)(?:[+*]|\{\d*,?\d*\})/
+  if (repeatedNestedGroup.test(withoutEscapes)) return false
 
   return true
 }

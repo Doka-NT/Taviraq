@@ -117,12 +117,12 @@ export class ConfigStore {
     }))
   }
 
-  async updateSecretMaskingSettings(settings: SecretMaskingSettings): Promise<AppConfig> {
+  async updateSecretMaskingSettings(settings: unknown): Promise<AppConfig> {
     return this.update((config) => ({
       ...config,
       secretMasking: normalizeSecretMaskingSettings({
-        ...config.secretMasking,
-        ...settings
+        ...normalizeSecretMaskingSettings(config.secretMasking),
+        ...normalizeSecretMaskingSettings(settings)
       })
     }))
   }

@@ -165,12 +165,12 @@ function withExportableProxyRefs(config: AppConfig, proxyPasswords: Record<strin
   }
 }
 
-function withImportableProxyRefs(
+function buildImportableProxyRefs(
   providers: LLMProviderConfig[],
-  proxyPasswords: Record<string, string> | undefined,
-  canonicalProxyPasswords: Record<string, string>
-): LLMProviderConfig[] {
-  return providers.map((provider) => {
+  proxyPasswords: Record<string, string> | undefined
+): { providers: LLMProviderConfig[]; proxyPasswords: Record<string, string> } {
+  const canonicalProxyPasswords: Record<string, string> = {}
+  const importableProviders = providers.map((provider) => {
     if (!provider.proxyPasswordRef) return provider
     const proxyPassword = proxyPasswords?.[provider.proxyPasswordRef]
     if (!proxyPassword) return { ...provider, proxyPasswordRef: undefined }
@@ -178,6 +178,7 @@ function withImportableProxyRefs(
     canonicalProxyPasswords[canonicalRef] = proxyPassword
     return { ...provider, proxyPasswordRef: canonicalRef }
   })
+  return { providers: importableProviders, proxyPasswords: canonicalProxyPasswords }
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -816,8 +817,8 @@ function registerIpc(): void {
 
     const currentConfig = await configStore.load()
     const currentProviderRefs = new Set(currentConfig.providers.map((provider) => provider.apiKeyRef))
-    const canonicalProxyPasswords: Record<string, string> = {}
-    const importedProviders = withImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords, canonicalProxyPasswords)
+    const importableProxyRefs = buildImportableProxyRefs(data.config?.providers ?? [], data.proxyPasswords)
+    const importedProviders = importableProxyRefs.providers
     const newProviders = importedProviders.filter((provider) => !currentProviderRefs.has(provider.apiKeyRef))
     const mergedConfig = {
       ...currentConfig,
@@ -840,13 +841,13 @@ function registerIpc(): void {
         }
       }
     }
-    if (Object.keys(canonicalProxyPasswords).length > 0) {
+    if (Object.keys(importableProxyRefs.proxyPasswords).length > 0) {
       const newProxyPasswordRefs = new Set(
         newProviders
           .map((provider) => provider.proxyPasswordRef)
           .filter((ref): ref is string => Boolean(ref))
       )
-      for (const [ref, password] of Object.entries(canonicalProxyPasswords)) {
+      for (const [ref, password] of Object.entries(importableProxyRefs.proxyPasswords)) {
         if (newProxyPasswordRefs.has(ref)) {
           await saveProxyPassword(ref, password)
         }

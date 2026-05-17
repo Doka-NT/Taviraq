@@ -8,8 +8,8 @@ import {
   MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType, PromptTemplate,
-  RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
 import { MessageContent } from './MessageContent'
@@ -1507,7 +1507,18 @@ export function LlmPanel({
     }))
   }, [activeSessionId, appendCommandEditNotice, confirmAgenticCommand, getThread, t, updateThread])
 
-  // Save provider
+  const applySavedProviderResult = useCallback((result: AppConfig, savedApiKey: string): void => {
+    const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+    setProvider(savedProvider)
+    setAllProviders(result.providers)
+    setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
+    setApiKey('')
+    setProxyPassword('')
+    setEditingProxyPassword(false)
+    if (savedApiKey) setHasApiKey(true)
+    setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
+  }, [provider])
+
   const saveProvider = useCallback(async () => {
     if (!isValidProviderBaseUrl(provider.baseUrl)) {
       setProviderStatus('Enter a valid http:// or https:// Base URL')
@@ -1525,21 +1536,13 @@ export function LlmPanel({
         ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
       }
       const result = await window.api.llm.saveProvider(request)
-      const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
-      setProvider(savedProvider)
-      setAllProviders(result.providers)
-      setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
-      setApiKey('')
-      setProxyPassword('')
+      applySavedProviderResult(result, apiKey)
       setEditingApiKey(false)
-      setEditingProxyPassword(false)
-      if (apiKey) setHasApiKey(true)
-      setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, editingProxyPassword, provider, proxyPassword, t])
+  }, [apiKey, applySavedProviderResult, editingProxyPassword, provider, proxyPassword, t])
 
   const saveProxySettings = useCallback(async (nextProxyPassword?: string) => {
     if (!isValidProviderProxyUrl(provider.proxyUrl)) {
@@ -1554,20 +1557,12 @@ export function LlmPanel({
         apiKey,
         ...(shouldSendProxyPassword ? { proxyPassword: nextProxyPassword ?? proxyPassword } : {})
       })
-      const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
-      setProvider(savedProvider)
-      setAllProviders(result.providers)
-      setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
-      setApiKey('')
-      setProxyPassword('')
-      setEditingProxyPassword(false)
-      if (apiKey) setHasApiKey(true)
-      setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
+      applySavedProviderResult(result, apiKey)
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [apiKey, editingProxyPassword, provider, proxyPassword, t])
+  }, [apiKey, applySavedProviderResult, editingProxyPassword, provider, proxyPassword, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
     setProvider(target)

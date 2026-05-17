@@ -1625,17 +1625,21 @@ export function LlmPanel({
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
     const secretCheckVersion = ++providerSecretCheckVersionRef.current
-    void window.api.llm.hasApiKey(target.apiKeyRef).then((hasKey) => {
-      if (providerSecretCheckVersionRef.current === secretCheckVersion) {
-        setHasApiKey(hasKey)
-        setProviderSecretsLoaded(true)
-      }
-    }).catch(() => {
-      if (providerSecretCheckVersionRef.current === secretCheckVersion) {
-        setHasApiKey(false)
-        setProviderSecretsLoaded(true)
-      }
-    })
+    if (target.apiKeyRef) {
+      void window.api.llm.hasApiKey(target.apiKeyRef).then((hasKey) => {
+        if (providerSecretCheckVersionRef.current === secretCheckVersion) {
+          setHasApiKey(hasKey)
+          setProviderSecretsLoaded(true)
+        }
+      }).catch(() => {
+        if (providerSecretCheckVersionRef.current === secretCheckVersion) {
+          setHasApiKey(false)
+          setProviderSecretsLoaded(true)
+        }
+      })
+    } else {
+      setProviderSecretsLoaded(true)
+    }
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
       setAllProviders(result.providers)
       setActiveProviderRef(result.activeProviderRef ?? target.apiKeyRef)

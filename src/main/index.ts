@@ -717,11 +717,11 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: unknown): Promise<boolean> => {
-    if (DEMO_MODE) {
-      return true
-    }
     if (typeof apiKeyRef !== 'string' || !apiKeyRef.trim()) {
       return false
+    }
+    if (DEMO_MODE) {
+      return true
     }
 
     return Boolean(await getApiKey(apiKeyRef))

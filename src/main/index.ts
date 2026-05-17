@@ -6,6 +6,7 @@ import type {
   AppShortcutAction,
   ChatStreamRequest,
   CommandSnippet,
+  CommandRiskAssessment,
   CommandRiskAssessmentRequest,
   CreateTerminalRequest,
   ExportData,
@@ -834,19 +835,25 @@ function registerIpc(): void {
 
     const policyRequest = applyTerminalContextPolicy(request)
     const sessionId = policyRequest.context.session?.id
-    const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
-    return assessCommandRisk(
-      policyRequest,
-      getScopedSecretMaskingSettings('provider-payload'),
-      previousContext,
-      (context) => {
-        const newContext = diffSecretMaskContext(context, previousContext)
-        if (sessionId && newContext.bindings.length > 0) {
-          secretContextsBySession.set(sessionId, context)
+    const runRiskAssessment = (): Promise<CommandRiskAssessment> => {
+      const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
+      return assessCommandRisk(
+        policyRequest,
+        getScopedSecretMaskingSettings('provider-payload'),
+        previousContext,
+        (context) => {
+          const newContext = diffSecretMaskContext(context, previousContext)
+          if (sessionId && newContext.bindings.length > 0) {
+            secretContextsBySession.set(sessionId, context)
+          }
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
         }
-        recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
-      }
-    )
+      )
+    }
+
+    return sessionId
+      ? withSessionSecretContextLock(sessionId, runRiskAssessment)
+      : runRiskAssessment()
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {

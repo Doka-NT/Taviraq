@@ -50,6 +50,7 @@ import {
 } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
+  diffSecretMaskContext,
   maskTextForDisplay,
   resolveSecretPlaceholders,
   sanitizeSavedChatForStorage,
@@ -832,11 +833,19 @@ function registerIpc(): void {
     }
 
     const policyRequest = applyTerminalContextPolicy(request)
+    const sessionId = policyRequest.context.session?.id
+    const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
     return assessCommandRisk(
       policyRequest,
       getScopedSecretMaskingSettings('provider-payload'),
-      policyRequest.context.session?.id ? secretContextsBySession.get(policyRequest.context.session.id) : undefined,
-      (context) => recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, policyRequest.context.session?.label)
+      previousContext,
+      (context) => {
+        const newContext = diffSecretMaskContext(context, previousContext)
+        if (sessionId && newContext.bindings.length > 0) {
+          secretContextsBySession.set(sessionId, context)
+        }
+        recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
+      }
     )
   })
 
@@ -900,12 +909,11 @@ function registerIpc(): void {
         getScopedSecretMaskingSettings('chat-display'),
         previousContext
       )
-      if (result.context.bindings.length > (previousContext?.bindings.length ?? 0)) {
+      const newContext = diffSecretMaskContext(result.context, previousContext)
+      if (newContext.bindings.length > 0) {
         secretContextsBySession.set(sessionId, result.context)
       }
-      if (result.text !== text || result.context.bindings.length > (previousContext?.bindings.length ?? 0)) {
-        recordSecretMaskingAuditEvent(source ?? 'terminal-display', 'chat-display', result.context, getSessionLabel(sessionId))
-      }
+      recordSecretMaskingAuditEvent(source ?? 'terminal-display', 'chat-display', newContext, getSessionLabel(sessionId))
       return result.text
     })
   })
@@ -1114,6 +1122,7 @@ function registerIpc(): void {
         const sessionId = request.context.session?.id
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)
+          const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
           const result = await streamChatCompletion(policyRequest, (chunk) => {
             if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
               event.sender.send('llm:chatStream:event', {
@@ -1147,13 +1156,14 @@ function registerIpc(): void {
                 content: chunk.content
               })
             }
-          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), sessionId ? secretContextsBySession.get(sessionId) : undefined)
+          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext)
 
           if (controller.signal.aborted) return
-          if (sessionId && result.secretContext.bindings.length > 0) {
+          const newContext = diffSecretMaskContext(result.secretContext, previousContext)
+          if (sessionId && newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, result.secretContext)
           }
-          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', result.secretContext, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, policyRequest.context.session?.label)
           event.sender.send('llm:chatStream:event', {
             requestId: request.requestId,
             type: 'done',

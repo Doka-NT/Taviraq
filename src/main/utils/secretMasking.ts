@@ -82,6 +82,25 @@ export function cloneSecretMaskContext(ctx: SecretMaskContext): SecretMaskContex
   return clone
 }
 
+export function diffSecretMaskContext(
+  context: SecretMaskContext,
+  previousContext?: SecretMaskContext
+): SecretMaskContext {
+  const diff = createSecretMaskContext()
+  const previousValues = new Set(previousContext?.bindings.map((binding) => binding.value) ?? [])
+  const previousPlaceholders = new Set(previousContext?.bindings.map((binding) => binding.placeholder) ?? [])
+
+  for (const binding of context.bindings) {
+    if (previousValues.has(binding.value) || previousPlaceholders.has(binding.placeholder)) continue
+    const clonedBinding = { ...binding }
+    diff.bindings.push(clonedBinding)
+    diff.byValue.set(clonedBinding.value, clonedBinding)
+    diff.byPlaceholder.set(clonedBinding.placeholder, clonedBinding)
+  }
+
+  return diff
+}
+
 export function containsSecretPlaceholder(text: string): boolean {
   return SECRET_PLACEHOLDER_RE.test(text)
 }

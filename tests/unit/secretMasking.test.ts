@@ -9,6 +9,7 @@ import {
   createSecretMaskContext,
   createStreamingPlaceholderRedactor,
   createStreamingUnmasker,
+  diffSecretMaskContext,
   displaySecretPlaceholders,
   findCustomPatternSecrets,
   findSupplementalStrictSecrets,
@@ -269,6 +270,23 @@ describe('secret masking utilities', () => {
       .toBe('sk-live-ABCdef1234567890_ABCdef1234567890')
     expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]', next))
       .toBe('DeployABC1234567890_DeployABC1234567890')
+  })
+
+  it('diffs secret contexts so audit events only count new findings', async () => {
+    const existing = createSecretMaskContext()
+    addSecretFindingsToContext(existing, [
+      { ruleId: 'generic-api-key', secret: 'sk-live-ABCdef1234567890_ABCdef1234567890' }
+    ])
+
+    const next = await createContextFromTexts([
+      'OPENAI_API_KEY=sk-live-ABCdef1234567890_ABCdef1234567890',
+      'DEPLOY_TOKEN=DeployABC1234567890_DeployABC1234567890'
+    ], 'on', undefined, existing)
+    const diff = diffSecretMaskContext(next, existing)
+
+    expect(diff.bindings.map((binding) => binding.kind)).toEqual(['DEPLOY_TOKEN'])
+    expect(diff.byValue.has('DeployABC1234567890_DeployABC1234567890')).toBe(true)
+    expect(diff.byValue.has('sk-live-ABCdef1234567890_ABCdef1234567890')).toBe(false)
   })
 
   it('masks real secret values in command output for display', () => {

@@ -942,8 +942,6 @@ export function LlmPanel({
     currentMessages: ThreadMessage[],
     userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
   ) => {
-    if (pendingStreamStartsRef.current.has(sessionId)) return
-    pendingStreamStartsRef.current.add(sessionId)
     try {
       const requestId = crypto.randomUUID()
       const thread = getThread(sessionId)
@@ -986,17 +984,34 @@ export function LlmPanel({
         ...thread,
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
-    } finally {
-      pendingStreamStartsRef.current.delete(sessionId)
     }
   }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, summarizeSession, updateThread])
+
+  const startGuardedStream = useCallback((
+    sessionId: string,
+    userContent: string,
+    currentMessages: ThreadMessage[],
+    userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
+  ): boolean => {
+    if (pendingStreamStartsRef.current.has(sessionId)) return false
+    pendingStreamStartsRef.current.add(sessionId)
+    void startStream(sessionId, userContent, currentMessages, userMeta).finally(() => {
+      pendingStreamStartsRef.current.delete(sessionId)
+    })
+    return true
+  }, [startStream])
 
   useEffect(() => {
     if (!blockPromptRequest || handledBlockPromptRequestRef.current === blockPromptRequest.id) return
     handledBlockPromptRequestRef.current = blockPromptRequest.id
 
     const thread = getThread(blockPromptRequest.sessionId)
-    if (thread.streaming || thread.agenticCommandRunning || thread.commandConfirmation) {
+    if (
+      pendingStreamStartsRef.current.has(blockPromptRequest.sessionId) ||
+      thread.streaming ||
+      thread.agenticCommandRunning ||
+      thread.commandConfirmation
+    ) {
       updateThread(blockPromptRequest.sessionId, (thread) => ({
         ...thread,
         draft: blockPromptRequest.prompt,
@@ -1005,8 +1020,8 @@ export function LlmPanel({
       return
     }
 
-    void startStream(blockPromptRequest.sessionId, blockPromptRequest.prompt, thread.messages)
-  }, [blockPromptRequest, getThread, startStream, t, updateThread])
+    startGuardedStream(blockPromptRequest.sessionId, blockPromptRequest.prompt, thread.messages)
+  }, [blockPromptRequest, getThread, startGuardedStream, t, updateThread])
 
   const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
     const requestMessages = stripTrailingAssistantMessages(currentMessages)
@@ -1597,8 +1612,8 @@ export function LlmPanel({
         ? { tone: 'info', label: t('status.disconnected.run') }
         : thread.status
     }))
-    void startStream(sessionId, content, thread.messages)
-  }, [commandConfirmation, draft, getThread, streaming, startStream, summarizeSession, t, updateThread])
+    startGuardedStream(sessionId, content, thread.messages)
+  }, [commandConfirmation, draft, getThread, streaming, startGuardedStream, summarizeSession, t, updateThread])
 
   const regenerateMessage = useCallback((messageIndex: number) => {
     const session = activeSessionRef.current

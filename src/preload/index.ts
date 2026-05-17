@@ -141,6 +141,8 @@ const api = {
   llm: {
     saveProvider: (request: SaveLLMProviderRequest) =>
       ipcRenderer.invoke('llm:saveProvider', request) as Promise<AppConfig>,
+    hasApiKey: (apiKeyRef: string) =>
+      ipcRenderer.invoke('llm:hasApiKey', apiKeyRef) as Promise<boolean>,
     deleteProvider: (apiKeyRef: string) =>
       ipcRenderer.invoke('llm:deleteProvider', apiKeyRef) as Promise<AppConfig>,
     listModels: (request: SaveLLMProviderRequest) =>

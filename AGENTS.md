@@ -50,9 +50,12 @@ Taviraq is a macOS-first Electron desktop terminal with:
 
 - Settings live in the settings screen, not inline inside the assistant sidebar.
 - The assistant sidebar is user-resizable by dragging the divider; width is stored in `localStorage`.
+- The sidebar default width is not the minimum width. Keep `DEFAULT_SIDEBAR_WIDTH`, `MIN_SIDEBAR_WIDTH`, `MAX_SIDEBAR_WIDTH`, `MIN_WORKSPACE_WIDTH`, the resizer width, and the matching CSS grid constraints synchronized.
+- For `localStorage` numeric preferences, check `getItem(...) === null` before `Number(...)`; `Number(null) === 0` can accidentally turn a missing value into the minimum.
 - Text size is entered with a number input and stored in `localStorage`; there is no HTML `min`, but invalid or non-positive values should not be applied to xterm.
 - Dangerous command confirmation must be an in-app modal, not `window.confirm` or a browser/system alert.
 - Use existing visual language: dark surfaces, restrained borders, lucide icons, compact controls.
+- For Electron layout/UI changes, verify the real Electron runtime when possible. A normal browser/Vite check may miss preload-only APIs, and a built app can still use stale `out/` assets until `npm run build` is run.
 
 ## Data Persistence & Import/Export
 

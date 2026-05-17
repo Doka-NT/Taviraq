@@ -16,10 +16,11 @@ interface SessionState extends TerminalSessionInfo {
 }
 
 const MAX_OUTPUT_CHARS = 2 * 1024 * 1024
-const DEFAULT_SIDEBAR_WIDTH = 380
+const DEFAULT_SIDEBAR_WIDTH = 425
 const MIN_SIDEBAR_WIDTH = 300
 const MAX_SIDEBAR_WIDTH = 720
 const MIN_WORKSPACE_WIDTH = 520
+const SIDEBAR_RESIZER_WIDTH = 6
 const DEFAULT_TEXT_SIZE = 13.5
 const STORAGE_PREFIX = 'taviraq'
 const LEGACY_STORAGE_PREFIX = 'ai-terminal'
@@ -63,9 +64,33 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
-function storedNumber(key: string, fallback: number, min: number, max: number): number {
-  const value = Number(window.localStorage.getItem(key))
-  return Number.isFinite(value) ? clamp(value, min, max) : fallback
+function maxSidebarWidthForViewport(): number {
+  return Math.min(
+    MAX_SIDEBAR_WIDTH,
+    Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth - MIN_WORKSPACE_WIDTH - SIDEBAR_RESIZER_WIDTH)
+  )
+}
+
+function clampStoredSidebarWidth(value: number): number {
+  return clamp(value, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+}
+
+function clampSidebarWidth(value: number): number {
+  return clamp(value, MIN_SIDEBAR_WIDTH, maxSidebarWidthForViewport())
+}
+
+function storedSidebarWidth(): number {
+  const rawValue = window.localStorage.getItem(SIDEBAR_WIDTH_KEY)
+  if (rawValue === null) {
+    return clampStoredSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
+  }
+
+  const value = Number(rawValue)
+  if (!Number.isFinite(value)) {
+    return clampStoredSidebarWidth(DEFAULT_SIDEBAR_WIDTH)
+  }
+
+  return clampStoredSidebarWidth(value)
 }
 
 function storedPositiveNumber(key: string, fallback: number): number {
@@ -196,7 +221,7 @@ export function App(): JSX.Element {
     window.localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== 'false'
   )
   const [sidebarWidth, setSidebarWidth] = useState(() =>
-    storedNumber(SIDEBAR_WIDTH_KEY, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH)
+    storedSidebarWidth()
   )
   const [textSize, setTextSize] = useState(() =>
     storedPositiveNumber(TEXT_SIZE_KEY, DEFAULT_TEXT_SIZE)
@@ -533,8 +558,7 @@ export function App(): JSX.Element {
     handle.setPointerCapture(event.pointerId)
 
     const applyWidth = (clientX: number): void => {
-      const max = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth - MIN_WORKSPACE_WIDTH))
-      setSidebarWidth(clamp(window.innerWidth - clientX, MIN_SIDEBAR_WIDTH, max))
+      setSidebarWidth(clampSidebarWidth(window.innerWidth - clientX))
     }
 
     const onPointerMove = (moveEvent: PointerEvent): void => {
@@ -563,8 +587,7 @@ export function App(): JSX.Element {
 
   const updateSidebarWidth = useCallback((value: number) => {
     if (!Number.isFinite(value)) return
-    const max = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, window.innerWidth - MIN_WORKSPACE_WIDTH))
-    setSidebarWidth(clamp(value, MIN_SIDEBAR_WIDTH, max))
+    setSidebarWidth(clampSidebarWidth(value))
   }, [])
 
   const toggleSidebar = useCallback(() => setSidebarVisible((v) => !v), [])
@@ -1358,9 +1381,15 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
               </span>
             </button>
           )) : (
-            <p className="command-snippet-palette-empty">
-              {snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}
-            </p>
+            <div className="command-snippet-palette-empty">
+              <p>{snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}</p>
+              {snippets.length === 0 ? (
+                <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
+                  <Plus size={12} aria-hidden />
+                  {t('snippetPalette.emptyCta')}
+                </button>
+              ) : null}
+            </div>
           )}
         </div>
       </section>

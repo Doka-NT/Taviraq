@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 
 describe('proxy utilities', () => {
-  it('normalizes HTTP and HTTPS proxy URLs without dropping paths', () => {
+  it('normalizes HTTP and HTTPS proxy URLs to origins', () => {
     expect(normalizeHttpProxyUrl('http://proxy.local:8080/prefix?route=corp#ignored'))
-      .toBe('http://proxy.local:8080/prefix?route=corp')
-    expect(normalizeHttpProxyUrl('https://proxy.local:8443')).toBe('https://proxy.local:8443/')
+      .toBe('http://proxy.local:8080')
+    expect(normalizeHttpProxyUrl('https://proxy.local:8443')).toBe('https://proxy.local:8443')
   })
 
   it('rejects SOCKS proxy URLs', () => {

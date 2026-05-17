@@ -13,6 +13,5 @@ export function normalizeHttpProxyUrl(value: string): string {
     throw new Error('Enter proxy credentials in the username and password fields.')
   }
 
-  url.hash = ''
-  return url.toString()
+  return url.origin
 }

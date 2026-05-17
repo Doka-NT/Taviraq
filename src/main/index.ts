@@ -110,14 +110,22 @@ const demoConfig: AppConfig = {
 }
 
 let secretMaskingSettingsCache: SecretMaskingSettings = normalizeSecretMaskingSettings(demoConfig.secretMasking)
+let secretMaskingSettingsCacheReady: Promise<void> | undefined
 
-async function initializeSecretMaskingModeCache(): Promise<void> {
-  if (DEMO_MODE) {
-    updateSecretMaskingSettingsCache(demoConfig)
-    return
-  }
+function initializeSecretMaskingModeCache(): Promise<void> {
+  secretMaskingSettingsCacheReady ??= (async () => {
+    if (DEMO_MODE) {
+      updateSecretMaskingSettingsCache(demoConfig)
+      return
+    }
 
-  updateSecretMaskingSettingsCache(await configStore.load())
+    updateSecretMaskingSettingsCache(await configStore.load())
+  })()
+  return secretMaskingSettingsCacheReady
+}
+
+async function ensureSecretMaskingSettingsCache(): Promise<void> {
+  await initializeSecretMaskingModeCache()
 }
 
 function updateSecretMaskingSettingsCache(config: AppConfig): void {
@@ -751,6 +759,7 @@ function registerIpc(): void {
   ipcMain.handle('chatHistory:list', () => chatHistoryStore.list())
   ipcMain.handle('chatHistory:get', (_event, id: string) => chatHistoryStore.get(id))
   ipcMain.handle('chatHistory:save', async (_event, chat: SavedChat) => {
+    await ensureSecretMaskingSettingsCache()
     const sanitizedChat = await sanitizeSavedChatForStorage(chat, getScopedSecretMaskingSettings('chat-display'))
     await chatHistoryStore.save(sanitizedChat)
   })
@@ -842,6 +851,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:assessCommandRisk', async (_event, request: CommandRiskAssessmentRequest) => {
+    await ensureSecretMaskingSettingsCache()
     if (DEMO_MODE) {
       return {
         dangerous: /\brm\s+-rf\b|sudo|chmod\s+-r/i.test(request.command),
@@ -875,6 +885,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {
+    await ensureSecretMaskingSettingsCache()
     if (DEMO_MODE) {
       return {
         name: 'Inspect terminal workspace',
@@ -927,6 +938,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string, source?: SecretMaskingAuditSource) => {
+    await ensureSecretMaskingSettingsCache()
     return withSessionSecretContextLock(sessionId, async () => {
       const previousContext = secretContextsBySession.get(sessionId)
       const result = await maskTextForDisplay(
@@ -1144,6 +1156,7 @@ function registerIpc(): void {
 
     void (async () => {
       try {
+        await ensureSecretMaskingSettingsCache()
         const sessionId = request.context.session?.id
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)

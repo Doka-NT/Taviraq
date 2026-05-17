@@ -431,7 +431,14 @@ function fromRestorableThreads(threads: RestorableAssistantThreads): AssistantTh
   )
 }
 
-function toChatMessage(message: ThreadMessage): ChatMessage {
+function toChatMessage(message: ThreadMessage, strictTerminalContext = false): ChatMessage {
+  if (strictTerminalContext && (message.display === 'command-output' || message.command || message.output)) {
+    return {
+      role: message.role,
+      content: buildAgentContinuation('', '', true)
+    }
+  }
+
   return {
     role: message.role,
     content: message.maskedContent ?? message.content
@@ -942,8 +949,9 @@ export function LlmPanel({
     currentMessages: ThreadMessage[],
     userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
   ) => {
+    let requestId: string | undefined
     try {
-      const requestId = crypto.randomUUID()
+      requestId = crypto.randomUUID()
       const thread = getThread(sessionId)
       const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
       const displayContent = await maskChatDisplayContent(sessionId, userContent)
@@ -969,7 +977,9 @@ export function LlmPanel({
       window.api.llm.chatStream({
         requestId,
         provider: providerRef.current,
-        messages: nextMessages.slice(0, -1).map(toChatMessage),
+        messages: nextMessages
+          .slice(0, -1)
+          .map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
         context: {
           selectedText: selectedTextRef.current,
           assistMode: mode,
@@ -980,12 +990,18 @@ export function LlmPanel({
       })
       autoSaveThreadToHistory(sessionId)
     } catch (error) {
+      if (requestId) {
+        requestSessionRef.current.delete(requestId)
+      }
       updateThread(sessionId, (thread) => ({
         ...thread,
+        streaming: requestId && thread.activeRequestId === requestId ? false : thread.streaming,
+        activeRequestId: requestId && thread.activeRequestId === requestId ? undefined : thread.activeRequestId,
+        streamingContent: requestId && thread.activeRequestId === requestId ? '' : thread.streamingContent,
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
     }
-  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, secretMaskingSettings.strictTerminalContext, summarizeSession, updateThread])
 
   const startGuardedStream = useCallback((
     sessionId: string,
@@ -1052,7 +1068,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: requestMessages.map(toChatMessage),
+      messages: requestMessages.map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1062,7 +1078,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getThread, secretMaskingSettings.strictTerminalContext, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})
@@ -1354,7 +1370,7 @@ export function LlmPanel({
       const prompt = await window.api.llm.summarizeConversation({
         requestId,
         provider: providerRef.current,
-        messages: messages.map(toChatMessage),
+        messages: messages.map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
         language: languageRef.current
       })
       if (savePromptGenerationRequestIdRef.current !== requestId) return

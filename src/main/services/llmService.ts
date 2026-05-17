@@ -30,6 +30,7 @@ const COMMAND_RISK_TIMEOUT_MS = 15_000
 const ANTHROPIC_API_VERSION = '2023-06-01'
 const ANTHROPIC_MAX_TOKENS = 4096
 const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
+const MAX_PROXY_AGENTS = 16
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
 const proxyAgents = new Map<string, ProxyAgent>()
 
@@ -659,15 +660,31 @@ async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string): Pro
   ].join('\0')
 
   const cached = proxyAgents.get(cacheKey)
-  if (cached) return cached
+  if (cached) {
+    proxyAgents.delete(cacheKey)
+    proxyAgents.set(cacheKey, cached)
+    return cached
+  }
 
   const agent = new ProxyAgent({
     uri: proxy,
     ...(token ? { token } : {}),
     ...(provider.allowInsecureTls ? { requestTls: { rejectUnauthorized: false } } : {})
   })
-  proxyAgents.set(cacheKey, agent)
+  rememberProxyAgent(cacheKey, agent)
   return agent
+}
+
+function rememberProxyAgent(cacheKey: string, agent: ProxyAgent): void {
+  proxyAgents.set(cacheKey, agent)
+  if (proxyAgents.size <= MAX_PROXY_AGENTS) return
+
+  const oldest = proxyAgents.entries().next().value
+  if (!oldest) return
+
+  const [oldestKey, oldestAgent] = oldest
+  proxyAgents.delete(oldestKey)
+  void oldestAgent.close().catch(() => undefined)
 }
 
 function normalizeHttpProxyUrl(value: string): string {

@@ -145,7 +145,7 @@ async function prepareProviderRequest(
 
   if (
     options.deleteDisabledProxyPassword !== false &&
-    (hasProxyPasswordField && !proxyPassword || !provider.proxyUrl || !provider.proxyUsername)
+    ((hasProxyPasswordField && !proxyPassword) || !provider.proxyUrl || !provider.proxyUsername)
   ) {
     await deleteProxyPassword(proxyPasswordRef)
   }

@@ -29,6 +29,7 @@ import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
+import { buildAgentContinuation } from '@renderer/utils/agentContinuation'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   DISPLAY_SECRET_LABEL,
@@ -1544,15 +1545,14 @@ export function LlmPanel({
       '[command output hidden because secret masking failed]'
     ))
     updateThread(sessionId, (thread) => ({ ...thread, agenticCommandRunning: false }))
-    const continuation =
-      `Command \`${command}\` finished.\nOutput:\n\`\`\`\n${output}\n\`\`\`\nContinue.`
+    const continuation = buildAgentContinuation(command, output, secretMaskingSettings.strictTerminalContext)
 
     void startStream(sessionId, continuation, getThread(sessionId).messages, {
       display: 'command-output',
       command,
       output
     })
-  }, [appendCommandEditNotice, confirmAgenticCommand, getThread, stopAgentic, startStream, t, updateThread])
+  }, [appendCommandEditNotice, confirmAgenticCommand, getThread, secretMaskingSettings.strictTerminalContext, stopAgentic, startStream, t, updateThread])
 
   // Keep ref updated
   useEffect(() => { runAgenticStepRef.current = runAgenticStep }, [runAgenticStep])

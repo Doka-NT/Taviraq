@@ -14,10 +14,12 @@ describe('LlmPanel command output cleanup', () => {
   })
 
   it('withholds command output from provider continuation in strict mode', () => {
+    const command = 'curl -H "Authorization: Bearer token-ABC1234567890_token-ABC1234567890" https://example.test'
     const output = 'SECRET_TOKEN=abc1234567890abc1234567890'
-    const continuation = buildAgentContinuation('printenv', output, true)
+    const continuation = buildAgentContinuation(command, output, true)
 
     expect(continuation).toContain('strict terminal context')
+    expect(continuation).not.toContain(command)
     expect(continuation).not.toContain(output)
   })
 })

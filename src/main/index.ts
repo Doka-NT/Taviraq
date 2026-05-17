@@ -6,7 +6,6 @@ import type {
   AppShortcutAction,
   ChatStreamRequest,
   CommandSnippet,
-  CommandRiskAssessment,
   CommandRiskAssessmentRequest,
   CreateTerminalRequest,
   ExportData,
@@ -51,6 +50,8 @@ import {
 } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
+  addSecretFindingsToContext,
+  cloneSecretMaskContext,
   diffSecretMaskContext,
   maskTextForDisplay,
   resolveSecretPlaceholders,
@@ -178,7 +179,22 @@ function getSessionLabel(sessionId: string): string | undefined {
   return terminalManager.list().find((session) => session.id === sessionId)?.label
 }
 
-async function withSessionSecretContextLock<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+function mergeNewSecretContext(
+  currentContext: SecretMaskContext | undefined,
+  fullContext: SecretMaskContext,
+  newContext: SecretMaskContext
+): SecretMaskContext {
+  if (!currentContext) return fullContext
+
+  const mergedContext = cloneSecretMaskContext(currentContext)
+  addSecretFindingsToContext(
+    mergedContext,
+    newContext.bindings.map((binding) => ({ ruleId: binding.kind, secret: binding.value }))
+  )
+  return mergedContext
+}
+
+async function withSessionSecretContextLock<T>(sessionId: string, task: () => T | Promise<T>): Promise<T> {
   const previous = secretContextLocksBySession.get(sessionId) ?? Promise.resolve()
   let release = (): void => {}
   const current = new Promise<void>((resolve) => {
@@ -835,25 +851,27 @@ function registerIpc(): void {
 
     const policyRequest = applyTerminalContextPolicy(request)
     const sessionId = policyRequest.context.session?.id
-    const runRiskAssessment = (): Promise<CommandRiskAssessment> => {
-      const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
-      return assessCommandRisk(
-        policyRequest,
-        getScopedSecretMaskingSettings('provider-payload'),
-        previousContext,
-        (context) => {
-          const newContext = diffSecretMaskContext(context, previousContext)
-          if (sessionId && newContext.bindings.length > 0) {
-            secretContextsBySession.set(sessionId, context)
+    const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
+    return assessCommandRisk(
+      policyRequest,
+      getScopedSecretMaskingSettings('provider-payload'),
+      previousContext,
+      async (context) => {
+        if (!sessionId) {
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, policyRequest.context.session?.label)
+          return
+        }
+
+        await withSessionSecretContextLock(sessionId, () => {
+          const latestContext = secretContextsBySession.get(sessionId)
+          const newContext = diffSecretMaskContext(context, latestContext)
+          if (newContext.bindings.length > 0) {
+            secretContextsBySession.set(sessionId, mergeNewSecretContext(latestContext, context, newContext))
           }
           recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
-        }
-      )
-    }
-
-    return sessionId
-      ? withSessionSecretContextLock(sessionId, runRiskAssessment)
-      : runRiskAssessment()
+        })
+      }
+    )
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {

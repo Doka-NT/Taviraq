@@ -441,11 +441,11 @@ export async function assessCommandRisk(
   request: CommandRiskAssessmentRequest,
   secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext,
-  onMaskedContext?: (context: SecretMaskContext) => void
+  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>
 ): Promise<CommandRiskAssessment> {
   const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
   if (masked.context.bindings.length > 0) {
-    onMaskedContext?.(masked.context)
+    await onMaskedContext?.(masked.context)
   }
   const safeRequest = masked.request
   const protectedAssessment = assessProtectedCommandRisk(safeRequest)

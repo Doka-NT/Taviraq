@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import {
   addSecretFindingsToContext,
   containsSecretPlaceholder,
@@ -18,6 +21,7 @@ import {
 
 afterEach(() => {
   vi.doUnmock('node:fs/promises')
+  vi.unstubAllEnvs()
   vi.resetModules()
 })
 
@@ -101,6 +105,27 @@ describe('secret masking utilities', () => {
     const findings = await scanTextForSecrets('DEPLOY_TOKEN=AbCdEf1234567890_AbCdEf1234567890', 'on')
 
     expect(findings.map((finding) => finding.secret)).toContain('AbCdEf1234567890_AbCdEf1234567890')
+  })
+
+  it('fails closed when an available gitleaks scanner returns unreadable output', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'taviraq-gitleaks-bad-output-'))
+    const fakeGitleaks = join(tempDir, 'gitleaks')
+    await writeFile(fakeGitleaks, [
+      '#!/bin/sh',
+      'cat >/dev/null',
+      'printf "%s" "not-json"'
+    ].join('\n'), 'utf8')
+    await chmod(fakeGitleaks, 0o755)
+    vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
+    vi.resetModules()
+
+    try {
+      const { scanTextForSecrets } = await import('@main/utils/secretMasking')
+      await expect(scanTextForSecrets('DEPLOY_TOKEN=AbCdEf1234567890_AbCdEf1234567890', 'on'))
+        .rejects.toThrow('unreadable report')
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
   })
 
   it('skips scanner work when masking mode is off', async () => {

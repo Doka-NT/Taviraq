@@ -82,52 +82,54 @@ describe('llmService', () => {
     await chmod(fakeGitleaks, 0o755)
     vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
 
-    const encoder = new TextEncoder()
-    let requestBody = ''
-    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit): Promise<Response> => {
-      requestBody = typeof init?.body === 'string' ? init.body : ''
-      return Promise.resolve(new Response(new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"reasoning_content":"Thinking ${placeholder}","content":"Use ${placeholder}"}}]}\n\n`))
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-          controller.close()
+    try {
+      const encoder = new TextEncoder()
+      let requestBody = ''
+      vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit): Promise<Response> => {
+        requestBody = typeof init?.body === 'string' ? init.body : ''
+        return Promise.resolve(new Response(new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"reasoning_content":"Thinking ${placeholder}","content":"Use ${placeholder}"}}]}\n\n`))
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+            controller.close()
+          }
+        }), { status: 200, statusText: 'OK' }))
+      }))
+
+      const { streamChatCompletion } = await import('@main/services/llmService')
+      const chunks: string[] = []
+      const reasoningChunks: string[] = []
+      const privacy: number[] = []
+      const result = await streamChatCompletion({
+        requestId: 'request-1',
+        provider: {
+          name: 'test',
+          baseUrl: 'https://example.test',
+          apiKeyRef: 'test',
+          selectedModel: 'chat-model'
+        },
+        messages: [
+          { role: 'user', content: `OPENAI_API_KEY=${secret}` }
+        ],
+        context: {
+          selectedText: '',
+          assistMode: 'read'
         }
-      }), { status: 200, statusText: 'OK' }))
-    }))
+      }, (event) => {
+        if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
+        if (event.reasoningContent) reasoningChunks.push(event.reasoningContent)
+        if (event.content) chunks.push(event.content)
+      })
 
-    const { streamChatCompletion } = await import('@main/services/llmService')
-    const chunks: string[] = []
-    const reasoningChunks: string[] = []
-    const privacy: number[] = []
-    const result = await streamChatCompletion({
-      requestId: 'request-1',
-      provider: {
-        name: 'test',
-        baseUrl: 'https://example.test',
-        apiKeyRef: 'test',
-        selectedModel: 'chat-model'
-      },
-      messages: [
-        { role: 'user', content: `OPENAI_API_KEY=${secret}` }
-      ],
-      context: {
-        selectedText: '',
-        assistMode: 'read'
-      }
-    }, (event) => {
-      if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
-      if (event.reasoningContent) reasoningChunks.push(event.reasoningContent)
-      if (event.content) chunks.push(event.content)
-    })
-
-    expect(privacy).toEqual([1])
-    expect(requestBody).not.toContain(secret)
-    expect(requestBody).toContain(placeholder)
-    expect(reasoningChunks.join('')).toBe('Thinking [secret]')
-    expect(chunks.join('')).toBe('Use [secret]')
-    expect(result.maskedContent).toBe(`Use ${placeholder}`)
-
-    await rm(tempDir, { recursive: true, force: true })
+      expect(privacy).toEqual([1])
+      expect(requestBody).not.toContain(secret)
+      expect(requestBody).toContain(placeholder)
+      expect(reasoningChunks.join('')).toBe('Thinking [secret]')
+      expect(chunks.join('')).toBe('Use [secret]')
+      expect(result.maskedContent).toBe(`Use ${placeholder}`)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
   })
 
   it('does not scan or mask outbound chat payloads when masking is off', async () => {

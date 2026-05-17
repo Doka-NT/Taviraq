@@ -107,6 +107,56 @@ export interface Translations {
   'security.secretMasking.offDesc': string
   'security.secretMasking.warning': string
   'security.maskedSecret.inline': string
+  'security.summary.categories': string
+  'security.summary.scopes': string
+  'security.summary.audit': string
+  'security.summary.noScopes': string
+  'security.scopes.title': string
+  'security.scope.providerPayloads': string
+  'security.scope.providerPayloads.short': string
+  'security.scope.providerPayloads.desc': string
+  'security.scope.chatDisplay': string
+  'security.scope.chatDisplay.short': string
+  'security.scope.chatDisplay.desc': string
+  'security.strictMode': string
+  'security.strictMode.desc': string
+  'security.patterns.title': string
+  'security.category.apiKeys': string
+  'security.category.apiKeys.desc': string
+  'security.category.tokens': string
+  'security.category.tokens.desc': string
+  'security.category.passwords': string
+  'security.category.passwords.desc': string
+  'security.category.aws': string
+  'security.category.aws.desc': string
+  'security.category.sshMaterial': string
+  'security.category.sshMaterial.desc': string
+  'security.category.urlCredentials': string
+  'security.category.urlCredentials.desc': string
+  'security.category.customRegex': string
+  'security.category.customRegex.count': string
+  'security.category.customRegex.empty': string
+  'security.customPatterns.title': string
+  'security.customPatterns.name': string
+  'security.customPatterns.regex': string
+  'security.customPatterns.add': string
+  'security.customPatterns.empty': string
+  'security.customPatterns.required': string
+  'security.customPatterns.invalid': string
+  'security.customPatterns.enable': string
+  'security.customPatterns.disable': string
+  'security.audit.title': string
+  'security.audit.clear': string
+  'security.audit.empty': string
+  'security.audit.maskedCount': string
+  'security.audit.scope.provider': string
+  'security.audit.scope.display': string
+  'security.audit.source.chatStream': string
+  'security.audit.source.chatDisplay': string
+  'security.audit.source.commandRisk': string
+  'security.audit.source.summary': string
+  'security.audit.source.terminalDisplay': string
+  'security.audit.source.chatStorage': string
 
   // Prompts tab
   'prompts.title': string
@@ -445,6 +495,56 @@ export const en: Translations = {
   'security.secretMasking.offDesc': 'Secret detection is turned off.',
   'security.secretMasking.warning': 'Sensitive values may be sent to the provider.',
   'security.maskedSecret.inline': '[secret]',
+  'security.summary.categories': 'Active categories',
+  'security.summary.scopes': 'Masking scope',
+  'security.summary.audit': 'Audit events',
+  'security.summary.noScopes': 'None',
+  'security.scopes.title': 'Masking scope and context policy',
+  'security.scope.providerPayloads': 'Provider payloads',
+  'security.scope.providerPayloads.short': 'Provider',
+  'security.scope.providerPayloads.desc': 'Replace secrets before requests leave this device.',
+  'security.scope.chatDisplay': 'Chat display',
+  'security.scope.chatDisplay.short': 'Display',
+  'security.scope.chatDisplay.desc': 'Hide secrets in chat, command output, and saved history.',
+  'security.strictMode': 'Strict terminal context',
+  'security.strictMode.desc': 'Never include selected terminal text or output in provider requests.',
+  'security.patterns.title': 'Active detection categories',
+  'security.category.apiKeys': 'API keys',
+  'security.category.apiKeys.desc': 'OpenAI-style keys, provider keys, and generic API key assignments.',
+  'security.category.tokens': 'Tokens',
+  'security.category.tokens.desc': 'Bearer, access, refresh, auth, deploy, and webhook tokens.',
+  'security.category.passwords': 'Passwords',
+  'security.category.passwords.desc': 'Password, passwd, pwd, and secret variable assignments.',
+  'security.category.aws': 'AWS keys',
+  'security.category.aws.desc': 'AWS access keys and cloud credential shapes detected by Gitleaks.',
+  'security.category.sshMaterial': 'SSH material',
+  'security.category.sshMaterial.desc': 'Private key material and identity-file secrets.',
+  'security.category.urlCredentials': 'URL credentials',
+  'security.category.urlCredentials.desc': 'Passwords embedded in HTTP or HTTPS URLs.',
+  'security.category.customRegex': 'Custom regexes',
+  'security.category.customRegex.count': '{count} enabled custom pattern(s)',
+  'security.category.customRegex.empty': 'No custom patterns enabled',
+  'security.customPatterns.title': 'Custom masking patterns',
+  'security.customPatterns.name': 'Pattern name',
+  'security.customPatterns.regex': 'Regex; first capture group is masked when present',
+  'security.customPatterns.add': 'Add pattern',
+  'security.customPatterns.empty': 'No custom patterns yet.',
+  'security.customPatterns.required': 'Enter a pattern name and regex.',
+  'security.customPatterns.invalid': 'Regex is not valid.',
+  'security.customPatterns.enable': 'Enable pattern',
+  'security.customPatterns.disable': 'Disable pattern',
+  'security.audit.title': 'Masking audit log',
+  'security.audit.clear': 'Clear log',
+  'security.audit.empty': 'No masking events yet.',
+  'security.audit.maskedCount': '{count} masked',
+  'security.audit.scope.provider': 'Provider payload',
+  'security.audit.scope.display': 'Chat display',
+  'security.audit.source.chatStream': 'Assistant request',
+  'security.audit.source.chatDisplay': 'Chat display',
+  'security.audit.source.commandRisk': 'Command safety check',
+  'security.audit.source.summary': 'Prompt summary',
+  'security.audit.source.terminalDisplay': 'Terminal output display',
+  'security.audit.source.chatStorage': 'Saved chat',
 
   'prompts.title': 'Prompts',
   'prompts.importFromFile': 'Import from file',
@@ -769,6 +869,56 @@ export const ru: Translations = {
   'security.secretMasking.offDesc': 'Определение секретов отключено.',
   'security.secretMasking.warning': 'Чувствительные данные могут быть отправлены провайдеру.',
   'security.maskedSecret.inline': '[secret]',
+  'security.summary.categories': 'Активные категории',
+  'security.summary.scopes': 'Область маскирования',
+  'security.summary.audit': 'События аудита',
+  'security.summary.noScopes': 'Нет',
+  'security.scopes.title': 'Область маскирования и политика контекста',
+  'security.scope.providerPayloads': 'Запросы провайдеру',
+  'security.scope.providerPayloads.short': 'Провайдер',
+  'security.scope.providerPayloads.desc': 'Заменять секреты до отправки запросов с устройства.',
+  'security.scope.chatDisplay': 'Отображение чата',
+  'security.scope.chatDisplay.short': 'Экран',
+  'security.scope.chatDisplay.desc': 'Скрывать секреты в чате, выводе команд и истории.',
+  'security.strictMode': 'Строгий контекст терминала',
+  'security.strictMode.desc': 'Не включать выделенный текст и вывод терминала в запросы провайдеру.',
+  'security.patterns.title': 'Активные категории детекции',
+  'security.category.apiKeys': 'API-ключи',
+  'security.category.apiKeys.desc': 'Ключи провайдеров, OpenAI-формат и переменные API key.',
+  'security.category.tokens': 'Токены',
+  'security.category.tokens.desc': 'Bearer, access, refresh, auth, deploy и webhook токены.',
+  'security.category.passwords': 'Пароли',
+  'security.category.passwords.desc': 'Переменные password, passwd, pwd и secret.',
+  'security.category.aws': 'AWS-ключи',
+  'security.category.aws.desc': 'AWS access keys и облачные секреты, найденные Gitleaks.',
+  'security.category.sshMaterial': 'SSH-материалы',
+  'security.category.sshMaterial.desc': 'Приватные ключи и секреты identity file.',
+  'security.category.urlCredentials': 'Учетные данные в URL',
+  'security.category.urlCredentials.desc': 'Пароли внутри HTTP или HTTPS URL.',
+  'security.category.customRegex': 'Пользовательские regex',
+  'security.category.customRegex.count': '{count} активных пользовательских паттернов',
+  'security.category.customRegex.empty': 'Активных паттернов нет',
+  'security.customPatterns.title': 'Пользовательские правила маскирования',
+  'security.customPatterns.name': 'Название правила',
+  'security.customPatterns.regex': 'Regex; первая группа маскируется, если есть',
+  'security.customPatterns.add': 'Добавить',
+  'security.customPatterns.empty': 'Пользовательских правил пока нет.',
+  'security.customPatterns.required': 'Введите название и regex.',
+  'security.customPatterns.invalid': 'Regex некорректен.',
+  'security.customPatterns.enable': 'Включить правило',
+  'security.customPatterns.disable': 'Отключить правило',
+  'security.audit.title': 'Журнал маскирования',
+  'security.audit.clear': 'Очистить',
+  'security.audit.empty': 'Событий маскирования пока нет.',
+  'security.audit.maskedCount': '{count} скрыто',
+  'security.audit.scope.provider': 'Запрос провайдеру',
+  'security.audit.scope.display': 'Отображение чата',
+  'security.audit.source.chatStream': 'Запрос ассистента',
+  'security.audit.source.chatDisplay': 'Отображение чата',
+  'security.audit.source.commandRisk': 'Проверка команды',
+  'security.audit.source.summary': 'Саммари промпта',
+  'security.audit.source.terminalDisplay': 'Вывод терминала',
+  'security.audit.source.chatStorage': 'Сохраненный чат',
 
   'prompts.title': 'Промпты',
   'prompts.importFromFile': 'Импорт из файла',
@@ -1093,6 +1243,56 @@ export const cn: Translations = {
   'security.secretMasking.offDesc': '密钥检测已关闭。',
   'security.secretMasking.warning': '敏感值可能会发送给提供商。',
   'security.maskedSecret.inline': '[secret]',
+  'security.summary.categories': '启用类别',
+  'security.summary.scopes': '遮蔽范围',
+  'security.summary.audit': '审计事件',
+  'security.summary.noScopes': '无',
+  'security.scopes.title': '遮蔽范围和上下文策略',
+  'security.scope.providerPayloads': '提供商请求',
+  'security.scope.providerPayloads.short': '提供商',
+  'security.scope.providerPayloads.desc': '请求离开设备前替换密钥。',
+  'security.scope.chatDisplay': '聊天显示',
+  'security.scope.chatDisplay.short': '显示',
+  'security.scope.chatDisplay.desc': '在聊天、命令输出和历史中隐藏密钥。',
+  'security.strictMode': '严格终端上下文',
+  'security.strictMode.desc': '不要把选中的终端文本或输出包含在提供商请求中。',
+  'security.patterns.title': '启用的检测类别',
+  'security.category.apiKeys': 'API 密钥',
+  'security.category.apiKeys.desc': 'OpenAI 风格密钥、提供商密钥和通用 API key 赋值。',
+  'security.category.tokens': '令牌',
+  'security.category.tokens.desc': 'Bearer、access、refresh、auth、deploy 和 webhook 令牌。',
+  'security.category.passwords': '密码',
+  'security.category.passwords.desc': 'password、passwd、pwd 和 secret 变量赋值。',
+  'security.category.aws': 'AWS 密钥',
+  'security.category.aws.desc': 'Gitleaks 检测到的 AWS access keys 和云凭据。',
+  'security.category.sshMaterial': 'SSH 材料',
+  'security.category.sshMaterial.desc': '私钥材料和 identity file 密钥。',
+  'security.category.urlCredentials': 'URL 凭据',
+  'security.category.urlCredentials.desc': 'HTTP 或 HTTPS URL 中嵌入的密码。',
+  'security.category.customRegex': '自定义正则',
+  'security.category.customRegex.count': '{count} 个已启用自定义模式',
+  'security.category.customRegex.empty': '没有启用的自定义模式',
+  'security.customPatterns.title': '自定义遮蔽模式',
+  'security.customPatterns.name': '模式名称',
+  'security.customPatterns.regex': '正则；存在第一捕获组时遮蔽该组',
+  'security.customPatterns.add': '添加模式',
+  'security.customPatterns.empty': '还没有自定义模式。',
+  'security.customPatterns.required': '请输入名称和正则。',
+  'security.customPatterns.invalid': '正则无效。',
+  'security.customPatterns.enable': '启用模式',
+  'security.customPatterns.disable': '停用模式',
+  'security.audit.title': '遮蔽审计日志',
+  'security.audit.clear': '清除日志',
+  'security.audit.empty': '还没有遮蔽事件。',
+  'security.audit.maskedCount': '已遮蔽 {count}',
+  'security.audit.scope.provider': '提供商请求',
+  'security.audit.scope.display': '聊天显示',
+  'security.audit.source.chatStream': '助手请求',
+  'security.audit.source.chatDisplay': '聊天显示',
+  'security.audit.source.commandRisk': '命令安全检查',
+  'security.audit.source.summary': '提示词摘要',
+  'security.audit.source.terminalDisplay': '终端输出显示',
+  'security.audit.source.chatStorage': '已保存聊天',
 
   'prompts.title': '提示词',
   'prompts.importFromFile': '从文件导入',

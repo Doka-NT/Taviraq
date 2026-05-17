@@ -4,14 +4,17 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, FileText, GitFork, History, KeyRound, Pencil,
-  MessageSquarePlus, Plus, RefreshCw, Search, Send, Server, Settings2, ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Eye, FileText, GitFork, History, KeyRound,
+  ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
+  ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
   PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
-  SecretMaskingMode, TerminalContext, TerminalSessionInfo
+  SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
+  TerminalContext, TerminalSessionInfo
 } from '@shared/types'
+import { createDefaultSecretMaskingSettings, SECRET_MASKING_AUDIT_LIMIT } from '@shared/secretMaskingConfig'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
 import { ConfirmDialog } from './ui/ConfirmDialog'
@@ -108,9 +111,42 @@ const MAX_TEXT_SIZE = 32
 const MIN_SSH_PORT = 1
 const MAX_SSH_PORT = 65535
 const MIN_OUTPUT_CONTEXT = 1000
+const SECURITY_PATTERN_CATEGORIES = [
+  {
+    id: 'api-keys',
+    labelKey: 'security.category.apiKeys',
+    descKey: 'security.category.apiKeys.desc'
+  },
+  {
+    id: 'tokens',
+    labelKey: 'security.category.tokens',
+    descKey: 'security.category.tokens.desc'
+  },
+  {
+    id: 'passwords',
+    labelKey: 'security.category.passwords',
+    descKey: 'security.category.passwords.desc'
+  },
+  {
+    id: 'aws',
+    labelKey: 'security.category.aws',
+    descKey: 'security.category.aws.desc'
+  },
+  {
+    id: 'ssh-material',
+    labelKey: 'security.category.sshMaterial',
+    descKey: 'security.category.sshMaterial.desc'
+  },
+  {
+    id: 'url-credentials',
+    labelKey: 'security.category.urlCredentials',
+    descKey: 'security.category.urlCredentials.desc'
+  }
+] as const
 
 type ThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status' | 'privacy-status'
+  displayContent?: string
   command?: string
   output?: string
   maskedContent?: string
@@ -209,6 +245,50 @@ function matchesSearchQuery(query: string, terms: Array<string | undefined>): bo
 
 function providerNeedsApiKey(providerType: LLMProviderType): boolean {
   return providerTypesWithApiKey.includes(providerType)
+}
+
+function formatSecretCategory(value: string): string {
+  return value
+    .toLowerCase()
+    .split('_')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ')
+}
+
+function formatAuditTime(value: string): string {
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return value
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(new Date(time))
+}
+
+function auditSourceLabel(source: SecretMaskingAuditSource, t: LanguageContextValue['t']): string {
+  switch (source) {
+    case 'chat-stream':
+      return t('security.audit.source.chatStream')
+    case 'chat-display':
+      return t('security.audit.source.chatDisplay')
+    case 'command-risk':
+      return t('security.audit.source.commandRisk')
+    case 'summary':
+      return t('security.audit.source.summary')
+    case 'terminal-display':
+      return t('security.audit.source.terminalDisplay')
+    case 'chat-storage':
+      return t('security.audit.source.chatStorage')
+    default:
+      return source
+  }
+}
+
+function scopeLabel(scope: SecretMaskingAuditEvent['scope'], t: LanguageContextValue['t']): string {
+  return scope === 'provider-payload'
+    ? t('security.audit.scope.provider')
+    : t('security.audit.scope.display')
 }
 
 function escapeRegExp(value: string): string {
@@ -314,7 +394,7 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
   return {
     messages: thread.messages.map((message) => ({
       role: message.role,
-      content: hideSecretPlaceholders(message.content, DISPLAY_SECRET_LABEL),
+      content: message.displayContent ?? hideSecretPlaceholders(message.content, DISPLAY_SECRET_LABEL),
       display: message.display,
       command: hidePersistedSecretPlaceholders(message.command),
       output: hidePersistedSecretPlaceholders(message.output),
@@ -473,7 +553,12 @@ export function LlmPanel({
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
-  const [secretMaskingMode, setSecretMaskingMode] = useState<SecretMaskingMode>('on')
+  const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
+  const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
+  const [customPatternName, setCustomPatternName] = useState('')
+  const [customPatternRegex, setCustomPatternRegex] = useState('')
+  const [customPatternError, setCustomPatternError] = useState('')
+  const [securityStatus, setSecurityStatus] = useState('')
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('providers')
   const [settingsSearch, setSettingsSearch] = useState('')
   const lastAutoOpenedSettingsQueryRef = useRef('')
@@ -531,6 +616,7 @@ export function LlmPanel({
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const secretMaskingMode = secretMaskingSettings.mode
 
   const liveStatus: 'idle' | 'running' | 'waiting' =
     commandConfirmation ? 'waiting' :
@@ -626,7 +712,7 @@ export function LlmPanel({
       title,
       messages: thread.messages.map((m) => ({
         role: m.role,
-        content: hideSecretPlaceholders(m.content, DISPLAY_SECRET_LABEL),
+        content: m.displayContent ?? hideSecretPlaceholders(m.content, DISPLAY_SECRET_LABEL),
         display: m.display,
         command: hidePersistedSecretPlaceholders(m.command),
         output: hidePersistedSecretPlaceholders(m.output),
@@ -707,13 +793,29 @@ export function LlmPanel({
     setProvider(loaded)
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
-    setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
+    setSecretMaskingSettings(config.secretMasking ?? createDefaultSecretMaskingSettings())
   }, [])
 
   // Load config on mount
   useEffect(() => {
     void loadConfig()
   }, [loadConfig])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.api.secret.listAuditEvents().then((events) => {
+      if (!cancelled) setSecretAuditEvents(events)
+    }).catch(() => undefined)
+
+    const unsubscribe = window.api.secret.onAuditEvent((event) => {
+      setSecretAuditEvents((events) => [event, ...events].slice(0, SECRET_MASKING_AUDIT_LIMIT))
+    })
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [])
 
   useEffect(() => {
     const secretCheckVersion = ++providerSecretCheckVersionRef.current
@@ -820,8 +922,15 @@ export function LlmPanel({
     }))
   }, [updateThread])
 
+  const maskChatDisplayContent = useCallback(async (sessionId: string, content: string): Promise<string | undefined> => {
+    if (!content.trim()) return undefined
+    if (secretMaskingSettings.mode === 'off' || !secretMaskingSettings.applyToChatDisplay) return undefined
+    const masked = await window.api.secret.maskOutput(sessionId, content, 'chat-display').catch(() => content)
+    return masked === content ? undefined : masked
+  }, [secretMaskingSettings.applyToChatDisplay, secretMaskingSettings.mode])
+
   // Core chat stream: starts a new exchange given user message content
-  const startStream = useCallback((
+  const startStream = useCallback(async (
     sessionId: string,
     userContent: string,
     currentMessages: ThreadMessage[],
@@ -830,9 +939,10 @@ export function LlmPanel({
     const requestId = crypto.randomUUID()
     const thread = getThread(sessionId)
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
+    const displayContent = await maskChatDisplayContent(sessionId, userContent)
     const nextMessages: ThreadMessage[] = [
       ...currentMessages,
-      { role: 'user', content: userContent, ...userMeta },
+      { role: 'user', content: userContent, displayContent, ...userMeta },
       { role: 'assistant', content: '' }
     ]
     requestSessionRef.current.set(requestId, sessionId)
@@ -862,7 +972,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, summarizeSession, updateThread])
 
   useEffect(() => {
     if (!blockPromptRequest || handledBlockPromptRequestRef.current === blockPromptRequest.id) return
@@ -878,7 +988,7 @@ export function LlmPanel({
       return
     }
 
-    startStream(blockPromptRequest.sessionId, blockPromptRequest.prompt, thread.messages)
+    void startStream(blockPromptRequest.sessionId, blockPromptRequest.prompt, thread.messages)
   }, [blockPromptRequest, getThread, startStream, t, updateThread])
 
   const startAssistantStream = useCallback((sessionId: string, currentMessages: ThreadMessage[]) => {
@@ -1421,7 +1531,7 @@ export function LlmPanel({
     const continuation =
       `Command \`${command}\` finished.\nOutput:\n\`\`\`\n${output}\n\`\`\`\nContinue.`
 
-    startStream(sessionId, continuation, getThread(sessionId).messages, {
+    void startStream(sessionId, continuation, getThread(sessionId).messages, {
       display: 'command-output',
       command,
       output
@@ -1470,7 +1580,7 @@ export function LlmPanel({
         ? { tone: 'info', label: t('status.disconnected.run') }
         : thread.status
     }))
-    startStream(sessionId, content, thread.messages)
+    void startStream(sessionId, content, thread.messages)
   }, [commandConfirmation, draft, getThread, streaming, startStream, summarizeSession, t, updateThread])
 
   const regenerateMessage = useCallback((messageIndex: number) => {
@@ -1827,11 +1937,82 @@ export function LlmPanel({
     })
   }, [])
 
-  const updateSecretMaskingMode = useCallback((mode: SecretMaskingMode) => {
-    void window.api.config.setSecretMaskingMode(mode).then((result) => {
-      setSecretMaskingMode(result.secretMasking?.mode ?? mode)
+  const saveSecretMaskingSettings = useCallback((settings: SecretMaskingSettings) => {
+    setSecretMaskingSettings(settings)
+    setSecurityStatus('')
+    void window.api.config.setSecretMaskingSettings(settings).then((result) => {
+      setSecretMaskingSettings(result.secretMasking ?? settings)
     }).catch((err: unknown) => {
-      setProviderStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+      setSecurityStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }, [])
+
+  const updateSecretMaskingMode = useCallback((mode: SecretMaskingMode) => {
+    saveSecretMaskingSettings({
+      ...secretMaskingSettings,
+      mode
+    })
+  }, [saveSecretMaskingSettings, secretMaskingSettings])
+
+  const updateSecretMaskingSetting = useCallback((
+    updater: (settings: SecretMaskingSettings) => SecretMaskingSettings
+  ) => {
+    saveSecretMaskingSettings(updater(secretMaskingSettings))
+  }, [saveSecretMaskingSettings, secretMaskingSettings])
+
+  const addCustomSecretPattern = useCallback(() => {
+    const name = customPatternName.trim()
+    const pattern = customPatternRegex.trim()
+    if (!name || !pattern) {
+      setCustomPatternError(t('security.customPatterns.required'))
+      return
+    }
+
+    try {
+      new RegExp(pattern)
+    } catch {
+      setCustomPatternError(t('security.customPatterns.invalid'))
+      return
+    }
+
+    const customPattern: SecretMaskingCustomPattern = {
+      id: crypto.randomUUID(),
+      name,
+      pattern,
+      enabled: true,
+      createdAt: new Date().toISOString()
+    }
+    updateSecretMaskingSetting((settings) => ({
+      ...settings,
+      customPatterns: [...settings.customPatterns, customPattern]
+    }))
+    setCustomPatternName('')
+    setCustomPatternRegex('')
+    setCustomPatternError('')
+    setSecurityStatus(t('status.saved'))
+  }, [customPatternName, customPatternRegex, t, updateSecretMaskingSetting])
+
+  const toggleCustomSecretPattern = useCallback((patternId: string) => {
+    updateSecretMaskingSetting((settings) => ({
+      ...settings,
+      customPatterns: settings.customPatterns.map((pattern) => (
+        pattern.id === patternId ? { ...pattern, enabled: !pattern.enabled } : pattern
+      ))
+    }))
+  }, [updateSecretMaskingSetting])
+
+  const deleteCustomSecretPattern = useCallback((patternId: string) => {
+    updateSecretMaskingSetting((settings) => ({
+      ...settings,
+      customPatterns: settings.customPatterns.filter((pattern) => pattern.id !== patternId)
+    }))
+  }, [updateSecretMaskingSetting])
+
+  const clearSecretAuditEvents = useCallback(() => {
+    void window.api.secret.clearAuditEvents().then(() => {
+      setSecretAuditEvents([])
+    }).catch((err: unknown) => {
+      setSecurityStatus(`Clear failed: ${err instanceof Error ? err.message : String(err)}`)
     })
   }, [])
 
@@ -2007,6 +2188,12 @@ export function LlmPanel({
     isValidProviderBaseUrl(provider.baseUrl) &&
     isValidProviderProxyUrl(provider.proxyUrl) &&
     activationHasCredential
+  const enabledCustomPatternCount = secretMaskingSettings.customPatterns.filter((pattern) => pattern.enabled).length
+  const activePatternCategoryCount = SECURITY_PATTERN_CATEGORIES.length + (enabledCustomPatternCount > 0 ? 1 : 0)
+  const enabledMaskingScopes = [
+    secretMaskingSettings.applyToProviderPayloads ? t('security.scope.providerPayloads.short') : '',
+    secretMaskingSettings.applyToChatDisplay ? t('security.scope.chatDisplay.short') : ''
+  ].filter(Boolean)
   const activationStatus = providerStatus ? statusToInlineStatus(providerStatus) : null
   const handleActivationProviderTypeChange = useCallback((providerType: LLMProviderType) => {
     setProvider((current) => ({
@@ -2079,7 +2266,8 @@ export function LlmPanel({
         t('security.title'), t('security.secretMasking.label'), t('security.secretMasking.desc'),
         t('security.secretMasking.off'), t('security.secretMasking.on'),
         t('security.secretMasking.onState'), t('security.secretMasking.offState'), t('security.secretMasking.warning'),
-        'security privacy gitleaks secret masking token password'
+        t('security.scopes.title'), t('security.patterns.title'), t('security.customPatterns.title'), t('security.audit.title'),
+        'security privacy gitleaks secret masking token password regex audit strict provider display aws ssh'
       ]
     },
     {
@@ -2609,49 +2797,244 @@ export function LlmPanel({
                 {!settingsNoResults && settingsTab === 'security' ? (
                   <>
                     <h3 className="settings-content-title">{t('security.title')}</h3>
-                    <div className={`appearance-row security-row ${secretMaskingMode === 'on' ? 'security-row--on' : 'security-row--off'} ${settingsMatchClass([t('security.secretMasking.label'), t('security.secretMasking.desc'), t('security.secretMasking.off'), t('security.secretMasking.on'), t('security.secretMasking.onState'), t('security.secretMasking.offState'), t('security.secretMasking.warning'), 'security privacy gitleaks secret masking token password'])}`}>
-                      <div className="appearance-row-left security-row-left">
-                        <div className="security-row-heading">
-                          <span className="security-row-icon" aria-hidden>
-                            {secretMaskingMode === 'on' ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
-                          </span>
-                          <span className="appearance-row-label"><HighlightSearchText text={t('security.secretMasking.label')} query={settingsSearch} /></span>
-                          <span className="security-row-state">
+                    <div className={`security-trust-center ${settingsMatchClass([
+                      t('security.secretMasking.label'),
+                      t('security.patterns.title'),
+                      t('security.customPatterns.title'),
+                      t('security.audit.title'),
+                      'security privacy gitleaks secret masking token password aws ssh regex audit strict provider payload display'
+                    ])}`}>
+                      <div className="security-summary-grid">
+                        <div className="security-summary-item">
+                          <ListChecks size={15} aria-hidden />
+                          <span>{t('security.summary.categories')}</span>
+                          <strong>{activePatternCategoryCount}</strong>
+                        </div>
+                        <div className="security-summary-item">
+                          <Eye size={15} aria-hidden />
+                          <span>{t('security.summary.scopes')}</span>
+                          <strong>{enabledMaskingScopes.length > 0 ? enabledMaskingScopes.join(' + ') : t('security.summary.noScopes')}</strong>
+                        </div>
+                        <div className="security-summary-item">
+                          <Activity size={15} aria-hidden />
+                          <span>{t('security.summary.audit')}</span>
+                          <strong>{secretAuditEvents.length}</strong>
+                        </div>
+                      </div>
+
+                      <div className={`appearance-row security-row ${secretMaskingMode === 'on' ? 'security-row--on' : 'security-row--off'}`}>
+                        <div className="appearance-row-left security-row-left">
+                          <div className="security-row-heading">
+                            <span className="security-row-icon" aria-hidden>
+                              {secretMaskingMode === 'on' ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                            </span>
+                            <span className="appearance-row-label"><HighlightSearchText text={t('security.secretMasking.label')} query={settingsSearch} /></span>
+                            <span className="security-row-state">
+                              <HighlightSearchText
+                                text={secretMaskingMode === 'on' ? t('security.secretMasking.onState') : t('security.secretMasking.offState')}
+                                query={settingsSearch}
+                              />
+                            </span>
+                          </div>
+                          <small className="appearance-row-desc">
                             <HighlightSearchText
-                              text={secretMaskingMode === 'on' ? t('security.secretMasking.onState') : t('security.secretMasking.offState')}
+                              text={secretMaskingMode === 'on' ? t('security.secretMasking.onDesc') : t('security.secretMasking.offDesc')}
                               query={settingsSearch}
                             />
-                          </span>
+                          </small>
+                          <small className="security-row-footnote"><HighlightSearchText text={t('security.secretMasking.desc')} query={settingsSearch} /></small>
+                          <small className={`security-row-warning ${secretMaskingMode === 'off' ? '' : 'security-row-warning--reserved'}`}>
+                            {secretMaskingMode === 'off' ? <AlertTriangle size={11} aria-hidden /> : null}
+                            <span>
+                              {secretMaskingMode === 'off' ? (
+                                <HighlightSearchText text={t('security.secretMasking.warning')} query={settingsSearch} />
+                              ) : null}
+                            </span>
+                          </small>
                         </div>
-                        <small className="appearance-row-desc">
-                          <HighlightSearchText
-                            text={secretMaskingMode === 'on' ? t('security.secretMasking.onDesc') : t('security.secretMasking.offDesc')}
-                            query={settingsSearch}
+                        <div className="appearance-row-right">
+                          <button
+                            type="button"
+                            className={`security-switch ${secretMaskingMode === 'on' ? 'on' : ''}`}
+                            role="switch"
+                            aria-checked={secretMaskingMode === 'on'}
+                            aria-label={t('security.secretMasking.label')}
+                            title={secretMaskingMode === 'on' ? t('security.secretMasking.on') : t('security.secretMasking.off')}
+                            onClick={() => updateSecretMaskingMode(secretMaskingMode === 'on' ? 'off' : 'on')}
+                          >
+                            <span aria-hidden />
+                          </button>
+                        </div>
+                      </div>
+
+                      <section className="security-panel">
+                        <div className="settings-section-heading">
+                          <span><HighlightSearchText text={t('security.scopes.title')} query={settingsSearch} /></span>
+                        </div>
+                        <div className="security-controls-grid">
+                          <label className="provider-toggle-field security-control">
+                            <span>
+                              <strong><HighlightSearchText text={t('security.scope.providerPayloads')} query={settingsSearch} /></strong>
+                              <small><HighlightSearchText text={t('security.scope.providerPayloads.desc')} query={settingsSearch} /></small>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={secretMaskingSettings.applyToProviderPayloads}
+                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
+                                ...settings,
+                                applyToProviderPayloads: event.target.checked
+                              }))}
+                            />
+                            <i aria-hidden />
+                          </label>
+                          <label className="provider-toggle-field security-control">
+                            <span>
+                              <strong><HighlightSearchText text={t('security.scope.chatDisplay')} query={settingsSearch} /></strong>
+                              <small><HighlightSearchText text={t('security.scope.chatDisplay.desc')} query={settingsSearch} /></small>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={secretMaskingSettings.applyToChatDisplay}
+                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
+                                ...settings,
+                                applyToChatDisplay: event.target.checked
+                              }))}
+                            />
+                            <i aria-hidden />
+                          </label>
+                          <label className="provider-toggle-field security-control">
+                            <span>
+                              <strong><HighlightSearchText text={t('security.strictMode')} query={settingsSearch} /></strong>
+                              <small><HighlightSearchText text={t('security.strictMode.desc')} query={settingsSearch} /></small>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={secretMaskingSettings.strictTerminalContext}
+                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
+                                ...settings,
+                                strictTerminalContext: event.target.checked
+                              }))}
+                            />
+                            <i aria-hidden />
+                          </label>
+                        </div>
+                      </section>
+
+                      <section className="security-panel">
+                        <div className="settings-section-heading">
+                          <span><HighlightSearchText text={t('security.patterns.title')} query={settingsSearch} /></span>
+                        </div>
+                        <div className="security-pattern-grid">
+                          {SECURITY_PATTERN_CATEGORIES.map((category) => (
+                            <div key={category.id} className="security-pattern-item">
+                              <span>{t(category.labelKey as Parameters<typeof t>[0])}</span>
+                              <small>{t(category.descKey as Parameters<typeof t>[0])}</small>
+                            </div>
+                          ))}
+                          <div className="security-pattern-item">
+                            <span>{t('security.category.customRegex')}</span>
+                            <small>{enabledCustomPatternCount > 0
+                              ? t('security.category.customRegex.count', { count: enabledCustomPatternCount })
+                              : t('security.category.customRegex.empty')}
+                            </small>
+                          </div>
+                        </div>
+                      </section>
+
+                      <section className="security-panel">
+                        <div className="settings-section-heading">
+                          <span><HighlightSearchText text={t('security.customPatterns.title')} query={settingsSearch} /></span>
+                        </div>
+                        <div className="security-custom-pattern-form">
+                          <input
+                            value={customPatternName}
+                            onChange={(event) => {
+                              setCustomPatternName(event.target.value)
+                              setCustomPatternError('')
+                            }}
+                            placeholder={t('security.customPatterns.name')}
                           />
-                        </small>
-                        <small className="security-row-footnote"><HighlightSearchText text={t('security.secretMasking.desc')} query={settingsSearch} /></small>
-                        <small className={`security-row-warning ${secretMaskingMode === 'off' ? '' : 'security-row-warning--reserved'}`}>
-                          {secretMaskingMode === 'off' ? <AlertTriangle size={11} aria-hidden /> : null}
-                          <span>
-                            {secretMaskingMode === 'off' ? (
-                              <HighlightSearchText text={t('security.secretMasking.warning')} query={settingsSearch} />
-                            ) : null}
-                          </span>
-                        </small>
-                      </div>
-                      <div className="appearance-row-right">
-                        <button
-                          type="button"
-                          className={`security-switch ${secretMaskingMode === 'on' ? 'on' : ''}`}
-                          role="switch"
-                          aria-checked={secretMaskingMode === 'on'}
-                          aria-label={t('security.secretMasking.label')}
-                          title={secretMaskingMode === 'on' ? t('security.secretMasking.on') : t('security.secretMasking.off')}
-                          onClick={() => updateSecretMaskingMode(secretMaskingMode === 'on' ? 'off' : 'on')}
-                        >
-                          <span aria-hidden />
-                        </button>
-                      </div>
+                          <input
+                            value={customPatternRegex}
+                            onChange={(event) => {
+                              setCustomPatternRegex(event.target.value)
+                              setCustomPatternError('')
+                            }}
+                            placeholder={t('security.customPatterns.regex')}
+                            spellCheck={false}
+                          />
+                          <button type="button" className="primary-button provider-save-button" onClick={addCustomSecretPattern}>
+                            <Plus size={14} aria-hidden />
+                            {t('security.customPatterns.add')}
+                          </button>
+                        </div>
+                        {customPatternError ? <p className="settings-status security-error">{customPatternError}</p> : null}
+                        <div className="security-custom-pattern-list">
+                          {secretMaskingSettings.customPatterns.length === 0 ? (
+                            <p className="security-empty">{t('security.customPatterns.empty')}</p>
+                          ) : secretMaskingSettings.customPatterns.map((pattern) => (
+                            <div key={pattern.id} className="security-custom-pattern-item">
+                              <button
+                                type="button"
+                                className={`security-pattern-toggle ${pattern.enabled ? 'enabled' : ''}`}
+                                onClick={() => toggleCustomSecretPattern(pattern.id)}
+                                title={pattern.enabled ? t('security.customPatterns.disable') : t('security.customPatterns.enable')}
+                                aria-label={pattern.enabled ? t('security.customPatterns.disable') : t('security.customPatterns.enable')}
+                              >
+                                {pattern.enabled ? <Check size={13} aria-hidden /> : <ShieldOff size={13} aria-hidden />}
+                              </button>
+                              <div>
+                                <span>{pattern.name}</span>
+                                <code>{pattern.pattern}</code>
+                              </div>
+                              <button
+                                type="button"
+                                className="icon-button provider-list-item-delete"
+                                onClick={() => deleteCustomSecretPattern(pattern.id)}
+                                title={t('prompts.delete')}
+                                aria-label={t('prompts.delete')}
+                              >
+                                <Trash2 size={14} aria-hidden />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="security-panel">
+                        <div className="settings-section-heading">
+                          <span><HighlightSearchText text={t('security.audit.title')} query={settingsSearch} /></span>
+                          <button type="button" className="quiet-button security-audit-clear" onClick={clearSecretAuditEvents} disabled={secretAuditEvents.length === 0}>
+                            <ScrollText size={13} aria-hidden />
+                            {t('security.audit.clear')}
+                          </button>
+                        </div>
+                        <div className="security-audit-list">
+                          {secretAuditEvents.length === 0 ? (
+                            <p className="security-empty">{t('security.audit.empty')}</p>
+                          ) : secretAuditEvents.map((event) => (
+                            <div key={event.id} className="security-audit-item">
+                              <div className="security-audit-main">
+                                <span>{auditSourceLabel(event.source, t)}</span>
+                                <small>{formatAuditTime(event.createdAt)} · {scopeLabel(event.scope, t)}{event.sessionLabel ? ` · ${event.sessionLabel}` : ''}</small>
+                              </div>
+                              <div className="security-audit-meta">
+                                <span className="security-audit-count">
+                                  <ShieldAlert size={12} aria-hidden />
+                                  {t('security.audit.maskedCount', { count: event.maskedSecretCount })}
+                                </span>
+                                <div className="security-audit-tags">
+                                  {event.categories.map((category) => (
+                                    <span key={category}>{formatSecretCategory(category)}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+
+                      {securityStatus ? <p className="settings-status">{securityStatus}</p> : null}
                     </div>
                   </>
                 ) : null}
@@ -3188,7 +3571,7 @@ export function LlmPanel({
                 </div>
               ) : message.role === 'assistant' && message.content ? (
                 <MessageContent
-                  content={message.maskedContent ?? message.content}
+                  content={message.displayContent ?? message.maskedContent ?? message.content}
                   redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
@@ -3196,7 +3579,7 @@ export function LlmPanel({
                   runLabel={t('chat.runInTerminal')}
                 />
               ) : message.role === 'assistant' ? null : (
-                <p>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
+                <p>{message.displayContent ?? hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
               )}
               {canRegenerate || canFork ? (
                 <div className="chat-message-actions">

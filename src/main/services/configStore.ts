@@ -2,7 +2,8 @@ import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import type { AppConfig, LLMProviderConfig, SecretMaskingMode, SSHProfileConfig } from '@shared/types'
+import type { AppConfig, LLMProviderConfig, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings, SSHProfileConfig } from '@shared/types'
+import { createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
 
 const CONFIG_FILE = 'config.json'
 
@@ -19,9 +20,7 @@ const defaultConfig: AppConfig = {
   ],
   activeProviderRef: 'openai-compatible-default',
   hideShortcut: 'CommandOrControl+Shift+Space',
-  secretMasking: {
-    mode: 'on'
-  },
+  secretMasking: createDefaultSecretMaskingSettings(),
   windowBounds: {
     width: 1440,
     height: 920
@@ -111,7 +110,20 @@ export class ConfigStore {
   async updateSecretMaskingMode(mode: SecretMaskingMode): Promise<AppConfig> {
     return this.update((config) => ({
       ...config,
-      secretMasking: { mode: normalizeSecretMaskingMode(mode) }
+      secretMasking: {
+        ...normalizeSecretMaskingSettings(config.secretMasking),
+        mode: normalizeSecretMaskingMode(mode)
+      }
+    }))
+  }
+
+  async updateSecretMaskingSettings(settings: SecretMaskingSettings): Promise<AppConfig> {
+    return this.update((config) => ({
+      ...config,
+      secretMasking: normalizeSecretMaskingSettings({
+        ...config.secretMasking,
+        ...settings
+      })
     }))
   }
 }
@@ -119,12 +131,45 @@ export class ConfigStore {
 function normalizeConfig(config: AppConfig): AppConfig {
   return {
     ...config,
-    secretMasking: {
-      mode: normalizeSecretMaskingMode(config.secretMasking?.mode)
-    }
+    secretMasking: normalizeSecretMaskingSettings(config.secretMasking)
   }
 }
 
 export function normalizeSecretMaskingMode(mode: unknown): SecretMaskingMode {
   return mode === 'off' ? 'off' : 'on'
+}
+
+export function normalizeSecretMaskingSettings(settings: unknown): SecretMaskingSettings {
+  const defaults = createDefaultSecretMaskingSettings()
+  if (!settings || typeof settings !== 'object') return defaults
+
+  const record = settings as Partial<SecretMaskingSettings>
+  return {
+    mode: normalizeSecretMaskingMode(record.mode),
+    applyToChatDisplay: record.applyToChatDisplay !== false,
+    applyToProviderPayloads: record.applyToProviderPayloads !== false,
+    strictTerminalContext: record.strictTerminalContext === true,
+    customPatterns: Array.isArray(record.customPatterns)
+      ? record.customPatterns.flatMap(normalizeCustomPattern)
+      : []
+  }
+}
+
+function normalizeCustomPattern(pattern: unknown): SecretMaskingCustomPattern[] {
+  if (!pattern || typeof pattern !== 'object') return []
+  const record = pattern as Partial<SecretMaskingCustomPattern>
+  const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : randomUUID()
+  const name = typeof record.name === 'string' ? record.name.trim() : ''
+  const source = typeof record.pattern === 'string' ? record.pattern.trim() : ''
+  if (!name || !source) return []
+
+  return [{
+    id,
+    name,
+    pattern: source,
+    enabled: record.enabled !== false,
+    createdAt: typeof record.createdAt === 'string' && record.createdAt.trim()
+      ? record.createdAt
+      : new Date().toISOString()
+  }]
 }

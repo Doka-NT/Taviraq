@@ -10,6 +10,7 @@ import {
   createStreamingPlaceholderRedactor,
   createStreamingUnmasker,
   displaySecretPlaceholders,
+  findCustomPatternSecrets,
   findSupplementalStrictSecrets,
   maskTextForDisplay,
   maskText,
@@ -93,6 +94,50 @@ describe('secret masking utilities', () => {
     ].join('\n'))
 
     expect(findings.map((finding) => finding.secret)).toEqual(['AbCdEf1234567890_AbCdEf1234567890'])
+  })
+
+  it('finds custom regex secrets using the first capture group', () => {
+    const settings = {
+      mode: 'on' as const,
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'internal',
+        name: 'Internal token',
+        pattern: 'INTERNAL_TOKEN=([A-Z0-9-]{12,})',
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    }
+
+    const findings = findCustomPatternSecrets('INTERNAL_TOKEN=ABCDEF-123456-ZYXW', settings)
+
+    expect(findings).toEqual([{
+      ruleId: 'custom-INTERNAL_TOKEN',
+      description: 'Custom pattern: Internal token',
+      secret: 'ABCDEF-123456-ZYXW',
+      match: 'INTERNAL_TOKEN=ABCDEF-123456-ZYXW'
+    }])
+  })
+
+  it('applies custom regexes while masking display text', async () => {
+    const result = await maskTextForDisplay('INTERNAL_TOKEN=ABCDEF-123456-ZYXW', {
+      mode: 'on',
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'internal',
+        name: 'Internal token',
+        pattern: 'INTERNAL_TOKEN=([A-Z0-9-]{12,})',
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    })
+
+    expect(result.text).toBe('INTERNAL_TOKEN=[secret]')
+    expect(result.context.bindings[0]?.kind).toBe('CUSTOM_INTERNAL_TOKEN')
   })
 
   it('does not flag long filesystem paths as contextual secrets', () => {

@@ -8,8 +8,10 @@ import type {
   CommandRiskAssessmentRequest,
   SavedChat,
   SecretMaskingMode,
+  SecretMaskingSettings,
   SummarizeConversationRequest
 } from '@shared/types'
+import { createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
 import {
   DISPLAY_SECRET_LABEL,
   SECRET_PLACEHOLDER_GLOBAL_RE,
@@ -53,6 +55,8 @@ export interface MaskedTextResult {
   text: string
   context: SecretMaskContext
 }
+
+export type SecretMaskingInput = SecretMaskingMode | SecretMaskingSettings
 
 export function createSecretMaskContext(): SecretMaskContext {
   return {
@@ -100,7 +104,7 @@ export function resolveSecretPlaceholders(text: string, ctx?: SecretMaskContext)
 
 export async function maskChatStreamRequest(
   request: ChatStreamRequest,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal,
   existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<ChatStreamRequest>> {
@@ -130,7 +134,7 @@ export async function maskChatStreamRequest(
 
 export async function maskCommandRiskAssessmentRequest(
   request: CommandRiskAssessmentRequest,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal,
   existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<CommandRiskAssessmentRequest>> {
@@ -160,7 +164,7 @@ export async function maskCommandRiskAssessmentRequest(
 
 export async function maskSummarizeConversationRequest(
   request: SummarizeConversationRequest,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal,
   existingContext?: SecretMaskContext
 ): Promise<MaskedRequest<SummarizeConversationRequest>> {
@@ -177,7 +181,7 @@ export async function maskSummarizeConversationRequest(
 
 export async function maskTextForDisplay(
   text: string,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   existingContext?: SecretMaskContext,
   signal?: AbortSignal
 ): Promise<MaskedTextResult> {
@@ -190,7 +194,7 @@ export async function maskTextForDisplay(
 
 export async function sanitizeSavedChatForStorage(
   chat: SavedChat,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal
 ): Promise<SavedChat> {
   const textParts = [
@@ -222,17 +226,18 @@ export async function sanitizeSavedChatForStorage(
 
 export async function createContextFromTexts(
   texts: string[],
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal,
   existingContext?: SecretMaskContext
 ): Promise<SecretMaskContext> {
-  if (mode === 'off') return createSecretMaskContext()
+  const settings = normalizeSecretMaskingInput(mode)
+  if (settings.mode === 'off') return createSecretMaskContext()
   const context = existingContext ? cloneSecretMaskContext(existingContext) : createSecretMaskContext()
 
   const combined = texts.filter(Boolean).join('\n\n--- taviraq-secret-scan-boundary ---\n\n')
   if (!combined.trim()) return context
 
-  const findings = await scanTextForSecrets(combined, mode, signal)
+  const findings = await scanTextForSecrets(combined, settings, signal)
   for (const finding of findings) {
     registerFinding(context, finding)
   }
@@ -242,19 +247,21 @@ export async function createContextFromTexts(
 
 export async function scanTextForSecrets(
   text: string,
-  mode: SecretMaskingMode,
+  mode: SecretMaskingInput,
   signal?: AbortSignal
 ): Promise<SecretFinding[]> {
-  if (mode === 'off') return []
+  const settings = normalizeSecretMaskingInput(mode)
+  if (settings.mode === 'off') return []
 
   const supplementalFindings = findSupplementalStrictSecrets(text)
+  const customFindings = findCustomPatternSecrets(text, settings)
   try {
     const findings = await runGitleaks(text, signal)
-    findings.push(...supplementalFindings)
+    findings.push(...supplementalFindings, ...customFindings)
     return findings
   } catch (error) {
     if (isGitleaksUnavailableError(error)) {
-      return supplementalFindings
+      return [...supplementalFindings, ...customFindings]
     }
     throw error
   }
@@ -328,6 +335,37 @@ export function findSupplementalStrictSecrets(text: string): SecretFinding[] {
         secret: value,
         match: match[0]
       })
+    }
+  }
+
+  return findings
+}
+
+export function findCustomPatternSecrets(text: string, mode: SecretMaskingInput): SecretFinding[] {
+  const settings = normalizeSecretMaskingInput(mode)
+  if (settings.mode === 'off') return []
+
+  const findings: SecretFinding[] = []
+  for (const pattern of settings.customPatterns) {
+    if (!pattern.enabled) continue
+
+    let matcher: RegExp
+    try {
+      matcher = new RegExp(pattern.pattern, 'g')
+    } catch {
+      continue
+    }
+
+    for (const match of text.matchAll(matcher)) {
+      const secret = match[1] || match[0]
+      if (!secret) continue
+      findings.push({
+        ruleId: `custom-${kindFromLabel(pattern.name)}`,
+        description: `Custom pattern: ${pattern.name}`,
+        secret,
+        match: match[0]
+      })
+      if (match[0] === '') break
     }
   }
 
@@ -513,6 +551,25 @@ function isLikelyFilesystemPath(value: string): boolean {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function normalizeSecretMaskingInput(input: SecretMaskingInput): SecretMaskingSettings {
+  if (typeof input === 'string') {
+    return {
+      ...createDefaultSecretMaskingSettings(),
+      mode: input
+    }
+  }
+
+  return {
+    ...createDefaultSecretMaskingSettings(),
+    ...input,
+    mode: input.mode === 'off' ? 'off' : 'on',
+    applyToChatDisplay: input.applyToChatDisplay !== false,
+    applyToProviderPayloads: input.applyToProviderPayloads !== false,
+    strictTerminalContext: input.strictTerminalContext === true,
+    customPatterns: Array.isArray(input.customPatterns) ? input.customPatterns : []
+  }
 }
 
 async function runGitleaks(input: string, signal?: AbortSignal): Promise<SecretFinding[]> {

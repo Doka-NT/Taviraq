@@ -118,13 +118,17 @@ export class ConfigStore {
   }
 
   async updateSecretMaskingSettings(settings: unknown): Promise<AppConfig> {
-    return this.update((config) => ({
-      ...config,
-      secretMasking: normalizeSecretMaskingSettings({
-        ...normalizeSecretMaskingSettings(config.secretMasking),
-        ...normalizeSecretMaskingSettings(settings)
-      })
-    }))
+    return this.update((config) => {
+      const current = normalizeSecretMaskingSettings(config.secretMasking)
+      const patch = normalizeSecretMaskingSettingsPatch(settings)
+      return {
+        ...config,
+        secretMasking: normalizeSecretMaskingSettings({
+          ...current,
+          ...patch
+        })
+      }
+    })
   }
 }
 
@@ -150,25 +154,47 @@ export function normalizeSecretMaskingSettings(settings: unknown): SecretMasking
     applyToProviderPayloads: record.applyToProviderPayloads !== false,
     strictTerminalContext: record.strictTerminalContext === true,
     customPatterns: Array.isArray(record.customPatterns)
-      ? record.customPatterns.flatMap(normalizeCustomPattern)
+      ? record.customPatterns.flatMap((pattern) => normalizeCustomPattern(pattern))
       : []
   }
 }
 
-function normalizeCustomPattern(pattern: unknown): SecretMaskingCustomPattern[] {
+function normalizeSecretMaskingSettingsPatch(settings: unknown): Partial<SecretMaskingSettings> {
+  if (!settings || typeof settings !== 'object') return {}
+
+  const record = settings as Partial<SecretMaskingSettings>
+  const patch: Partial<SecretMaskingSettings> = {}
+  if ('mode' in record) patch.mode = normalizeSecretMaskingMode(record.mode)
+  if ('applyToChatDisplay' in record) patch.applyToChatDisplay = record.applyToChatDisplay !== false
+  if ('applyToProviderPayloads' in record) patch.applyToProviderPayloads = record.applyToProviderPayloads !== false
+  if ('strictTerminalContext' in record) patch.strictTerminalContext = record.strictTerminalContext === true
+  if ('customPatterns' in record) {
+    patch.customPatterns = Array.isArray(record.customPatterns)
+      ? record.customPatterns.flatMap((pattern) => normalizeCustomPattern(pattern, { requireExplicitEnabled: true }))
+      : []
+  }
+
+  return patch
+}
+
+function normalizeCustomPattern(
+  pattern: unknown,
+  options: { requireExplicitEnabled?: boolean } = {}
+): SecretMaskingCustomPattern[] {
   if (!pattern || typeof pattern !== 'object') return []
   const record = pattern as Partial<SecretMaskingCustomPattern>
   const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : randomUUID()
   const name = typeof record.name === 'string' ? record.name.trim() : ''
   const source = typeof record.pattern === 'string' ? record.pattern.trim() : ''
   if (!name || !source) return []
+  if (options.requireExplicitEnabled && typeof record.enabled !== 'boolean') return []
   if (!isSafeCustomSecretPatternSource(source)) return []
 
   return [{
     id,
     name,
     pattern: source,
-    enabled: record.enabled !== false,
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
     createdAt: typeof record.createdAt === 'string' && record.createdAt.trim()
       ? record.createdAt
       : new Date().toISOString()

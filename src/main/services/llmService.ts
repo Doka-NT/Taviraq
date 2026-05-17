@@ -24,6 +24,7 @@ import {
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
+import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 import { getApiKey, getProxyPassword } from './secretStore'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
@@ -685,27 +686,6 @@ function rememberProxyAgent(cacheKey: string, agent: ProxyAgent): void {
   const [oldestKey, oldestAgent] = oldest
   proxyAgents.delete(oldestKey)
   void oldestAgent.close().catch(() => undefined)
-}
-
-function normalizeHttpProxyUrl(value: string): string {
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch {
-    throw new Error('Proxy URL must be a valid http:// or https:// URL.')
-  }
-
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Proxy URL must start with http:// or https://')
-  }
-  if (url.username || url.password) {
-    throw new Error('Enter proxy credentials in the username and password fields.')
-  }
-
-  url.pathname = ''
-  url.search = ''
-  url.hash = ''
-  return url.toString()
 }
 
 async function buildProxyAuthToken(provider: LLMProviderConfig): Promise<string | undefined> {

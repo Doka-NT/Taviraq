@@ -37,6 +37,7 @@ import {
 import { assessCommandRisk, listModels, streamChatCompletion, summarizeConversation } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import { buildAccelerator } from '../shared/accelerator'
+import { normalizeHttpProxyUrl } from './utils/proxy'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -85,20 +86,6 @@ function isAllowedExternalUrl(value: string): boolean {
   } catch {
     return false
   }
-}
-
-function normalizeHttpProxyUrl(value: string): string {
-  const url = new URL(value)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Proxy URL must start with http:// or https://')
-  }
-  if (url.username || url.password) {
-    throw new Error('Enter proxy credentials in the username and password fields.')
-  }
-  url.pathname = ''
-  url.search = ''
-  url.hash = ''
-  return url.toString()
 }
 
 function normalizeProviderProxy(provider: LLMProviderConfig): LLMProviderConfig {

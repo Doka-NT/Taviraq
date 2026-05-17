@@ -76,7 +76,7 @@ export interface LLMProviderConfig {
   allowInsecureTls?: boolean
 }
 
-export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio'
+export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 
 export interface SaveLLMProviderRequest {
   provider: LLMProviderConfig

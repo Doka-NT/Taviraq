@@ -1,8 +1,10 @@
 import {
+  buildAnthropicUrl,
   buildLmStudioNativeUrl,
   buildOllamaNativeUrl,
   buildOpenAICompatibleUrl,
   normalizeBaseUrl,
+  parseAnthropicModelList,
   parseLmStudioNativeModelList,
   parseModelList,
   parseOllamaNativeModelList
@@ -42,6 +44,12 @@ describe('provider utilities', () => {
     expect(buildOllamaNativeUrl('http://localhost:11434/v1', 'chat')).toBe('http://localhost:11434/api/chat')
   })
 
+  it('builds Anthropic native URLs', () => {
+    expect(buildAnthropicUrl('https://api.anthropic.com', 'messages')).toBe('https://api.anthropic.com/v1/messages')
+    expect(buildAnthropicUrl('https://api.anthropic.com/v1', 'models')).toBe('https://api.anthropic.com/v1/models')
+    expect(buildAnthropicUrl('https://proxy.example.test/anthropic/v1/messages', 'models')).toBe('https://proxy.example.test/anthropic/v1/models')
+  })
+
   it('parses Ollama native models', () => {
     expect(parseOllamaNativeModelList({
       models: [
@@ -68,7 +76,21 @@ describe('provider utilities', () => {
     ])
   })
 
+  it('parses Anthropic models', () => {
+    expect(parseAnthropicModelList({
+      data: [
+        { id: 'claude-z-20260101', display_name: 'Claude Z' },
+        { id: 'claude-a-20260101', display_name: 'Claude A' },
+        { type: 'model' }
+      ]
+    })).toEqual([
+      { id: 'claude-a-20260101', ownedBy: 'Claude A' },
+      { id: 'claude-z-20260101', ownedBy: 'Claude Z' }
+    ])
+  })
+
   it('rejects malformed model lists', () => {
     expect(() => parseModelList({ data: {} })).toThrow(/array/)
+    expect(() => parseAnthropicModelList({ data: {} })).toThrow(/array/)
   })
 })

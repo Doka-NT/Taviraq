@@ -39,6 +39,7 @@ export interface Translations {
   'providers.type.openai': string
   'providers.type.ollama': string
   'providers.type.lmstudio': string
+  'providers.type.anthropic': string
   'providers.name': string
   'providers.baseUrl': string
   'providers.apiKey': string
@@ -336,6 +337,7 @@ export const en: Translations = {
   'providers.type.openai': 'OpenAI-compatible',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': 'Provider name',
   'providers.baseUrl': 'Base URL',
   'providers.apiKey': 'API key',
@@ -619,6 +621,7 @@ export const ru: Translations = {
   'providers.type.openai': 'OpenAI-совместимый',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': 'Название провайдера',
   'providers.baseUrl': 'Базовый URL',
   'providers.apiKey': 'API-ключ',
@@ -902,6 +905,7 @@ export const cn: Translations = {
   'providers.type.openai': 'OpenAI兼容',
   'providers.type.ollama': 'Ollama',
   'providers.type.lmstudio': 'LM Studio',
+  'providers.type.anthropic': 'Anthropic',
   'providers.name': '提供商名称',
   'providers.baseUrl': '基础URL',
   'providers.apiKey': 'API密钥',

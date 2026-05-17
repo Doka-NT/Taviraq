@@ -1,4 +1,4 @@
-import { parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
+import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 
 describe('LLM protocol parsing', () => {
   it('extracts SSE data events and remainder', () => {
@@ -26,5 +26,19 @@ describe('LLM protocol parsing', () => {
         }
       ]
     })).toEqual({ content: 'hello' })
+  })
+
+  it('extracts Anthropic text deltas', () => {
+    expect(parseAnthropicStreamEvent({
+      event: 'content_block_delta',
+      data: '{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}'
+    })).toEqual({ content: 'hi' })
+  })
+
+  it('throws Anthropic stream errors', () => {
+    expect(() => parseAnthropicStreamEvent({
+      event: 'error',
+      data: '{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}'
+    })).toThrow('Overloaded')
   })
 })

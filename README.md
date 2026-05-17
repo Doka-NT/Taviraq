@@ -49,7 +49,7 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 - **Real terminal sessions** — local PTY tabs plus SSH profiles that use your existing config, keys, agents, and jump hosts.
 - **Context-aware assistant** — ask about selected text, recent output, the current session, or what command should come next.
 - **Agent mode with safety checks** — commands run one at a time, with a dedicated risk model and confirmation modal for dangerous steps.
-- **Provider choice** — connect OpenAI-compatible APIs, Ollama, or LM Studio, with separate chat and command-risk models.
+- **Provider choice** — connect Anthropic, OpenAI-compatible APIs, Ollama, or LM Studio, with separate chat and command-risk models.
 - **Prompt and command libraries** — save reusable prompts, turn chats into prompts, and keep command snippets close to the terminal.
 - **Personal workspace** — restore sessions, reopen chat history, tune themes and font size, change language, and import or export settings.
 - **macOS-native storage** — non-secret settings live in app data, while API keys stay in the system keychain.
@@ -58,7 +58,7 @@ Use it as a normal terminal, then switch the assistant between read-only help an
 
 - API keys are stored in the macOS Keychain through `keytar`, not in project config files.
 - Non-secret provider settings, prompts, and app configuration are stored locally in app data.
-- You choose which provider receives assistant context: OpenAI-compatible APIs, Ollama, or LM Studio.
+- You choose which provider receives assistant context: Anthropic, OpenAI-compatible APIs, Ollama, or LM Studio.
 - The assistant only receives the context mode you select, such as selected text, recent output, or the current session.
 - Agent mode checks built-in protected-command patterns and then asks a dedicated command-risk model before auto-execution.
 - If command-risk classification fails or cannot be parsed, the command is treated as risky and requires confirmation.

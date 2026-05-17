@@ -51,11 +51,21 @@ describe('llmService', () => {
 
   it('lists Anthropic models with native headers', async () => {
     vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      data: [
-        { id: 'claude-sonnet-4-20250514', display_name: 'Claude Sonnet 4' }
-      ]
-    })))
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [
+          { id: 'claude-sonnet-4-20250514', display_name: 'Claude Sonnet 4' }
+        ],
+        has_more: true,
+        last_id: 'claude-sonnet-4-20250514'
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        data: [
+          { id: 'claude-haiku-4-20250514', display_name: 'Claude Haiku 4' }
+        ],
+        has_more: false,
+        last_id: 'claude-haiku-4-20250514'
+      })))
     vi.stubGlobal('fetch', fetchMock)
 
     const { listModels } = await import('@main/services/llmService')
@@ -67,9 +77,11 @@ describe('llmService', () => {
     })
 
     expect(models).toEqual([
+      { id: 'claude-haiku-4-20250514', ownedBy: 'Claude Haiku 4' },
       { id: 'claude-sonnet-4-20250514', ownedBy: 'Claude Sonnet 4' }
     ])
-    expect(fetchMock.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=1000')
+    expect(fetchMock.mock.calls[1][0]).toBe('https://api.anthropic.com/v1/models?limit=1000&after_id=claude-sonnet-4-20250514')
     const init = fetchMock.mock.calls[0][1] as RequestInit
     const headers = init.headers as Record<string, string>
     expect(headers['anthropic-version']).toBe('2023-06-01')

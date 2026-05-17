@@ -29,6 +29,7 @@ import { getApiKey } from './secretStore'
 const COMMAND_RISK_TIMEOUT_MS = 15_000
 const ANTHROPIC_API_VERSION = '2023-06-01'
 const ANTHROPIC_MAX_TOKENS = 4096
+const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
 
 type ProviderRequestInit = RequestInit & {
@@ -42,13 +43,15 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
   const providerType = getProviderType(provider)
+  if (providerType === 'anthropic') {
+    return listAnthropicModels(provider)
+  }
+
   const url = providerType === 'lmstudio'
     ? buildLmStudioNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.lmstudio.baseUrl, 'models')
     : providerType === 'ollama'
       ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
-      : providerType === 'anthropic'
-        ? buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'models')
-        : buildProviderUrl(provider, 'models')
+      : buildProviderUrl(provider, 'models')
   const response = await fetchProvider(url, withProviderTls(provider, {
     headers: await buildHeaders(provider)
   }), 'Model')
@@ -60,8 +63,37 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
   const payload = await response.json() as unknown
   if (providerType === 'lmstudio') return parseLmStudioNativeModelList(payload)
   if (providerType === 'ollama') return parseOllamaNativeModelList(payload)
-  if (providerType === 'anthropic') return parseAnthropicModelList(payload)
   return parseModelList(payload)
+}
+
+async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
+  const modelsById = new Map<string, LLMModel>()
+  let afterId: string | undefined
+
+  while (true) {
+    const url = buildAnthropicModelsPageUrl(provider, afterId)
+    const response = await fetchProvider(url, withProviderTls(provider, {
+      headers: await buildHeaders(provider)
+    }), 'Model')
+
+    if (!response.ok) {
+      throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
+    }
+
+    const payload = await response.json() as unknown
+    for (const model of parseAnthropicModelList(payload)) {
+      modelsById.set(model.id, model)
+    }
+
+    if (!readAnthropicHasMore(payload)) {
+      return [...modelsById.values()].sort((a, b) => a.id.localeCompare(b.id))
+    }
+
+    afterId = readAnthropicLastId(payload)
+    if (!afterId) {
+      throw new Error('Anthropic model list response did not include last_id for the next page.')
+    }
+  }
 }
 
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
@@ -606,6 +638,27 @@ function withProviderTls(provider: LLMProviderConfig, init: RequestInit): Provid
     ...init,
     dispatcher: insecureTlsAgent
   }
+}
+
+function buildAnthropicModelsPageUrl(provider: LLMProviderConfig, afterId: string | undefined): string {
+  const url = new URL(buildAnthropicUrl(provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'models'))
+  url.searchParams.set('limit', String(ANTHROPIC_MODEL_PAGE_LIMIT))
+  if (afterId) {
+    url.searchParams.set('after_id', afterId)
+  }
+
+  return url.toString()
+}
+
+function readAnthropicHasMore(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') return false
+  return (payload as { has_more?: unknown }).has_more === true
+}
+
+function readAnthropicLastId(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined
+  const lastId = (payload as { last_id?: unknown }).last_id
+  return typeof lastId === 'string' && lastId.trim() ? lastId : undefined
 }
 
 function formatFetchError(error: unknown): string {

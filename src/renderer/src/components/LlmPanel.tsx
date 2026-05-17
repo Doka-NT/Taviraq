@@ -480,6 +480,7 @@ export function LlmPanel({
   const settingsSearchRef = useRef<HTMLInputElement | null>(null)
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
+  const [providerSecretsLoaded, setProviderSecretsLoaded] = useState(false)
   const [editingProxyPassword, setEditingProxyPassword] = useState(false)
   const [hasProxyPassword, setHasProxyPassword] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
@@ -705,9 +706,13 @@ export function LlmPanel({
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
     const secretCheckVersion = ++providerSecretCheckVersionRef.current
-    const hasLoadedApiKey = await window.api.llm.hasApiKey(loaded.apiKeyRef).catch(() => false)
+    setProviderSecretsLoaded(false)
+    const hasLoadedApiKey = loaded.apiKeyRef
+      ? await window.api.llm.hasApiKey(loaded.apiKeyRef).catch(() => false)
+      : false
     if (providerSecretCheckVersionRef.current === secretCheckVersion) {
       setHasApiKey(hasLoadedApiKey)
+      setProviderSecretsLoaded(true)
     }
     setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
     setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
@@ -1615,6 +1620,7 @@ export function LlmPanel({
     setEditingApiKey(false)
     setEditingProxyPassword(false)
     setHasApiKey(false)
+    setProviderSecretsLoaded(false)
     setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
@@ -1622,10 +1628,12 @@ export function LlmPanel({
     void window.api.llm.hasApiKey(target.apiKeyRef).then((hasKey) => {
       if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(hasKey)
+        setProviderSecretsLoaded(true)
       }
     }).catch(() => {
       if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(false)
+        setProviderSecretsLoaded(true)
       }
     })
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
@@ -1955,7 +1963,7 @@ export function LlmPanel({
   const activeProviderNeedsApiKey = providerNeedsApiKey(activeProviderType)
   const activationHasCredential = !activeProviderNeedsApiKey || hasApiKey || apiKey.trim().length > 0
   const providerReady = Boolean(provider.selectedModel?.trim()) && (!activeProviderNeedsApiKey || hasApiKey)
-  const showActivationFlow = messages.length === 0 && !providerReady
+  const showActivationFlow = messages.length === 0 && providerSecretsLoaded && !providerReady
   const canTestActivationProvider =
     isValidProviderBaseUrl(provider.baseUrl) &&
     isValidProviderProxyUrl(provider.proxyUrl) &&
@@ -1971,6 +1979,7 @@ export function LlmPanel({
     setModels([])
     setApiKey('')
     setHasApiKey(false)
+    setProviderSecretsLoaded(true)
     setProviderStatus('')
     setEditingApiKey(false)
   }, [])

@@ -716,11 +716,11 @@ function registerIpc(): void {
     return configStore.upsertProvider(provider)
   })
 
-  ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: string): Promise<boolean> => {
+  ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: unknown): Promise<boolean> => {
     if (DEMO_MODE) {
       return true
     }
-    if (!apiKeyRef.trim()) {
+    if (typeof apiKeyRef !== 'string' || !apiKeyRef.trim()) {
       return false
     }
 

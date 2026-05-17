@@ -519,6 +519,7 @@ export function LlmPanel({
   const handledBlockPromptRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
+  const providerSecretCheckVersionRef = useRef(0)
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
@@ -703,7 +704,11 @@ export function LlmPanel({
     setProvider(loaded)
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
-    setHasApiKey(await window.api.llm.hasApiKey(loaded.apiKeyRef).catch(() => false))
+    const secretCheckVersion = ++providerSecretCheckVersionRef.current
+    const hasLoadedApiKey = await window.api.llm.hasApiKey(loaded.apiKeyRef).catch(() => false)
+    if (providerSecretCheckVersionRef.current === secretCheckVersion) {
+      setHasApiKey(hasLoadedApiKey)
+    }
     setSecretMaskingMode(config.secretMasking?.mode ?? 'on')
     setHasProxyPassword(Boolean(loaded.proxyPasswordRef))
   }, [])
@@ -1613,12 +1618,13 @@ export function LlmPanel({
     setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
     setActiveProviderRef(target.apiKeyRef)
+    const secretCheckVersion = ++providerSecretCheckVersionRef.current
     void window.api.llm.hasApiKey(target.apiKeyRef).then((hasKey) => {
-      if (providerRef.current.apiKeyRef === target.apiKeyRef) {
+      if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(hasKey)
       }
     }).catch(() => {
-      if (providerRef.current.apiKeyRef === target.apiKeyRef) {
+      if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(false)
       }
     })

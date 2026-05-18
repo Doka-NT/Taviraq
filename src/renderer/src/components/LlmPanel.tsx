@@ -265,7 +265,7 @@ function providerNeedsApiKey(providerType: LLMProviderType): boolean {
 }
 
 function getProviderStatusKey(provider: LLMProviderConfig): string {
-  return [
+  return JSON.stringify([
     provider.apiKeyRef?.trim() ?? '',
     getProviderType(provider),
     provider.name?.trim() ?? '',
@@ -273,7 +273,7 @@ function getProviderStatusKey(provider: LLMProviderConfig): string {
     provider.proxyUrl?.trim() ?? '',
     provider.proxyUsername?.trim() ?? '',
     provider.allowInsecureTls ? 'insecure-tls' : 'default-tls'
-  ].join(':')
+  ])
 }
 
 function formatSecretCategory(value: string): string {
@@ -952,6 +952,16 @@ export function LlmPanel({
       cancelled = true
     }
   }, [allProviders])
+
+  useEffect(() => {
+    setProviderConnectionStates((current) => {
+      const validKeys = new Set(allProviders.map((candidate) => getProviderStatusKey(candidate)))
+      validKeys.add(getProviderStatusKey(provider))
+      return Object.fromEntries(
+        Object.entries(current).filter(([statusKey]) => validKeys.has(statusKey))
+      )
+    })
+  }, [allProviders, provider])
 
   useEffect(() => {
     setHasProxyPassword(Boolean(provider.proxyPasswordRef))

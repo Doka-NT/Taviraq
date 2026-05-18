@@ -55,7 +55,10 @@ Taviraq is a macOS-first Electron desktop terminal with:
 - Text size is entered with a number input and stored in `localStorage`; there is no HTML `min`, but invalid or non-positive values should not be applied to xterm.
 - Dangerous command confirmation must be an in-app modal, not `window.confirm` or a browser/system alert.
 - Use existing visual language: dark surfaces, restrained borders, lucide icons, compact controls.
+- For privacy/security features, prefer truthful UX over optimistic wording: never show "Protected" or a green enabled state unless the corresponding protection is effectively active at runtime.
+- When a feature has a master toggle plus nested scope toggles, explicitly handle the "enabled, but no active scopes" state with a warning/empty protection state or by restoring safe defaults when the user re-enables it.
 - For Electron layout/UI changes, verify the real Electron runtime when possible. A normal browser/Vite check may miss preload-only APIs, and a built app can still use stale `out/` assets until `npm run build` is run.
+- After significant privacy/security UI changes, add or update a screenshot smoke test that exercises the key states in the real Electron runtime, saves PNGs under ignored `screenshots/`, and assert-checks the key labels and ARIA state.
 
 ## Data Persistence & Import/Export
 
@@ -80,6 +83,7 @@ npm run dev
 npm run lint
 npm run typecheck
 npm test
+npm run test:ui:screenshots
 npm run build
 ```
 

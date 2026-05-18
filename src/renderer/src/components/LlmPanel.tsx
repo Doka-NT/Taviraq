@@ -2385,8 +2385,9 @@ export function LlmPanel({
   }, [stopAgentic])
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
-  const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
-  const composerContextChars = assistMode === 'off' ? 0 : stripAnsi(getOutput()).length
+  const terminalOutputForComposer = stripAnsi(getOutput())
+  const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
+  const composerContextChars = assistMode === 'off' ? 0 : terminalOutputForComposer.length
   const composerContextLabel = assistMode === 'off'
     ? t('chat.composer.contextOff')
     : t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
@@ -4019,7 +4020,6 @@ export function LlmPanel({
               if (activeSessionId) {
                 updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
               }
-              resizeComposerTextarea()
             }}
             onKeyDown={(event) => {
               const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing

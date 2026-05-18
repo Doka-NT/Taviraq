@@ -4075,6 +4075,11 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.06);
 }
 
+.chat-composer-shell:focus-within {
+  border-color: rgba(var(--accent-cyan-rgb), 0.32);
+  box-shadow: 0 0 0 2px rgba(var(--accent-cyan-rgb), 0.10);
+}
+
 .chat-form textarea {
   min-height: 36px;
   max-height: 132px;

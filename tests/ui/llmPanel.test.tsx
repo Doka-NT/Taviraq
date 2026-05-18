@@ -36,6 +36,7 @@ describe('LlmPanel command output cleanup', () => {
   it('formats composer context size compactly', () => {
     expect(formatComposerContextChars(0)).toBe('0')
     expect(formatComposerContextChars(999)).toBe('999')
+    expect(formatComposerContextChars(1000)).toBe('1k')
     expect(formatComposerContextChars(12_040)).toBe('12k')
     expect(formatComposerContextChars(12_560)).toBe('12.6k')
   })

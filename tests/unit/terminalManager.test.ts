@@ -171,7 +171,7 @@ describe('TerminalManager.connectSshCommand', () => {
     }))
   })
 
-  it('expands common shell path syntax before spawning saved SSH commands', () => {
+  it('expands common shell path syntax only for local SSH path options', () => {
     const manager = new TerminalManager(() => undefined)
     const spawn = vi.spyOn(manager as unknown as {
       spawn: (options: unknown) => TerminalSessionInfo
@@ -181,13 +181,13 @@ describe('TerminalManager.connectSshCommand', () => {
       label: 'deploy@myhost.com',
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com',
-      reconnectCommand: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
-      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
+      reconnectCommand: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
       createdAt: 3
     })
 
     manager.connectSshCommand({
-      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
       cwd: '/tmp'
     })
     const home = homedir()
@@ -198,7 +198,38 @@ describe('TerminalManager.connectSshCommand', () => {
         `${process.env.HOME ?? ''}/.ssh/id_ed25519`,
         '-F',
         `${home}/ssh/config`,
-        'deploy@myhost.com'
+        'deploy@myhost.com',
+        'echo $HOME'
+      ]
+    }))
+  })
+
+  it('expands path-like -o values without touching remote commands', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-4',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      command: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      createdAt: 4
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-o',
+        `IdentityFile=${process.env.HOME ?? ''}/.ssh/id_ed25519`,
+        'deploy@myhost.com',
+        'echo ${HOME}'
       ]
     }))
   })

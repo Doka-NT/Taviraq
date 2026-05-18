@@ -1860,15 +1860,26 @@ export function LlmPanel({
     }))
   }, [activeSessionId, appendCommandEditNotice, confirmAgenticCommand, getThread, t, updateThread])
 
-  const applySavedProviderResult = useCallback((result: AppConfig, savedApiKey: string): void => {
+  const applySavedProviderResult = useCallback((
+    result: AppConfig,
+    options: { savedApiKey?: string; savedSecretDraft?: boolean } = {}
+  ): void => {
     const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+    if (options.savedSecretDraft) {
+      setProviderConnectionStates((current) => {
+        const next = { ...current }
+        delete next[getProviderStatusKey(provider)]
+        delete next[getProviderStatusKey(savedProvider)]
+        return next
+      })
+    }
     setProvider(savedProvider)
     setAllProviders(result.providers)
     setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
     setApiKey('')
     setProxyPassword('')
     setEditingProxyPassword(false)
-    if (savedApiKey) {
+    if (options.savedApiKey?.trim()) {
       providerSecretCheckVersionRef.current += 1
       if (savedProvider.apiKeyRef !== provider.apiKeyRef) {
         optimisticApiKeyRef.current = savedProvider.apiKeyRef
@@ -1898,7 +1909,10 @@ export function LlmPanel({
         ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
       }
       const result = await window.api.llm.saveProvider(request)
-      applySavedProviderResult(result, apiKey)
+      applySavedProviderResult(result, {
+        savedApiKey: apiKey,
+        savedSecretDraft: Boolean(apiKey.trim() || editingProxyPassword || proxyPassword)
+      })
       setEditingApiKey(false)
       setProviderStatus(t('status.saved'))
     } catch (error) {
@@ -1919,7 +1933,10 @@ export function LlmPanel({
         apiKey,
         ...(shouldSendProxyPassword ? { proxyPassword: nextProxyPassword ?? proxyPassword } : {})
       })
-      applySavedProviderResult(result, apiKey)
+      applySavedProviderResult(result, {
+        savedApiKey: apiKey,
+        savedSecretDraft: Boolean(apiKey.trim() || shouldSendProxyPassword)
+      })
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)

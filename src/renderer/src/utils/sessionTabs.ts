@@ -55,6 +55,10 @@ export function getSessionStatusMeta(status: SessionTabStatus): SessionTabStatus
   return STATUS_META[status]
 }
 
+export function isLiveSessionStatus(status: SessionTabStatus | undefined): boolean {
+  return status === 'running' || status === 'idle'
+}
+
 export function formatSessionUptime(createdAt: number, now = Date.now()): string {
   if (!Number.isFinite(createdAt) || createdAt <= 0) return 'unknown'
 

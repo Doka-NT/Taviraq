@@ -10,7 +10,7 @@ import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
+import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -972,7 +972,7 @@ export function App(): JSX.Element {
   }, [activeSessionId, touchTerminalBlocks])
 
   const insertCommandSnippet = useCallback((command: string, run: boolean) => {
-    if (!activeSessionId || activeSession?.status !== 'running') return
+    if (!activeSessionId || !isLiveSessionStatus(activeSession?.status)) return
     void window.api.terminal.write(activeSessionId, run ? `${command}\r` : command)
     setSnippetPaletteOpen(false)
     requestAnimationFrame(() => {
@@ -1144,7 +1144,7 @@ export function App(): JSX.Element {
               className="icon-button"
               type="button"
               onClick={() => setSnippetPaletteOpen(true)}
-              disabled={!activeSessionId || activeSession?.status !== 'running'}
+              disabled={!activeSessionId || !isLiveSessionStatus(activeSession?.status)}
               title={`${appT('snippetPalette.title')} (⌘⇧K)`}
               aria-label={`${appT('snippetPalette.title')} (⌘⇧K)`}
             >
@@ -1560,7 +1560,7 @@ function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: 
     active?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
-  const canUse = activeSession?.status === 'running'
+  const canUse = isLiveSessionStatus(activeSession?.status)
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent) => {
     if (event.key === 'Escape') {

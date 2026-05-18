@@ -11,7 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
-import type { SessionTabInfo } from '@renderer/utils/sessionTabs'
+import { isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
 import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
@@ -558,7 +558,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     const dataDisposable = terminal.onData((data) => {
       if (restoringRef.current) return
       const sessionId = activeSessionIdRef.current
-      if (sessionId && activeSessionStatusRef.current === 'running') {
+      if (sessionId && isLiveSessionStatus(activeSessionStatusRef.current)) {
         void window.api.terminal.write(sessionId, data)
       }
     })
@@ -705,7 +705,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [scheduleTerminalMetricsUpdate, textSize])
 
   useEffect(() => {
-    activeSessionIdRef.current = activeSession?.status === 'running' ? activeSessionId : undefined
+    activeSessionIdRef.current = isLiveSessionStatus(activeSession?.status) ? activeSessionId : undefined
     activeSessionStatusRef.current = activeSession?.status
     const terminal = terminalRef.current
     if (!terminal) return
@@ -870,7 +870,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   const rerunSelectedBlock = useCallback((): void => {
     const block = selectedBlocks[0]
-    if (!block || selectedBlocks.length !== 1 || activeSession?.status !== 'running') return
+    if (!block || selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)) return
     onRerunBlock(block)
   }, [activeSession?.status, onRerunBlock, selectedBlocks])
 
@@ -974,7 +974,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
           <button
             type="button"
             onClick={rerunSelectedBlock}
-            disabled={selectedBlocks.length !== 1 || activeSession?.status !== 'running'}
+            disabled={selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)}
             title={t('terminal.blocks.rerunCommand')}
             aria-label={t('terminal.blocks.rerunCommand')}
           >

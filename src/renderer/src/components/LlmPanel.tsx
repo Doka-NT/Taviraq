@@ -43,7 +43,7 @@ import {
   SECRET_PLACEHOLDER_GLOBAL_RE,
   SECRET_PLACEHOLDER_RE
 } from '@shared/secretPlaceholders'
-import type { SessionTabInfo } from '@renderer/utils/sessionTabs'
+import { isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
 
 // ...existing code...
 
@@ -1659,7 +1659,7 @@ export function LlmPanel({
       return
     }
 
-    const canExecute = session.status === 'running'
+    const canExecute = isLiveSessionStatus(session.status)
     if (assistModeRef.current === 'agent' && canExecute) {
       promptResolversRef.current.delete(sessionId)
       updateThread(sessionId, (thread) => ({
@@ -1743,7 +1743,7 @@ export function LlmPanel({
   // Run command inline from MessageContent
   const runCommand = useCallback(async (command: string) => {
     const session = activeSessionRef.current
-    if (!session || session.status !== 'running') {
+    if (!session || !isLiveSessionStatus(session.status)) {
       if (activeSessionId) {
         updateThread(activeSessionId, (thread) => ({
           ...thread,
@@ -2563,7 +2563,7 @@ export function LlmPanel({
           <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''}`}>
             <span>{t('panel.permission.execute')}</span>
           </span>
-          {assistMode !== 'off' && activeSession?.status === 'running' && (
+          {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) && (
             <span className={`live-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
               <span className="live-status-dot" aria-hidden />
               <span>{t(`panel.status.${liveStatus}`)}</span>

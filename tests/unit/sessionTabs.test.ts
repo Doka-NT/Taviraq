@@ -6,6 +6,7 @@ import {
   getSessionStatusMeta,
   getSessionTooltip,
   getTabLabel,
+  isLiveSessionStatus,
   type SessionTabInfo
 } from '@renderer/utils/sessionTabs'
 
@@ -54,5 +55,14 @@ describe('session tab helpers', () => {
   it('exposes tab status labels for idle and reconnecting sessions', () => {
     expect(getSessionStatusMeta('idle')).toEqual({ label: 'Idle', className: 'idle' })
     expect(getSessionStatusMeta('reconnecting')).toEqual({ label: 'Reconnecting', className: 'reconnecting' })
+  })
+
+  it('treats prompted sessions as live for terminal input', () => {
+    expect(isLiveSessionStatus('running')).toBe(true)
+    expect(isLiveSessionStatus('idle')).toBe(true)
+    expect(isLiveSessionStatus('exited')).toBe(false)
+    expect(isLiveSessionStatus('disconnected')).toBe(false)
+    expect(isLiveSessionStatus('reconnecting')).toBe(false)
+    expect(isLiveSessionStatus(undefined)).toBe(false)
   })
 })

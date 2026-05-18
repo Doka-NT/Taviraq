@@ -8,6 +8,7 @@ import {
   getSessionTooltip,
   getTabLabel,
   isLiveSessionStatus,
+  mergeRestoredSessionOutput,
   type SessionTabInfo
 } from '@renderer/utils/sessionTabs'
 
@@ -74,5 +75,10 @@ describe('session tab helpers', () => {
     expect(getSessionRenderStatus('reconnecting')).toBe('reconnecting')
     expect(getSessionRenderStatus('exited')).toBe('exited')
     expect(getSessionRenderStatus(undefined)).toBeUndefined()
+  })
+
+  it('preserves early reconnect output after restored output', () => {
+    expect(mergeRestoredSessionOutput('old transcript\n', 'Password: ')).toBe('old transcript\nPassword: ')
+    expect(mergeRestoredSessionOutput('old transcript\n', undefined)).toBe('old transcript\n')
   })
 })

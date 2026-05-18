@@ -67,6 +67,10 @@ export function getSessionRenderStatus(status: SessionTabStatus | undefined): Se
   return undefined
 }
 
+export function mergeRestoredSessionOutput(restoredOutput: string, earlyOutput: string | undefined): string {
+  return earlyOutput ? `${restoredOutput}${earlyOutput}` : restoredOutput
+}
+
 export function formatSessionUptime(createdAt: number, now = Date.now()): string {
   if (!Number.isFinite(createdAt) || createdAt <= 0) return 'unknown'
 

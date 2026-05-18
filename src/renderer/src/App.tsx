@@ -10,7 +10,7 @@ import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
+import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -842,11 +842,13 @@ export function App(): JSX.Element {
       reconnectReplacementRef.current.set(sessionId, next.id)
       if (cancelledReconnectsRef.current.delete(sessionId)) {
         reconnectReplacementRef.current.delete(sessionId)
+        outputBuffers.current.delete(next.id)
         await window.api.terminal.kill(next.id)
         return
       }
+      const earlyOutput = outputBuffers.current.get(next.id)
       outputBuffers.current.delete(sessionId)
-      outputBuffers.current.set(next.id, restoredOutput)
+      outputBuffers.current.set(next.id, mergeRestoredSessionOutput(restoredOutput, earlyOutput))
       terminalBlocksRef.current.delete(sessionId)
       activeBlockIdsRef.current.delete(sessionId)
       setSelectedBlockIds([])

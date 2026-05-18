@@ -1,4 +1,4 @@
-import { createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
+import { createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -47,5 +47,16 @@ describe('secret masking UI state', () => {
       applyToProviderPayloads: true,
       strictTerminalContext: false
     })
+  })
+
+  it('only treats strict terminal context as active while masking mode is on', () => {
+    const settings = {
+      ...createDefaultSecretMaskingSettings(),
+      mode: 'off' as const,
+      strictTerminalContext: true
+    }
+
+    expect(isStrictTerminalContextActive(settings)).toBe(false)
+    expect(isStrictTerminalContextActive({ ...settings, mode: 'on' })).toBe(true)
   })
 })

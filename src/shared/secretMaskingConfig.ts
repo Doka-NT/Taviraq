@@ -15,6 +15,10 @@ export function createDefaultSecretMaskingSettings(): SecretMaskingSettings {
   }
 }
 
+export function isStrictTerminalContextActive(settings: SecretMaskingSettings): boolean {
+  return settings.mode === 'on' && settings.strictTerminalContext
+}
+
 export function isSafeCustomSecretPatternSource(source: string): boolean {
   if (!source || source.length > CUSTOM_SECRET_PATTERN_MAX_LENGTH) return false
 

@@ -16,6 +16,7 @@ import type {
 } from '@shared/types'
 import {
   createDefaultSecretMaskingSettings,
+  isStrictTerminalContextActive,
   isSafeCustomSecretPatternSource,
   SECRET_MASKING_AUDIT_LIMIT
 } from '@shared/secretMaskingConfig'
@@ -637,6 +638,7 @@ export function LlmPanel({
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
   const secretMaskingMode = secretMaskingSettings.mode
+  const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
 
   const liveStatus: 'idle' | 'running' | 'waiting' =
     commandConfirmation ? 'waiting' :
@@ -986,7 +988,7 @@ export function LlmPanel({
         provider: providerRef.current,
         messages: nextMessages
           .slice(0, -1)
-          .map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
+          .map((message) => toChatMessage(message, strictTerminalContextActive)),
         context: {
           selectedText: selectedTextRef.current,
           assistMode: mode,
@@ -1008,7 +1010,7 @@ export function LlmPanel({
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
     }
-  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, secretMaskingSettings.strictTerminalContext, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
 
   const startGuardedStream = useCallback((
     sessionId: string,
@@ -1075,7 +1077,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: requestMessages.map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
+      messages: requestMessages.map((message) => toChatMessage(message, strictTerminalContextActive)),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1085,7 +1087,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, secretMaskingSettings.strictTerminalContext, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getThread, strictTerminalContextActive, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})
@@ -1377,7 +1379,7 @@ export function LlmPanel({
       const prompt = await window.api.llm.summarizeConversation({
         requestId,
         provider: providerRef.current,
-        messages: messages.map((message) => toChatMessage(message, secretMaskingSettings.strictTerminalContext)),
+        messages: messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
         language: languageRef.current
       })
       if (savePromptGenerationRequestIdRef.current !== requestId) return
@@ -1583,15 +1585,15 @@ export function LlmPanel({
       '[command output hidden because secret masking failed]'
     ))
     updateThread(sessionId, (thread) => ({ ...thread, agenticCommandRunning: false }))
-    const continuation = buildAgentContinuation(command, output, secretMaskingSettings.strictTerminalContext)
+    const continuation = buildAgentContinuation(command, output, strictTerminalContextActive)
 
     void startStream(sessionId, continuation, getThread(sessionId).messages, {
       display: 'command-output',
       command,
       output,
-      terminalContextSent: !secretMaskingSettings.strictTerminalContext
+      terminalContextSent: !strictTerminalContextActive
     })
-  }, [appendCommandEditNotice, confirmAgenticCommand, getThread, secretMaskingSettings.strictTerminalContext, stopAgentic, startStream, t, updateThread])
+  }, [appendCommandEditNotice, confirmAgenticCommand, getThread, strictTerminalContextActive, stopAgentic, startStream, t, updateThread])
 
   // Keep ref updated
   useEffect(() => { runAgenticStepRef.current = runAgenticStep }, [runAgenticStep])

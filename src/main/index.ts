@@ -60,7 +60,7 @@ import {
 } from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
 import { normalizeHttpProxyUrl } from './utils/proxy'
-import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings } from '@shared/secretMaskingConfig'
+import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -145,7 +145,7 @@ function getScopedSecretMaskingSettings(scope: SecretMaskingAuditScope): SecretM
 }
 
 function applyTerminalContextPolicy<T extends { context: TerminalContext }>(request: T): T {
-  if (!getSecretMaskingSettings().strictTerminalContext) return request
+  if (!isStrictTerminalContextActive(getSecretMaskingSettings())) return request
 
   return {
     ...request,

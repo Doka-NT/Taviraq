@@ -2429,6 +2429,9 @@ export function LlmPanel({
       proxyPassword.length > 0
     )
     if (connectionState === 'ready' && !hasUntestedSecretDraft) {
+      if (candidate.apiKeyRef === activeProviderRef) {
+        return { tone: 'active-ready', label: t('providers.status.activeReady') }
+      }
       return { tone: 'ready', label: t('providers.status.ready') }
     }
     if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }

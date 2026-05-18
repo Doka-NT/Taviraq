@@ -75,6 +75,7 @@ export interface Translations {
   'providers.searchChatModel': string
   'providers.searchSafetyModel': string
   'providers.status.active': string
+  'providers.status.activeReady': string
   'providers.status.ready': string
   'providers.status.error': string
   'providers.status.noKey': string
@@ -483,6 +484,7 @@ export const en: Translations = {
   'providers.searchChatModel': 'Search chat model',
   'providers.searchSafetyModel': 'Search safety model',
   'providers.status.active': 'active',
+  'providers.status.activeReady': 'active · ready',
   'providers.status.ready': 'ready',
   'providers.status.error': 'error',
   'providers.status.noKey': 'no key',
@@ -875,6 +877,7 @@ export const ru: Translations = {
   'providers.searchChatModel': 'Поиск модели чата',
   'providers.searchSafetyModel': 'Поиск модели безопасности',
   'providers.status.active': 'активный',
+  'providers.status.activeReady': 'активный · готов',
   'providers.status.ready': 'готов',
   'providers.status.error': 'ошибка',
   'providers.status.noKey': 'нет ключа',
@@ -1267,6 +1270,7 @@ export const cn: Translations = {
   'providers.searchChatModel': '搜索聊天模型',
   'providers.searchSafetyModel': '搜索安全模型',
   'providers.status.active': '活跃',
+  'providers.status.activeReady': '活跃 · 就绪',
   'providers.status.ready': '就绪',
   'providers.status.error': '错误',
   'providers.status.noKey': '无密钥',

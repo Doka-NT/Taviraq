@@ -2075,20 +2075,7 @@ export function LlmPanel({
       setModels(result.models)
       setProvider(result.provider)
       setAllProviders((providers) => upsertProviderInOrder(providers, result.provider))
-      setApiKey('')
-      if (apiKey) {
-        providerSecretCheckVersionRef.current += 1
-        if (result.provider.apiKeyRef !== provider.apiKeyRef) {
-          optimisticApiKeyRef.current = result.provider.apiKeyRef
-        }
-        setCheckedApiKeyRef(result.provider.apiKeyRef)
-        setHasApiKey(true)
-        setProviderKeyAvailability((current) => ({ ...current, [result.provider.apiKeyRef]: true }))
-        setProviderSecretsLoaded(true)
-      }
-      if (editingProxyPassword || proxyPassword) {
-        setProxyPassword('')
-        setEditingProxyPassword(false)
+      if (!editingProxyPassword && !proxyPassword) {
         setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
       }
       setProviderConnectionStates((current) => {

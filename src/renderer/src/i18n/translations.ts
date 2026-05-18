@@ -279,6 +279,13 @@ export interface Translations {
   'chat.empty.title': string
   'chat.empty.body': string
   'chat.input.placeholder': string
+  'chat.input.tooltip': string
+  'chat.composer.context': string
+  'chat.composer.contextOff': string
+  'chat.composer.maskedSecrets': string
+  'chat.composer.mode.agent': string
+  'chat.composer.mode.read': string
+  'chat.composer.mode.off': string
   'chat.send': string
   'chat.stopAgent': string
   'chat.role.user': string
@@ -680,6 +687,13 @@ export const en: Translations = {
   'chat.empty.title': 'Ready to help',
   'chat.empty.body': 'Ask about your terminal, commands, or selected text',
   'chat.input.placeholder': 'Ask about this terminal…',
+  'chat.input.tooltip': 'Enter sends. Shift+Enter adds a new line.',
+  'chat.composer.context': 'Terminal context: {count} chars',
+  'chat.composer.contextOff': 'Terminal context: off',
+  'chat.composer.maskedSecrets': '{count} secret(s) masked',
+  'chat.composer.mode.agent': 'Agent',
+  'chat.composer.mode.read': 'Read',
+  'chat.composer.mode.off': 'Off',
   'chat.send': 'Send (Enter)',
   'chat.stopAgent': 'Stop agent',
   'chat.role.user': 'user',
@@ -1073,6 +1087,13 @@ export const ru: Translations = {
   'chat.empty.title': 'Готов помочь',
   'chat.empty.body': 'Спросите о терминале, командах или выделенном тексте',
   'chat.input.placeholder': 'Спросите о терминале…',
+  'chat.input.tooltip': 'Enter отправляет. Shift+Enter добавляет новую строку.',
+  'chat.composer.context': 'Контекст терминала: {count} симв.',
+  'chat.composer.contextOff': 'Контекст терминала: выкл.',
+  'chat.composer.maskedSecrets': 'Секретов скрыто: {count}',
+  'chat.composer.mode.agent': 'Агент',
+  'chat.composer.mode.read': 'Чтение',
+  'chat.composer.mode.off': 'Выкл.',
   'chat.send': 'Отправить (Enter)',
   'chat.stopAgent': 'Остановить агента',
   'chat.role.user': 'пользователь',
@@ -1466,6 +1487,13 @@ export const cn: Translations = {
   'chat.empty.title': '准备就绪',
   'chat.empty.body': '询问关于终端、命令或选定文本的问题',
   'chat.input.placeholder': '询问关于此终端的问题…',
+  'chat.input.tooltip': 'Enter 发送。Shift+Enter 添加新行。',
+  'chat.composer.context': '终端上下文：{count} 字符',
+  'chat.composer.contextOff': '终端上下文：关闭',
+  'chat.composer.maskedSecrets': '已遮蔽 {count} 个密钥',
+  'chat.composer.mode.agent': '代理',
+  'chat.composer.mode.read': '只读',
+  'chat.composer.mode.off': '关闭',
   'chat.send': '发送（Enter）',
   'chat.stopAgent': '停止代理',
   'chat.role.user': '用户',

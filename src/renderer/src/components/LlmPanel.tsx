@@ -31,6 +31,7 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
+import { formatComposerContextChars, latestMaskedSecretCount } from '@renderer/utils/composerContext'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -658,10 +659,24 @@ export function LlmPanel({
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
   const [confirmCountdown, setConfirmCountdown] = useState(0)
 
+  const resizeComposerTextarea = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`
+  }, [])
+
+  useEffect(() => {
+    resizeComposerTextarea()
+  }, [draft, resizeComposerTextarea])
+
+  const commandConfirmationTone = commandConfirmation?.tone
+  const commandConfirmationCommandId = commandConfirmation?.commandId
+
   // Countdown timer for destructive (danger) command confirmations
   // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
   useEffect(() => {
-    if (!commandConfirmation || commandConfirmation.tone !== 'danger') {
+    if (commandConfirmationTone !== 'danger') {
       setConfirmCountdown(0)
       return
     }
@@ -677,7 +692,7 @@ export function LlmPanel({
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [commandConfirmation?.tone, commandConfirmation?.commandId])
+  }, [commandConfirmationTone, commandConfirmationCommandId])
 
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
@@ -2371,6 +2386,17 @@ export function LlmPanel({
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
+  const composerContextChars = assistMode === 'off' ? 0 : stripAnsi(getOutput()).length
+  const composerContextLabel = assistMode === 'off'
+    ? t('chat.composer.contextOff')
+    : t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
+  const composerMaskedSecretCount = latestMaskedSecretCount(messages)
+  const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
+  const composerModeLabel = assistMode === 'agent'
+    ? t('chat.composer.mode.agent')
+    : assistMode === 'read'
+      ? t('chat.composer.mode.read')
+      : t('chat.composer.mode.off')
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -3984,50 +4010,70 @@ export function LlmPanel({
           sendMessage()
         }}
       >
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          disabled={inputDisabled}
-          onChange={(event) => {
-            if (activeSessionId) {
-              updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
-            }
-          }}
-          onKeyDown={(event) => {
-            const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
-            const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
-            if (wantsSend || wantsMetaSend) {
-              event.preventDefault()
-              sendMessage()
-            }
-          }}
-          placeholder={t('chat.input.placeholder')}
-          rows={1}
-        />
-        <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
-          {streaming || agenticRunning ? (
-            <button
-              className="stop-button"
-              type="button"
-              onClick={() => {
-                if (activeSessionId) stopAgentic(activeSessionId)
-              }}
-              title={t('chat.stopAgent')}
-              aria-label={t('chat.stopAgent')}
-            >
-              <Square size={14} aria-hidden />
-            </button>
-          ) : null}
-          <button
-            className={`send-button ${streaming ? 'streaming' : ''}`}
-            type="submit"
-            disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
-            title={t('chat.send')}
-            aria-label={t('chat.send')}
-          >
-            <Send size={15} aria-hidden />
-          </button>
+        <div className="chat-composer-shell">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            disabled={inputDisabled}
+            onChange={(event) => {
+              if (activeSessionId) {
+                updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
+              }
+              resizeComposerTextarea()
+            }}
+            onKeyDown={(event) => {
+              const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
+              const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
+              if (wantsSend || wantsMetaSend) {
+                event.preventDefault()
+                sendMessage()
+              }
+            }}
+            placeholder={t('chat.input.placeholder')}
+            title={t('chat.input.tooltip')}
+            rows={1}
+          />
+          <div className="chat-composer-footer">
+            <div className="chat-composer-indicators">
+              <span className={`composer-context-chip ${assistMode === 'off' ? 'off' : ''}`} title={composerContextLabel}>
+                <ScrollText size={12} aria-hidden />
+                <span>{composerContextLabel}</span>
+              </span>
+              <span className="composer-context-chip" title={composerMaskedSecretLabel}>
+                {composerMaskedSecretCount > 0 ? <ShieldCheck size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
+                <span>{composerMaskedSecretLabel}</span>
+              </span>
+            </div>
+            <div className="chat-form-actions">
+              <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
+                {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
+                <span>{composerModeLabel}</span>
+              </span>
+              <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
+              {streaming || agenticRunning ? (
+                <button
+                  className="stop-button"
+                  type="button"
+                  onClick={() => {
+                    if (activeSessionId) stopAgentic(activeSessionId)
+                  }}
+                  title={t('chat.stopAgent')}
+                  aria-label={t('chat.stopAgent')}
+                >
+                  <Square size={14} aria-hidden />
+                </button>
+              ) : null}
+              <button
+                className={`send-button ${streaming ? 'streaming' : ''}`}
+                type="submit"
+                disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
+                title={t('chat.send')}
+                aria-label={t('chat.send')}
+              >
+                <Send size={15} aria-hidden />
+              </button>
+            </div>
+          </div>
         </div>
       </form>
       </>

@@ -8,6 +8,7 @@ export interface CommandPaletteAction {
   category: string
   keywords?: string[]
   shortcut?: string
+  metaEnterActionId?: string
   disabled?: boolean
 }
 
@@ -100,10 +101,17 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
     active?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
-  const runActive = useCallback((action: CommandPaletteAction | undefined) => {
+  const runActive = useCallback((action: CommandPaletteAction | undefined, metaEnter = false) => {
     if (!action || action.disabled) return
+    if (metaEnter && action.metaEnterActionId) {
+      const metaAction = actions.find((candidate) => candidate.id === action.metaEnterActionId)
+      if (metaAction && !metaAction.disabled) {
+        onRun(metaAction)
+        return
+      }
+    }
     onRun(action)
-  }, [onRun])
+  }, [actions, onRun])
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
@@ -126,7 +134,7 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
 
     if (event.key === 'Enter') {
       event.preventDefault()
-      runActive(visibleActions[activeIndex])
+      runActive(visibleActions[activeIndex], event.metaKey || event.ctrlKey)
     }
   }, [activeIndex, onClose, runActive, visibleActions])
 

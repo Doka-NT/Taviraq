@@ -1100,6 +1100,14 @@ export function App(): JSX.Element {
         shortcut: '⌘T',
         keywords: ['terminal', 'shell', 'tab']
       },
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear the active terminal output and command blocks.',
+        category: 'Terminal',
+        disabled: !activeSessionId,
+        keywords: ['clear', 'terminal', 'output', 'screen', 'blocks']
+      },
       ...sessions.map((session, index) => ({
         id: `tab:${session.id}`,
         title: `Switch to ${getTabLabel(session)}`,
@@ -1128,6 +1136,7 @@ export function App(): JSX.Element {
         description: snippet.command,
         category: 'Snippets',
         shortcut: 'Enter',
+        metaEnterActionId: `snippet:${snippet.id}:run`,
         disabled: !activeSessionId || !isLiveSessionStatus(activeSession?.status),
         keywords: ['snippet', 'command', 'insert', snippet.name, snippet.command]
       })),
@@ -1182,6 +1191,11 @@ export function App(): JSX.Element {
       return
     }
 
+    if (action.id === 'terminal:clear') {
+      clearActiveTerminal()
+      return
+    }
+
     if (action.id.startsWith('tab:')) {
       setActiveSessionId(action.id.slice('tab:'.length))
       return
@@ -1227,6 +1241,7 @@ export function App(): JSX.Element {
   }, [
     commandPalettePrompts,
     commandPaletteSnippets,
+    clearActiveTerminal,
     connectSshProfile,
     createLocalSession,
     insertCommandSnippet,

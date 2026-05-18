@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import pty from 'node-pty'
-import type { CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
-import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
+import type { CreateSshCommandRequest, CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
+import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 import { resolveExistingCwd } from '@main/utils/cwd'
 
 const execFileAsync = promisify(execFile)
@@ -78,6 +78,27 @@ export class TerminalManager {
       remoteHost: ssh.remoteHost,
       remoteTarget: ssh.remoteTarget,
       reconnectCommand: `${ssh.command} ${ssh.args.join(' ')}`
+    })
+  }
+
+  connectSshCommand(request: CreateSshCommandRequest): TerminalSessionInfo {
+    const ssh = parseSshCommand(request.command)
+    if (!ssh) {
+      throw new Error('A valid ssh command is required.')
+    }
+
+    return this.spawn({
+      kind: 'ssh',
+      label: request.label?.trim() || request.remoteTarget || ssh.remoteTarget,
+      command: request.command,
+      file: ssh.file,
+      args: ssh.args,
+      cwd: process.env.HOME || homedir(),
+      cols: request.cols,
+      rows: request.rows,
+      remoteHost: request.remoteHost || ssh.remoteHost,
+      remoteTarget: request.remoteTarget || ssh.remoteTarget,
+      reconnectCommand: request.command
     })
   }
 

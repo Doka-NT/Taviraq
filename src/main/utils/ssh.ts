@@ -13,6 +13,11 @@ export interface ParsedSshTarget {
   remoteTarget: string
 }
 
+export interface ParsedSshCommand extends ParsedSshTarget {
+  file: string
+  args: string[]
+}
+
 export function buildSshCommand(profile: SSHProfile): SSHCommand {
   const host = profile.host.trim()
   if (!host) {
@@ -91,6 +96,24 @@ export function parseSshCommandTarget(command: string): ParsedSshTarget | undefi
   }
 
   return undefined
+}
+
+export function parseSshCommand(command: string): ParsedSshCommand | undefined {
+  const words = splitShellWords(command.trim())
+  if (!isSshExecutable(words[0])) {
+    return undefined
+  }
+
+  const target = parseSshCommandTarget(command)
+  if (!target) {
+    return undefined
+  }
+
+  return {
+    file: words[0],
+    args: words.slice(1),
+    ...target
+  }
 }
 
 function isSshExecutable(word: string | undefined): boolean {

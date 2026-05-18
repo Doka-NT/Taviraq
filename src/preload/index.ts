@@ -8,6 +8,7 @@ import type {
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
   CommandProposal,
+  CreateSshCommandRequest,
   CreateTerminalRequest,
   GeneratedPrompt,
   ImportResult,
@@ -134,6 +135,8 @@ const api = {
   ssh: {
     connectProfile: (profile: SSHProfile, request?: CreateTerminalRequest) =>
       ipcRenderer.invoke('ssh:connectProfile', profile, request) as Promise<TerminalSessionInfo>,
+    connectCommand: (request: CreateSshCommandRequest) =>
+      ipcRenderer.invoke('ssh:connectCommand', request) as Promise<TerminalSessionInfo>,
     listProfiles: () =>
       ipcRenderer.invoke('ssh:listProfiles') as Promise<SSHProfileConfig[]>,
     saveProfile: (profile: SSHProfileConfig) =>

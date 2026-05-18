@@ -888,22 +888,15 @@ export function App(): JSX.Element {
 
     try {
       if (session.kind === 'ssh' && session.reconnectCommand) {
-        const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
-        const duplicate: SessionState = {
-          ...next,
-          kind: 'ssh',
+        const next = await window.api.ssh.connectCommand({
+          command: session.reconnectCommand,
           label: session.label,
-          localLabel: next.label,
           remoteHost: session.remoteHost,
-          remoteTarget: session.remoteTarget,
-          reconnectCommand: session.reconnectCommand,
-          command: session.command,
-          createdAt: Date.now(),
-          status: 'running'
-        }
+          remoteTarget: session.remoteTarget
+        })
+        const duplicate: SessionState = { ...next, status: 'running' }
         setSessions((current) => [...current, duplicate])
         setActiveSessionId(next.id)
-        void window.api.command.runConfirmed(next.id, session.reconnectCommand)
         return
       }
 

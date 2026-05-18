@@ -7,6 +7,7 @@ import type {
   ChatStreamRequest,
   CommandSnippet,
   CommandRiskAssessmentRequest,
+  CreateSshCommandRequest,
   CreateTerminalRequest,
   ExportData,
   ImportResult,
@@ -780,6 +781,10 @@ function registerIpc(): void {
 
   ipcMain.handle('ssh:connectProfile', (_event, profile: SSHProfile, request?: CreateTerminalRequest) => {
     return terminalManager.connectSsh(profile, request)
+  })
+
+  ipcMain.handle('ssh:connectCommand', (_event, request: CreateSshCommandRequest) => {
+    return terminalManager.connectSshCommand(request)
   })
 
   ipcMain.handle('ssh:listProfiles', async () => {

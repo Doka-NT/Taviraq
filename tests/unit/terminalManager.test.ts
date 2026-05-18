@@ -133,3 +133,38 @@ describe('TerminalManager.runConfirmed', () => {
     })
   })
 })
+
+describe('TerminalManager.connectSshCommand', () => {
+  it('spawns duplicated SSH tabs as SSH sessions with preserved metadata', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-2',
+      kind: 'ssh',
+      label: 'Production',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -p 2222 deploy@myhost.com',
+      command: 'ssh -p 2222 deploy@myhost.com',
+      createdAt: 2
+    })
+
+    const session = manager.connectSshCommand({
+      command: 'ssh -p 2222 deploy@myhost.com',
+      label: 'Production'
+    })
+
+    expect(session.kind).toBe('ssh')
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'ssh',
+      label: 'Production',
+      command: 'ssh -p 2222 deploy@myhost.com',
+      file: 'ssh',
+      args: ['-p', '2222', 'deploy@myhost.com'],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -p 2222 deploy@myhost.com'
+    }))
+  })
+})

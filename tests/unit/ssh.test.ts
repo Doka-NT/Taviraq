@@ -1,4 +1,4 @@
-import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
+import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 
 describe('SSH command generation', () => {
   it('builds a system ssh invocation without opening a network connection', () => {
@@ -47,6 +47,15 @@ describe('SSH command generation', () => {
 
   it('skips ssh options before extracting the target', () => {
     expect(parseSshCommandTarget('ssh -p 2222 -i ~/.ssh/id_ed25519 -l deploy myhost.com')).toEqual({
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com'
+    })
+  })
+
+  it('parses an ssh command into spawn arguments and target metadata', () => {
+    expect(parseSshCommand('/usr/bin/ssh -p 2222 -i ~/.ssh/id_ed25519 deploy@myhost.com')).toEqual({
+      file: '/usr/bin/ssh',
+      args: ['-p', '2222', '-i', '~/.ssh/id_ed25519', 'deploy@myhost.com'],
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com'
     })

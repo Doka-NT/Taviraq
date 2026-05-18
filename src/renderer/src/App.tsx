@@ -72,6 +72,9 @@ interface RenameSessionRequest {
   label: string
 }
 
+const TAB_CONTEXT_MENU_WIDTH = 180
+const TAB_CONTEXT_MENU_HEIGHT = 154
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
@@ -858,27 +861,31 @@ export function App(): JSX.Element {
     const session = sessions.find((candidate) => candidate.id === sessionId)
     if (!session) return
 
-    if (session.kind === 'ssh' && session.reconnectCommand) {
-      const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
-      const duplicate: SessionState = {
-        ...next,
-        kind: 'ssh',
-        label: session.label,
-        localLabel: next.label,
-        remoteHost: session.remoteHost,
-        remoteTarget: session.remoteTarget,
-        reconnectCommand: session.reconnectCommand,
-        command: session.command,
-        createdAt: Date.now(),
-        status: 'running'
+    try {
+      if (session.kind === 'ssh' && session.reconnectCommand) {
+        const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+        const duplicate: SessionState = {
+          ...next,
+          kind: 'ssh',
+          label: session.label,
+          localLabel: next.label,
+          remoteHost: session.remoteHost,
+          remoteTarget: session.remoteTarget,
+          reconnectCommand: session.reconnectCommand,
+          command: session.command,
+          createdAt: Date.now(),
+          status: 'running'
+        }
+        setSessions((current) => [...current, duplicate])
+        setActiveSessionId(next.id)
+        void window.api.command.runConfirmed(next.id, session.reconnectCommand)
+        return
       }
-      setSessions((current) => [...current, duplicate])
-      setActiveSessionId(next.id)
-      void window.api.command.runConfirmed(next.id, session.reconnectCommand)
-      return
-    }
 
-    await createLocalSession(session.cwd ? { cwd: session.cwd } : undefined)
+      await createLocalSession(session.cwd ? { cwd: session.cwd } : undefined)
+    } catch (error) {
+      console.error('Failed to duplicate terminal session', error)
+    }
   }, [createLocalSession, sessions])
 
   const openRenameSession = useCallback((sessionId: string) => {
@@ -1133,6 +1140,7 @@ export function App(): JSX.Element {
               const statusMeta = getSessionStatusMeta(session.status)
               const cwdBadge = getCwdBasename(session.cwd)
               const commandTarget = session.kind === 'ssh' ? getSessionCommandTarget(session) : undefined
+              const visibleCommandTarget = commandTarget && !tabLabel.includes(commandTarget) ? commandTarget : undefined
               const tabClassName = [
                 'session-tab',
                 session.kind === 'ssh' ? 'ssh-session' : '',
@@ -1147,13 +1155,17 @@ export function App(): JSX.Element {
                   type="button"
                   role="tab"
                   aria-selected={session.id === activeSessionId}
-                  title={getSessionTooltip(session)}
+                  aria-label={getSessionTooltip(session)}
                   data-tooltip={getSessionTooltip(session)}
                   onClick={() => setActiveSessionId(session.id)}
                   onContextMenu={(event) => {
                     event.preventDefault()
                     setActiveSessionId(session.id)
-                    setTabContextMenu({ sessionId: session.id, x: event.clientX, y: event.clientY })
+                    setTabContextMenu({
+                      sessionId: session.id,
+                      x: Math.min(event.clientX, Math.max(8, window.innerWidth - TAB_CONTEXT_MENU_WIDTH)),
+                      y: Math.min(event.clientY, Math.max(8, window.innerHeight - TAB_CONTEXT_MENU_HEIGHT))
+                    })
                   }}
                 >
                   <span className={`status-dot ${statusMeta.className}`} title={statusMeta.label}>
@@ -1166,7 +1178,7 @@ export function App(): JSX.Element {
                       : <SquareTerminal size={10} aria-hidden />}
                   </span>
                   <span className="tab-label">{tabLabel}</span>
-                  {commandTarget ? <span className="tab-target">{commandTarget}</span> : null}
+                  {visibleCommandTarget ? <span className="tab-target">{visibleCommandTarget}</span> : null}
                   {cwdBadge ? <span className="tab-cwd-badge" title={session.cwd}>{cwdBadge}</span> : null}
                   {session.kind !== 'ssh' ? <span className="tab-kind">{session.kind}</span> : null}
                   <span
@@ -1459,7 +1471,12 @@ export function App(): JSX.Element {
               <button type="button" className="quiet-button" onClick={() => setRenameSessionRequest(null)}>
                 {appT('confirm.cancel')}
               </button>
-              <button type="button" className="save-prompt-confirm" onClick={confirmRenameSession}>
+              <button
+                type="button"
+                className="save-prompt-confirm"
+                onClick={confirmRenameSession}
+                disabled={!renameSessionRequest.label.trim()}
+              >
                 Rename
               </button>
             </div>

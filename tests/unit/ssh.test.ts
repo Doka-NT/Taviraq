@@ -1,4 +1,4 @@
-import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
+import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 
 describe('SSH command generation', () => {
   it('builds a system ssh invocation without opening a network connection', () => {
@@ -49,6 +49,30 @@ describe('SSH command generation', () => {
     expect(parseSshCommandTarget('ssh -p 2222 -i ~/.ssh/id_ed25519 -l deploy myhost.com')).toEqual({
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com'
+    })
+    expect(parseSshCommandTarget('ssh -P work -i ~/id_ed25519 myhost.com')).toEqual({
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
+    })
+  })
+
+  it('parses an ssh command into spawn arguments and target metadata', () => {
+    expect(parseSshCommand('/usr/bin/ssh -p 2222 -i ~/.ssh/id_ed25519 deploy@myhost.com')).toEqual({
+      file: '/usr/bin/ssh',
+      args: ['-p', '2222', '-i', '~/.ssh/id_ed25519', 'deploy@myhost.com'],
+      argSingleQuoted: [false, false, false, false, false],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com'
+    })
+  })
+
+  it('preserves single-quote context for parsed ssh command arguments', () => {
+    expect(parseSshCommand('ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com')).toEqual({
+      file: 'ssh',
+      args: ['-i', '$HOME/.ssh/id_ed25519', '-F', '$HOME/.ssh/config', 'myhost.com'],
+      argSingleQuoted: [false, true, false, false, false],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
     })
   })
 })

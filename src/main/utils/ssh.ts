@@ -13,6 +13,12 @@ export interface ParsedSshTarget {
   remoteTarget: string
 }
 
+export interface ParsedSshCommand extends ParsedSshTarget {
+  file: string
+  args: string[]
+  argSingleQuoted: boolean[]
+}
+
 export function buildSshCommand(profile: SSHProfile): SSHCommand {
   const host = profile.host.trim()
   if (!host) {
@@ -93,6 +99,25 @@ export function parseSshCommandTarget(command: string): ParsedSshTarget | undefi
   return undefined
 }
 
+export function parseSshCommand(command: string): ParsedSshCommand | undefined {
+  const words = splitShellWordsDetailed(command.trim())
+  if (!isSshExecutable(words[0]?.value)) {
+    return undefined
+  }
+
+  const target = parseSshCommandTarget(command)
+  if (!target) {
+    return undefined
+  }
+
+  return {
+    file: words[0].value,
+    args: words.slice(1).map((word) => word.value),
+    argSingleQuoted: words.slice(1).map((word) => word.singleQuoted),
+    ...target
+  }
+}
+
 function isSshExecutable(word: string | undefined): boolean {
   if (!word) {
     return false
@@ -115,11 +140,21 @@ function targetFromWord(word: string | undefined, user: string | undefined): Par
   return remoteHost ? { remoteHost, remoteTarget } : undefined
 }
 
+interface ShellWord {
+  value: string
+  singleQuoted: boolean
+}
+
 function splitShellWords(command: string): string[] {
-  const words: string[] = []
+  return splitShellWordsDetailed(command).map((word) => word.value)
+}
+
+function splitShellWordsDetailed(command: string): ShellWord[] {
+  const words: ShellWord[] = []
   let current = ''
   let quote: '"' | "'" | undefined
   let escaped = false
+  let singleQuoted = false
 
   for (const char of command) {
     if (escaped) {
@@ -134,14 +169,18 @@ function splitShellWords(command: string): string[] {
     }
 
     if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      if (char === "'") {
+        singleQuoted = true
+      }
       quote = quote ? undefined : char
       continue
     }
 
     if (!quote && /\s/.test(char)) {
       if (current) {
-        words.push(current)
+        words.push({ value: current, singleQuoted })
         current = ''
+        singleQuoted = false
       }
       continue
     }
@@ -150,18 +189,20 @@ function splitShellWords(command: string): string[] {
   }
 
   if (current) {
-    words.push(current)
+    words.push({ value: current, singleQuoted })
   }
 
   return words
 }
 
 const SSH_OPTIONS_WITH_VALUE = new Set([
-  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-m',
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-P',
   '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w'
 ])
 
 const SSH_OPTION_PREFIXES_WITH_VALUE = [
-  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-m',
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-P',
   '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w'
 ]

@@ -6,8 +6,8 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import pty from 'node-pty'
-import type { CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
-import { buildSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
+import type { CreateSshCommandRequest, CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
+import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 import { resolveExistingCwd } from '@main/utils/cwd'
 
 const execFileAsync = promisify(execFile)
@@ -78,6 +78,28 @@ export class TerminalManager {
       remoteHost: ssh.remoteHost,
       remoteTarget: ssh.remoteTarget,
       reconnectCommand: `${ssh.command} ${ssh.args.join(' ')}`
+    })
+  }
+
+  connectSshCommand(request: CreateSshCommandRequest): TerminalSessionInfo {
+    const ssh = parseSshCommand(request.command)
+    if (!ssh) {
+      throw new Error('A valid ssh command is required.')
+    }
+    const fallbackCwd = process.env.HOME || homedir()
+
+    return this.spawn({
+      kind: 'ssh',
+      label: request.label?.trim() || request.remoteTarget || ssh.remoteTarget,
+      command: request.command,
+      file: ssh.file,
+      args: expandSshCommandArgs(ssh.args, ssh.argSingleQuoted),
+      cwd: resolveExistingCwd(request.cwd, fallbackCwd),
+      cols: request.cols,
+      rows: request.rows,
+      remoteHost: request.remoteHost || ssh.remoteHost,
+      remoteTarget: request.remoteTarget || ssh.remoteTarget,
+      reconnectCommand: request.command
     })
   }
 
@@ -571,6 +593,135 @@ function looksLikeShellPrompt(data: string): boolean {
 function stripAnsi(value: string): string {
   return value.replace(ANSI_CSI_PATTERN, '')
 }
+
+function expandSshCommandArgs(args: string[], argSingleQuoted: boolean[]): string[] {
+  const expanded: string[] = []
+  let beforeTarget = true
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    const singleQuoted = argSingleQuoted[index] ?? false
+
+    if (!beforeTarget) {
+      expanded.push(arg)
+      continue
+    }
+
+    if (arg === '--') {
+      expanded.push(arg)
+      beforeTarget = false
+      continue
+    }
+
+    if (SSH_PATH_OPTIONS_WITH_VALUE.has(arg)) {
+      expanded.push(arg)
+      if (args[index + 1] !== undefined) {
+        expanded.push(expandSshCommandArg(args[index + 1], argSingleQuoted[index + 1] ?? false))
+        index += 1
+      }
+      continue
+    }
+
+    const pathPrefix = SSH_PATH_OPTION_PREFIXES_WITH_VALUE.find((prefix) => arg.startsWith(prefix) && arg.length > prefix.length)
+    if (pathPrefix) {
+      expanded.push(`${pathPrefix}${expandSshCommandArg(arg.slice(pathPrefix.length), singleQuoted)}`)
+      continue
+    }
+
+    if (arg === '-o') {
+      expanded.push(arg)
+      if (args[index + 1] !== undefined) {
+        expanded.push(expandSshOptionValue(args[index + 1], argSingleQuoted[index + 1] ?? false))
+        index += 1
+      }
+      continue
+    }
+
+    if (arg.startsWith('-o') && arg.length > 2) {
+      expanded.push(`-o${expandSshOptionValue(arg.slice(2), singleQuoted)}`)
+      continue
+    }
+
+    if (SSH_OPTIONS_WITH_VALUE.has(arg)) {
+      expanded.push(arg)
+      if (args[index + 1] !== undefined) {
+        expanded.push(args[index + 1])
+        index += 1
+      }
+      continue
+    }
+
+    if (SSH_OPTION_PREFIXES_WITH_VALUE.some((prefix) => arg.startsWith(prefix) && arg.length > prefix.length)) {
+      expanded.push(arg)
+      continue
+    }
+
+    if (arg.startsWith('-')) {
+      expanded.push(arg)
+      continue
+    }
+
+    beforeTarget = false
+    expanded.push(arg)
+  }
+
+  return expanded
+}
+
+function expandSshOptionValue(value: string, singleQuoted: boolean): string {
+  const equalIndex = value.indexOf('=')
+  if (equalIndex === -1) {
+    return value
+  }
+
+  const key = value.slice(0, equalIndex).toLowerCase()
+  if (!SSH_PATH_CONFIG_OPTIONS.has(key)) {
+    return value
+  }
+
+  return `${value.slice(0, equalIndex + 1)}${expandSshCommandArg(value.slice(equalIndex + 1), singleQuoted)}`
+}
+
+function expandSshCommandArg(arg: string, singleQuoted: boolean): string {
+  if (singleQuoted) {
+    return arg
+  }
+
+  const withVariables = arg.replace(/\$(\w+)|\$\{([A-Za-z_]\w*)\}/g, (_match, bare: string | undefined, braced: string | undefined) => {
+    const name = bare ?? braced
+    return name ? process.env[name] ?? '' : ''
+  })
+
+  if (withVariables === '~') {
+    return homedir()
+  }
+
+  if (withVariables.startsWith('~/')) {
+    return `${homedir()}${withVariables.slice(1)}`
+  }
+
+  return withVariables
+}
+
+const SSH_PATH_OPTIONS_WITH_VALUE = new Set(['-E', '-F', '-I', '-i', '-S'])
+const SSH_PATH_OPTION_PREFIXES_WITH_VALUE = ['-E', '-F', '-I', '-i', '-S']
+const SSH_PATH_CONFIG_OPTIONS = new Set([
+  'certificatefile',
+  'globalknownhostsfile',
+  'identityagent',
+  'identityfile',
+  'pkcs11provider',
+  'securitykeyprovider',
+  'userknownhostsfile'
+])
+const SSH_OPTIONS_WITH_VALUE = new Set([
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-O', '-o', '-P', '-p', '-Q', '-R', '-S', '-W', '-w'
+])
+const SSH_OPTION_PREFIXES_WITH_VALUE = [
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-O', '-o', '-P', '-p', '-Q', '-R', '-S', '-W', '-w'
+]
 
 async function readProcessCwd(pid: number): Promise<string | undefined> {
   if (process.platform === 'darwin') {

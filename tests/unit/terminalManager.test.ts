@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { homedir } from 'node:os'
 import { TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
@@ -131,5 +132,202 @@ describe('TerminalManager.runConfirmed', () => {
       channel: 'terminal:command',
       payload: { sessionId: 'session-1', command: 'ls -la', echoed: false }
     })
+  })
+})
+
+describe('TerminalManager.connectSshCommand', () => {
+  it('spawns duplicated SSH tabs as SSH sessions with preserved metadata', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-2',
+      kind: 'ssh',
+      label: 'Production',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -p 2222 deploy@myhost.com',
+      command: 'ssh -p 2222 deploy@myhost.com',
+      createdAt: 2
+    })
+
+    const session = manager.connectSshCommand({
+      command: 'ssh -p 2222 deploy@myhost.com',
+      cwd: '/tmp',
+      label: 'Production'
+    })
+
+    expect(session.kind).toBe('ssh')
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'ssh',
+      label: 'Production',
+      command: 'ssh -p 2222 deploy@myhost.com',
+      file: 'ssh',
+      args: ['-p', '2222', 'deploy@myhost.com'],
+      cwd: '/tmp',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -p 2222 deploy@myhost.com'
+    }))
+  })
+
+  it('expands common shell path syntax only for local SSH path options', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-3',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
+      createdAt: 3
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com \'echo $HOME\'',
+      cwd: '/tmp'
+    })
+    const home = homedir()
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-i',
+        `${process.env.HOME ?? ''}/.ssh/id_ed25519`,
+        '-F',
+        `${home}/ssh/config`,
+        'deploy@myhost.com',
+        'echo $HOME'
+      ]
+    }))
+  })
+
+  it('expands path-like -o values without touching remote commands', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-4',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      command: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      createdAt: 4
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -o IdentityFile=$HOME/.ssh/id_ed25519 deploy@myhost.com \'echo ${HOME}\'',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-o',
+        `IdentityFile=${process.env.HOME ?? ''}/.ssh/id_ed25519`,
+        'deploy@myhost.com',
+        'echo ${HOME}'
+      ]
+    }))
+  })
+
+  it('does not treat -l login values as the SSH target', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-5',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      command: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      createdAt: 5
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-l',
+        'deploy',
+        '-i',
+        `${homedir()}/id_ed25519`,
+        'myhost.com'
+      ],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com'
+    }))
+  })
+
+  it('does not expand single-quoted SSH path option values', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-6',
+      kind: 'ssh',
+      label: 'myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com',
+      reconnectCommand: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      command: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      createdAt: 6
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-i',
+        '$HOME/.ssh/id_ed25519',
+        '-F',
+        `${process.env.HOME ?? ''}/.ssh/config`,
+        'myhost.com'
+      ]
+    }))
+  })
+
+  it('does not treat -P tag values as the SSH target', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-7',
+      kind: 'ssh',
+      label: 'myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com',
+      reconnectCommand: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      command: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      createdAt: 7
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-P',
+        'work',
+        '-i',
+        `${homedir()}/id_ed25519`,
+        'myhost.com'
+      ],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
+    }))
   })
 })

@@ -34,6 +34,13 @@ export interface CreateTerminalRequest {
   rows?: number
 }
 
+export interface CreateSshCommandRequest extends CreateTerminalRequest {
+  command: string
+  label?: string
+  remoteHost?: string
+  remoteTarget?: string
+}
+
 export interface TerminalCommandEvent {
   sessionId: string
   command: string

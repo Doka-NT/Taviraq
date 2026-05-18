@@ -8,14 +8,15 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick, Play, Search, Sparkles, SquareCheckBig, SquareTerminal, X } from 'lucide-react'
-import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
+import type { TerminalBlock } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
+import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
 import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
+  activeSession?: SessionTabInfo
   sessionIds: string[]
   layoutKey: string
   textSize: number
@@ -324,6 +325,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const [hoveredBlockId, setHoveredBlockId] = useState<string>()
   const [isAlternateBufferActive, setIsAlternateBufferActive] = useState(false)
   const activeSessionId = activeSession?.id
+  const activeSessionRenderStatus = getSessionRenderStatus(activeSession?.status)
   const areTerminalBlocksAvailable = !isAlternateBufferActive
   const selectedBlocks = useMemo(
     () => areTerminalBlocksAvailable
@@ -557,7 +559,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     const dataDisposable = terminal.onData((data) => {
       if (restoringRef.current) return
       const sessionId = activeSessionIdRef.current
-      if (sessionId && activeSessionStatusRef.current === 'running') {
+      if (sessionId && isLiveSessionStatus(activeSessionStatusRef.current)) {
         void window.api.terminal.write(sessionId, data)
       }
     })
@@ -704,12 +706,15 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [scheduleTerminalMetricsUpdate, textSize])
 
   useEffect(() => {
-    activeSessionIdRef.current = activeSession?.status === 'running' ? activeSessionId : undefined
+    activeSessionIdRef.current = isLiveSessionStatus(activeSession?.status) ? activeSessionId : undefined
     activeSessionStatusRef.current = activeSession?.status
+  }, [activeSessionId, activeSession?.status])
+
+  useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
 
-    const sessionKey = `${activeSessionId ?? ''}:${activeSession?.status ?? ''}`
+    const sessionKey = `${activeSessionId ?? ''}:${activeSessionRenderStatus ?? ''}`
     if (renderedSessionKeyRef.current === sessionKey) {
       return
     }
@@ -738,7 +743,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         void window.api.terminal.resize(activeSessionIdRef.current, terminal.cols, terminal.rows)
       }
     })
-  }, [activeSessionId, activeSession?.status, outputBuffers, scheduleTerminalMetricsUpdate, t])
+  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIds)
@@ -869,7 +874,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   const rerunSelectedBlock = useCallback((): void => {
     const block = selectedBlocks[0]
-    if (!block || selectedBlocks.length !== 1 || activeSession?.status !== 'running') return
+    if (!block || selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)) return
     onRerunBlock(block)
   }, [activeSession?.status, onRerunBlock, selectedBlocks])
 
@@ -973,7 +978,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
           <button
             type="button"
             onClick={rerunSelectedBlock}
-            disabled={selectedBlocks.length !== 1 || activeSession?.status !== 'running'}
+            disabled={selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)}
             title={t('terminal.blocks.rerunCommand')}
             aria-label={t('terminal.blocks.rerunCommand')}
           >

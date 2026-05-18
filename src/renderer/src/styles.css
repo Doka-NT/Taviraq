@@ -3728,6 +3728,66 @@ textarea:focus {
   background: rgba(var(--accent-amber-rgb), 0.14);
 }
 
+/* Danger (destructive) variant — red theme */
+.command-confirmation-card.danger {
+  border-color: rgba(var(--accent-red-rgb), 0.30);
+  background: rgba(var(--accent-red-rgb), 0.045);
+}
+
+.command-confirmation-card.danger .command-confirmation-head {
+  border-bottom-color: rgba(var(--accent-red-rgb), 0.18);
+  background: rgba(var(--accent-red-rgb), 0.09);
+}
+
+.command-confirmation-card.danger .command-confirmation-head svg {
+  color: var(--accent-red);
+}
+
+.command-confirmation-card.danger .command-confirmation-head h2 {
+  color: rgba(var(--accent-red-rgb), 0.92);
+}
+
+.command-confirmation-card.danger .command-confirmation-head > span {
+  color: rgba(var(--accent-red-rgb), 0.72);
+}
+
+.command-confirmation-card.danger .command-confirmation-command textarea {
+  border-color: rgba(var(--accent-red-rgb), 0.22);
+}
+
+.command-confirmation-card.danger .command-confirmation-command textarea:focus {
+  border-color: rgba(var(--accent-red-rgb), 0.48);
+}
+
+.command-confirmation-card.danger .danger-button {
+  border-color: rgba(var(--accent-red-rgb), 0.55);
+  color: rgba(var(--accent-red-rgb), 0.96);
+  background: rgba(var(--accent-red-rgb), 0.18);
+}
+
+.command-confirmation-card.danger .danger-button:hover:not(:disabled) {
+  border-color: rgba(var(--accent-red-rgb), 0.72);
+  background: rgba(var(--accent-red-rgb), 0.26);
+}
+
+.command-confirmation-card.danger .danger-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.command-confirmation-destructive-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 0.5px solid rgba(var(--accent-red-rgb), 0.30);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--accent-red-rgb), 0.08);
+  color: rgba(var(--accent-red-rgb), 0.88);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .agentic-status {
   position: sticky;
   bottom: 0;

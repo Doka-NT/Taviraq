@@ -2401,10 +2401,11 @@ export function LlmPanel({
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const terminalOutputForComposer = stripAnsi(getOutput())
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
-  const composerContextChars = assistMode === 'off' ? 0 : terminalOutputForComposer.length
-  const composerContextLabel = assistMode === 'off'
-    ? t('chat.composer.contextOff')
-    : t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
+  const composerContextActive = assistMode !== 'off' && !strictTerminalContextActive
+  const composerContextChars = composerContextActive ? terminalOutputForComposer.length : 0
+  const composerContextLabel = composerContextActive
+    ? t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
+    : t('chat.composer.contextOff')
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
   const composerModeLabel = assistMode === 'agent'

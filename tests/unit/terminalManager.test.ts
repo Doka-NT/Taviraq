@@ -233,4 +233,37 @@ describe('TerminalManager.connectSshCommand', () => {
       ]
     }))
   })
+
+  it('does not treat -l login values as the SSH target', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-5',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      command: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      createdAt: 5
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -l deploy -i ~/id_ed25519 myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-l',
+        'deploy',
+        '-i',
+        `${homedir()}/id_ed25519`,
+        'myhost.com'
+      ],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com'
+    }))
+  })
 })

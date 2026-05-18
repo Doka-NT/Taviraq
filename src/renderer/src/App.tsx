@@ -321,6 +321,7 @@ export function App(): JSX.Element {
       current.map((session) =>
         session.id === sessionId && session.status !== 'disconnected'
           && session.status !== 'reconnecting'
+          && session.status !== 'exited'
           ? { ...session, status: 'running' }
           : session
       )
@@ -468,7 +469,7 @@ export function App(): JSX.Element {
           reconnectCommand: session.reconnectCommand,
           command: session.command,
           createdAt: session.createdAt,
-          status: session.kind === 'ssh'
+          status: session.kind === 'ssh' || session.status === 'reconnecting'
             ? 'disconnected'
             : session.status === 'exited' || session.status === 'disconnected' ? session.status : 'running',
           output: outputBuffers.current.get(session.id) ?? ''
@@ -855,13 +856,13 @@ export function App(): JSX.Element {
             ? {
                 ...next,
                 kind: 'ssh',
-                label: session.label,
+                label: candidate.label,
                 localLabel: next.label,
-                remoteHost: session.remoteHost,
-                remoteTarget: session.remoteTarget,
-                reconnectCommand: session.reconnectCommand,
-                command: session.command,
-                createdAt: session.createdAt,
+                remoteHost: candidate.remoteHost,
+                remoteTarget: candidate.remoteTarget,
+                reconnectCommand: candidate.reconnectCommand,
+                command: candidate.command,
+                createdAt: candidate.createdAt,
                 status: 'running'
               }
             : candidate

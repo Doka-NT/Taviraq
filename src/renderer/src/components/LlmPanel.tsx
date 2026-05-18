@@ -32,6 +32,12 @@ import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
+  activateSecretProtectionDefaults,
+  hasActiveSecretProtection,
+  hasSelectedSecretProtectionScope,
+  updateSecretProtectionScope
+} from '@renderer/utils/secretMaskingUi'
+import {
   DISPLAY_SECRET_LABEL,
   SECRET_PLACEHOLDER_GLOBAL_RE,
   SECRET_PLACEHOLDER_RE
@@ -2010,6 +2016,15 @@ export function LlmPanel({
     saveSecretMaskingSettings(updater(secretMaskingSettings))
   }, [saveSecretMaskingSettings, secretMaskingSettings])
 
+  const toggleSecretProtection = useCallback(() => {
+    if (hasActiveSecretProtection(secretMaskingSettings)) {
+      updateSecretMaskingMode('off')
+      return
+    }
+
+    updateSecretMaskingSetting(activateSecretProtectionDefaults)
+  }, [secretMaskingSettings, updateSecretMaskingMode, updateSecretMaskingSetting])
+
   const addCustomSecretPattern = useCallback(() => {
     const name = customPatternName.trim()
     const pattern = customPatternRegex.trim()
@@ -2244,10 +2259,14 @@ export function LlmPanel({
     activationHasCredential
   const enabledCustomPatternCount = secretMaskingSettings.customPatterns.filter((pattern) => pattern.enabled).length
   const activePatternCategoryCount = SECURITY_PATTERN_CATEGORIES.length + (enabledCustomPatternCount > 0 ? 1 : 0)
-  const enabledMaskingScopes = [
+  const selectedProtectionScopes = [
     secretMaskingSettings.applyToProviderPayloads ? t('security.scope.providerPayloads.short') : '',
-    secretMaskingSettings.applyToChatDisplay ? t('security.scope.chatDisplay.short') : ''
+    secretMaskingSettings.applyToChatDisplay ? t('security.scope.chatDisplay.short') : '',
+    secretMaskingSettings.strictTerminalContext ? t('security.strictMode.short') : ''
   ].filter(Boolean)
+  const enabledProtectionScopes = secretMaskingMode === 'on' ? selectedProtectionScopes : []
+  const secretProtectionActive = hasActiveSecretProtection(secretMaskingSettings)
+  const secretProtectionNeedsScope = secretMaskingMode === 'on' && !hasSelectedSecretProtectionScope(secretMaskingSettings)
   const activationStatus = providerStatus ? statusToInlineStatus(providerStatus) : null
   const handleActivationProviderTypeChange = useCallback((providerType: LLMProviderType) => {
     setProvider((current) => ({
@@ -2867,7 +2886,7 @@ export function LlmPanel({
                         <div className="security-summary-item">
                           <Eye size={15} aria-hidden />
                           <span>{t('security.summary.scopes')}</span>
-                          <strong>{enabledMaskingScopes.length > 0 ? enabledMaskingScopes.join(' + ') : t('security.summary.noScopes')}</strong>
+                          <strong>{enabledProtectionScopes.length > 0 ? enabledProtectionScopes.join(' + ') : t('security.summary.noScopes')}</strong>
                         </div>
                         <div className="security-summary-item">
                           <Activity size={15} aria-hidden />
@@ -2876,32 +2895,47 @@ export function LlmPanel({
                         </div>
                       </div>
 
-                      <div className={`appearance-row security-row ${secretMaskingMode === 'on' ? 'security-row--on' : 'security-row--off'}`}>
+                      <div className={`appearance-row security-row ${secretProtectionActive ? 'security-row--on' : 'security-row--off'}`}>
                         <div className="appearance-row-left security-row-left">
                           <div className="security-row-heading">
                             <span className="security-row-icon" aria-hidden>
-                              {secretMaskingMode === 'on' ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
+                              {secretProtectionActive ? <ShieldCheck size={13} /> : <ShieldOff size={13} />}
                             </span>
                             <span className="appearance-row-label"><HighlightSearchText text={t('security.secretMasking.label')} query={settingsSearch} /></span>
                             <span className="security-row-state">
                               <HighlightSearchText
-                                text={secretMaskingMode === 'on' ? t('security.secretMasking.onState') : t('security.secretMasking.offState')}
+                                text={
+                                  secretProtectionActive
+                                    ? t('security.secretMasking.onState')
+                                    : secretProtectionNeedsScope
+                                      ? t('security.secretMasking.noScopesState')
+                                      : t('security.secretMasking.offState')
+                                }
                                 query={settingsSearch}
                               />
                             </span>
                           </div>
                           <small className="appearance-row-desc">
                             <HighlightSearchText
-                              text={secretMaskingMode === 'on' ? t('security.secretMasking.onDesc') : t('security.secretMasking.offDesc')}
+                              text={
+                                secretProtectionActive
+                                  ? t('security.secretMasking.onDesc')
+                                  : secretProtectionNeedsScope
+                                    ? t('security.secretMasking.noScopesDesc')
+                                    : t('security.secretMasking.offDesc')
+                              }
                               query={settingsSearch}
                             />
                           </small>
                           <small className="security-row-footnote"><HighlightSearchText text={t('security.secretMasking.desc')} query={settingsSearch} /></small>
-                          <small className={`security-row-warning ${secretMaskingMode === 'off' ? '' : 'security-row-warning--reserved'}`}>
-                            {secretMaskingMode === 'off' ? <AlertTriangle size={11} aria-hidden /> : null}
+                          <small className={`security-row-warning ${secretProtectionActive ? 'security-row-warning--reserved' : ''}`}>
+                            {!secretProtectionActive ? <AlertTriangle size={11} aria-hidden /> : null}
                             <span>
-                              {secretMaskingMode === 'off' ? (
-                                <HighlightSearchText text={t('security.secretMasking.warning')} query={settingsSearch} />
+                              {!secretProtectionActive ? (
+                                <HighlightSearchText
+                                  text={secretProtectionNeedsScope ? t('security.secretMasking.noScopesWarning') : t('security.secretMasking.warning')}
+                                  query={settingsSearch}
+                                />
                               ) : null}
                             </span>
                           </small>
@@ -2909,12 +2943,12 @@ export function LlmPanel({
                         <div className="appearance-row-right">
                           <button
                             type="button"
-                            className={`security-switch ${secretMaskingMode === 'on' ? 'on' : ''}`}
+                            className={`security-switch ${secretProtectionActive ? 'on' : ''}`}
                             role="switch"
-                            aria-checked={secretMaskingMode === 'on'}
+                            aria-checked={secretProtectionActive}
                             aria-label={t('security.secretMasking.label')}
-                            title={secretMaskingMode === 'on' ? t('security.secretMasking.on') : t('security.secretMasking.off')}
-                            onClick={() => updateSecretMaskingMode(secretMaskingMode === 'on' ? 'off' : 'on')}
+                            title={secretProtectionActive ? t('security.secretMasking.on') : t('security.secretMasking.off')}
+                            onClick={toggleSecretProtection}
                           >
                             <span aria-hidden />
                           </button>
@@ -2934,10 +2968,11 @@ export function LlmPanel({
                             <input
                               type="checkbox"
                               checked={secretMaskingSettings.applyToProviderPayloads}
-                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
-                                ...settings,
-                                applyToProviderPayloads: event.target.checked
-                              }))}
+                              onChange={(event) => updateSecretMaskingSetting((settings) =>
+                                updateSecretProtectionScope(settings, {
+                                  applyToProviderPayloads: event.target.checked
+                                })
+                              )}
                             />
                             <i aria-hidden />
                           </label>
@@ -2949,10 +2984,11 @@ export function LlmPanel({
                             <input
                               type="checkbox"
                               checked={secretMaskingSettings.applyToChatDisplay}
-                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
-                                ...settings,
-                                applyToChatDisplay: event.target.checked
-                              }))}
+                              onChange={(event) => updateSecretMaskingSetting((settings) =>
+                                updateSecretProtectionScope(settings, {
+                                  applyToChatDisplay: event.target.checked
+                                })
+                              )}
                             />
                             <i aria-hidden />
                           </label>
@@ -2964,10 +3000,11 @@ export function LlmPanel({
                             <input
                               type="checkbox"
                               checked={secretMaskingSettings.strictTerminalContext}
-                              onChange={(event) => updateSecretMaskingSetting((settings) => ({
-                                ...settings,
-                                strictTerminalContext: event.target.checked
-                              }))}
+                              onChange={(event) => updateSecretMaskingSetting((settings) =>
+                                updateSecretProtectionScope(settings, {
+                                  strictTerminalContext: event.target.checked
+                                })
+                              )}
                             />
                             <i aria-hidden />
                           </label>

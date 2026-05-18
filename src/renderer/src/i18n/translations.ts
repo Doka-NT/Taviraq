@@ -103,9 +103,12 @@ export interface Translations {
   'security.secretMasking.on': string
   'security.secretMasking.onState': string
   'security.secretMasking.offState': string
+  'security.secretMasking.noScopesState': string
   'security.secretMasking.onDesc': string
   'security.secretMasking.offDesc': string
+  'security.secretMasking.noScopesDesc': string
   'security.secretMasking.warning': string
+  'security.secretMasking.noScopesWarning': string
   'security.maskedSecret.inline': string
   'security.summary.categories': string
   'security.summary.scopes': string
@@ -119,6 +122,7 @@ export interface Translations {
   'security.scope.chatDisplay.short': string
   'security.scope.chatDisplay.desc': string
   'security.strictMode': string
+  'security.strictMode.short': string
   'security.strictMode.desc': string
   'security.patterns.title': string
   'security.category.apiKeys': string
@@ -493,12 +497,15 @@ export const en: Translations = {
   'security.secretMasking.on': 'On',
   'security.secretMasking.onState': 'Protected',
   'security.secretMasking.offState': 'Unprotected',
-  'security.secretMasking.onDesc': 'Secret detection is active before provider requests.',
+  'security.secretMasking.noScopesState': 'No active protection',
+  'security.secretMasking.onDesc': 'Protection is active for the selected areas.',
   'security.secretMasking.offDesc': 'Secret detection is turned off.',
+  'security.secretMasking.noScopesDesc': 'No provider, display, or strict-context protection is enabled.',
   'security.secretMasking.warning': 'Sensitive values may be sent to the provider.',
+  'security.secretMasking.noScopesWarning': 'Nothing is protected until at least one area is enabled.',
   'security.maskedSecret.inline': '[secret]',
   'security.summary.categories': 'Active categories',
-  'security.summary.scopes': 'Masking scope',
+  'security.summary.scopes': 'Active protection',
   'security.summary.audit': 'Audit events',
   'security.summary.noScopes': 'None',
   'security.scopes.title': 'Masking scope and context policy',
@@ -509,6 +516,7 @@ export const en: Translations = {
   'security.scope.chatDisplay.short': 'Display',
   'security.scope.chatDisplay.desc': 'Hide secrets in chat, command output, and saved history.',
   'security.strictMode': 'Strict terminal context',
+  'security.strictMode.short': 'Strict context',
   'security.strictMode.desc': 'Never include selected terminal text or output in provider requests.',
   'security.patterns.title': 'Active detection categories',
   'security.category.apiKeys': 'API keys',
@@ -869,12 +877,15 @@ export const ru: Translations = {
   'security.secretMasking.on': 'Вкл.',
   'security.secretMasking.onState': 'Защищено',
   'security.secretMasking.offState': 'Не защищено',
-  'security.secretMasking.onDesc': 'Секреты маскируются перед отправкой провайдеру.',
+  'security.secretMasking.noScopesState': 'Нет активной защиты',
+  'security.secretMasking.onDesc': 'Защита включена для выбранных областей.',
   'security.secretMasking.offDesc': 'Определение секретов отключено.',
+  'security.secretMasking.noScopesDesc': 'Не включены запросы провайдеру, отображение или строгий контекст.',
   'security.secretMasking.warning': 'Чувствительные данные могут быть отправлены провайдеру.',
+  'security.secretMasking.noScopesWarning': 'Ничего не защищено, пока не включена хотя бы одна область.',
   'security.maskedSecret.inline': '[secret]',
   'security.summary.categories': 'Активные категории',
-  'security.summary.scopes': 'Область маскирования',
+  'security.summary.scopes': 'Активная защита',
   'security.summary.audit': 'События аудита',
   'security.summary.noScopes': 'Нет',
   'security.scopes.title': 'Область маскирования и политика контекста',
@@ -885,6 +896,7 @@ export const ru: Translations = {
   'security.scope.chatDisplay.short': 'Экран',
   'security.scope.chatDisplay.desc': 'Скрывать секреты в чате, выводе команд и истории.',
   'security.strictMode': 'Строгий контекст терминала',
+  'security.strictMode.short': 'Строгий контекст',
   'security.strictMode.desc': 'Не включать выделенный текст и вывод терминала в запросы провайдеру.',
   'security.patterns.title': 'Активные категории детекции',
   'security.category.apiKeys': 'API-ключи',
@@ -1245,12 +1257,15 @@ export const cn: Translations = {
   'security.secretMasking.on': '开启',
   'security.secretMasking.onState': '已保护',
   'security.secretMasking.offState': '未保护',
-  'security.secretMasking.onDesc': '发送给提供商前会检测密钥。',
+  'security.secretMasking.noScopesState': '没有活动保护',
+  'security.secretMasking.onDesc': '已为所选区域启用保护。',
   'security.secretMasking.offDesc': '密钥检测已关闭。',
+  'security.secretMasking.noScopesDesc': '未启用提供商、显示或严格上下文保护。',
   'security.secretMasking.warning': '敏感值可能会发送给提供商。',
+  'security.secretMasking.noScopesWarning': '启用至少一个区域之前不会保护任何内容。',
   'security.maskedSecret.inline': '[secret]',
   'security.summary.categories': '启用类别',
-  'security.summary.scopes': '遮蔽范围',
+  'security.summary.scopes': '活动保护',
   'security.summary.audit': '审计事件',
   'security.summary.noScopes': '无',
   'security.scopes.title': '遮蔽范围和上下文策略',
@@ -1261,6 +1276,7 @@ export const cn: Translations = {
   'security.scope.chatDisplay.short': '显示',
   'security.scope.chatDisplay.desc': '在聊天、命令输出和历史中隐藏密钥。',
   'security.strictMode': '严格终端上下文',
+  'security.strictMode.short': '严格上下文',
   'security.strictMode.desc': '不要把选中的终端文本或输出包含在提供商请求中。',
   'security.patterns.title': '启用的检测类别',
   'security.category.apiKeys': 'API 密钥',

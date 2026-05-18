@@ -48,15 +48,20 @@ type ProviderRequestInit = RequestInit & {
   dispatcher?: Dispatcher
 }
 
+export interface ProviderCredentialOverrides {
+  apiKey?: string
+  proxyPassword?: string
+}
+
 const LANGUAGE_NAMES: Record<string, string> = {
   ru: 'Russian',
   cn: 'Chinese'
 }
 
-export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
+export async function listModels(provider: LLMProviderConfig, credentialOverrides?: ProviderCredentialOverrides): Promise<LLMModel[]> {
   const providerType = getProviderType(provider)
   if (providerType === 'anthropic') {
-    return listAnthropicModels(provider)
+    return listAnthropicModels(provider, credentialOverrides)
   }
 
   const url = providerType === 'lmstudio'
@@ -65,8 +70,8 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
       ? buildOllamaNativeUrl(provider.baseUrl || PROVIDER_DEFAULTS.ollama.baseUrl, 'tags')
       : buildProviderUrl(provider, 'models')
   const response = await fetchProvider(url, await withProviderTransport(provider, {
-    headers: await buildHeaders(provider)
-  }), 'Model')
+    headers: await buildHeaders(provider, credentialOverrides?.apiKey)
+  }, credentialOverrides), 'Model')
 
   if (!response.ok) {
     throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
@@ -78,15 +83,15 @@ export async function listModels(provider: LLMProviderConfig): Promise<LLMModel[
   return parseModelList(payload)
 }
 
-async function listAnthropicModels(provider: LLMProviderConfig): Promise<LLMModel[]> {
+async function listAnthropicModels(provider: LLMProviderConfig, credentialOverrides?: ProviderCredentialOverrides): Promise<LLMModel[]> {
   const modelsById = new Map<string, LLMModel>()
   let afterId: string | undefined
 
   while (true) {
     const url = buildAnthropicModelsPageUrl(provider, afterId)
     const response = await fetchProvider(url, await withProviderTransport(provider, {
-      headers: await buildHeaders(provider)
-    }), 'Model')
+      headers: await buildHeaders(provider, credentialOverrides?.apiKey)
+    }, credentialOverrides), 'Model')
 
     if (!response.ok) {
       throw new Error(`Model request failed with ${response.status} ${response.statusText}`)
@@ -718,7 +723,11 @@ async function fetchProvider(url: string, init: RequestInit, label = 'Provider')
   }
 }
 
-async function withProviderTransport(provider: LLMProviderConfig, init: RequestInit): Promise<ProviderRequestInit> {
+async function withProviderTransport(
+  provider: LLMProviderConfig,
+  init: RequestInit,
+  credentialOverrides?: ProviderCredentialOverrides
+): Promise<ProviderRequestInit> {
   const proxyUrl = provider.proxyUrl?.trim()
   if (!proxyUrl) {
     if (!provider.allowInsecureTls) return init
@@ -730,13 +739,13 @@ async function withProviderTransport(provider: LLMProviderConfig, init: RequestI
 
   return {
     ...init,
-    dispatcher: await getProxyAgent(provider, proxyUrl)
+    dispatcher: await getProxyAgent(provider, proxyUrl, credentialOverrides?.proxyPassword)
   }
 }
 
-async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string): Promise<ProxyAgent> {
+async function getProxyAgent(provider: LLMProviderConfig, proxyUrl: string, proxyPasswordOverride?: string): Promise<ProxyAgent> {
   const proxy = normalizeHttpProxyUrl(proxyUrl)
-  const token = await buildProxyAuthToken(provider)
+  const token = await buildProxyAuthToken(provider, proxyPasswordOverride)
   const cacheKey = [
     provider.apiKeyRef,
     proxy,
@@ -781,13 +790,15 @@ export function invalidateProviderProxyAgents(apiKeyRef: string): void {
   }
 }
 
-async function buildProxyAuthToken(provider: LLMProviderConfig): Promise<string | undefined> {
+async function buildProxyAuthToken(provider: LLMProviderConfig, proxyPasswordOverride?: string): Promise<string | undefined> {
   const username = provider.proxyUsername?.trim()
   if (!username) return undefined
 
-  const password = provider.proxyPasswordRef
-    ? await getProxyPassword(provider.proxyPasswordRef)
-    : undefined
+  const password = proxyPasswordOverride !== undefined
+    ? proxyPasswordOverride
+    : provider.proxyPasswordRef
+      ? await getProxyPassword(provider.proxyPasswordRef)
+      : undefined
   return `Basic ${Buffer.from(`${username}:${password ?? ''}`).toString('base64')}`
 }
 
@@ -991,7 +1002,7 @@ function readLmStudioError(payload: Record<string, unknown> | undefined): string
     : 'LM Studio returned a streaming error.'
 }
 
-async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string, string>> {
+async function buildHeaders(provider: LLMProviderConfig, apiKeyOverride?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     ...(provider.defaultHeaders ?? {})
   }
@@ -1001,7 +1012,7 @@ async function buildHeaders(provider: LLMProviderConfig): Promise<Record<string,
     headers['anthropic-version'] = headers['anthropic-version'] ?? ANTHROPIC_API_VERSION
   }
 
-  const apiKey = await getApiKey(provider.apiKeyRef)
+  const apiKey = apiKeyOverride?.trim() || await getApiKey(provider.apiKeyRef)
   if (apiKey) {
     if (providerType === 'anthropic') {
       headers['x-api-key'] = apiKey

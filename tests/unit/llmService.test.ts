@@ -248,6 +248,46 @@ describe('llmService', () => {
     expect(getProxyPassword).toHaveBeenCalledWith('proxy-password:openai')
   })
 
+  it('uses draft API keys for model listing without reading the keychain', async () => {
+    vi.mocked(getApiKey).mockResolvedValue('saved-api-key')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listModels } = await import('@main/services/llmService')
+    await listModels({
+      name: 'OpenAI Compatible',
+      baseUrl: 'https://example.test',
+      apiKeyRef: 'openai'
+    }, {
+      apiKey: 'draft-api-key'
+    })
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer draft-api-key')
+    expect(getApiKey).not.toHaveBeenCalled()
+  })
+
+  it('uses draft proxy passwords for model listing without reading the keychain', async () => {
+    vi.mocked(getProxyPassword).mockResolvedValue('saved-proxy-password')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { listModels } = await import('@main/services/llmService')
+    await listModels({
+      name: 'OpenAI Compatible',
+      baseUrl: 'https://example.test',
+      apiKeyRef: 'openai',
+      proxyUrl: 'https://proxy.local:8443',
+      proxyUsername: 'proxy-user',
+      proxyPasswordRef: 'proxy-password:openai'
+    }, {
+      proxyPassword: 'draft-proxy-password'
+    })
+
+    expect(getProxyPassword).not.toHaveBeenCalled()
+  })
+
   it('rejects SOCKS proxy URLs for provider requests', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)

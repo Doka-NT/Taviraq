@@ -167,6 +167,7 @@ type ThreadMessage = ChatMessage & {
   reasoningContent?: string
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
+type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 
 interface CommandConfirmation {
   sessionId: string
@@ -262,6 +263,17 @@ function matchesSearchQuery(query: string, terms: Array<string | undefined>): bo
 
 function providerNeedsApiKey(providerType: LLMProviderType): boolean {
   return providerTypesWithApiKey.includes(providerType)
+}
+
+function getProviderStatusKey(provider: LLMProviderConfig): string {
+  return JSON.stringify([
+    provider.apiKeyRef?.trim() ?? '',
+    getProviderType(provider),
+    provider.baseUrl?.trim() ?? '',
+    provider.proxyUrl?.trim() ?? '',
+    provider.proxyUsername?.trim() ?? '',
+    provider.allowInsecureTls ? 'insecure-tls' : 'default-tls'
+  ])
 }
 
 function formatSecretCategory(value: string): string {
@@ -594,6 +606,9 @@ export function LlmPanel({
   const [editingProxyPassword, setEditingProxyPassword] = useState(false)
   const [hasProxyPassword, setHasProxyPassword] = useState(false)
   const [providerStatus, setProviderStatus] = useState('')
+  const [isTestingProvider, setIsTestingProvider] = useState(false)
+  const [providerKeyAvailability, setProviderKeyAvailability] = useState<Record<string, boolean>>({})
+  const [providerConnectionStates, setProviderConnectionStates] = useState<Record<string, ProviderConnectionState>>({})
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
@@ -892,15 +907,61 @@ export function LlmPanel({
     void window.api.llm.hasApiKey(apiKeyRef).then((hasKey) => {
       if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(hasKey)
+        setProviderKeyAvailability((current) => ({ ...current, [apiKeyRef]: hasKey }))
         setProviderSecretsLoaded(true)
       }
     }).catch(() => {
       if (providerSecretCheckVersionRef.current === secretCheckVersion) {
         setHasApiKey(false)
+        setProviderKeyAvailability((current) => ({ ...current, [apiKeyRef]: false }))
         setProviderSecretsLoaded(true)
       }
     })
   }, [provider.apiKeyRef])
+
+  useEffect(() => {
+    let cancelled = false
+    const refsToCheck = allProviders
+      .filter((candidate) => providerNeedsApiKey(getProviderType(candidate)))
+      .map((candidate) => candidate.apiKeyRef)
+      .filter((apiKeyRef, index, refs) => Boolean(apiKeyRef) && refs.indexOf(apiKeyRef) === index)
+
+    for (const apiKeyRef of refsToCheck) {
+      void window.api.llm.hasApiKey(apiKeyRef).then((hasKey) => {
+        if (!cancelled) {
+          setProviderKeyAvailability((current) => ({ ...current, [apiKeyRef]: hasKey }))
+        }
+      }).catch(() => {
+        if (!cancelled) {
+          setProviderKeyAvailability((current) => ({ ...current, [apiKeyRef]: false }))
+        }
+      })
+    }
+
+    setProviderKeyAvailability((current) => {
+      const next = { ...current }
+      for (const candidate of allProviders) {
+        if (candidate.apiKeyRef && !providerNeedsApiKey(getProviderType(candidate))) {
+          next[candidate.apiKeyRef] = true
+        }
+      }
+      return next
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [allProviders])
+
+  useEffect(() => {
+    setProviderConnectionStates((current) => {
+      const validKeys = new Set(allProviders.map((candidate) => getProviderStatusKey(candidate)))
+      validKeys.add(getProviderStatusKey(provider))
+      return Object.fromEntries(
+        Object.entries(current).filter(([statusKey]) => validKeys.has(statusKey))
+      )
+    })
+  }, [allProviders, provider])
 
   useEffect(() => {
     setHasProxyPassword(Boolean(provider.proxyPasswordRef))
@@ -1800,21 +1861,33 @@ export function LlmPanel({
     }))
   }, [activeSessionId, appendCommandEditNotice, confirmAgenticCommand, getThread, t, updateThread])
 
-  const applySavedProviderResult = useCallback((result: AppConfig, savedApiKey: string): void => {
+  const applySavedProviderResult = useCallback((
+    result: AppConfig,
+    options: { savedApiKey?: string; savedSecretDraft?: boolean } = {}
+  ): void => {
     const savedProvider = result.providers.find((candidate) => candidate.apiKeyRef === provider.apiKeyRef) ?? provider
+    if (options.savedSecretDraft) {
+      setProviderConnectionStates((current) => {
+        const next = { ...current }
+        delete next[getProviderStatusKey(provider)]
+        delete next[getProviderStatusKey(savedProvider)]
+        return next
+      })
+    }
     setProvider(savedProvider)
     setAllProviders(result.providers)
     setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
     setApiKey('')
     setProxyPassword('')
     setEditingProxyPassword(false)
-    if (savedApiKey) {
+    if (options.savedApiKey?.trim()) {
       providerSecretCheckVersionRef.current += 1
       if (savedProvider.apiKeyRef !== provider.apiKeyRef) {
         optimisticApiKeyRef.current = savedProvider.apiKeyRef
       }
       setCheckedApiKeyRef(savedProvider.apiKeyRef)
       setHasApiKey(true)
+      setProviderKeyAvailability((current) => ({ ...current, [savedProvider.apiKeyRef]: true }))
       setProviderSecretsLoaded(true)
     }
     setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
@@ -1837,7 +1910,10 @@ export function LlmPanel({
         ...(editingProxyPassword || proxyPassword ? { proxyPassword } : {})
       }
       const result = await window.api.llm.saveProvider(request)
-      applySavedProviderResult(result, apiKey)
+      applySavedProviderResult(result, {
+        savedApiKey: apiKey,
+        savedSecretDraft: Boolean(apiKey.trim() || editingProxyPassword || proxyPassword)
+      })
       setEditingApiKey(false)
       setProviderStatus(t('status.saved'))
     } catch (error) {
@@ -1858,7 +1934,10 @@ export function LlmPanel({
         apiKey,
         ...(shouldSendProxyPassword ? { proxyPassword: nextProxyPassword ?? proxyPassword } : {})
       })
-      applySavedProviderResult(result, apiKey)
+      applySavedProviderResult(result, {
+        savedApiKey: apiKey,
+        savedSecretDraft: Boolean(apiKey.trim() || shouldSendProxyPassword)
+      })
       setProviderStatus(t('status.saved'))
     } catch (error) {
       setProviderStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -1990,12 +2069,21 @@ export function LlmPanel({
   // Load models
   const loadModels = useCallback(async () => {
     if (loadingModelsRef.current) return
+    const providerStatusKey = getProviderStatusKey(provider)
+    if (!isValidProviderBaseUrl(provider.baseUrl)) {
+      setProviderStatus('Enter a valid http:// or https:// Base URL')
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
+      return
+    }
     if (!isValidProviderProxyUrl(provider.proxyUrl)) {
       setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
       return
     }
     loadingModelsRef.current = true
-    setProviderStatus('Loading models...')
+    setIsTestingProvider(true)
+    setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'checking' }))
+    setProviderStatus('Testing connection...')
     try {
       const result = await window.api.llm.listModels({
         provider,
@@ -2005,26 +2093,28 @@ export function LlmPanel({
       setModels(result.models)
       setProvider(result.provider)
       setAllProviders((providers) => upsertProviderInOrder(providers, result.provider))
-      setApiKey('')
-      if (apiKey) {
-        providerSecretCheckVersionRef.current += 1
-        if (result.provider.apiKeyRef !== provider.apiKeyRef) {
-          optimisticApiKeyRef.current = result.provider.apiKeyRef
-        }
-        setCheckedApiKeyRef(result.provider.apiKeyRef)
-        setHasApiKey(true)
-        setProviderSecretsLoaded(true)
-      }
-      if (editingProxyPassword || proxyPassword) {
-        setProxyPassword('')
-        setEditingProxyPassword(false)
+      if (!editingProxyPassword && !proxyPassword) {
         setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
       }
-      setProviderStatus(`${result.models.length} models loaded`)
+      setProviderConnectionStates((current) => {
+        const nextStatusKey = getProviderStatusKey(result.provider)
+        const next = { ...current, [nextStatusKey]: 'ready' as const }
+        if (nextStatusKey !== providerStatusKey) {
+          delete next[providerStatusKey]
+        }
+        return next
+      })
+      if (getProviderStatusKey(providerRef.current) === providerStatusKey) {
+        setProviderStatus(`${result.models.length} models loaded`)
+      }
     } catch (error) {
-      setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
+      if (getProviderStatusKey(providerRef.current) === providerStatusKey) {
+        setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
     } finally {
       loadingModelsRef.current = false
+      setIsTestingProvider(false)
     }
   }, [apiKey, editingProxyPassword, provider, proxyPassword])
 
@@ -2336,6 +2426,46 @@ export function LlmPanel({
   const handleFirstQuestion = useCallback(() => {
     setPromptDraft(t('onboarding.firstQuestionPrompt'))
   }, [setPromptDraft, t])
+  const getProviderListStatus = useCallback((candidate: LLMProviderConfig) => {
+    const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
+    const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef
+    const hasTypedKey = isCurrentProvider && apiKey.trim().length > 0
+    const hasSavedKey = candidate.apiKeyRef
+      ? isCurrentProvider ? activeHasApiKey : providerKeyAvailability[candidate.apiKeyRef]
+      : false
+    if (needsApiKey && !hasTypedKey && !hasSavedKey) {
+      return { tone: 'no-key', label: t('providers.status.noKey') }
+    }
+
+    const connectionState = providerConnectionStates[getProviderStatusKey(candidate)]
+    if (connectionState === 'checking') return { tone: 'checking', label: t('providers.status.checking') }
+    if (connectionState === 'error') return { tone: 'error', label: t('providers.status.error') }
+    const hasUntestedSecretDraft = isCurrentProvider && (
+      editingApiKey ||
+      apiKey.trim().length > 0 ||
+      editingProxyPassword ||
+      proxyPassword.length > 0
+    )
+    if (connectionState === 'ready' && !hasUntestedSecretDraft) {
+      if (candidate.apiKeyRef === activeProviderRef) {
+        return { tone: 'active-ready', label: t('providers.status.activeReady') }
+      }
+      return { tone: 'ready', label: t('providers.status.ready') }
+    }
+    if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }
+    return { tone: 'unknown', label: t('providers.status.notTested') }
+  }, [
+    activeHasApiKey,
+    activeProviderRef,
+    apiKey,
+    editingApiKey,
+    editingProxyPassword,
+    provider.apiKeyRef,
+    providerConnectionStates,
+    providerKeyAvailability,
+    proxyPassword,
+    t
+  ])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
@@ -2365,7 +2495,8 @@ export function LlmPanel({
         t('providers.proxyUrl'), t('providers.proxyUsername'), t('providers.proxyPassword'),
         t('providers.apiKey'), t('providers.allowInsecureTls'), t('providers.apiKey.saved'),
         t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
-        'openai ollama lm studio anthropic claude model api key base url proxy http https tls provider safety'
+        t('providers.testConnection'), t('providers.status.ready'), t('providers.status.error'),
+        'openai ollama lm studio anthropic claude model api key base url proxy http https tls provider safety test connection status'
       ]
     },
     {
@@ -2715,6 +2846,7 @@ export function LlmPanel({
                           {allProviders.map((p) => {
                             const isEditingProvider = p.apiKeyRef === provider.apiKeyRef
                             const isActiveProvider = p.apiKeyRef === activeProviderRef
+                            const listStatus = getProviderListStatus(p)
                             return (
                               <div
                                 key={p.apiKeyRef}
@@ -2725,8 +2857,10 @@ export function LlmPanel({
                                 onKeyDown={(e) => { if (e.key === 'Enter') switchProvider(p) }}
                               >
                                 <span className={`provider-active-dot ${isActiveProvider ? 'visible' : ''}`} />
-                                <span className="provider-list-item-name">{p.name || t('providers.unnamed')}</span>
-                                {isActiveProvider ? <span className="provider-active-label">{t('providers.active')}</span> : null}
+                                <span className="provider-list-item-main">
+                                  <span className="provider-list-item-name">{p.name || t('providers.unnamed')}</span>
+                                  <span className={`provider-status-badge ${listStatus.tone}`}>{listStatus.label}</span>
+                                </span>
                                 {allProviders.length > 1 ? (
                                   <button
                                     type="button"
@@ -2814,6 +2948,15 @@ export function LlmPanel({
                           <button type="button" className="primary-button provider-save-button" onClick={() => void saveProvider()}>
                             <KeyRound size={14} aria-hidden />
                             {t('providers.save')}
+                          </button>
+                          <button
+                            type="button"
+                            className="quiet-button provider-test-button"
+                            disabled={isTestingProvider}
+                            onClick={() => void loadModels()}
+                          >
+                            <RefreshCw size={14} aria-hidden />
+                            {isTestingProvider ? t('providers.testing') : t('providers.testConnection')}
                           </button>
                         </div>
                         {providerStatus ? (

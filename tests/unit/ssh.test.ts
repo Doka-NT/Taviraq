@@ -50,6 +50,10 @@ describe('SSH command generation', () => {
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com'
     })
+    expect(parseSshCommandTarget('ssh -P work -i ~/id_ed25519 myhost.com')).toEqual({
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
+    })
   })
 
   it('parses an ssh command into spawn arguments and target metadata', () => {

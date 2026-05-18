@@ -763,9 +763,16 @@ export function App(): JSX.Element {
 
     const offSession = window.api.terminal.onSession((updatedSession) => {
       setSessions((current) =>
-        current.map((session) =>
-          session.id === updatedSession.id ? { ...updatedSession, status: session.status } : session
-        )
+        current.map((session) => {
+          if (session.id !== updatedSession.id) return session
+          const hasCustomLocalLabel = session.localLabel !== undefined && session.label !== session.localLabel
+          return {
+            ...updatedSession,
+            label: hasCustomLocalLabel ? session.label : updatedSession.label,
+            localLabel: hasCustomLocalLabel ? session.localLabel : updatedSession.localLabel,
+            status: session.status
+          }
+        })
       )
     })
 

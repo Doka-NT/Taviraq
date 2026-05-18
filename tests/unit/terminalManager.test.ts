@@ -297,4 +297,37 @@ describe('TerminalManager.connectSshCommand', () => {
       ]
     }))
   })
+
+  it('does not treat -P tag values as the SSH target', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-7',
+      kind: 'ssh',
+      label: 'myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com',
+      reconnectCommand: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      command: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      createdAt: 7
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -P work -i ~/id_ed25519 myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-P',
+        'work',
+        '-i',
+        `${homedir()}/id_ed25519`,
+        'myhost.com'
+      ],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
+    }))
+  })
 })

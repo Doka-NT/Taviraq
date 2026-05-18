@@ -196,11 +196,13 @@ function splitShellWordsDetailed(command: string): ShellWord[] {
 }
 
 const SSH_OPTIONS_WITH_VALUE = new Set([
-  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-m',
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-P',
   '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w'
 ])
 
 const SSH_OPTION_PREFIXES_WITH_VALUE = [
-  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-m',
+  '-B', '-b', '-c', '-D', '-E', '-e', '-F', '-I', '-i', '-J', '-L', '-l', '-m',
+  '-P',
   '-O', '-o', '-p', '-Q', '-R', '-S', '-W', '-w'
 ]

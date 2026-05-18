@@ -320,6 +320,7 @@ export function App(): JSX.Element {
     setSessions((current) =>
       current.map((session) =>
         session.id === sessionId && session.status !== 'disconnected'
+          && session.status !== 'reconnecting'
           ? { ...session, status: 'running' }
           : session
       )

@@ -93,7 +93,7 @@ export class TerminalManager {
       label: request.label?.trim() || request.remoteTarget || ssh.remoteTarget,
       command: request.command,
       file: ssh.file,
-      args: expandSshCommandArgs(ssh.args),
+      args: expandSshCommandArgs(ssh.args, ssh.argSingleQuoted),
       cwd: resolveExistingCwd(request.cwd, fallbackCwd),
       cols: request.cols,
       rows: request.rows,
@@ -594,12 +594,13 @@ function stripAnsi(value: string): string {
   return value.replace(ANSI_CSI_PATTERN, '')
 }
 
-function expandSshCommandArgs(args: string[]): string[] {
+function expandSshCommandArgs(args: string[], argSingleQuoted: boolean[]): string[] {
   const expanded: string[] = []
   let beforeTarget = true
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index]
+    const singleQuoted = argSingleQuoted[index] ?? false
 
     if (!beforeTarget) {
       expanded.push(arg)
@@ -615,7 +616,7 @@ function expandSshCommandArgs(args: string[]): string[] {
     if (SSH_PATH_OPTIONS_WITH_VALUE.has(arg)) {
       expanded.push(arg)
       if (args[index + 1] !== undefined) {
-        expanded.push(expandSshCommandArg(args[index + 1]))
+        expanded.push(expandSshCommandArg(args[index + 1], argSingleQuoted[index + 1] ?? false))
         index += 1
       }
       continue
@@ -623,21 +624,21 @@ function expandSshCommandArgs(args: string[]): string[] {
 
     const pathPrefix = SSH_PATH_OPTION_PREFIXES_WITH_VALUE.find((prefix) => arg.startsWith(prefix) && arg.length > prefix.length)
     if (pathPrefix) {
-      expanded.push(`${pathPrefix}${expandSshCommandArg(arg.slice(pathPrefix.length))}`)
+      expanded.push(`${pathPrefix}${expandSshCommandArg(arg.slice(pathPrefix.length), singleQuoted)}`)
       continue
     }
 
     if (arg === '-o') {
       expanded.push(arg)
       if (args[index + 1] !== undefined) {
-        expanded.push(expandSshOptionValue(args[index + 1]))
+        expanded.push(expandSshOptionValue(args[index + 1], argSingleQuoted[index + 1] ?? false))
         index += 1
       }
       continue
     }
 
     if (arg.startsWith('-o') && arg.length > 2) {
-      expanded.push(`-o${expandSshOptionValue(arg.slice(2))}`)
+      expanded.push(`-o${expandSshOptionValue(arg.slice(2), singleQuoted)}`)
       continue
     }
 
@@ -667,7 +668,7 @@ function expandSshCommandArgs(args: string[]): string[] {
   return expanded
 }
 
-function expandSshOptionValue(value: string): string {
+function expandSshOptionValue(value: string, singleQuoted: boolean): string {
   const equalIndex = value.indexOf('=')
   if (equalIndex === -1) {
     return value
@@ -678,10 +679,14 @@ function expandSshOptionValue(value: string): string {
     return value
   }
 
-  return `${value.slice(0, equalIndex + 1)}${expandSshCommandArg(value.slice(equalIndex + 1))}`
+  return `${value.slice(0, equalIndex + 1)}${expandSshCommandArg(value.slice(equalIndex + 1), singleQuoted)}`
 }
 
-function expandSshCommandArg(arg: string): string {
+function expandSshCommandArg(arg: string, singleQuoted: boolean): string {
+  if (singleQuoted) {
+    return arg
+  }
+
   const withVariables = arg.replace(/\$(\w+)|\$\{([A-Za-z_]\w*)\}/g, (_match, bare: string | undefined, braced: string | undefined) => {
     const name = bare ?? braced
     return name ? process.env[name] ?? '' : ''

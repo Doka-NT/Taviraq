@@ -266,4 +266,35 @@ describe('TerminalManager.connectSshCommand', () => {
       remoteTarget: 'deploy@myhost.com'
     }))
   })
+
+  it('does not expand single-quoted SSH path option values', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-6',
+      kind: 'ssh',
+      label: 'myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com',
+      reconnectCommand: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      command: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      createdAt: 6
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com',
+      cwd: '/tmp'
+    })
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-i',
+        '$HOME/.ssh/id_ed25519',
+        '-F',
+        `${process.env.HOME ?? ''}/.ssh/config`,
+        'myhost.com'
+      ]
+    }))
+  })
 })

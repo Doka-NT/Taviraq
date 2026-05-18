@@ -683,7 +683,12 @@ export function App(): JSX.Element {
           const fallbackNotice = saved.cwd && session.cwd !== saved.cwd
             ? `\r\n[Taviraq restored this tab in ${session.cwd ?? 'your home directory'} because ${saved.cwd} was unavailable.]\r\n`
             : ''
-          restoredSessions.push({ ...session, status: 'running' })
+          restoredSessions.push({
+            ...session,
+            label: saved.label || session.label,
+            localLabel: saved.localLabel ?? session.localLabel,
+            status: 'running'
+          })
           idMap.set(saved.id, session.id)
           restoredOutputs.set(session.id, `${saved.output ?? ''}${fallbackNotice}`)
         } else {

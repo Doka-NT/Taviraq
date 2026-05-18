@@ -56,8 +56,19 @@ describe('SSH command generation', () => {
     expect(parseSshCommand('/usr/bin/ssh -p 2222 -i ~/.ssh/id_ed25519 deploy@myhost.com')).toEqual({
       file: '/usr/bin/ssh',
       args: ['-p', '2222', '-i', '~/.ssh/id_ed25519', 'deploy@myhost.com'],
+      argSingleQuoted: [false, false, false, false, false],
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com'
+    })
+  })
+
+  it('preserves single-quote context for parsed ssh command arguments', () => {
+    expect(parseSshCommand('ssh -i \'$HOME/.ssh/id_ed25519\' -F "$HOME/.ssh/config" myhost.com')).toEqual({
+      file: 'ssh',
+      args: ['-i', '$HOME/.ssh/id_ed25519', '-F', '$HOME/.ssh/config', 'myhost.com'],
+      argSingleQuoted: [false, true, false, false, false],
+      remoteHost: 'myhost.com',
+      remoteTarget: 'myhost.com'
     })
   })
 })

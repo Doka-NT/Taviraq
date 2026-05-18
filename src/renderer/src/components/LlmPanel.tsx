@@ -265,12 +265,13 @@ function providerNeedsApiKey(providerType: LLMProviderType): boolean {
 }
 
 function getProviderStatusKey(provider: LLMProviderConfig): string {
-  const apiKeyRef = provider.apiKeyRef.trim()
-  if (apiKeyRef) return apiKeyRef
   return [
+    provider.apiKeyRef?.trim() ?? '',
     getProviderType(provider),
-    provider.name.trim(),
-    provider.baseUrl.trim()
+    provider.baseUrl?.trim() ?? '',
+    provider.proxyUrl?.trim() ?? '',
+    provider.proxyUsername?.trim() ?? '',
+    provider.allowInsecureTls ? 'insecure-tls' : 'default-tls'
   ].join(':')
 }
 

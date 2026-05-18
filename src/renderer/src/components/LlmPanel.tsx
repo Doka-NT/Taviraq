@@ -268,6 +268,7 @@ function getProviderStatusKey(provider: LLMProviderConfig): string {
   return [
     provider.apiKeyRef?.trim() ?? '',
     getProviderType(provider),
+    provider.name?.trim() ?? '',
     provider.baseUrl?.trim() ?? '',
     provider.proxyUrl?.trim() ?? '',
     provider.proxyUsername?.trim() ?? '',

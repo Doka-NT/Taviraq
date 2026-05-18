@@ -43,6 +43,7 @@ import {
   SECRET_PLACEHOLDER_GLOBAL_RE,
   SECRET_PLACEHOLDER_RE
 } from '@shared/secretPlaceholders'
+import type { SessionTabInfo } from '@renderer/utils/sessionTabs'
 
 // ...existing code...
 
@@ -495,7 +496,7 @@ function electronToDisplay(shortcut: string): string {
 }
 
 interface LlmPanelProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
+  activeSession?: SessionTabInfo
   sessionIds: string[]
   selectedText: string
   getOutput: () => string

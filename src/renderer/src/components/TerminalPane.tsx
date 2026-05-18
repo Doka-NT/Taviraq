@@ -8,14 +8,15 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick, Play, Search, Sparkles, SquareCheckBig, SquareTerminal, X } from 'lucide-react'
-import type { TerminalBlock, TerminalSessionInfo } from '@shared/types'
+import type { TerminalBlock } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
+import type { SessionTabInfo } from '@renderer/utils/sessionTabs'
 import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
+  activeSession?: SessionTabInfo
   sessionIds: string[]
   layoutKey: string
   textSize: number

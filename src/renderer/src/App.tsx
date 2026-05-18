@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { ChevronLeft, Command, PanelRightClose, PanelRightOpen, Play, Plus, Search, Server, Settings2, ShieldAlert, Terminal, X } from 'lucide-react'
+import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Play, Plus, Search, Settings2, ShieldAlert } from 'lucide-react'
 import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
@@ -10,9 +10,10 @@ import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
+import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
-  status: 'running' | 'exited' | 'disconnected'
+  status: SessionTabStatus
 }
 
 const MAX_OUTPUT_CHARS = 2 * 1024 * 1024
@@ -58,6 +59,17 @@ interface PendingBlockPrompt {
 interface PendingBlockRerun {
   sessionId: string
   command: string
+}
+
+interface TabContextMenuState {
+  sessionId: string
+  x: number
+  y: number
+}
+
+interface RenameSessionRequest {
+  sessionId: string
+  label: string
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -125,21 +137,6 @@ function migrateLocalStorageKeys(): void {
       legacyValue === 'ai-terminal-dark' ? DEFAULT_THEME_ID : legacyValue
     )
   }
-}
-
-function getTabLabel(session: TerminalSessionInfo): string {
-  if (session.kind !== 'ssh') {
-    return session.label
-  }
-
-  const remoteTarget = session.remoteTarget?.trim()
-  if (!remoteTarget) {
-    return session.label
-  }
-
-  return session.label && session.label !== remoteTarget
-    ? `${session.label} · ${remoteTarget}`
-    : remoteTarget
 }
 
 function lineCount(output: string): number {
@@ -268,6 +265,8 @@ export function App(): JSX.Element {
   const [snippetDraftRequest, setSnippetDraftRequest] = useState<SnippetDraftRequest | null>(null)
   const [pendingBlockPrompt, setPendingBlockPrompt] = useState<PendingBlockPrompt | null>(null)
   const [pendingBlockRerun, setPendingBlockRerun] = useState<PendingBlockRerun | null>(null)
+  const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null)
+  const [renameSessionRequest, setRenameSessionRequest] = useState<RenameSessionRequest | null>(null)
 
   const activeSession = useMemo(
     () => sessions.find((session) => session.id === activeSessionId),
@@ -313,6 +312,13 @@ export function App(): JSX.Element {
   }, [])
 
   const handleCommandBlockStart = useCallback((sessionId: string, command: string, echoed: boolean): void => {
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === sessionId && session.status !== 'disconnected'
+          ? { ...session, status: 'running' }
+          : session
+      )
+    )
     const output = outputBuffers.current.get(sessionId) ?? ''
     const start = resolveNewBlockStart(output, command, echoed)
     const activeBlockId = activeBlockIdsRef.current.get(sessionId)
@@ -343,6 +349,13 @@ export function App(): JSX.Element {
   }, [touchTerminalBlocks])
 
   const handleCommandBlockComplete = useCallback((sessionId: string): void => {
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === sessionId && session.status === 'running'
+          ? { ...session, status: 'idle' }
+          : session
+      )
+    )
     const blockId = activeBlockIdsRef.current.get(sessionId)
     if (!blockId) return
 
@@ -449,7 +462,9 @@ export function App(): JSX.Element {
           reconnectCommand: session.reconnectCommand,
           command: session.command,
           createdAt: session.createdAt,
-          status: session.kind === 'ssh' ? 'disconnected' : session.status,
+          status: session.kind === 'ssh'
+            ? 'disconnected'
+            : session.status === 'exited' || session.status === 'disconnected' ? session.status : 'running',
           output: outputBuffers.current.get(session.id) ?? ''
         })),
         assistantThreads
@@ -551,6 +566,18 @@ export function App(): JSX.Element {
       document.removeEventListener('keydown', onKey)
     }
   }, [newTabDropdownOpen])
+
+  useEffect(() => {
+    if (!tabContextMenu) return
+    const onClick = () => setTabContextMenu(null)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setTabContextMenu(null) }
+    document.addEventListener('click', onClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [tabContextMenu])
 
   const startSidebarResize = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -753,7 +780,7 @@ export function App(): JSX.Element {
 
   const closeSession = useCallback(async (sessionId: string) => {
     const closing = sessions.find((session) => session.id === sessionId)
-    if (closing?.status !== 'disconnected') {
+    if (closing?.status !== 'disconnected' && closing?.status !== 'reconnecting') {
       await window.api.terminal.kill(sessionId)
     }
     outputBuffers.current.delete(sessionId)
@@ -775,41 +802,102 @@ export function App(): JSX.Element {
   const reconnectSession = useCallback(async (sessionId: string) => {
     const session = sessions.find((candidate) => candidate.id === sessionId)
     if (!session?.reconnectCommand) return
+    if (session.status !== 'disconnected' && session.status !== 'exited') return
 
-    const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
-    const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
-    const fallbackNotice = session.cwd && next.cwd !== session.cwd
-      ? `\r\n[Taviraq reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
-      : ''
-    outputBuffers.current.delete(sessionId)
-    outputBuffers.current.set(next.id, `${restoredOutput}${fallbackNotice}`)
-    terminalBlocksRef.current.delete(sessionId)
-    activeBlockIdsRef.current.delete(sessionId)
-    setSelectedBlockIds([])
-    touchTerminalBlocks()
-    assistantThreadsRef.current = remapAssistantThreadId(assistantThreadsRef.current, sessionId, next.id)
-    setRestoredAssistantThreads(assistantThreadsRef.current)
     setSessions((current) =>
       current.map((candidate) =>
-        candidate.id === sessionId
-          ? {
-              ...next,
-              kind: 'ssh',
-              label: session.label,
-              localLabel: next.label,
-              remoteHost: session.remoteHost,
-              remoteTarget: session.remoteTarget,
-              reconnectCommand: session.reconnectCommand,
-              command: session.command,
-              createdAt: session.createdAt,
-              status: 'running'
-            }
-          : candidate
+        candidate.id === sessionId ? { ...candidate, status: 'reconnecting' } : candidate
       )
     )
-    setActiveSessionId(next.id)
-    void window.api.command.runConfirmed(next.id, session.reconnectCommand)
+
+    try {
+      const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
+      const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+      const fallbackNotice = session.cwd && next.cwd !== session.cwd
+        ? `\r\n[Taviraq reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
+        : ''
+      outputBuffers.current.delete(sessionId)
+      outputBuffers.current.set(next.id, `${restoredOutput}${fallbackNotice}`)
+      terminalBlocksRef.current.delete(sessionId)
+      activeBlockIdsRef.current.delete(sessionId)
+      setSelectedBlockIds([])
+      touchTerminalBlocks()
+      assistantThreadsRef.current = remapAssistantThreadId(assistantThreadsRef.current, sessionId, next.id)
+      setRestoredAssistantThreads(assistantThreadsRef.current)
+      setSessions((current) =>
+        current.map((candidate) =>
+          candidate.id === sessionId
+            ? {
+                ...next,
+                kind: 'ssh',
+                label: session.label,
+                localLabel: next.label,
+                remoteHost: session.remoteHost,
+                remoteTarget: session.remoteTarget,
+                reconnectCommand: session.reconnectCommand,
+                command: session.command,
+                createdAt: session.createdAt,
+                status: 'running'
+              }
+            : candidate
+        )
+      )
+      setActiveSessionId(next.id)
+      void window.api.command.runConfirmed(next.id, session.reconnectCommand)
+    } catch (error) {
+      console.error('Failed to reconnect SSH session', error)
+      setSessions((current) =>
+        current.map((candidate) =>
+          candidate.id === sessionId ? { ...candidate, status: 'disconnected' } : candidate
+        )
+      )
+    }
   }, [sessions, touchTerminalBlocks])
+
+  const duplicateSession = useCallback(async (sessionId: string) => {
+    const session = sessions.find((candidate) => candidate.id === sessionId)
+    if (!session) return
+
+    if (session.kind === 'ssh' && session.reconnectCommand) {
+      const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+      const duplicate: SessionState = {
+        ...next,
+        kind: 'ssh',
+        label: session.label,
+        localLabel: next.label,
+        remoteHost: session.remoteHost,
+        remoteTarget: session.remoteTarget,
+        reconnectCommand: session.reconnectCommand,
+        command: session.command,
+        createdAt: Date.now(),
+        status: 'running'
+      }
+      setSessions((current) => [...current, duplicate])
+      setActiveSessionId(next.id)
+      void window.api.command.runConfirmed(next.id, session.reconnectCommand)
+      return
+    }
+
+    await createLocalSession(session.cwd ? { cwd: session.cwd } : undefined)
+  }, [createLocalSession, sessions])
+
+  const openRenameSession = useCallback((sessionId: string) => {
+    const session = sessions.find((candidate) => candidate.id === sessionId)
+    if (!session) return
+    setRenameSessionRequest({ sessionId, label: session.label })
+  }, [sessions])
+
+  const confirmRenameSession = useCallback(() => {
+    const label = renameSessionRequest?.label.trim()
+    if (!renameSessionRequest || !label) return
+
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === renameSessionRequest.sessionId ? { ...session, label } : session
+      )
+    )
+    setRenameSessionRequest(null)
+  }, [renameSessionRequest])
 
   const handleAssistantThreadsChange = useCallback((threads: RestorableAssistantThreads) => {
     assistantThreadsRef.current = threads
@@ -973,6 +1061,10 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const contextMenuSession = tabContextMenu
+    ? sessions.find((session) => session.id === tabContextMenu.sessionId)
+    : undefined
+
   return (
     <LanguageProvider language={language}>
     <main ref={appShellRef} className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}`} style={shellStyle}>
@@ -1038,9 +1130,13 @@ export function App(): JSX.Element {
           <div className="tab-list">
             {sessions.map((session) => {
               const tabLabel = getTabLabel(session)
+              const statusMeta = getSessionStatusMeta(session.status)
+              const cwdBadge = getCwdBasename(session.cwd)
+              const commandTarget = session.kind === 'ssh' ? getSessionCommandTarget(session) : undefined
               const tabClassName = [
                 'session-tab',
                 session.kind === 'ssh' ? 'ssh-session' : '',
+                `status-${statusMeta.className}`,
                 session.id === activeSessionId ? 'active' : ''
               ].filter(Boolean).join(' ')
 
@@ -1051,11 +1147,27 @@ export function App(): JSX.Element {
                   type="button"
                   role="tab"
                   aria-selected={session.id === activeSessionId}
-                  title={tabLabel}
+                  title={getSessionTooltip(session)}
+                  data-tooltip={getSessionTooltip(session)}
                   onClick={() => setActiveSessionId(session.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    setActiveSessionId(session.id)
+                    setTabContextMenu({ sessionId: session.id, x: event.clientX, y: event.clientY })
+                  }}
                 >
-                  <span className={`status-dot ${session.status}`} />
+                  <span className={`status-dot ${statusMeta.className}`} title={statusMeta.label}>
+                    {session.kind === 'ssh'
+                      ? session.status === 'disconnected' || session.status === 'exited'
+                        ? <WifiOff size={10} aria-hidden />
+                        : session.status === 'reconnecting'
+                          ? <RotateCcw size={10} aria-hidden />
+                          : <Wifi size={10} aria-hidden />
+                      : <SquareTerminal size={10} aria-hidden />}
+                  </span>
                   <span className="tab-label">{tabLabel}</span>
+                  {commandTarget ? <span className="tab-target">{commandTarget}</span> : null}
+                  {cwdBadge ? <span className="tab-cwd-badge" title={session.cwd}>{cwdBadge}</span> : null}
                   {session.kind !== 'ssh' ? <span className="tab-kind">{session.kind}</span> : null}
                   <span
                     className="tab-close"
@@ -1081,6 +1193,64 @@ export function App(): JSX.Element {
           </div>
           {activeCwd ? <div className="tabbar-cwd" title={activeCwd}>{activeCwd}</div> : null}
         </div>
+
+        {tabContextMenu && contextMenuSession ? (
+          <div
+            className="tab-context-menu"
+            style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="tab-context-menu-item"
+              disabled={
+                !contextMenuSession.reconnectCommand ||
+                (contextMenuSession.status !== 'disconnected' && contextMenuSession.status !== 'exited')
+              }
+              onClick={() => {
+                setTabContextMenu(null)
+                void reconnectSession(contextMenuSession.id)
+              }}
+            >
+              <PlugZap size={13} aria-hidden />
+              Reconnect
+            </button>
+            <button
+              type="button"
+              className="tab-context-menu-item"
+              onClick={() => {
+                setTabContextMenu(null)
+                void duplicateSession(contextMenuSession.id)
+              }}
+            >
+              <Copy size={13} aria-hidden />
+              Duplicate
+            </button>
+            <button
+              type="button"
+              className="tab-context-menu-item"
+              onClick={() => {
+                setTabContextMenu(null)
+                openRenameSession(contextMenuSession.id)
+              }}
+            >
+              <Pencil size={13} aria-hidden />
+              Rename
+            </button>
+            <div className="tab-context-menu-sep" />
+            <button
+              type="button"
+              className="tab-context-menu-item danger"
+              onClick={() => {
+                setTabContextMenu(null)
+                void closeSession(contextMenuSession.id)
+              }}
+            >
+              <X size={13} aria-hidden />
+              Close
+            </button>
+          </div>
+        ) : null}
 
         <TerminalPane
           ref={terminalPaneRef}
@@ -1250,6 +1420,53 @@ export function App(): JSX.Element {
         </div>
       ) : null}
 
+      {renameSessionRequest ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="rename-session-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setRenameSessionRequest(null)
+          }}
+        >
+          <div
+            className="modal-panel rename-session-panel"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setRenameSessionRequest(null)
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                confirmRenameSession()
+              }
+            }}
+          >
+            <div className="modal-header">
+              <Pencil size={15} aria-hidden />
+              <span id="rename-session-title">Rename tab</span>
+            </div>
+            <input
+              className="rename-session-input"
+              autoFocus
+              value={renameSessionRequest.label}
+              onChange={(event) => setRenameSessionRequest((current) =>
+                current ? { ...current, label: event.target.value } : current
+              )}
+            />
+            <div className="modal-actions">
+              <button type="button" className="quiet-button" onClick={() => setRenameSessionRequest(null)}>
+                {appT('confirm.cancel')}
+              </button>
+              <button type="button" className="save-prompt-confirm" onClick={confirmRenameSession}>
+                Rename
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {snippetPaletteOpen ? (
         <CommandSnippetPalette
           activeSession={activeSession}
@@ -1264,7 +1481,7 @@ export function App(): JSX.Element {
 }
 
 interface CommandSnippetPaletteProps {
-  activeSession?: TerminalSessionInfo & { status: 'running' | 'exited' | 'disconnected' }
+  activeSession?: SessionTabInfo
   onClose: () => void
   onUse: (command: string, run: boolean) => void
   onAddSnippet: () => void

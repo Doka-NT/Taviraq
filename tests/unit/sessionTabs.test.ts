@@ -3,6 +3,7 @@ import {
   formatSessionUptime,
   getCwdBasename,
   getSessionCommandTarget,
+  getSessionRenderStatus,
   getSessionStatusMeta,
   getSessionTooltip,
   getTabLabel,
@@ -64,5 +65,14 @@ describe('session tab helpers', () => {
     expect(isLiveSessionStatus('disconnected')).toBe(false)
     expect(isLiveSessionStatus('reconnecting')).toBe(false)
     expect(isLiveSessionStatus(undefined)).toBe(false)
+  })
+
+  it('keeps live session render identity stable across prompt status changes', () => {
+    expect(getSessionRenderStatus('running')).toBe('live')
+    expect(getSessionRenderStatus('idle')).toBe('live')
+    expect(getSessionRenderStatus('disconnected')).toBe('disconnected')
+    expect(getSessionRenderStatus('reconnecting')).toBe('reconnecting')
+    expect(getSessionRenderStatus('exited')).toBe('exited')
+    expect(getSessionRenderStatus(undefined)).toBeUndefined()
   })
 })

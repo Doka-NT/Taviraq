@@ -11,7 +11,7 @@ import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick
 import type { TerminalBlock } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
-import { isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
+import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
 import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
@@ -325,6 +325,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const [hoveredBlockId, setHoveredBlockId] = useState<string>()
   const [isAlternateBufferActive, setIsAlternateBufferActive] = useState(false)
   const activeSessionId = activeSession?.id
+  const activeSessionRenderStatus = getSessionRenderStatus(activeSession?.status)
   const areTerminalBlocksAvailable = !isAlternateBufferActive
   const selectedBlocks = useMemo(
     () => areTerminalBlocksAvailable
@@ -707,10 +708,13 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   useEffect(() => {
     activeSessionIdRef.current = isLiveSessionStatus(activeSession?.status) ? activeSessionId : undefined
     activeSessionStatusRef.current = activeSession?.status
+  }, [activeSessionId, activeSession?.status])
+
+  useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
 
-    const sessionKey = `${activeSessionId ?? ''}:${activeSession?.status ?? ''}`
+    const sessionKey = `${activeSessionId ?? ''}:${activeSessionRenderStatus ?? ''}`
     if (renderedSessionKeyRef.current === sessionKey) {
       return
     }
@@ -739,7 +743,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         void window.api.terminal.resize(activeSessionIdRef.current, terminal.cols, terminal.rows)
       }
     })
-  }, [activeSessionId, activeSession?.status, outputBuffers, scheduleTerminalMetricsUpdate, t])
+  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIds)

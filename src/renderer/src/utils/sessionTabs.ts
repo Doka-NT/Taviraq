@@ -11,6 +11,8 @@ export interface SessionTabStatusMeta {
   className: string
 }
 
+export type SessionRenderStatus = 'live' | 'exited' | 'disconnected' | 'reconnecting' | undefined
+
 const STATUS_META: Record<SessionTabStatus, SessionTabStatusMeta> = {
   running: { label: 'Running', className: 'running' },
   idle: { label: 'Idle', className: 'idle' },
@@ -57,6 +59,12 @@ export function getSessionStatusMeta(status: SessionTabStatus): SessionTabStatus
 
 export function isLiveSessionStatus(status: SessionTabStatus | undefined): boolean {
   return status === 'running' || status === 'idle'
+}
+
+export function getSessionRenderStatus(status: SessionTabStatus | undefined): SessionRenderStatus {
+  if (isLiveSessionStatus(status)) return 'live'
+  if (status === 'exited' || status === 'disconnected' || status === 'reconnecting') return status
+  return undefined
 }
 
 export function formatSessionUptime(createdAt: number, now = Date.now()): string {

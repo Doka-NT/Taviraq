@@ -2092,7 +2092,14 @@ export function LlmPanel({
         setEditingProxyPassword(false)
         setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
       }
-      setProviderConnectionStates((current) => ({ ...current, [getProviderStatusKey(result.provider)]: 'ready' }))
+      setProviderConnectionStates((current) => {
+        const nextStatusKey = getProviderStatusKey(result.provider)
+        const next = { ...current, [nextStatusKey]: 'ready' as const }
+        if (nextStatusKey !== providerStatusKey) {
+          delete next[providerStatusKey]
+        }
+        return next
+      })
       setProviderStatus(`${result.models.length} models loaded`)
     } catch (error) {
       setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
@@ -2425,10 +2432,29 @@ export function LlmPanel({
     const connectionState = providerConnectionStates[getProviderStatusKey(candidate)]
     if (connectionState === 'checking') return { tone: 'checking', label: t('providers.status.checking') }
     if (connectionState === 'error') return { tone: 'error', label: t('providers.status.error') }
-    if (connectionState === 'ready') return { tone: 'ready', label: t('providers.status.ready') }
+    const hasUntestedSecretDraft = isCurrentProvider && (
+      editingApiKey ||
+      apiKey.trim().length > 0 ||
+      editingProxyPassword ||
+      proxyPassword.length > 0
+    )
+    if (connectionState === 'ready' && !hasUntestedSecretDraft) {
+      return { tone: 'ready', label: t('providers.status.ready') }
+    }
     if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }
     return { tone: 'unknown', label: t('providers.status.notTested') }
-  }, [activeHasApiKey, activeProviderRef, apiKey, provider.apiKeyRef, providerConnectionStates, providerKeyAvailability, t])
+  }, [
+    activeHasApiKey,
+    activeProviderRef,
+    apiKey,
+    editingApiKey,
+    editingProxyPassword,
+    provider.apiKeyRef,
+    providerConnectionStates,
+    providerKeyAvailability,
+    proxyPassword,
+    t
+  ])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)

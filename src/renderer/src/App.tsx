@@ -1314,7 +1314,7 @@ export function App(): JSX.Element {
         e.preventDefault()
         setSnippetPaletteOpen(true)
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'p') {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'j') {
         e.preventDefault()
         setPromptLibraryRequestVersion((version) => version + 1)
       }
@@ -1373,8 +1373,8 @@ export function App(): JSX.Element {
               className="icon-button"
               type="button"
               onClick={openCommandPalette}
-              title={`${appT('commandPalette.title')} (⌘⌥K)`}
-              aria-label={`${appT('commandPalette.title')} (⌘⌥K)`}
+              title={`${appT('commandPalette.title')} (⌘⇧P)`}
+              aria-label={`${appT('commandPalette.title')} (⌘⇧P)`}
             >
               <Command size={16} aria-hidden />
             </button>

@@ -684,7 +684,7 @@ export const en: Translations = {
   'app.showSidebar': 'Show assistant sidebar (⌘\\)',
   'app.hideSidebar': 'Hide assistant sidebar (⌘\\)',
   'chat.runInTerminal': 'Run in terminal',
-  'panel.promptLibrary': 'Prompt library (⌘⇧P)',
+  'panel.promptLibrary': 'Prompt library (⌘⇧J)',
 
   'chat.empty.title': 'Ready to help',
   'chat.empty.body': 'Ask about your terminal, commands, or selected text',
@@ -1085,7 +1085,7 @@ export const ru: Translations = {
   'app.showSidebar': 'Показать ассистента (⌘\\)',
   'app.hideSidebar': 'Скрыть ассистента (⌘\\)',
   'chat.runInTerminal': 'Запустить в терминале',
-  'panel.promptLibrary': 'Библиотека промптов (⌘⇧P)',
+  'panel.promptLibrary': 'Библиотека промптов (⌘⇧J)',
 
   'chat.empty.title': 'Готов помочь',
   'chat.empty.body': 'Спросите о терминале, командах или выделенном тексте',
@@ -1486,7 +1486,7 @@ export const cn: Translations = {
   'app.showSidebar': '显示助手面板 (⌘\\)',
   'app.hideSidebar': '隐藏助手面板 (⌘\\)',
   'chat.runInTerminal': '在终端中运行',
-  'panel.promptLibrary': '提示词库 (⌘⇧P)',
+  'panel.promptLibrary': '提示词库 (⌘⇧J)',
 
   'chat.empty.title': '准备就绪',
   'chat.empty.body': '询问关于终端、命令或选定文本的问题',

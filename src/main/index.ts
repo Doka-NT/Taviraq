@@ -577,13 +577,13 @@ async function createWindow(): Promise<void> {
       return
     }
 
-    if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'p' || input.code === 'KeyP')) {
+    if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'j' || input.code === 'KeyJ')) {
       event.preventDefault()
       mainWindow?.webContents.send('app:shortcut', 'open-prompt-library' satisfies AppShortcutAction)
       return
     }
 
-    if (input.meta && input.alt && !input.control && !input.shift && (input.key.toLowerCase() === 'k' || input.code === 'KeyK')) {
+    if (input.meta && !input.control && !input.alt && input.shift && (input.key.toLowerCase() === 'p' || input.code === 'KeyP')) {
       event.preventDefault()
       mainWindow?.webContents.send('app:shortcut', 'open-command-palette' satisfies AppShortcutAction)
       return

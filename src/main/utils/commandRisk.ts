@@ -69,14 +69,34 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
   }
 ]
 
+const RISK_PRECEDENCE: Record<CommandRiskLevel, number> = { warning: 1, danger: 2 }
+
+function higherRiskLevel(
+  a: CommandRiskLevel | undefined,
+  b: CommandRiskLevel | undefined
+): CommandRiskLevel | undefined {
+  if (!a) return b
+  if (!b) return a
+  return RISK_PRECEDENCE[a] >= RISK_PRECEDENCE[b] ? a : b
+}
+
 export function assessProtectedCommandRisk(
   request: Pick<CommandRiskAssessmentRequest, 'command' | 'context'>
 ): CommandRiskAssessment | undefined {
   const command = request.command.trim()
   if (!command) return undefined
 
-  const match = PROTECTED_PATTERNS.find(({ pattern }) => pattern.test(command))
-  if (!match) return undefined
+  const matches = PROTECTED_PATTERNS.filter(({ pattern }) => pattern.test(command))
+  if (matches.length === 0) return undefined
+
+  // Pick the primary match: first pattern with the highest risk level,
+  // or the first match if none have a risk level.
+  const bestRisk = matches.reduce<CommandRiskLevel | undefined>(
+    (acc, m) => higherRiskLevel(acc, m.riskLevel), undefined
+  )
+  const primary = bestRisk
+    ? matches.find(m => m.riskLevel === bestRisk) ?? matches[0]
+    : matches[0]
 
   const sshLabel = request.context.session?.kind === 'ssh' ? request.context.session.label : undefined
   const host = sshLabel
@@ -85,9 +105,9 @@ export function assessProtectedCommandRisk(
 
   return {
     dangerous: true,
-    reason: `${match.reason}${host} Taviraq requires confirmation before running it.`,
-    ...(match.reasonCode ? { reasonCode: match.reasonCode } : {}),
+    reason: `${primary.reason}${host} Taviraq requires confirmation before running it.`,
+    ...(primary.reasonCode ? { reasonCode: primary.reasonCode } : {}),
     ...(sshLabel ? { reasonArgs: { sshLabel } } : {}),
-    ...(match.riskLevel ? { riskLevel: match.riskLevel } : {})
+    ...(bestRisk ? { riskLevel: bestRisk } : {})
   }
 }

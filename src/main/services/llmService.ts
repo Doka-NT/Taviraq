@@ -4,6 +4,7 @@ import type {
   ChatStreamRequest,
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
+  CommandRiskLevel,
   GeneratedPrompt,
   LLMModel,
   LLMProviderConfig,
@@ -1047,8 +1048,8 @@ function buildCommandRiskMessages(request: CommandRiskAssessmentRequest): ChatMe
 
   const languageName = context.language ? LANGUAGE_NAMES[context.language] : undefined
   const reasonFormat = languageName
-    ? `{"dangerous": boolean, "reason": string (MUST be written in ${languageName})}`
-    : `{"dangerous": boolean, "reason": string}`
+    ? `{"dangerous": boolean, "reason": string (MUST be written in ${languageName}), "riskLevel": "warning" | "danger"}`
+    : `{"dangerous": boolean, "reason": string, "riskLevel": "warning" | "danger"}`
 
   return [
     {
@@ -1089,20 +1090,34 @@ function parseCommandRiskAssessment(content: string): CommandRiskAssessment {
     if (!json) {
       throw new Error('missing JSON')
     }
-    const parsed = JSON.parse(json) as { dangerous?: unknown; reason?: unknown }
+    const parsed = JSON.parse(json) as { dangerous?: unknown; reason?: unknown; riskLevel?: unknown }
     const dangerous = parsed.dangerous === false || parsed.dangerous === 'false' ? false : true
+
+    // When the LLM flags a command as dangerous, default to 'danger' so that
+    // model-flagged destructive commands (kill, shutdown, etc.) receive the
+    // same red countdown UI as hard-coded destructive patterns.
+    const riskLevel = parseRiskLevel(parsed.riskLevel) ?? (dangerous ? 'danger' : undefined)
+
     return {
       dangerous,
       reason: typeof parsed.reason === 'string' && parsed.reason.trim()
         ? parsed.reason.trim()
-        : 'The safety classifier did not provide a reason.'
+        : 'The safety classifier did not provide a reason.',
+      ...(riskLevel ? { riskLevel } : {})
     }
   } catch {
     return {
       dangerous: true,
-      reason: 'The safety classifier returned an unreadable response, so the command is treated as risky.'
+      reason: 'The safety classifier returned an unreadable response, so the command is treated as risky.',
+      riskLevel: 'danger'
     }
   }
+}
+
+function parseRiskLevel(value: unknown): CommandRiskLevel | undefined {
+  if (value === 'danger') return 'danger'
+  if (value === 'warning') return 'warning'
+  return undefined
 }
 
 const ANSI_ESCAPE = String.fromCharCode(27)

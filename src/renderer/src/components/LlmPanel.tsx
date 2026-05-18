@@ -264,8 +264,14 @@ function providerNeedsApiKey(providerType: LLMProviderType): boolean {
   return providerTypesWithApiKey.includes(providerType)
 }
 
-function providerHasSelectedModels(provider: LLMProviderConfig): boolean {
-  return Boolean(provider.selectedModel?.trim() || provider.commandRiskModel?.trim())
+function getProviderStatusKey(provider: LLMProviderConfig): string {
+  const apiKeyRef = provider.apiKeyRef.trim()
+  if (apiKeyRef) return apiKeyRef
+  return [
+    getProviderType(provider),
+    provider.name.trim(),
+    provider.baseUrl.trim()
+  ].join(':')
 }
 
 function formatSecretCategory(value: string): string {
@@ -933,7 +939,7 @@ export function LlmPanel({
     setProviderKeyAvailability((current) => {
       const next = { ...current }
       for (const candidate of allProviders) {
-        if (!providerNeedsApiKey(getProviderType(candidate))) {
+        if (candidate.apiKeyRef && !providerNeedsApiKey(getProviderType(candidate))) {
           next[candidate.apiKeyRef] = true
         }
       }
@@ -2034,19 +2040,20 @@ export function LlmPanel({
   // Load models
   const loadModels = useCallback(async () => {
     if (loadingModelsRef.current) return
+    const providerStatusKey = getProviderStatusKey(provider)
     if (!isValidProviderBaseUrl(provider.baseUrl)) {
       setProviderStatus('Enter a valid http:// or https:// Base URL')
-      setProviderConnectionStates((current) => ({ ...current, [provider.apiKeyRef]: 'error' }))
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
       return
     }
     if (!isValidProviderProxyUrl(provider.proxyUrl)) {
       setProviderStatus('Enter a valid http:// or https:// proxy URL without credentials')
-      setProviderConnectionStates((current) => ({ ...current, [provider.apiKeyRef]: 'error' }))
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
       return
     }
     loadingModelsRef.current = true
     setIsTestingProvider(true)
-    setProviderConnectionStates((current) => ({ ...current, [provider.apiKeyRef]: 'checking' }))
+    setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'checking' }))
     setProviderStatus('Testing connection...')
     try {
       const result = await window.api.llm.listModels({
@@ -2073,10 +2080,10 @@ export function LlmPanel({
         setEditingProxyPassword(false)
         setHasProxyPassword(Boolean(result.provider.proxyPasswordRef))
       }
-      setProviderConnectionStates((current) => ({ ...current, [result.provider.apiKeyRef]: 'ready' }))
+      setProviderConnectionStates((current) => ({ ...current, [getProviderStatusKey(result.provider)]: 'ready' }))
       setProviderStatus(`${result.models.length} models loaded`)
     } catch (error) {
-      setProviderConnectionStates((current) => ({ ...current, [provider.apiKeyRef]: 'error' }))
+      setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
       setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       loadingModelsRef.current = false
@@ -2396,17 +2403,17 @@ export function LlmPanel({
     const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
     const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef
     const hasTypedKey = isCurrentProvider && apiKey.trim().length > 0
-    const hasSavedKey = isCurrentProvider ? activeHasApiKey : providerKeyAvailability[candidate.apiKeyRef]
+    const hasSavedKey = candidate.apiKeyRef
+      ? isCurrentProvider ? activeHasApiKey : providerKeyAvailability[candidate.apiKeyRef]
+      : false
     if (needsApiKey && !hasTypedKey && !hasSavedKey) {
       return { tone: 'no-key', label: t('providers.status.noKey') }
     }
 
-    const connectionState = providerConnectionStates[candidate.apiKeyRef]
+    const connectionState = providerConnectionStates[getProviderStatusKey(candidate)]
     if (connectionState === 'checking') return { tone: 'checking', label: t('providers.status.checking') }
     if (connectionState === 'error') return { tone: 'error', label: t('providers.status.error') }
-    if (connectionState === 'ready' || providerHasSelectedModels(candidate)) {
-      return { tone: 'ready', label: t('providers.status.ready') }
-    }
+    if (connectionState === 'ready') return { tone: 'ready', label: t('providers.status.ready') }
     if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }
     return { tone: 'unknown', label: t('providers.status.notTested') }
   }, [activeHasApiKey, activeProviderRef, apiKey, provider.apiKeyRef, providerConnectionStates, providerKeyAvailability, t])

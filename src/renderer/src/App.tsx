@@ -263,6 +263,7 @@ export function App(): JSX.Element {
   const activeSessionIdRef = useRef<string>()
   const assistantThreadsRef = useRef<RestorableAssistantThreads>({})
   const cancelledReconnectsRef = useRef(new Set<string>())
+  const reconnectReplacementRef = useRef(new Map<string, string>())
   const [terminalBlocksRevision, setTerminalBlocksRevision] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
   const [blockPromptRequest, setBlockPromptRequest] = useState<BlockPromptRequest | null>(null)
@@ -786,6 +787,15 @@ export function App(): JSX.Element {
     const closing = sessions.find((session) => session.id === sessionId)
     if (closing?.status === 'reconnecting') {
       cancelledReconnectsRef.current.add(sessionId)
+      const replacementId = reconnectReplacementRef.current.get(sessionId)
+      if (replacementId) {
+        reconnectReplacementRef.current.delete(sessionId)
+        try {
+          await window.api.terminal.kill(replacementId)
+        } catch (error) {
+          console.error('Failed to cancel reconnecting terminal session', error)
+        }
+      }
     }
     if (closing?.status !== 'disconnected' && closing?.status !== 'reconnecting') {
       await window.api.terminal.kill(sessionId)
@@ -821,7 +831,9 @@ export function App(): JSX.Element {
     try {
       const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
       const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+      reconnectReplacementRef.current.set(sessionId, next.id)
       if (cancelledReconnectsRef.current.delete(sessionId)) {
+        reconnectReplacementRef.current.delete(sessionId)
         await window.api.terminal.kill(next.id)
         return
       }
@@ -856,8 +868,10 @@ export function App(): JSX.Element {
       )
       setActiveSessionId(next.id)
       void window.api.command.runConfirmed(next.id, session.reconnectCommand)
+      window.setTimeout(() => reconnectReplacementRef.current.delete(sessionId), 0)
     } catch (error) {
       console.error('Failed to reconnect SSH session', error)
+      reconnectReplacementRef.current.delete(sessionId)
       setSessions((current) =>
         current.map((candidate) =>
           candidate.id === sessionId ? { ...candidate, status: 'disconnected' } : candidate
@@ -913,7 +927,8 @@ export function App(): JSX.Element {
       )
     )
     setRenameSessionRequest(null)
-  }, [renameSessionRequest])
+    scheduleSessionStateSave()
+  }, [renameSessionRequest, scheduleSessionStateSave])
 
   const handleAssistantThreadsChange = useCallback((threads: RestorableAssistantThreads) => {
     assistantThreadsRef.current = threads
@@ -1172,8 +1187,8 @@ export function App(): JSX.Element {
                     setActiveSessionId(session.id)
                     setTabContextMenu({
                       sessionId: session.id,
-                      x: Math.min(event.clientX, Math.max(8, window.innerWidth - TAB_CONTEXT_MENU_WIDTH)),
-                      y: Math.min(event.clientY, Math.max(8, window.innerHeight - TAB_CONTEXT_MENU_HEIGHT))
+                      x: clamp(event.clientX, 8, Math.max(8, window.innerWidth - TAB_CONTEXT_MENU_WIDTH)),
+                      y: clamp(event.clientY, 8, Math.max(8, window.innerHeight - TAB_CONTEXT_MENU_HEIGHT))
                     })
                   }}
                 >
@@ -1470,6 +1485,7 @@ export function App(): JSX.Element {
             </div>
             <input
               className="rename-session-input"
+              aria-label="Tab name"
               autoFocus
               value={renameSessionRequest.label}
               onChange={(event) => setRenameSessionRequest((current) =>

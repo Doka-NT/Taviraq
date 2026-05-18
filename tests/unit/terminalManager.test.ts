@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { homedir } from 'node:os'
 import { TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
@@ -167,6 +168,38 @@ describe('TerminalManager.connectSshCommand', () => {
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com',
       reconnectCommand: 'ssh -p 2222 deploy@myhost.com'
+    }))
+  })
+
+  it('expands common shell path syntax before spawning saved SSH commands', () => {
+    const manager = new TerminalManager(() => undefined)
+    const spawn = vi.spyOn(manager as unknown as {
+      spawn: (options: unknown) => TerminalSessionInfo
+    }, 'spawn').mockReturnValue({
+      id: 'session-3',
+      kind: 'ssh',
+      label: 'deploy@myhost.com',
+      remoteHost: 'myhost.com',
+      remoteTarget: 'deploy@myhost.com',
+      reconnectCommand: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
+      createdAt: 3
+    })
+
+    manager.connectSshCommand({
+      command: 'ssh -i "$HOME/.ssh/id_ed25519" -F ~/ssh/config deploy@myhost.com',
+      cwd: '/tmp'
+    })
+    const home = homedir()
+
+    expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+      args: [
+        '-i',
+        `${process.env.HOME ?? ''}/.ssh/id_ed25519`,
+        '-F',
+        `${home}/ssh/config`,
+        'deploy@myhost.com'
+      ]
     }))
   })
 })

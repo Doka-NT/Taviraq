@@ -93,7 +93,7 @@ export class TerminalManager {
       label: request.label?.trim() || request.remoteTarget || ssh.remoteTarget,
       command: request.command,
       file: ssh.file,
-      args: ssh.args,
+      args: ssh.args.map(expandSshCommandArg),
       cwd: resolveExistingCwd(request.cwd, fallbackCwd),
       cols: request.cols,
       rows: request.rows,
@@ -592,6 +592,23 @@ function looksLikeShellPrompt(data: string): boolean {
 
 function stripAnsi(value: string): string {
   return value.replace(ANSI_CSI_PATTERN, '')
+}
+
+function expandSshCommandArg(arg: string): string {
+  const withVariables = arg.replace(/\$(\w+)|\$\{([A-Za-z_]\w*)\}/g, (_match, bare: string | undefined, braced: string | undefined) => {
+    const name = bare ?? braced
+    return name ? process.env[name] ?? '' : ''
+  })
+
+  if (withVariables === '~') {
+    return homedir()
+  }
+
+  if (withVariables.startsWith('~/')) {
+    return `${homedir()}${withVariables.slice(1)}`
+  }
+
+  return withVariables
 }
 
 async function readProcessCwd(pid: number): Promise<string | undefined> {

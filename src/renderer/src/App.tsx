@@ -1310,11 +1310,6 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        openCommandPalette()
-        return
-      }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setSnippetPaletteOpen(true)
@@ -1326,7 +1321,7 @@ export function App(): JSX.Element {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openCommandPalette])
+  }, [])
 
   const contextMenuSession = tabContextMenu
     ? sessions.find((session) => session.id === tabContextMenu.sessionId)

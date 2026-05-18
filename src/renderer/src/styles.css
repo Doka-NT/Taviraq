@@ -2453,7 +2453,7 @@ textarea:focus {
 .command-palette-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 45;
   display: flex;
   align-items: flex-start;
   justify-content: center;

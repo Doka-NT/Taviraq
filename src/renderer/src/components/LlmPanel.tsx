@@ -3689,7 +3689,7 @@ export function LlmPanel({
               <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
                 <div>
                   <span className="system-prefix">&gt;</span>
-                  <span>{message.content}</span>
+                  <span>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</span>
                 </div>
               </div>
             )

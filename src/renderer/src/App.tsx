@@ -832,18 +832,20 @@ export function App(): JSX.Element {
 
     try {
       const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
-      const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+      const next = await window.api.ssh.connectCommand({
+        command: session.reconnectCommand,
+        label: session.label,
+        remoteHost: session.remoteHost,
+        remoteTarget: session.remoteTarget
+      })
       reconnectReplacementRef.current.set(sessionId, next.id)
       if (cancelledReconnectsRef.current.delete(sessionId)) {
         reconnectReplacementRef.current.delete(sessionId)
         await window.api.terminal.kill(next.id)
         return
       }
-      const fallbackNotice = session.cwd && next.cwd !== session.cwd
-        ? `\r\n[Taviraq reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
-        : ''
       outputBuffers.current.delete(sessionId)
-      outputBuffers.current.set(next.id, `${restoredOutput}${fallbackNotice}`)
+      outputBuffers.current.set(next.id, restoredOutput)
       terminalBlocksRef.current.delete(sessionId)
       activeBlockIdsRef.current.delete(sessionId)
       setSelectedBlockIds([])
@@ -869,7 +871,6 @@ export function App(): JSX.Element {
         )
       )
       setActiveSessionId(next.id)
-      void window.api.command.runConfirmed(next.id, session.reconnectCommand)
       window.setTimeout(() => reconnectReplacementRef.current.delete(sessionId), 0)
     } catch (error) {
       console.error('Failed to reconnect SSH session', error)

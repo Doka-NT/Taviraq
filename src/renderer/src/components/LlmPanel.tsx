@@ -670,6 +670,19 @@ export function LlmPanel({
     resizeComposerTextarea()
   }, [draft, resizeComposerTextarea])
 
+  useEffect(() => {
+    const textarea = textareaRef.current
+    const composer = textarea?.parentElement
+    if (!composer || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      resizeComposerTextarea()
+    })
+    observer.observe(composer)
+
+    return () => observer.disconnect()
+  }, [resizeComposerTextarea])
+
   const commandConfirmationTone = commandConfirmation?.tone
   const commandConfirmationCommandId = commandConfirmation?.commandId
 

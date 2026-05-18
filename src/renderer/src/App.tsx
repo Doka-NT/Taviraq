@@ -1373,8 +1373,8 @@ export function App(): JSX.Element {
               className="icon-button"
               type="button"
               onClick={openCommandPalette}
-              title={`${appT('commandPalette.title')} (⌘K)`}
-              aria-label={`${appT('commandPalette.title')} (⌘K)`}
+              title={`${appT('commandPalette.title')} (⌘⌥K)`}
+              aria-label={`${appT('commandPalette.title')} (⌘⌥K)`}
             >
               <Command size={16} aria-hidden />
             </button>

@@ -10,7 +10,7 @@ import { themeMap, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
+import { compactPath, getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -278,6 +278,7 @@ export function App(): JSX.Element {
     [activeSessionId, sessions]
   )
   const activeCwd = activeSession?.cwd ?? activeSession?.command ?? ''
+  const activeCwdDisplay = compactPath(activeCwd, 36)
   const activeTerminalBlocks = activeSessionId && terminalBlocksRevision >= 0
     ? terminalBlocksRef.current.get(activeSessionId) ?? []
     : []
@@ -1215,7 +1216,6 @@ export function App(): JSX.Element {
                   <span className="tab-label">{tabLabel}</span>
                   {visibleCommandTarget ? <span className="tab-target">{visibleCommandTarget}</span> : null}
                   {cwdBadge ? <span className="tab-cwd-badge" title={session.cwd}>{cwdBadge}</span> : null}
-                  {session.kind !== 'ssh' ? <span className="tab-kind">{session.kind}</span> : null}
                   <span
                     className="tab-close"
                     role="button"
@@ -1238,7 +1238,7 @@ export function App(): JSX.Element {
               )
             })}
           </div>
-          {activeCwd ? <div className="tabbar-cwd" title={activeCwd}>{activeCwd}</div> : null}
+          {activeCwdDisplay ? <div className="tabbar-cwd" title={activeCwd}>{activeCwdDisplay}</div> : null}
         </div>
 
         {tabContextMenu && contextMenuSession ? (

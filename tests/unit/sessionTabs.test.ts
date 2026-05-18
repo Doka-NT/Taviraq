@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  compactPath,
   formatSessionUptime,
   getCwdBasename,
   getSessionCommandTarget,
@@ -45,6 +46,14 @@ describe('session tab helpers', () => {
 
     expect(getCwdBasename(session.cwd)).toBe('Taviraq')
     expect(getSessionCommandTarget(session)).toBe('Taviraq')
+  })
+
+  it('shortens long paths with a middle ellipsis', () => {
+    const path = '/Users/artem/Library/Mobile Documents/com~apple~CloudDocs/_VideProjects/ai-terminal'
+
+    expect(compactPath(path, 36)).toBe('/Users/artem/Li…Projects/ai-terminal')
+    expect(compactPath('/Users/artem/project', 36)).toBe('/Users/artem/project')
+    expect(compactPath(undefined, 36)).toBeUndefined()
   })
 
   it('formats session uptime for tab tooltips', () => {

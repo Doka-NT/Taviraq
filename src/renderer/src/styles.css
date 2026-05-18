@@ -542,8 +542,8 @@ button {
 
 .tabbar-cwd {
   margin-left: auto;
-  min-width: 80px;
-  max-width: 46%;
+  flex: 0 1 34ch;
+  max-width: min(34ch, 28%);
   overflow: hidden;
   color: var(--text-ghost);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;

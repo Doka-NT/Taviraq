@@ -45,6 +45,18 @@ export function getCwdBasename(cwd: string | undefined): string | undefined {
   return normalized.split('/').at(-1)
 }
 
+export function compactPath(path: string | undefined, maxLength = 36): string | undefined {
+  if (!path) return undefined
+  if (path.length <= maxLength) return path
+  if (maxLength <= 3) return path.slice(0, maxLength)
+
+  const keep = maxLength - 1
+  const headLength = Math.ceil(keep * 0.42)
+  const tailLength = keep - headLength
+
+  return `${path.slice(0, headLength)}…${path.slice(-tailLength)}`
+}
+
 export function getSessionCommandTarget(session: TerminalSessionInfo): string {
   if (session.kind === 'ssh') {
     return session.remoteTarget || session.label || session.remoteHost || 'SSH session'

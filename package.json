@@ -20,6 +20,7 @@
     "rebuild:native:arm64": "electron-rebuild -f -w keytar -w node-pty -a arm64",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ui:screenshots": "npm run build && node scripts/run-security-ui-screenshots.mjs",
     "lint": "eslint src tests electron.vite.config.ts vitest.config.ts",
     "changelog": "node scripts/generate-changelog.mjs --changelog /tmp/taviraq-changelog.md && cat /tmp/taviraq-changelog.md",
     "record:demo": "node scripts/record-demo.mjs",

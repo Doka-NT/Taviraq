@@ -9,7 +9,9 @@ import {
   createSecretMaskContext,
   createStreamingPlaceholderRedactor,
   createStreamingUnmasker,
+  diffSecretMaskContext,
   displaySecretPlaceholders,
+  findCustomPatternSecrets,
   findSupplementalStrictSecrets,
   maskTextForDisplay,
   maskText,
@@ -93,6 +95,72 @@ describe('secret masking utilities', () => {
     ].join('\n'))
 
     expect(findings.map((finding) => finding.secret)).toEqual(['AbCdEf1234567890_AbCdEf1234567890'])
+  })
+
+  it('finds custom regex secrets using the first capture group', () => {
+    const settings = {
+      mode: 'on' as const,
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'internal',
+        name: 'Internal token',
+        pattern: 'INTERNAL_TOKEN=([A-Z0-9-]{12,})',
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    }
+
+    const findings = findCustomPatternSecrets('INTERNAL_TOKEN=ABCDEF-123456-ZYXW', settings)
+
+    expect(findings).toEqual([{
+      ruleId: 'custom-INTERNAL_TOKEN',
+      description: 'Custom pattern: Internal token',
+      secret: 'ABCDEF-123456-ZYXW',
+      match: 'INTERNAL_TOKEN=ABCDEF-123456-ZYXW'
+    }])
+  })
+
+  it('applies custom regexes while masking display text', async () => {
+    const result = await maskTextForDisplay('INTERNAL_TOKEN=ABCDEF-123456-ZYXW', {
+      mode: 'on' as const,
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'internal',
+        name: 'Internal token',
+        pattern: 'INTERNAL_TOKEN=([A-Z0-9-]{12,})',
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    })
+
+    expect(result.text).toBe('INTERNAL_TOKEN=[secret]')
+    expect(result.context.bindings[0]?.kind).toBe('CUSTOM_INTERNAL_TOKEN')
+  })
+
+  it('skips unsafe custom regex patterns', () => {
+    const makeSettings = (pattern: string) => ({
+      mode: 'on' as const,
+      applyToChatDisplay: true,
+      applyToProviderPayloads: true,
+      strictTerminalContext: false,
+      customPatterns: [{
+        id: 'bad',
+        name: 'Bad pattern',
+        pattern,
+        enabled: true,
+        createdAt: '2026-05-17T00:00:00.000Z'
+      }]
+    })
+
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a+)+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a|a)+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('((a+))+$'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(a+)\\1'))).toHaveLength(0)
+    expect(findCustomPatternSecrets('aaaaaaaaaaaaaaaaaaaaaaaa!', makeSettings('(?=a+)a+'))).toHaveLength(0)
   })
 
   it('does not flag long filesystem paths as contextual secrets', () => {
@@ -202,6 +270,23 @@ describe('secret masking utilities', () => {
       .toBe('sk-live-ABCdef1234567890_ABCdef1234567890')
     expect(resolveSecretPlaceholders('[[TAVIRAQ_SECRET_2_DEPLOY_TOKEN]]', next))
       .toBe('DeployABC1234567890_DeployABC1234567890')
+  })
+
+  it('diffs secret contexts so audit events only count new findings', async () => {
+    const existing = createSecretMaskContext()
+    addSecretFindingsToContext(existing, [
+      { ruleId: 'generic-api-key', secret: 'sk-live-ABCdef1234567890_ABCdef1234567890' }
+    ])
+
+    const next = await createContextFromTexts([
+      'OPENAI_API_KEY=sk-live-ABCdef1234567890_ABCdef1234567890',
+      'DEPLOY_TOKEN=DeployABC1234567890_DeployABC1234567890'
+    ], 'on', undefined, existing)
+    const diff = diffSecretMaskContext(next, existing)
+
+    expect(diff.bindings.map((binding) => binding.kind)).toEqual(['DEPLOY_TOKEN'])
+    expect(diff.byValue.has('DeployABC1234567890_DeployABC1234567890')).toBe(true)
+    expect(diff.byValue.has('sk-live-ABCdef1234567890_ABCdef1234567890')).toBe(false)
   })
 
   it('masks real secret values in command output for display', () => {

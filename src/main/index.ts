@@ -16,14 +16,19 @@ import type {
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
   SavedChat,
+  SecretMaskingAuditEvent,
+  SecretMaskingAuditScope,
+  SecretMaskingAuditSource,
   SecretMaskingMode,
+  SecretMaskingSettings,
   SSHProfile,
   SSHProfileConfig,
+  TerminalContext,
   SummarizeConversationRequest
 } from '@shared/types'
 import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
-import { ConfigStore, normalizeSecretMaskingMode } from './services/configStore'
+import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -45,6 +50,9 @@ import {
 } from './services/llmService'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
+  addSecretFindingsToContext,
+  cloneSecretMaskContext,
+  diffSecretMaskContext,
   maskTextForDisplay,
   resolveSecretPlaceholders,
   sanitizeSavedChatForStorage,
@@ -52,6 +60,7 @@ import {
 } from './utils/secretMasking'
 import { buildAccelerator } from '../shared/accelerator'
 import { normalizeHttpProxyUrl } from './utils/proxy'
+import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -74,6 +83,7 @@ const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
 const secretContextLocksBySession = new Map<string, Promise<void>>()
+const secretMaskingAuditEvents: SecretMaskingAuditEvent[] = []
 const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextsBySession.delete(sessionId)
   secretContextLocksBySession.delete(sessionId)
@@ -92,35 +102,107 @@ const demoConfig: AppConfig = {
   providers: [demoProvider],
   activeProviderRef: demoProvider.apiKeyRef,
   hideShortcut: 'CommandOrControl+Shift+Space',
-  secretMasking: {
-    mode: 'on'
-  },
+  secretMasking: createDefaultSecretMaskingSettings(),
   windowBounds: {
     width: 1440,
     height: 920
   }
 }
 
-let secretMaskingModeCache: SecretMaskingMode = normalizeSecretMaskingMode(demoConfig.secretMasking?.mode)
+let secretMaskingSettingsCache: SecretMaskingSettings = normalizeSecretMaskingSettings(demoConfig.secretMasking)
+let secretMaskingSettingsCacheReady: Promise<void> | undefined
 
-async function initializeSecretMaskingModeCache(): Promise<void> {
-  if (DEMO_MODE) {
-    updateSecretMaskingModeCache(demoConfig)
-    return
+function initializeSecretMaskingModeCache(): Promise<void> {
+  secretMaskingSettingsCacheReady ??= (async () => {
+    if (DEMO_MODE) {
+      updateSecretMaskingSettingsCache(demoConfig)
+      return
+    }
+
+    updateSecretMaskingSettingsCache(await configStore.load())
+  })()
+  return secretMaskingSettingsCacheReady
+}
+
+async function ensureSecretMaskingSettingsCache(): Promise<void> {
+  await initializeSecretMaskingModeCache()
+}
+
+function updateSecretMaskingSettingsCache(config: AppConfig): void {
+  secretMaskingSettingsCache = normalizeSecretMaskingSettings(config.secretMasking)
+}
+
+function getSecretMaskingSettings(): SecretMaskingSettings {
+  return DEMO_MODE ? normalizeSecretMaskingSettings(demoConfig.secretMasking) : secretMaskingSettingsCache
+}
+
+function getScopedSecretMaskingSettings(scope: SecretMaskingAuditScope): SecretMaskingSettings {
+  const settings = getSecretMaskingSettings()
+  const enabled = scope === 'provider-payload'
+    ? settings.applyToProviderPayloads
+    : settings.applyToChatDisplay
+  return enabled ? settings : { ...settings, mode: 'off' }
+}
+
+function applyTerminalContextPolicy<T extends { context: TerminalContext }>(request: T): T {
+  if (!isStrictTerminalContextActive(getSecretMaskingSettings())) return request
+
+  return {
+    ...request,
+    context: {
+      ...request.context,
+      selectedText: '',
+      terminalOutput: undefined
+    }
   }
-
-  updateSecretMaskingModeCache(await configStore.load())
 }
 
-function updateSecretMaskingModeCache(config: AppConfig): void {
-  secretMaskingModeCache = normalizeSecretMaskingMode(config.secretMasking?.mode)
+function recordSecretMaskingAuditEvent(
+  source: SecretMaskingAuditSource,
+  scope: SecretMaskingAuditScope,
+  context: SecretMaskContext,
+  sessionLabel?: string
+): void {
+  if (context.bindings.length === 0) return
+
+  const event: SecretMaskingAuditEvent = {
+    id: randomAuditId(),
+    createdAt: new Date().toISOString(),
+    source,
+    scope,
+    sessionLabel,
+    maskedSecretCount: context.bindings.length,
+    categories: [...new Set(context.bindings.map((binding) => binding.kind))]
+  }
+  secretMaskingAuditEvents.unshift(event)
+  secretMaskingAuditEvents.splice(SECRET_MASKING_AUDIT_LIMIT)
+  mainWindow?.webContents.send('secret:auditEvent', event)
 }
 
-function getSecretMaskingMode(): SecretMaskingMode {
-  return DEMO_MODE ? normalizeSecretMaskingMode(demoConfig.secretMasking?.mode) : secretMaskingModeCache
+function randomAuditId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-async function withSessionSecretContextLock<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+function getSessionLabel(sessionId: string): string | undefined {
+  return terminalManager.list().find((session) => session.id === sessionId)?.label
+}
+
+function mergeNewSecretContext(
+  currentContext: SecretMaskContext | undefined,
+  fullContext: SecretMaskContext,
+  newContext: SecretMaskContext
+): SecretMaskContext {
+  if (!currentContext) return fullContext
+
+  const mergedContext = cloneSecretMaskContext(currentContext)
+  addSecretFindingsToContext(
+    mergedContext,
+    newContext.bindings.map((binding) => ({ ruleId: binding.kind, secret: binding.value }))
+  )
+  return mergedContext
+}
+
+async function withSessionSecretContextLock<T>(sessionId: string, task: () => T | Promise<T>): Promise<T> {
   const previous = secretContextLocksBySession.get(sessionId) ?? Promise.resolve()
   let release = (): void => {}
   const current = new Promise<void>((resolve) => {
@@ -603,20 +685,35 @@ async function createWindow(): Promise<void> {
 function registerIpc(): void {
   ipcMain.handle('config:load', async () => {
     const config = DEMO_MODE ? demoConfig : await configStore.load()
-    updateSecretMaskingModeCache(config)
+    updateSecretMaskingSettingsCache(config)
     return config
   })
 
   ipcMain.handle('config:setSecretMaskingMode', async (_event, mode: SecretMaskingMode) => {
     const normalizedMode = normalizeSecretMaskingMode(mode)
     if (DEMO_MODE) {
-      demoConfig.secretMasking = { mode: normalizedMode }
-      updateSecretMaskingModeCache(demoConfig)
+      demoConfig.secretMasking = {
+        ...normalizeSecretMaskingSettings(demoConfig.secretMasking),
+        mode: normalizedMode
+      }
+      updateSecretMaskingSettingsCache(demoConfig)
       return demoConfig
     }
 
     const config = await configStore.updateSecretMaskingMode(normalizedMode)
-    updateSecretMaskingModeCache(config)
+    updateSecretMaskingSettingsCache(config)
+    return config
+  })
+
+  ipcMain.handle('config:setSecretMaskingSettings', async (_event, settings: SecretMaskingSettings) => {
+    if (DEMO_MODE) {
+      demoConfig.secretMasking = normalizeSecretMaskingSettings(settings)
+      updateSecretMaskingSettingsCache(demoConfig)
+      return demoConfig
+    }
+
+    const config = await configStore.updateSecretMaskingSettings(settings)
+    updateSecretMaskingSettingsCache(config)
     return config
   })
 
@@ -662,7 +759,8 @@ function registerIpc(): void {
   ipcMain.handle('chatHistory:list', () => chatHistoryStore.list())
   ipcMain.handle('chatHistory:get', (_event, id: string) => chatHistoryStore.get(id))
   ipcMain.handle('chatHistory:save', async (_event, chat: SavedChat) => {
-    const sanitizedChat = await sanitizeSavedChatForStorage(chat, getSecretMaskingMode())
+    await ensureSecretMaskingSettingsCache()
+    const sanitizedChat = await sanitizeSavedChatForStorage(chat, getScopedSecretMaskingSettings('chat-display'))
     await chatHistoryStore.save(sanitizedChat)
   })
   ipcMain.handle('chatHistory:delete', (_event, id: string) => chatHistoryStore.delete(id))
@@ -753,6 +851,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('llm:assessCommandRisk', async (_event, request: CommandRiskAssessmentRequest) => {
+    await ensureSecretMaskingSettingsCache()
     if (DEMO_MODE) {
       return {
         dangerous: /\brm\s+-rf\b|sudo|chmod\s+-r/i.test(request.command),
@@ -760,14 +859,33 @@ function registerIpc(): void {
       }
     }
 
+    const policyRequest = applyTerminalContextPolicy(request)
+    const sessionId = policyRequest.context.session?.id
+    const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
     return assessCommandRisk(
-      request,
-      getSecretMaskingMode(),
-      request.context.session?.id ? secretContextsBySession.get(request.context.session.id) : undefined
+      policyRequest,
+      getScopedSecretMaskingSettings('provider-payload'),
+      previousContext,
+      async (context) => {
+        if (!sessionId) {
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, policyRequest.context.session?.label)
+          return
+        }
+
+        await withSessionSecretContextLock(sessionId, () => {
+          const latestContext = secretContextsBySession.get(sessionId)
+          const newContext = diffSecretMaskContext(context, latestContext)
+          if (newContext.bindings.length > 0) {
+            secretContextsBySession.set(sessionId, mergeNewSecretContext(latestContext, context, newContext))
+          }
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
+        })
+      }
     )
   })
 
   ipcMain.handle('llm:summarizeConversation', async (_event, request: SummarizeConversationRequest) => {
+    await ensureSecretMaskingSettingsCache()
     if (DEMO_MODE) {
       return {
         name: 'Inspect terminal workspace',
@@ -776,13 +894,25 @@ function registerIpc(): void {
     }
 
     const requestId = request.requestId
-    const secretMaskingMode = getSecretMaskingMode()
-    if (!requestId) return summarizeConversation(request, undefined, secretMaskingMode)
+    const secretMaskingSettings = getScopedSecretMaskingSettings('provider-payload')
+    if (!requestId) {
+      return summarizeConversation(
+        request,
+        undefined,
+        secretMaskingSettings,
+        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context)
+      )
+    }
 
     const controller = new AbortController()
     summarizeControllers.set(requestId, controller)
     try {
-      return await summarizeConversation(request, controller.signal, secretMaskingMode)
+      return await summarizeConversation(
+        request,
+        controller.signal,
+        secretMaskingSettings,
+        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context)
+      )
     } finally {
       summarizeControllers.delete(requestId)
     }
@@ -807,18 +937,28 @@ function registerIpc(): void {
     }
   })
 
-  ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string) => {
+  ipcMain.handle('secret:maskOutput', async (_event, sessionId: string, text: string, source?: SecretMaskingAuditSource) => {
+    await ensureSecretMaskingSettingsCache()
     return withSessionSecretContextLock(sessionId, async () => {
+      const previousContext = secretContextsBySession.get(sessionId)
       const result = await maskTextForDisplay(
         text,
-        getSecretMaskingMode(),
-        secretContextsBySession.get(sessionId)
+        getScopedSecretMaskingSettings('chat-display'),
+        previousContext
       )
-      if (result.context.bindings.length > (secretContextsBySession.get(sessionId)?.bindings.length ?? 0)) {
+      const newContext = diffSecretMaskContext(result.context, previousContext)
+      if (newContext.bindings.length > 0) {
         secretContextsBySession.set(sessionId, result.context)
       }
+      recordSecretMaskingAuditEvent(source ?? 'terminal-display', 'chat-display', newContext, getSessionLabel(sessionId))
       return result.text
     })
+  })
+
+  ipcMain.handle('secret:listAuditEvents', () => secretMaskingAuditEvents)
+
+  ipcMain.handle('secret:clearAuditEvents', () => {
+    secretMaskingAuditEvents.splice(0)
   })
 
   // Prompts
@@ -965,7 +1105,7 @@ function registerIpc(): void {
     }
 
     await configStore.save(mergedConfig)
-    updateSecretMaskingModeCache(mergedConfig)
+    updateSecretMaskingSettingsCache(mergedConfig)
     for (const prompt of newPrompts) {
       await promptStore.save(prompt)
     }
@@ -1016,9 +1156,12 @@ function registerIpc(): void {
 
     void (async () => {
       try {
+        await ensureSecretMaskingSettingsCache()
         const sessionId = request.context.session?.id
         const runStream = async (): Promise<void> => {
-          const result = await streamChatCompletion(request, (chunk) => {
+          const policyRequest = applyTerminalContextPolicy(request)
+          const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
+          const result = await streamChatCompletion(policyRequest, (chunk) => {
             if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
               event.sender.send('llm:chatStream:event', {
                 requestId: request.requestId,
@@ -1051,12 +1194,14 @@ function registerIpc(): void {
                 content: chunk.content
               })
             }
-          }, controller.signal, getSecretMaskingMode(), sessionId ? secretContextsBySession.get(sessionId) : undefined)
+          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext)
 
           if (controller.signal.aborted) return
-          if (sessionId && result.secretContext.bindings.length > 0) {
+          const newContext = diffSecretMaskContext(result.secretContext, previousContext)
+          if (sessionId && newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, result.secretContext)
           }
+          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, policyRequest.context.session?.label)
           event.sender.send('llm:chatStream:event', {
             requestId: request.requestId,
             type: 'done',

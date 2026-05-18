@@ -17,7 +17,10 @@ import type {
   SavedChat,
   SavedChatSummary,
   SaveSessionStateRequest,
+  SecretMaskingAuditEvent,
+  SecretMaskingAuditSource,
   SecretMaskingMode,
+  SecretMaskingSettings,
   SessionStateSnapshot,
   SSHProfile,
   SSHProfileConfig,
@@ -60,7 +63,9 @@ const api = {
   config: {
     load: () => ipcRenderer.invoke('config:load') as Promise<AppConfig>,
     setSecretMaskingMode: (mode: SecretMaskingMode) =>
-      ipcRenderer.invoke('config:setSecretMaskingMode', mode) as Promise<AppConfig>
+      ipcRenderer.invoke('config:setSecretMaskingMode', mode) as Promise<AppConfig>,
+    setSecretMaskingSettings: (settings: SecretMaskingSettings) =>
+      ipcRenderer.invoke('config:setSecretMaskingSettings', settings) as Promise<AppConfig>
   },
   terminal: {
     create: (request?: CreateTerminalRequest) =>
@@ -170,8 +175,17 @@ const api = {
       ipcRenderer.invoke('command:runConfirmed', sessionId, command) as Promise<void>
   },
   secret: {
-    maskOutput: (sessionId: string, text: string) =>
-      ipcRenderer.invoke('secret:maskOutput', sessionId, text) as Promise<string>
+    maskOutput: (sessionId: string, text: string, source?: SecretMaskingAuditSource) =>
+      ipcRenderer.invoke('secret:maskOutput', sessionId, text, source) as Promise<string>,
+    listAuditEvents: () => ipcRenderer.invoke('secret:listAuditEvents') as Promise<SecretMaskingAuditEvent[]>,
+    clearAuditEvents: () => ipcRenderer.invoke('secret:clearAuditEvents') as Promise<void>,
+    onAuditEvent: (callback: (event: SecretMaskingAuditEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: SecretMaskingAuditEvent) => callback(payload)
+      ipcRenderer.on('secret:auditEvent', listener)
+      return () => {
+        ipcRenderer.removeListener('secret:auditEvent', listener)
+      }
+    }
   },
   prompt: {
     list: () => ipcRenderer.invoke('prompt:list') as Promise<PromptTemplate[]>,

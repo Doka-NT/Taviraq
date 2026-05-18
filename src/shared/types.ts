@@ -1,6 +1,8 @@
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type SecretMaskingMode = 'off' | 'on'
+export type SecretMaskingAuditScope = 'chat-display' | 'provider-payload'
+export type SecretMaskingAuditSource = 'chat-stream' | 'chat-display' | 'command-risk' | 'summary' | 'terminal-display' | 'chat-storage'
 export type AppShortcutAction =
   | 'clear-terminal'
   | 'open-prompt-library'
@@ -78,6 +80,32 @@ export interface LLMProviderConfig {
   proxyUrl?: string
   proxyUsername?: string
   proxyPasswordRef?: string
+}
+
+export interface SecretMaskingCustomPattern {
+  id: string
+  name: string
+  pattern: string
+  enabled: boolean
+  createdAt: string
+}
+
+export interface SecretMaskingSettings {
+  mode: SecretMaskingMode
+  applyToChatDisplay: boolean
+  applyToProviderPayloads: boolean
+  strictTerminalContext: boolean
+  customPatterns: SecretMaskingCustomPattern[]
+}
+
+export interface SecretMaskingAuditEvent {
+  id: string
+  createdAt: string
+  source: SecretMaskingAuditSource
+  scope: SecretMaskingAuditScope
+  sessionLabel?: string
+  maskedSecretCount: number
+  categories: string[]
 }
 
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
@@ -244,9 +272,7 @@ export interface AppConfig {
   activeProviderRef?: string
   hideShortcut?: string
   sshProfiles?: SSHProfileConfig[]
-  secretMasking?: {
-    mode: SecretMaskingMode
-  }
+  secretMasking?: SecretMaskingSettings
   windowBounds?: {
     x?: number
     y?: number

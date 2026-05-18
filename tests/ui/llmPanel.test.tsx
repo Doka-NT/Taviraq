@@ -1,4 +1,5 @@
 import { cleanCommandOutput } from '@renderer/utils/commandOutput'
+import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 
 describe('LlmPanel command output cleanup', () => {
   it('strips PTY echo when a secret placeholder was resolved before execution', () => {
@@ -10,5 +11,24 @@ describe('LlmPanel command output cleanup', () => {
     ].join('\n')
 
     expect(cleanCommandOutput(command, output)).toBe('{"ok":true}')
+  })
+
+  it('withholds command output from provider continuation in strict mode', () => {
+    const command = 'curl -H "Authorization: Bearer token-ABC1234567890_token-ABC1234567890" https://example.test'
+    const output = 'SECRET_TOKEN=abc1234567890abc1234567890'
+    const continuation = buildAgentContinuation(command, output, true)
+
+    expect(continuation).toContain('strict terminal context')
+    expect(continuation).not.toContain(command)
+    expect(continuation).not.toContain(output)
+  })
+
+  it('marks strict command output as hidden from provider for display labels', () => {
+    const strictContinuation = buildAgentContinuation('ps aux', 'secret output', true)
+    const regularContinuation = buildAgentContinuation('pwd', '/Users/artem', false)
+
+    expect(wasTerminalContextSentToProvider(strictContinuation)).toBe(false)
+    expect(wasTerminalContextSentToProvider(regularContinuation)).toBe(true)
+    expect(wasTerminalContextSentToProvider(regularContinuation, false)).toBe(false)
   })
 })

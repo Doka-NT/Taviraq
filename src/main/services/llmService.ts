@@ -7,7 +7,6 @@ import type {
   GeneratedPrompt,
   LLMModel,
   LLMProviderConfig,
-  SecretMaskingMode,
   SummarizeConversationRequest
 } from '@shared/types'
 import { Agent, ProxyAgent, type Dispatcher } from 'undici'
@@ -31,7 +30,8 @@ import {
   maskChatStreamRequest,
   maskCommandRiskAssessmentRequest,
   maskSummarizeConversationRequest,
-  type SecretMaskContext
+  type SecretMaskContext,
+  type SecretMaskingInput
 } from '@main/utils/secretMasking'
 import { getApiKey, getProxyPassword } from './secretStore'
 
@@ -125,7 +125,7 @@ export async function streamChatCompletion(
   request: ChatStreamRequest,
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
-  secretMaskingMode: SecretMaskingMode = 'on',
+  secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext
 ): Promise<ChatStreamCompletionResult> {
   const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
@@ -439,10 +439,14 @@ async function streamLmStudioNativeChatCompletion(
 
 export async function assessCommandRisk(
   request: CommandRiskAssessmentRequest,
-  secretMaskingMode: SecretMaskingMode = 'on',
-  existingSecretContext?: SecretMaskContext
+  secretMaskingMode: SecretMaskingInput = 'on',
+  existingSecretContext?: SecretMaskContext,
+  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>
 ): Promise<CommandRiskAssessment> {
   const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
+  if (masked.context.bindings.length > 0) {
+    await onMaskedContext?.(masked.context)
+  }
   const safeRequest = masked.request
   const protectedAssessment = assessProtectedCommandRisk(safeRequest)
   if (protectedAssessment) return protectedAssessment
@@ -504,9 +508,13 @@ export async function assessCommandRisk(
 export async function summarizeConversation(
   request: SummarizeConversationRequest,
   signal?: AbortSignal,
-  secretMaskingMode: SecretMaskingMode = 'on'
+  secretMaskingMode: SecretMaskingInput = 'on',
+  onMaskedContext?: (context: SecretMaskContext) => void
 ): Promise<GeneratedPrompt> {
   const masked = await maskSummarizeConversationRequest(request, secretMaskingMode, signal)
+  if (masked.context.bindings.length > 0) {
+    onMaskedContext?.(masked.context)
+  }
   const safeRequest = masked.request
   const model = safeRequest.provider.selectedModel?.trim()
   if (!model) {

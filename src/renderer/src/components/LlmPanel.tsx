@@ -175,6 +175,8 @@ interface CommandConfirmation {
   tone: 'danger' | 'warning'
   confirmLabel: string
   riskLevel?: CommandRiskLevel
+  /** Unique id for each confirmation request — used to key the countdown timer. Generated automatically. */
+  commandId?: string
 }
 type CommandConfirmationResult = string | false
 type CommandConfirmationRequest = Omit<CommandConfirmation, 'sessionId'>
@@ -641,6 +643,7 @@ export function LlmPanel({
   const [confirmCountdown, setConfirmCountdown] = useState(0)
 
   // Countdown timer for destructive (danger) command confirmations
+  // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
   useEffect(() => {
     if (!commandConfirmation || commandConfirmation.tone !== 'danger') {
       setConfirmCountdown(0)
@@ -658,7 +661,7 @@ export function LlmPanel({
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [commandConfirmation])
+  }, [commandConfirmation?.tone, commandConfirmation?.commandId])
 
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
@@ -923,7 +926,7 @@ export function LlmPanel({
 
     return new Promise((resolve) => {
       commandConfirmationResolversRef.current.set(sessionId, resolve)
-      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: { ...confirmation, sessionId } }))
+      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: { ...confirmation, sessionId, commandId: crypto.randomUUID() } }))
     })
   }, [updateThread])
 
@@ -1516,7 +1519,7 @@ export function LlmPanel({
       })
 
       if (!confirmed) {
-        appendSystemStatus(sessionId, t('confirm.commandRejected', { command: confirmed === false ? command : String(confirmed) }))
+        appendSystemStatus(sessionId, t('confirm.commandRejected', { command }))
         updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.agentStopped.riskyCommand') } }))
         stopAgentic(sessionId)
         return false

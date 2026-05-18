@@ -268,7 +268,6 @@ function getProviderStatusKey(provider: LLMProviderConfig): string {
   return JSON.stringify([
     provider.apiKeyRef?.trim() ?? '',
     getProviderType(provider),
-    provider.name?.trim() ?? '',
     provider.baseUrl?.trim() ?? '',
     provider.proxyUrl?.trim() ?? '',
     provider.proxyUsername?.trim() ?? '',
@@ -2100,10 +2099,14 @@ export function LlmPanel({
         }
         return next
       })
-      setProviderStatus(`${result.models.length} models loaded`)
+      if (getProviderStatusKey(providerRef.current) === providerStatusKey) {
+        setProviderStatus(`${result.models.length} models loaded`)
+      }
     } catch (error) {
       setProviderConnectionStates((current) => ({ ...current, [providerStatusKey]: 'error' }))
-      setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      if (getProviderStatusKey(providerRef.current) === providerStatusKey) {
+        setProviderStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+      }
     } finally {
       loadingModelsRef.current = false
       setIsTestingProvider(false)

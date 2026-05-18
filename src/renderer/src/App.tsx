@@ -939,8 +939,7 @@ export function App(): JSX.Element {
       )
     )
     setRenameSessionRequest(null)
-    scheduleSessionStateSave()
-  }, [renameSessionRequest, scheduleSessionStateSave])
+  }, [renameSessionRequest])
 
   const handleAssistantThreadsChange = useCallback((threads: RestorableAssistantThreads) => {
     assistantThreadsRef.current = threads

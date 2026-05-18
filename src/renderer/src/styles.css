@@ -1845,8 +1845,15 @@ textarea:focus {
   background: var(--accent-cyan);
 }
 
-.provider-list-item-name {
+.provider-list-item-main {
   flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.provider-list-item-name {
   min-width: 0;
   overflow: hidden;
   font-size: 12.5px;
@@ -1856,11 +1863,51 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.provider-active-label {
-  flex: 0 0 auto;
+.provider-status-badge {
+  width: max-content;
+  max-width: 100%;
+  padding: 1px 5px;
+  border: 0.5px solid var(--border-default);
+  border-radius: 999px;
   color: var(--text-ghost);
-  font-size: 10px;
-  line-height: 1;
+  background: rgba(var(--surface-rgb), 0.04);
+  font-size: 9.5px;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-status-badge.active {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background: rgba(var(--accent-cyan-rgb), 0.08);
+}
+
+.provider-status-badge.ready {
+  color: var(--accent-green);
+  border-color: rgba(var(--accent-green-rgb), 0.22);
+  background: rgba(var(--accent-green-rgb), 0.08);
+}
+
+.provider-status-badge.active-ready {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background:
+    linear-gradient(90deg, rgba(var(--accent-cyan-rgb), 0.08), rgba(var(--accent-green-rgb), 0.08));
+}
+
+.provider-status-badge.error,
+.provider-status-badge.no-key {
+  color: var(--accent-red-text);
+  border-color: rgba(var(--accent-red-rgb), 0.22);
+  background: rgba(var(--accent-red-rgb), 0.08);
+}
+
+.provider-status-badge.checking {
+  color: var(--accent-amber);
+  border-color: rgba(var(--accent-amber-rgb), 0.22);
+  background: rgba(var(--accent-amber-rgb), 0.08);
 }
 
 .provider-list-item-delete {
@@ -2089,6 +2136,12 @@ textarea:focus {
   padding: 0 18px;
   border-color: rgba(var(--accent-cyan-rgb), 0.78);
   background: rgba(var(--accent-cyan-rgb), 0.18);
+  font-size: 12.5px;
+}
+
+.provider-test-button {
+  min-height: 36px;
+  padding: 0 14px;
   font-size: 12.5px;
 }
 

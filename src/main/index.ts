@@ -253,9 +253,10 @@ function normalizeProviderProxy(provider: LLMProviderConfig): LLMProviderConfig 
 
 async function prepareProviderRequest(
   request: SaveLLMProviderRequest,
-  options: { deleteDisabledProxyPassword?: boolean } = {}
+  options: { deleteDisabledProxyPassword?: boolean; saveSecrets?: boolean } = {}
 ): Promise<LLMProviderConfig> {
-  if (request.apiKey?.trim()) {
+  const saveSecrets = options.saveSecrets !== false
+  if (saveSecrets && request.apiKey?.trim()) {
     await saveApiKey(request.provider.apiKeyRef, request.apiKey.trim())
   }
 
@@ -264,16 +265,17 @@ async function prepareProviderRequest(
   const proxyPassword = request.proxyPassword
   const provider = normalizeProviderProxy({
     ...request.provider,
-    ...(hasProxyPasswordField
+    ...(saveSecrets && hasProxyPasswordField
       ? proxyPassword ? { proxyPasswordRef } : { proxyPasswordRef: undefined }
       : {})
   })
 
-  if (proxyPassword && provider.proxyPasswordRef) {
+  if (saveSecrets && proxyPassword && provider.proxyPasswordRef) {
     await saveProxyPassword(provider.proxyPasswordRef, proxyPassword)
   }
 
   if (
+    saveSecrets &&
     options.deleteDisabledProxyPassword !== false &&
     ((hasProxyPasswordField && !proxyPassword) || !provider.proxyUrl || !provider.proxyUsername)
   ) {
@@ -843,9 +845,17 @@ function registerIpc(): void {
       }
     }
 
-    const provider = await prepareProviderRequest(request, { deleteDisabledProxyPassword: false })
+    const provider = await prepareProviderRequest(request, {
+      deleteDisabledProxyPassword: false,
+      saveSecrets: false
+    })
     return {
-      models: await listModels(provider),
+      models: await listModels(provider, {
+        apiKey: request.apiKey?.trim() || undefined,
+        ...(Object.prototype.hasOwnProperty.call(request, 'proxyPassword')
+          ? { proxyPassword: request.proxyPassword }
+          : {})
+      }),
       provider
     }
   })

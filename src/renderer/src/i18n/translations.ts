@@ -60,6 +60,8 @@ export interface Translations {
   'providers.apiKey.placeholder': string
   'providers.apiKey.replacePlaceholder': string
   'providers.save': string
+  'providers.testConnection': string
+  'providers.testing': string
   'providers.fetchModels': string
   'providers.addProvider': string
   'providers.deleteProvider': string
@@ -72,6 +74,13 @@ export interface Translations {
   'providers.safetyModel': string
   'providers.searchChatModel': string
   'providers.searchSafetyModel': string
+  'providers.status.active': string
+  'providers.status.activeReady': string
+  'providers.status.ready': string
+  'providers.status.error': string
+  'providers.status.noKey': string
+  'providers.status.checking': string
+  'providers.status.notTested': string
 
   // Connections tab
   'connections.title': string
@@ -460,6 +469,8 @@ export const en: Translations = {
   'providers.apiKey.placeholder': 'Enter API key…',
   'providers.apiKey.replacePlaceholder': 'Enter new key to replace…',
   'providers.save': 'Save provider',
+  'providers.testConnection': 'Test connection',
+  'providers.testing': 'Testing...',
   'providers.fetchModels': 'Fetch models',
   'providers.addProvider': 'Add provider',
   'providers.deleteProvider': 'Delete provider',
@@ -472,6 +483,13 @@ export const en: Translations = {
   'providers.safetyModel': 'Command safety model',
   'providers.searchChatModel': 'Search chat model',
   'providers.searchSafetyModel': 'Search safety model',
+  'providers.status.active': 'active',
+  'providers.status.activeReady': 'active · ready',
+  'providers.status.ready': 'ready',
+  'providers.status.error': 'error',
+  'providers.status.noKey': 'no key',
+  'providers.status.checking': 'checking',
+  'providers.status.notTested': 'not tested',
 
   'connections.title': 'SSH Connections',
   'connections.addConnection': 'Add connection',
@@ -844,6 +862,8 @@ export const ru: Translations = {
   'providers.apiKey.placeholder': 'Введите API-ключ…',
   'providers.apiKey.replacePlaceholder': 'Введите новый ключ для замены…',
   'providers.save': 'Сохранить провайдера',
+  'providers.testConnection': 'Проверить подключение',
+  'providers.testing': 'Проверка...',
   'providers.fetchModels': 'Загрузить модели',
   'providers.addProvider': 'Добавить провайдера',
   'providers.deleteProvider': 'Удалить провайдера',
@@ -856,6 +876,13 @@ export const ru: Translations = {
   'providers.safetyModel': 'Модель проверки безопасности',
   'providers.searchChatModel': 'Поиск модели чата',
   'providers.searchSafetyModel': 'Поиск модели безопасности',
+  'providers.status.active': 'активный',
+  'providers.status.activeReady': 'активный · готов',
+  'providers.status.ready': 'готов',
+  'providers.status.error': 'ошибка',
+  'providers.status.noKey': 'нет ключа',
+  'providers.status.checking': 'проверка',
+  'providers.status.notTested': 'не проверен',
 
   'connections.title': 'SSH-подключения',
   'connections.addConnection': 'Добавить подключение',
@@ -1228,6 +1255,8 @@ export const cn: Translations = {
   'providers.apiKey.placeholder': '输入API密钥…',
   'providers.apiKey.replacePlaceholder': '输入新密钥以替换…',
   'providers.save': '保存提供商',
+  'providers.testConnection': '测试连接',
+  'providers.testing': '测试中...',
   'providers.fetchModels': '获取模型',
   'providers.addProvider': '添加提供商',
   'providers.deleteProvider': '删除提供商',
@@ -1240,6 +1269,13 @@ export const cn: Translations = {
   'providers.safetyModel': '命令安全模型',
   'providers.searchChatModel': '搜索聊天模型',
   'providers.searchSafetyModel': '搜索安全模型',
+  'providers.status.active': '活跃',
+  'providers.status.activeReady': '活跃 · 就绪',
+  'providers.status.ready': '就绪',
+  'providers.status.error': '错误',
+  'providers.status.noKey': '无密钥',
+  'providers.status.checking': '检查中',
+  'providers.status.notTested': '未测试',
 
   'connections.title': 'SSH 连接',
   'connections.addConnection': '添加连接',

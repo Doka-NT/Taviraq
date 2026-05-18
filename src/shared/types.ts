@@ -197,11 +197,14 @@ export interface CommandRiskAssessmentRequest {
   context: TerminalContext
 }
 
+export type CommandRiskLevel = 'warning' | 'danger'
+
 export interface CommandRiskAssessment {
   dangerous: boolean
   reason: string
   reasonCode?: 'local-secret'
   reasonArgs?: Record<string, string>
+  riskLevel?: CommandRiskLevel
 }
 
 export interface SummarizeConversationRequest {

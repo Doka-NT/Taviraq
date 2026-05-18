@@ -1,53 +1,63 @@
-import type { CommandRiskAssessment, CommandRiskAssessmentRequest } from '@shared/types'
+import type { CommandRiskAssessment, CommandRiskAssessmentRequest, CommandRiskLevel } from '@shared/types'
 import { SECRET_PLACEHOLDER_RE } from '@shared/secretPlaceholders'
 
 type ProtectedPattern = {
   pattern: RegExp
   reason: string
   reasonCode?: CommandRiskAssessment['reasonCode']
+  riskLevel?: CommandRiskLevel
 }
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
   {
     pattern: SECRET_PLACEHOLDER_RE,
     reason: 'This command uses a local secret and must be reviewed before Taviraq resolves it.',
-    reasonCode: 'local-secret'
+    reasonCode: 'local-secret',
+    riskLevel: 'warning'
   },
   {
     pattern: /\brm\s+(?:-[^\s]*[rf][^\s]*|-[^\s]*[fr][^\s]*)\b/i,
-    reason: 'This command can recursively or forcefully delete files.'
+    reason: 'This command can recursively or forcefully delete files.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\b(?:chmod|chown)\s+(?:-[^\s]*R[^\s]*|--recursive)\b/i,
+    reason: 'This command can recursively change permissions or ownership.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\b(?:dd|mkfs(?:\.[\w-]+)?|diskutil\s+erase|diskutil\s+partition)\b/i,
+    reason: 'This command can overwrite disks, filesystems, or partitions.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\bcurl\b[\s\S]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b|\bwget\b[\s\S]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b/i,
+    reason: 'This command downloads a script and executes it in the shell.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\bkubectl\s+(?:delete|drain|cordon|uncordon|apply|replace|patch|scale|rollout\s+restart)\b/i,
+    reason: 'This command can modify Kubernetes resources or cluster availability.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\bterraform\s+(?:apply|destroy|import|state\s+(?:rm|mv|push))\b/i,
+    reason: 'This command can modify infrastructure or Terraform state.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\b(?:drop\s+database|drop\s+table|truncate\s+table|delete\s+from|update\s+\S+\s+set)\b/i,
+    reason: 'This command can destructively modify database data or schema.',
+    riskLevel: 'danger'
+  },
+  {
+    pattern: /\bgit\s+(?:reset\s+--hard|clean\s+-[^\s]*f|push\s+--force|push\s+-[^\s]*f)\b/i,
+    reason: 'This command can discard local work or rewrite shared Git history.',
+    riskLevel: 'danger'
   },
   {
     pattern: /\bsudo\b/i,
     reason: 'This command asks for elevated privileges and can change system state.'
-  },
-  {
-    pattern: /\b(?:chmod|chown)\s+(?:-[^\s]*R[^\s]*|--recursive)\b/i,
-    reason: 'This command can recursively change permissions or ownership.'
-  },
-  {
-    pattern: /\b(?:dd|mkfs(?:\.[\w-]+)?|diskutil\s+erase|diskutil\s+partition)\b/i,
-    reason: 'This command can overwrite disks, filesystems, or partitions.'
-  },
-  {
-    pattern: /\bcurl\b[\s\S]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b|\bwget\b[\s\S]*\|\s*(?:sudo\s+)?(?:sh|bash|zsh)\b/i,
-    reason: 'This command downloads a script and executes it in the shell.'
-  },
-  {
-    pattern: /\bkubectl\s+(?:delete|drain|cordon|uncordon|apply|replace|patch|scale|rollout\s+restart)\b/i,
-    reason: 'This command can modify Kubernetes resources or cluster availability.'
-  },
-  {
-    pattern: /\bterraform\s+(?:apply|destroy|import|state\s+(?:rm|mv|push))\b/i,
-    reason: 'This command can modify infrastructure or Terraform state.'
-  },
-  {
-    pattern: /\b(?:drop\s+database|drop\s+table|truncate\s+table|delete\s+from|update\s+\S+\s+set)\b/i,
-    reason: 'This command can destructively modify database data or schema.'
-  },
-  {
-    pattern: /\bgit\s+(?:reset\s+--hard|clean\s+-[^\s]*f|push\s+--force|push\s+-[^\s]*f)\b/i,
-    reason: 'This command can discard local work or rewrite shared Git history.'
   },
   {
     pattern: /\b(?:npm|pnpm|yarn|brew|pip|pipx|cargo|gem)\s+(?:install|uninstall|remove|add|update|upgrade)\b/i,
@@ -59,14 +69,34 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
   }
 ]
 
+const RISK_PRECEDENCE: Record<CommandRiskLevel, number> = { warning: 1, danger: 2 }
+
+function higherRiskLevel(
+  a: CommandRiskLevel | undefined,
+  b: CommandRiskLevel | undefined
+): CommandRiskLevel | undefined {
+  if (!a) return b
+  if (!b) return a
+  return RISK_PRECEDENCE[a] >= RISK_PRECEDENCE[b] ? a : b
+}
+
 export function assessProtectedCommandRisk(
   request: Pick<CommandRiskAssessmentRequest, 'command' | 'context'>
 ): CommandRiskAssessment | undefined {
   const command = request.command.trim()
   if (!command) return undefined
 
-  const match = PROTECTED_PATTERNS.find(({ pattern }) => pattern.test(command))
-  if (!match) return undefined
+  const matches = PROTECTED_PATTERNS.filter(({ pattern }) => pattern.test(command))
+  if (matches.length === 0) return undefined
+
+  // Pick the primary match: first pattern with the highest risk level,
+  // or the first match if none have a risk level.
+  const bestRisk = matches.reduce<CommandRiskLevel | undefined>(
+    (acc, m) => higherRiskLevel(acc, m.riskLevel), undefined
+  )
+  const primary = bestRisk
+    ? matches.find(m => m.riskLevel === bestRisk) ?? matches[0]
+    : matches[0]
 
   const sshLabel = request.context.session?.kind === 'ssh' ? request.context.session.label : undefined
   const host = sshLabel
@@ -75,8 +105,9 @@ export function assessProtectedCommandRisk(
 
   return {
     dangerous: true,
-    reason: `${match.reason}${host} Taviraq requires confirmation before running it.`,
-    ...(match.reasonCode ? { reasonCode: match.reasonCode } : {}),
-    ...(sshLabel ? { reasonArgs: { sshLabel } } : {})
+    reason: `${primary.reason}${host} Taviraq requires confirmation before running it.`,
+    ...(primary.reasonCode ? { reasonCode: primary.reasonCode } : {}),
+    ...(sshLabel ? { reasonArgs: { sshLabel } } : {}),
+    ...(bestRisk ? { riskLevel: bestRisk } : {})
   }
 }

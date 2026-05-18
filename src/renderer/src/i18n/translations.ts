@@ -329,6 +329,10 @@ export interface Translations {
   'confirm.runCommand': string
   'confirm.runAnyway': string
   'confirm.shortcutHint': string
+  'confirm.destructiveWarning': string
+  'confirm.confirmCountdown': string
+  'confirm.commandApproved': string
+  'confirm.commandRejected': string
   'commandRisk.localSecret': string
   'commandRisk.sshContext': string
   'commandRisk.requiresConfirmation': string
@@ -715,6 +719,10 @@ export const en: Translations = {
   'confirm.runCommand': 'Run command',
   'confirm.runAnyway': 'Run anyway',
   'confirm.shortcutHint': 'Enter confirms · Esc cancels',
+  'confirm.destructiveWarning': 'This command may cause irreversible changes. Please review carefully.',
+  'confirm.confirmCountdown': 'Confirm ({seconds}s)',
+  'confirm.commandApproved': '⚠️ Command confirmed: {{command}}',
+  'confirm.commandRejected': '❌ Command rejected: {{command}}',
   'commandRisk.localSecret': 'This command uses a local secret and must be reviewed before Taviraq resolves it.',
   'commandRisk.sshContext': 'The active session is SSH ({label}), so remote-side effects need explicit review.',
   'commandRisk.requiresConfirmation': 'Taviraq requires confirmation before running it.',
@@ -1095,6 +1103,10 @@ export const ru: Translations = {
   'confirm.runCommand': 'Выполнить команду',
   'confirm.runAnyway': 'Всё равно выполнить',
   'confirm.shortcutHint': 'Enter подтверждает · Esc отменяет',
+  'confirm.destructiveWarning': 'Эта команда может вызвать необратимые изменения. Пожалуйста, внимательно проверьте.',
+  'confirm.confirmCountdown': 'Подтвердить ({seconds} с)',
+  'confirm.commandApproved': '⚠️ Команда подтверждена: {{command}}',
+  'confirm.commandRejected': '❌ Команда отклонена: {{command}}',
   'commandRisk.localSecret': 'Команда содержит локальный секрет. Подтвердите подстановку секрета в команду.',
   'commandRisk.sshContext': 'Активная сессия — SSH ({label}), поэтому удалённые изменения требуют явной проверки.',
   'commandRisk.requiresConfirmation': 'Taviraq требует подтверждения перед выполнением.',
@@ -1475,6 +1487,10 @@ export const cn: Translations = {
   'confirm.runCommand': '执行命令',
   'confirm.runAnyway': '仍然执行',
   'confirm.shortcutHint': 'Enter 确认 · Esc 取消',
+  'confirm.destructiveWarning': '此命令可能导致不可逆的更改，请仔细审查。',
+  'confirm.confirmCountdown': '确认 ({seconds}s)',
+  'confirm.commandApproved': '⚠️ 命令已确认：{{command}}',
+  'confirm.commandRejected': '❌ 命令已拒绝：{{command}}',
   'commandRisk.localSecret': '此命令使用本地密钥，Taviraq 在解析前需要你确认。',
   'commandRisk.sshContext': '当前会话是 SSH ({label})，远程影响需要明确检查。',
   'commandRisk.requiresConfirmation': 'Taviraq 需要确认后才能运行。',

@@ -9,7 +9,7 @@ import {
   ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
   PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalSessionInfo
@@ -174,6 +174,9 @@ interface CommandConfirmation {
   command: string
   tone: 'danger' | 'warning'
   confirmLabel: string
+  riskLevel?: CommandRiskLevel
+  /** Unique id for each confirmation request — used to key the countdown timer. Generated automatically. */
+  commandId?: string
 }
 type CommandConfirmationResult = string | false
 type CommandConfirmationRequest = Omit<CommandConfirmation, 'sessionId'>
@@ -637,6 +640,29 @@ export function LlmPanel({
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const [confirmCountdown, setConfirmCountdown] = useState(0)
+
+  // Countdown timer for destructive (danger) command confirmations
+  // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
+  useEffect(() => {
+    if (!commandConfirmation || commandConfirmation.tone !== 'danger') {
+      setConfirmCountdown(0)
+      return
+    }
+    const COUNTDOWN_SECONDS = 3
+    setConfirmCountdown(COUNTDOWN_SECONDS)
+    const interval = setInterval(() => {
+      setConfirmCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [commandConfirmation?.tone, commandConfirmation?.commandId])
+
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
 
@@ -900,7 +926,7 @@ export function LlmPanel({
 
     return new Promise((resolve) => {
       commandConfirmationResolversRef.current.set(sessionId, resolve)
-      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: { ...confirmation, sessionId } }))
+      updateThread(sessionId, (thread) => ({ ...thread, commandConfirmation: { ...confirmation, sessionId, commandId: crypto.randomUUID() } }))
     })
   }, [updateThread])
 
@@ -940,6 +966,16 @@ export function LlmPanel({
           command: finalCommand.trim(),
           output: originalCommand.trim()
         }
+      ]
+    }))
+  }, [updateThread])
+
+  const appendSystemStatus = useCallback((sessionId: string, content: string) => {
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: [
+        ...thread.messages,
+        { role: 'assistant', content, display: 'system-status' as const }
       ]
     }))
   }, [updateThread])
@@ -1471,21 +1507,25 @@ export function LlmPanel({
         return command
       }
 
+      const riskLevel = assessment.riskLevel ?? 'warning'
       updateThread(sessionId, (thread) => ({ ...thread, status: null }))
       const confirmed = await requestCommandConfirmation(sessionId, {
         title: t('confirm.reviewRisky'),
         reason: localizeCommandRiskReason(assessment, t),
         command,
-        tone: 'danger',
-        confirmLabel: t('confirm.runCommand')
+        tone: riskLevel === 'danger' ? 'danger' : 'warning',
+        confirmLabel: t('confirm.runCommand'),
+        riskLevel
       })
 
       if (!confirmed) {
+        appendSystemStatus(sessionId, t('confirm.commandRejected', { command }))
         updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.agentStopped.riskyCommand') } }))
         stopAgentic(sessionId)
         return false
       }
 
+      appendSystemStatus(sessionId, t('confirm.commandApproved', { command: String(confirmed) }))
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.riskyCommandConfirmed') } }))
       return confirmed
     } catch (error) {
@@ -1496,19 +1536,22 @@ export function LlmPanel({
         reason: message,
         command,
         tone: 'warning',
-        confirmLabel: t('confirm.runAnyway')
+        confirmLabel: t('confirm.runAnyway'),
+        riskLevel: 'warning'
       })
 
       if (!confirmed) {
+        appendSystemStatus(sessionId, t('confirm.commandRejected', { command }))
         updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.agentStopped.safetyUnchecked') } }))
         stopAgentic(sessionId)
         return false
       }
 
+      appendSystemStatus(sessionId, t('confirm.commandApproved', { command: String(confirmed) }))
       updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'warning', label: t('status.safetyFailedConfirmed') } }))
       return confirmed
     }
-  }, [buildTerminalContext, requestCommandConfirmation, stopAgentic, t, updateThread])
+  }, [appendSystemStatus, buildTerminalContext, requestCommandConfirmation, stopAgentic, t, updateThread])
 
   // Agentic step runner (ref-based to avoid stale closures)
   const runAgenticStep = useCallback(async (sessionId: string, content: string) => {
@@ -3620,23 +3663,33 @@ export function LlmPanel({
           }
 
           if (message.display === 'system-status') {
-            const visibleOriginalCommand = hideSecretPlaceholders(message.output ?? '', maskedSecretLabel)
-            const visibleFinalCommand = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
+            if (message.command && message.output) {
+              const visibleOriginalCommand = hideSecretPlaceholders(message.output, maskedSecretLabel)
+              const visibleFinalCommand = hideSecretPlaceholders(message.command, maskedSecretLabel)
+              return (
+                <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
+                  <div>
+                    <span className="system-prefix">&gt;</span>
+                    <span>{t('chat.commandEdited.label')}</span>
+                  </div>
+                  <div className="command-edit-details">
+                    <div>
+                      <span>{t('chat.commandEdited.original')}</span>
+                      <pre>{visibleOriginalCommand}</pre>
+                    </div>
+                    <div>
+                      <span>{t('chat.commandEdited.final')}</span>
+                      <pre>{visibleFinalCommand}</pre>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
             return (
               <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
                 <div>
                   <span className="system-prefix">&gt;</span>
-                  <span>{t('chat.commandEdited.label')}</span>
-                </div>
-                <div className="command-edit-details">
-                  <div>
-                    <span>{t('chat.commandEdited.original')}</span>
-                    <pre>{visibleOriginalCommand}</pre>
-                  </div>
-                  <div>
-                    <span>{t('chat.commandEdited.final')}</span>
-                    <pre>{visibleFinalCommand}</pre>
-                  </div>
+                  <span>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</span>
                 </div>
               </div>
             )
@@ -3729,12 +3782,18 @@ export function LlmPanel({
         >
           <div className="command-confirmation-head">
             <div>
-              <AlertTriangle size={12} aria-hidden />
+              {commandConfirmation.tone === 'danger' ? <ShieldAlert size={14} aria-hidden /> : <AlertTriangle size={12} aria-hidden />}
               <h2 id="command-confirmation-title">{commandConfirmation.title}</h2>
             </div>
             <span>{commandConfirmation.tone === 'danger' ? t('confirm.review') : t('confirm.warning')}</span>
           </div>
           <div className="command-confirmation-body">
+            {commandConfirmation.tone === 'danger' && (
+              <div className="command-confirmation-destructive-warning">
+                <ShieldAlert size={14} aria-hidden />
+                <span>{t('confirm.destructiveWarning')}</span>
+              </div>
+            )}
             <label className="command-confirmation-command">
               <span>{t('confirm.command')}</span>
               <textarea
@@ -3763,10 +3822,12 @@ export function LlmPanel({
             <button
               type="button"
               className={`danger-button ${commandConfirmation.tone}`}
-              disabled={!commandConfirmation.command.trim()}
+              disabled={!commandConfirmation.command.trim() || (commandConfirmation.tone === 'danger' && confirmCountdown > 0)}
               onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, true, commandConfirmation.command)}
             >
-              {commandConfirmation.confirmLabel}
+              {commandConfirmation.tone === 'danger' && confirmCountdown > 0
+                ? t('confirm.confirmCountdown', { seconds: confirmCountdown })
+                : commandConfirmation.confirmLabel}
             </button>
           </footer>
         </section>

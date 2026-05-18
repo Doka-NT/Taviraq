@@ -262,6 +262,7 @@ export function App(): JSX.Element {
   const sessionsRef = useRef<SessionState[]>([])
   const activeSessionIdRef = useRef<string>()
   const assistantThreadsRef = useRef<RestorableAssistantThreads>({})
+  const cancelledReconnectsRef = useRef(new Set<string>())
   const [terminalBlocksRevision, setTerminalBlocksRevision] = useState(0)
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([])
   const [blockPromptRequest, setBlockPromptRequest] = useState<BlockPromptRequest | null>(null)
@@ -783,6 +784,9 @@ export function App(): JSX.Element {
 
   const closeSession = useCallback(async (sessionId: string) => {
     const closing = sessions.find((session) => session.id === sessionId)
+    if (closing?.status === 'reconnecting') {
+      cancelledReconnectsRef.current.add(sessionId)
+    }
     if (closing?.status !== 'disconnected' && closing?.status !== 'reconnecting') {
       await window.api.terminal.kill(sessionId)
     }
@@ -806,6 +810,7 @@ export function App(): JSX.Element {
     const session = sessions.find((candidate) => candidate.id === sessionId)
     if (!session?.reconnectCommand) return
     if (session.status !== 'disconnected' && session.status !== 'exited') return
+    cancelledReconnectsRef.current.delete(sessionId)
 
     setSessions((current) =>
       current.map((candidate) =>
@@ -816,6 +821,10 @@ export function App(): JSX.Element {
     try {
       const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
       const next = await window.api.terminal.create(session.cwd ? { cwd: session.cwd } : undefined)
+      if (cancelledReconnectsRef.current.delete(sessionId)) {
+        await window.api.terminal.kill(next.id)
+        return
+      }
       const fallbackNotice = session.cwd && next.cwd !== session.cwd
         ? `\r\n[Taviraq reconnected from ${next.cwd ?? 'your home directory'} because ${session.cwd} was unavailable.]\r\n`
         : ''

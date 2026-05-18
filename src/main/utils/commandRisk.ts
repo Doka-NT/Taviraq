@@ -21,10 +21,6 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'danger'
   },
   {
-    pattern: /\bsudo\b/i,
-    reason: 'This command asks for elevated privileges and can change system state.'
-  },
-  {
     pattern: /\b(?:chmod|chown)\s+(?:-[^\s]*R[^\s]*|--recursive)\b/i,
     reason: 'This command can recursively change permissions or ownership.',
     riskLevel: 'danger'
@@ -58,6 +54,10 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     pattern: /\bgit\s+(?:reset\s+--hard|clean\s+-[^\s]*f|push\s+--force|push\s+-[^\s]*f)\b/i,
     reason: 'This command can discard local work or rewrite shared Git history.',
     riskLevel: 'danger'
+  },
+  {
+    pattern: /\bsudo\b/i,
+    reason: 'This command asks for elevated privileges and can change system state.'
   },
   {
     pattern: /\b(?:npm|pnpm|yarn|brew|pip|pipx|cargo|gem)\s+(?:install|uninstall|remove|add|update|upgrade)\b/i,

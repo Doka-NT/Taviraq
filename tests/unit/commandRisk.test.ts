@@ -107,5 +107,27 @@ describe('protected command risk checks', () => {
       expect(result?.dangerous).toBe(true)
       expect(result?.riskLevel).toBeUndefined()
     })
+
+    it.each([
+      'sudo chmod -R 777 /app',
+      'sudo dd if=/dev/zero of=/dev/sda',
+      'sudo kubectl delete namespace prod',
+      'sudo rm -rf /var/log',
+      'sudo chown -R root:root /etc'
+    ])('classifies sudo + destructive command "%s" as danger, not warning', (command) => {
+      expect(assessProtectedCommandRisk({
+        command,
+        context: { selectedText: '', assistMode: 'agent' }
+      })).toMatchObject({ riskLevel: 'danger' })
+    })
+
+    it('classifies plain sudo command without riskLevel', () => {
+      const result = assessProtectedCommandRisk({
+        command: 'sudo apt update',
+        context: { selectedText: '', assistMode: 'agent' }
+      })
+      expect(result?.dangerous).toBe(true)
+      expect(result?.riskLevel).toBeUndefined()
+    })
   })
 })

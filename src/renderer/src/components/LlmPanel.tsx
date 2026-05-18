@@ -4046,10 +4046,12 @@ export function LlmPanel({
                 <ScrollText size={12} aria-hidden />
                 <span>{composerContextLabel}</span>
               </span>
-              <span className="composer-context-chip" title={composerMaskedSecretLabel}>
-                {composerMaskedSecretCount > 0 ? <ShieldCheck size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
-                <span>{composerMaskedSecretLabel}</span>
-              </span>
+              {composerMaskedSecretCount > 0 ? (
+                <span className="composer-context-chip" title={composerMaskedSecretLabel}>
+                  <ShieldCheck size={12} aria-hidden />
+                  <span>{composerMaskedSecretLabel}</span>
+                </span>
+              ) : null}
             </div>
             <div className="chat-form-actions">
               <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>

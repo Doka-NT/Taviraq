@@ -152,6 +152,7 @@ describe('TerminalManager.connectSshCommand', () => {
 
     const session = manager.connectSshCommand({
       command: 'ssh -p 2222 deploy@myhost.com',
+      cwd: '/tmp',
       label: 'Production'
     })
 
@@ -162,6 +163,7 @@ describe('TerminalManager.connectSshCommand', () => {
       command: 'ssh -p 2222 deploy@myhost.com',
       file: 'ssh',
       args: ['-p', '2222', 'deploy@myhost.com'],
+      cwd: '/tmp',
       remoteHost: 'myhost.com',
       remoteTarget: 'deploy@myhost.com',
       reconnectCommand: 'ssh -p 2222 deploy@myhost.com'

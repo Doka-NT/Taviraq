@@ -86,6 +86,7 @@ export class TerminalManager {
     if (!ssh) {
       throw new Error('A valid ssh command is required.')
     }
+    const fallbackCwd = process.env.HOME || homedir()
 
     return this.spawn({
       kind: 'ssh',
@@ -93,7 +94,7 @@ export class TerminalManager {
       command: request.command,
       file: ssh.file,
       args: ssh.args,
-      cwd: process.env.HOME || homedir(),
+      cwd: resolveExistingCwd(request.cwd, fallbackCwd),
       cols: request.cols,
       rows: request.rows,
       remoteHost: request.remoteHost || ssh.remoteHost,

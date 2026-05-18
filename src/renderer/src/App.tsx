@@ -834,6 +834,7 @@ export function App(): JSX.Element {
       const restoredOutput = outputBuffers.current.get(sessionId) ?? ''
       const next = await window.api.ssh.connectCommand({
         command: session.reconnectCommand,
+        cwd: session.cwd,
         label: session.label,
         remoteHost: session.remoteHost,
         remoteTarget: session.remoteTarget
@@ -891,6 +892,7 @@ export function App(): JSX.Element {
       if (session.kind === 'ssh' && session.reconnectCommand) {
         const next = await window.api.ssh.connectCommand({
           command: session.reconnectCommand,
+          cwd: session.cwd,
           label: session.label,
           remoteHost: session.remoteHost,
           remoteTarget: session.remoteTarget

@@ -3663,23 +3663,33 @@ export function LlmPanel({
           }
 
           if (message.display === 'system-status') {
-            const visibleOriginalCommand = hideSecretPlaceholders(message.output ?? '', maskedSecretLabel)
-            const visibleFinalCommand = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
+            if (message.command && message.output) {
+              const visibleOriginalCommand = hideSecretPlaceholders(message.output, maskedSecretLabel)
+              const visibleFinalCommand = hideSecretPlaceholders(message.command, maskedSecretLabel)
+              return (
+                <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
+                  <div>
+                    <span className="system-prefix">&gt;</span>
+                    <span>{t('chat.commandEdited.label')}</span>
+                  </div>
+                  <div className="command-edit-details">
+                    <div>
+                      <span>{t('chat.commandEdited.original')}</span>
+                      <pre>{visibleOriginalCommand}</pre>
+                    </div>
+                    <div>
+                      <span>{t('chat.commandEdited.final')}</span>
+                      <pre>{visibleFinalCommand}</pre>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
             return (
               <div className="command-output-message command-edit-message" key={`system-status-${index}`}>
                 <div>
                   <span className="system-prefix">&gt;</span>
-                  <span>{t('chat.commandEdited.label')}</span>
-                </div>
-                <div className="command-edit-details">
-                  <div>
-                    <span>{t('chat.commandEdited.original')}</span>
-                    <pre>{visibleOriginalCommand}</pre>
-                  </div>
-                  <div>
-                    <span>{t('chat.commandEdited.final')}</span>
-                    <pre>{visibleFinalCommand}</pre>
-                  </div>
+                  <span>{message.content}</span>
                 </div>
               </div>
             )

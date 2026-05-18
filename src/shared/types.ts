@@ -5,6 +5,7 @@ export type SecretMaskingAuditScope = 'chat-display' | 'provider-payload'
 export type SecretMaskingAuditSource = 'chat-stream' | 'chat-display' | 'command-risk' | 'summary' | 'terminal-display' | 'chat-storage'
 export type AppShortcutAction =
   | 'clear-terminal'
+  | 'open-command-palette'
   | 'open-prompt-library'
   | 'open-command-snippets'
   | 'open-settings'

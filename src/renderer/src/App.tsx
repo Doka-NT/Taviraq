@@ -1245,6 +1245,8 @@ export function App(): JSX.Element {
     return window.api.shortcuts.onShortcut((shortcut) => {
       if (shortcut === 'clear-terminal') {
         clearActiveTerminal()
+      } else if (shortcut === 'open-command-palette') {
+        openCommandPalette()
       } else if (shortcut === 'open-prompt-library') {
         setPromptLibraryRequestVersion((version) => version + 1)
       } else if (shortcut === 'open-command-snippets') {
@@ -1263,7 +1265,7 @@ export function App(): JSX.Element {
         toggleSidebar()
       }
     })
-  }, [activateNextSession, activateSessionByIndex, clearActiveTerminal, closeActiveSession, createLocalSession, toggleSidebar])
+  }, [activateNextSession, activateSessionByIndex, clearActiveTerminal, closeActiveSession, createLocalSession, openCommandPalette, toggleSidebar])
 
   useEffect(() => {
     return window.api.shortcuts.onWindowShow(() => {

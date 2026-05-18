@@ -606,7 +606,7 @@ async function createWindow(): Promise<void> {
 
     const key = input.key.toLowerCase()
     const isQuitShortcut = key === 'q' || input.code === 'KeyQ'
-    const isClearShortcut = key === 'k' || input.code === 'KeyK'
+    const isCommandPaletteShortcut = key === 'k' || input.code === 'KeyK'
     const isSettingsShortcut = key === ',' || input.code === 'Comma'
     const isNewTabShortcut = key === 't' || input.code === 'KeyT'
     const isCloseTabShortcut = key === 'w' || input.code === 'KeyW'
@@ -621,8 +621,8 @@ async function createWindow(): Promise<void> {
 
     if (tabShortcut) {
       action = `switch-tab-${tabShortcut}` as AppShortcutAction
-    } else if (isClearShortcut) {
-      action = 'clear-terminal'
+    } else if (isCommandPaletteShortcut) {
+      action = 'open-command-palette'
     } else if (isSettingsShortcut) {
       action = 'open-settings'
     } else if (isNewTabShortcut) {

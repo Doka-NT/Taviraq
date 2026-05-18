@@ -1,5 +1,5 @@
 import { cleanCommandOutput } from '@renderer/utils/commandOutput'
-import { buildAgentContinuation } from '@renderer/utils/agentContinuation'
+import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 
 describe('LlmPanel command output cleanup', () => {
   it('strips PTY echo when a secret placeholder was resolved before execution', () => {
@@ -21,5 +21,14 @@ describe('LlmPanel command output cleanup', () => {
     expect(continuation).toContain('strict terminal context')
     expect(continuation).not.toContain(command)
     expect(continuation).not.toContain(output)
+  })
+
+  it('marks strict command output as hidden from provider for display labels', () => {
+    const strictContinuation = buildAgentContinuation('ps aux', 'secret output', true)
+    const regularContinuation = buildAgentContinuation('pwd', '/Users/artem', false)
+
+    expect(wasTerminalContextSentToProvider(strictContinuation)).toBe(false)
+    expect(wasTerminalContextSentToProvider(regularContinuation)).toBe(true)
+    expect(wasTerminalContextSentToProvider(regularContinuation, false)).toBe(false)
   })
 })

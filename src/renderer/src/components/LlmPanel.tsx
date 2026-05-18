@@ -29,7 +29,7 @@ import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
-import { buildAgentContinuation } from '@renderer/utils/agentContinuation'
+import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   DISPLAY_SECRET_LABEL,
@@ -154,6 +154,7 @@ type ThreadMessage = ChatMessage & {
   displayContent?: string
   command?: string
   output?: string
+  terminalContextSent?: boolean
   maskedContent?: string
   reasoningContent?: string
 }
@@ -947,7 +948,7 @@ export function LlmPanel({
     sessionId: string,
     userContent: string,
     currentMessages: ThreadMessage[],
-    userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
+    userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output' | 'terminalContextSent'>
   ) => {
     let requestId: string | undefined
     try {
@@ -1007,7 +1008,7 @@ export function LlmPanel({
     sessionId: string,
     userContent: string,
     currentMessages: ThreadMessage[],
-    userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output'>
+    userMeta?: Pick<ThreadMessage, 'display' | 'command' | 'output' | 'terminalContextSent'>
   ): boolean => {
     if (pendingStreamStartsRef.current.has(sessionId)) return false
     pendingStreamStartsRef.current.add(sessionId)
@@ -1581,7 +1582,8 @@ export function LlmPanel({
     void startStream(sessionId, continuation, getThread(sessionId).messages, {
       display: 'command-output',
       command,
-      output
+      output,
+      terminalContextSent: !secretMaskingSettings.strictTerminalContext
     })
   }, [appendCommandEditNotice, confirmAgenticCommand, getThread, secretMaskingSettings.strictTerminalContext, stopAgentic, startStream, t, updateThread])
 
@@ -3551,11 +3553,12 @@ export function LlmPanel({
           if (message.display === 'command-output') {
             const visibleCommand = message.command ? hideSecretPlaceholders(message.command, maskedSecretLabel) : ''
             const visibleOutput = hideSecretPlaceholders(message.output?.trim() ?? '', maskedSecretLabel)
+            const terminalContextSent = wasTerminalContextSentToProvider(message.content, message.terminalContextSent)
             return (
               <div className="command-output-message" key={`command-output-${index}`}>
                 <div>
                   <span className="system-prefix">&gt;</span>
-                  <span>{t('chat.commandOutput.label')}</span>
+                  <span>{t(terminalContextSent ? 'chat.commandOutput.label' : 'chat.commandOutput.hiddenLabel')}</span>
                   {visibleCommand ? <code>{visibleCommand}</code> : null}
                 </div>
                 <details>

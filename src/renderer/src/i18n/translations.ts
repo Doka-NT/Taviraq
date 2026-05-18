@@ -271,6 +271,7 @@ export interface Translations {
   'chat.role.user': string
   'chat.role.assistant': string
   'chat.commandOutput.label': string
+  'chat.commandOutput.hiddenLabel': string
   'chat.commandOutput.show': string
   'chat.commandOutput.noOutput': string
   'chat.commandEdited.label': string
@@ -654,6 +655,7 @@ export const en: Translations = {
   'chat.role.user': 'user',
   'chat.role.assistant': 'assistant',
   'chat.commandOutput.label': 'output sent to assistant',
+  'chat.commandOutput.hiddenLabel': 'output hidden from assistant',
   'chat.commandOutput.show': 'Show output',
   'chat.commandOutput.noOutput': '(no output)',
   'chat.commandEdited.label': 'command edited before run',
@@ -1029,6 +1031,7 @@ export const ru: Translations = {
   'chat.role.user': 'пользователь',
   'chat.role.assistant': 'ассистент',
   'chat.commandOutput.label': 'вывод отправлен ассистенту',
+  'chat.commandOutput.hiddenLabel': 'вывод скрыт от ассистента',
   'chat.commandOutput.show': 'Показать вывод',
   'chat.commandOutput.noOutput': '(нет вывода)',
   'chat.commandEdited.label': 'команда изменена перед запуском',
@@ -1404,6 +1407,7 @@ export const cn: Translations = {
   'chat.role.user': '用户',
   'chat.role.assistant': '助手',
   'chat.commandOutput.label': '输出已发送给助手',
+  'chat.commandOutput.hiddenLabel': '输出已对助手隐藏',
   'chat.commandOutput.show': '显示输出',
   'chat.commandOutput.noOutput': '（无输出）',
   'chat.commandEdited.label': '命令在运行前已编辑',

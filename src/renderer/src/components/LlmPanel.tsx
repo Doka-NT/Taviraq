@@ -31,7 +31,7 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
-import { formatComposerContextChars, latestMaskedSecretCount } from '@renderer/utils/composerContext'
+import { formatComposerContextChars } from '@renderer/utils/composerContext'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -398,6 +398,7 @@ interface AssistantThread {
   agenticStep: number
   agenticCommand: string
   commandConfirmation: CommandConfirmation | null
+  lastMaskedSecretCount: number
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
   savedChatId?: string
 }
@@ -416,7 +417,8 @@ function createThread(): AssistantThread {
     agenticCommandRunning: false,
     agenticStep: 0,
     agenticCommand: '',
-    commandConfirmation: null
+    commandConfirmation: null,
+    lastMaskedSecretCount: 0
   }
 }
 
@@ -656,7 +658,18 @@ export function LlmPanel({
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
-  const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const {
+    messages,
+    draft,
+    status,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning,
+    agenticStep,
+    agenticCommand,
+    commandConfirmation,
+    lastMaskedSecretCount
+  } = activeThread
   const [confirmCountdown, setConfirmCountdown] = useState(0)
 
   const resizeComposerTextarea = useCallback(() => {
@@ -1102,6 +1115,7 @@ export function LlmPanel({
         streaming: true,
         activeRequestId: requestId,
         streamingContent: '',
+        lastMaskedSecretCount: 0,
         status: null,
         session
       }))
@@ -1192,6 +1206,7 @@ export function LlmPanel({
       streaming: true,
       activeRequestId: requestId,
       streamingContent: '',
+      lastMaskedSecretCount: 0,
       status: null,
       agenticPending: null,
       session
@@ -1278,23 +1293,9 @@ export function LlmPanel({
       if (event.type === 'privacy') {
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
-          const message: ThreadMessage = {
-            role: 'assistant',
-            content: t('status.privacyMasked', { count: event.maskedSecrets }),
-            display: 'privacy-status',
-            output: String(event.maskedSecrets)
-          }
-          const messages = [...thread.messages]
-          const last = messages.at(-1)
-          if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages.splice(messages.length - 1, 0, message)
-          } else {
-            messages.push(message)
-          }
-
           return {
             ...thread,
-            messages,
+            lastMaskedSecretCount: event.maskedSecrets,
             status: null
           }
         })
@@ -2404,7 +2405,7 @@ export function LlmPanel({
   const composerContextLabel = assistMode === 'off'
     ? t('chat.composer.contextOff')
     : t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
-  const composerMaskedSecretCount = latestMaskedSecretCount(messages)
+  const composerMaskedSecretCount = lastMaskedSecretCount
   const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
   const composerModeLabel = assistMode === 'agent'
     ? t('chat.composer.mode.agent')
@@ -3836,14 +3837,7 @@ export function LlmPanel({
           }
 
           if (message.display === 'privacy-status') {
-            return (
-              <div className="command-output-message privacy-status-message" key={`privacy-status-${index}`}>
-                <div>
-                  <span className="system-prefix">&gt;</span>
-                  <span>{message.content}</span>
-                </div>
-              </div>
-            )
+            return null
           }
 
           if (message.display === 'system-status') {

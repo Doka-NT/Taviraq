@@ -168,6 +168,7 @@ type ThreadMessage = ChatMessage & {
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
+type ProviderListStatusTone = 'active' | 'active-ready' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
 
 interface CommandConfirmation {
   sessionId: string
@@ -599,6 +600,7 @@ export function LlmPanel({
   const [settingsSearch, setSettingsSearch] = useState('')
   const lastAutoOpenedSettingsQueryRef = useRef('')
   const settingsSearchRef = useRef<HTMLInputElement | null>(null)
+  const apiKeyInputRef = useRef<HTMLInputElement | null>(null)
   const [editingApiKey, setEditingApiKey] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const [checkedApiKeyRef, setCheckedApiKeyRef] = useState<string | undefined>(defaultProvider.apiKeyRef)
@@ -2426,8 +2428,15 @@ export function LlmPanel({
   const handleFirstQuestion = useCallback(() => {
     setPromptDraft(t('onboarding.firstQuestionPrompt'))
   }, [setPromptDraft, t])
-  const getProviderListStatus = useCallback((candidate: LLMProviderConfig) => {
-    const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
+  const focusApiKeyInput = useCallback(() => {
+    requestAnimationFrame(() => {
+      apiKeyInputRef.current?.focus()
+      apiKeyInputRef.current?.select()
+    })
+  }, [])
+  const getProviderListStatus = useCallback((candidate: LLMProviderConfig): { tone: ProviderListStatusTone; label: string } => {
+    const providerType = getProviderType(candidate)
+    const needsApiKey = providerNeedsApiKey(providerType)
     const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef
     const hasTypedKey = isCurrentProvider && apiKey.trim().length > 0
     const hasSavedKey = candidate.apiKeyRef
@@ -2452,8 +2461,9 @@ export function LlmPanel({
       }
       return { tone: 'ready', label: t('providers.status.ready') }
     }
+    if (!needsApiKey) return { tone: 'local', label: t('providers.status.local') }
     if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }
-    return { tone: 'unknown', label: t('providers.status.notTested') }
+    return { tone: 'not-tested', label: t('providers.status.notTested') }
   }, [
     activeHasApiKey,
     activeProviderRef,
@@ -2466,6 +2476,32 @@ export function LlmPanel({
     proxyPassword,
     t
   ])
+  const getProviderStatusActionLabel = useCallback((candidate: LLMProviderConfig, tone: ProviderListStatusTone): string => {
+    if (tone === 'checking') return t('providers.status.action.checking')
+    if (tone === 'no-key') return t('providers.status.action.noKey')
+    if (candidate.apiKeyRef !== provider.apiKeyRef) return t('providers.status.action.select')
+    if (tone === 'active-ready' || tone === 'ready') return t('providers.status.action.ready')
+    return t('providers.status.action.test')
+  }, [provider.apiKeyRef, t])
+  const handleProviderStatusAction = useCallback((candidate: LLMProviderConfig, tone: ProviderListStatusTone) => {
+    if (tone === 'checking') return
+
+    if (tone === 'no-key') {
+      if (candidate.apiKeyRef !== provider.apiKeyRef) {
+        switchProvider(candidate)
+      }
+      setEditingApiKey(true)
+      focusApiKeyInput()
+      return
+    }
+
+    if (candidate.apiKeyRef !== provider.apiKeyRef) {
+      switchProvider(candidate)
+      return
+    }
+
+    void loadModels()
+  }, [focusApiKeyInput, loadModels, provider.apiKeyRef, switchProvider])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
@@ -2847,19 +2883,40 @@ export function LlmPanel({
                             const isEditingProvider = p.apiKeyRef === provider.apiKeyRef
                             const isActiveProvider = p.apiKeyRef === activeProviderRef
                             const listStatus = getProviderListStatus(p)
+                            const providerListName = p.name || t('providers.unnamed')
+                            const statusActionLabel = getProviderStatusActionLabel(p, listStatus.tone)
                             return (
                               <div
                                 key={p.apiKeyRef}
                                 className={`provider-list-item ${isEditingProvider ? 'active' : ''} ${isActiveProvider ? 'chat-active' : ''}`}
+                                title={providerListName}
+                                aria-label={providerListName}
                                 onClick={() => switchProvider(p)}
                                 role="button"
                                 tabIndex={0}
-                                onKeyDown={(e) => { if (e.key === 'Enter') switchProvider(p) }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    switchProvider(p)
+                                  }
+                                }}
                               >
                                 <span className={`provider-active-dot ${isActiveProvider ? 'visible' : ''}`} />
                                 <span className="provider-list-item-main">
-                                  <span className="provider-list-item-name">{p.name || t('providers.unnamed')}</span>
-                                  <span className={`provider-status-badge ${listStatus.tone}`}>{listStatus.label}</span>
+                                  <span className="provider-list-item-name" title={providerListName}>{providerListName}</span>
+                                  <button
+                                    type="button"
+                                    className={`provider-status-badge ${listStatus.tone}`}
+                                    title={statusActionLabel}
+                                    aria-label={`${listStatus.label}. ${statusActionLabel}`}
+                                    disabled={listStatus.tone === 'checking'}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleProviderStatusAction(p, listStatus.tone)
+                                    }}
+                                  >
+                                    {listStatus.label}
+                                  </button>
                                 </span>
                                 {allProviders.length > 1 ? (
                                   <button
@@ -2938,6 +2995,7 @@ export function LlmPanel({
                           ) : (
                             <input
                               type="password"
+                              ref={apiKeyInputRef}
                               value={apiKey}
                               onChange={(event) => setApiKey(event.target.value)}
                               placeholder={activeHasApiKey ? t('providers.apiKey.replacePlaceholder') : t('providers.apiKey.placeholder')}
@@ -3340,17 +3398,25 @@ export function LlmPanel({
                           ) : null}
                           {sshProfiles.map((p) => {
                             const isEditing = p.id === sshProfile?.id
+                            const sshProfileName = p.name || p.host || t('connections.unnamed')
                             return (
                               <div
                                 key={p.id}
                                 className={`provider-list-item ${isEditing ? 'active' : ''}`}
+                                title={sshProfileName}
+                                aria-label={sshProfileName}
                                 onClick={() => setSshProfile(p)}
                                 role="button"
                                 tabIndex={0}
-                                onKeyDown={(e) => { if (e.key === 'Enter') setSshProfile(p) }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault()
+                                    setSshProfile(p)
+                                  }
+                                }}
                               >
                                 <Server size={13} style={{ flexShrink: 0, color: 'var(--text-muted)' }} aria-hidden />
-                                <span className="provider-list-item-name">{p.name || p.host || t('connections.unnamed')}</span>
+                                <span className="provider-list-item-name" title={sshProfileName}>{sshProfileName}</span>
                                 <button
                                   type="button"
                                   className="provider-list-item-delete icon-button"

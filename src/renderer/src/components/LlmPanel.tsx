@@ -1459,6 +1459,12 @@ export function LlmPanel({
 
           if (last?.role === 'assistant' && !last.display) {
             messages[messages.length - 1] = { ...last, privacy }
+          } else {
+            messages.push({
+              role: 'assistant',
+              content: '',
+              privacy
+            })
           }
 
           return {

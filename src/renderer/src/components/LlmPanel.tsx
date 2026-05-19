@@ -1457,7 +1457,7 @@ export function LlmPanel({
             sessionLabel: event.sessionLabel
           }
 
-          if (last?.role === 'assistant' && !last.display) {
+          if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
             messages[messages.length - 1] = { ...last, privacy }
           } else {
             messages.push({
@@ -2653,9 +2653,11 @@ export function LlmPanel({
   const terminalOutputForComposer = stripAnsi(getOutput())
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
   const composerContextActive = assistMode !== 'off' && !strictTerminalContextActive
-  const composerContextChars = composerContextActive ? terminalOutputForComposer.length : 0
-  const composerContextLabel = composerContextActive
-    ? t('chat.composer.context', { count: formatComposerContextChars(composerContextChars) })
+  const composerContextLimit = maxOutputContext
+  const composerContextLabel = strictTerminalContextActive
+    ? t('chat.composer.contextProtected')
+    : composerContextActive
+    ? t('chat.composer.context', { count: formatComposerContextChars(composerContextLimit) })
     : t('chat.composer.contextOff')
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })

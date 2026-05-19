@@ -99,7 +99,7 @@ describe('llmService', () => {
       const { streamChatCompletion } = await import('@main/services/llmService')
       const chunks: string[] = []
       const reasoningChunks: string[] = []
-      const privacy: number[] = []
+      const privacy: Array<{ count: number; categories: string[] }> = []
       const result = await streamChatCompletion({
         requestId: 'request-1',
         provider: {
@@ -116,12 +116,14 @@ describe('llmService', () => {
           assistMode: 'read'
         }
       }, (event) => {
-        if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
+        if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') {
+          privacy.push({ count: event.maskedSecrets, categories: event.categories ?? [] })
+        }
         if (event.reasoningContent) reasoningChunks.push(event.reasoningContent)
         if (event.content) chunks.push(event.content)
       })
 
-      expect(privacy).toEqual([1])
+      expect(privacy).toEqual([{ count: 1, categories: ['GENERIC_API_KEY'] }])
       expect(requestBody).not.toContain(secret)
       expect(requestBody).toContain(placeholder)
       expect(reasoningChunks.join('')).toBe('Thinking [secret]')

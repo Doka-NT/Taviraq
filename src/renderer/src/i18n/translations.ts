@@ -171,6 +171,14 @@ export interface Translations {
   'security.audit.source.summary': string
   'security.audit.source.terminalDisplay': string
   'security.audit.source.chatStorage': string
+  'privacy.trustCard.title': string
+  'privacy.trustCard.categories': string
+  'privacy.trustCard.context': string
+  'privacy.trustCard.note': string
+  'privacy.trustCard.falsePositive': string
+  'privacy.trustCard.falsePositiveDone': string
+  'privacy.trustCard.falsePositiveMarked': string
+  'privacy.trustCard.openSettings': string
 
   // Prompts tab
   'prompts.title': string
@@ -578,6 +586,14 @@ export const en: Translations = {
   'security.audit.source.summary': 'Prompt summary',
   'security.audit.source.terminalDisplay': 'Terminal output display',
   'security.audit.source.chatStorage': 'Saved chat',
+  'privacy.trustCard.title': 'Privacy masking',
+  'privacy.trustCard.categories': 'Masked categories',
+  'privacy.trustCard.context': 'Source context',
+  'privacy.trustCard.note': 'Values stay hidden. Mark false positives here, then adjust masking rules in Security if needed.',
+  'privacy.trustCard.falsePositive': 'Mark false positive',
+  'privacy.trustCard.falsePositiveDone': 'False positive marked',
+  'privacy.trustCard.falsePositiveMarked': 'Marked as a false positive for review. Future sends still use masking until Security settings are changed.',
+  'privacy.trustCard.openSettings': 'Security settings',
 
   'prompts.title': 'Prompts',
   'prompts.importFromFile': 'Import from file',
@@ -971,6 +987,14 @@ export const ru: Translations = {
   'security.audit.source.summary': 'Саммари промпта',
   'security.audit.source.terminalDisplay': 'Вывод терминала',
   'security.audit.source.chatStorage': 'Сохраненный чат',
+  'privacy.trustCard.title': 'Маскирование приватных данных',
+  'privacy.trustCard.categories': 'Категории',
+  'privacy.trustCard.context': 'Источник',
+  'privacy.trustCard.note': 'Значения остаются скрытыми. Отметьте ложное срабатывание здесь, затем при необходимости настройте правила в разделе безопасности.',
+  'privacy.trustCard.falsePositive': 'Ложное срабатывание',
+  'privacy.trustCard.falsePositiveDone': 'Отмечено',
+  'privacy.trustCard.falsePositiveMarked': 'Отмечено как ложное срабатывание для проверки. Следующие отправки всё равно маскируются, пока настройки безопасности не изменены.',
+  'privacy.trustCard.openSettings': 'Настройки безопасности',
 
   'prompts.title': 'Промпты',
   'prompts.importFromFile': 'Импорт из файла',
@@ -1364,6 +1388,14 @@ export const cn: Translations = {
   'security.audit.source.summary': '提示词摘要',
   'security.audit.source.terminalDisplay': '终端输出显示',
   'security.audit.source.chatStorage': '已保存聊天',
+  'privacy.trustCard.title': '隐私遮蔽',
+  'privacy.trustCard.categories': '遮蔽类别',
+  'privacy.trustCard.context': '来源上下文',
+  'privacy.trustCard.note': '值会保持隐藏。可在此标记误报，并按需在安全设置中调整规则。',
+  'privacy.trustCard.falsePositive': '标记为误报',
+  'privacy.trustCard.falsePositiveDone': '已标记误报',
+  'privacy.trustCard.falsePositiveMarked': '已标记为误报以便检查。更改安全设置前，后续发送仍会继续遮蔽。',
+  'privacy.trustCard.openSettings': '安全设置',
 
   'prompts.title': '提示词',
   'prompts.importFromFile': '从文件导入',

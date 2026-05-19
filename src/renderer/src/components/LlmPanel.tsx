@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
+  PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalSessionInfo
 } from '@shared/types'
@@ -164,6 +164,7 @@ type ThreadMessage = ChatMessage & {
   output?: string
   terminalContextSent?: boolean
   maskedContent?: string
+  privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
@@ -320,6 +321,88 @@ function scopeLabel(scope: SecretMaskingAuditEvent['scope'], t: LanguageContextV
     : t('security.audit.scope.display')
 }
 
+interface PrivacyTrustCardProps {
+  content: string
+  notice?: PrivacyMaskingNotice
+  onMarkFalsePositive: () => void
+  onOpenSecuritySettings: () => void
+}
+
+function PrivacyTrustCard({
+  content,
+  notice,
+  onMarkFalsePositive,
+  onOpenSecuritySettings
+}: PrivacyTrustCardProps): JSX.Element {
+  const { t } = useT()
+  const [expanded, setExpanded] = useState(false)
+  const categories = notice?.categories.length ? notice.categories : ['unknown']
+  const source = notice ? auditSourceLabel(notice.source, t) : t('security.audit.source.chatStream')
+  const scope = notice ? scopeLabel(notice.scope, t) : t('security.audit.scope.provider')
+
+  return (
+    <div className={`privacy-trust-card ${expanded ? 'expanded' : ''}`}>
+      <button
+        type="button"
+        className="privacy-trust-card-header"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className="privacy-trust-card-icon" aria-hidden>
+          <ShieldAlert size={14} />
+        </span>
+        <span className="privacy-trust-card-title">
+          <strong>{t('privacy.trustCard.title')}</strong>
+          <small>{content}</small>
+        </span>
+        <ChevronDown className="privacy-trust-card-chevron" size={14} aria-hidden />
+      </button>
+
+      {expanded ? (
+        <div className="privacy-trust-card-details">
+          <div className="privacy-trust-card-row">
+            <span>{t('privacy.trustCard.categories')}</span>
+            <div className="privacy-trust-card-tags">
+              {categories.map((category) => (
+                <span key={category}>{formatSecretCategory(category)}</span>
+              ))}
+            </div>
+          </div>
+          <div className="privacy-trust-card-row">
+            <span>{t('privacy.trustCard.context')}</span>
+            <small>
+              {source} · {scope}
+              {notice?.sessionLabel ? ` · ${notice.sessionLabel}` : ''}
+            </small>
+          </div>
+          <p className="privacy-trust-card-note">
+            {notice?.markedFalsePositive
+              ? t('privacy.trustCard.falsePositiveMarked')
+              : t('privacy.trustCard.note')}
+          </p>
+          <div className="privacy-trust-card-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              onClick={onMarkFalsePositive}
+              disabled={Boolean(notice?.markedFalsePositive)}
+            >
+              <Check size={13} aria-hidden />
+              {notice?.markedFalsePositive
+                ? t('privacy.trustCard.falsePositiveDone')
+                : t('privacy.trustCard.falsePositive')}
+            </button>
+            <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
+              <Settings2 size={13} aria-hidden />
+              {t('privacy.trustCard.openSettings')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -427,6 +510,7 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
       display: message.display,
       command: hidePersistedSecretPlaceholders(message.command),
       output: hidePersistedSecretPlaceholders(message.output),
+      privacy: message.privacy,
       reasoningContent: hidePersistedSecretPlaceholders(message.reasoningContent)
     })),
     draft: thread.draft,
@@ -1254,7 +1338,14 @@ export function LlmPanel({
             role: 'assistant',
             content: t('status.privacyMasked', { count: event.maskedSecrets }),
             display: 'privacy-status',
-            output: String(event.maskedSecrets)
+            output: String(event.maskedSecrets),
+            privacy: {
+              maskedSecretCount: event.maskedSecrets,
+              categories: event.categories ?? [],
+              source: event.source ?? 'chat-stream',
+              scope: event.scope ?? 'provider-payload',
+              sessionLabel: event.sessionLabel
+            }
           }
           const messages = [...thread.messages]
           const last = messages.at(-1)
@@ -2426,6 +2517,27 @@ export function LlmPanel({
   const handleFirstQuestion = useCallback(() => {
     setPromptDraft(t('onboarding.firstQuestionPrompt'))
   }, [setPromptDraft, t])
+  const openSecuritySettings = useCallback(() => {
+    setSettingsTab('security')
+    setSettingsSearch('')
+    onOpenSettings()
+  }, [onOpenSettings])
+  const markPrivacyFalsePositive = useCallback((sessionId: string, messageIndex: number) => {
+    updateThread(sessionId, (thread) => ({
+      ...thread,
+      messages: thread.messages.map((message, index) => (
+        index === messageIndex && message.privacy
+          ? {
+              ...message,
+              privacy: {
+                ...message.privacy,
+                markedFalsePositive: true
+              }
+            }
+          : message
+      ))
+    }))
+  }, [updateThread])
   const getProviderListStatus = useCallback((candidate: LLMProviderConfig) => {
     const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
     const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef
@@ -3797,12 +3909,15 @@ export function LlmPanel({
 
           if (message.display === 'privacy-status') {
             return (
-              <div className="command-output-message privacy-status-message" key={`privacy-status-${index}`}>
-                <div>
-                  <span className="system-prefix">&gt;</span>
-                  <span>{message.content}</span>
-                </div>
-              </div>
+              <PrivacyTrustCard
+                key={`privacy-status-${index}`}
+                content={message.content}
+                notice={message.privacy}
+                onMarkFalsePositive={() => {
+                  if (activeSessionId) markPrivacyFalsePositive(activeSessionId, index)
+                }}
+                onOpenSecuritySettings={openSecuritySettings}
+              />
             )
           }
 

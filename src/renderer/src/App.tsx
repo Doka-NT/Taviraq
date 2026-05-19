@@ -1033,7 +1033,8 @@ export function App(): JSX.Element {
     const thread: RestorableAssistantThread = {
       messages: chat.messages,
       draft: '',
-      session: chat.sessionSnapshot ? { id: activeSessionId, ...chat.sessionSnapshot } : undefined
+      session: chat.sessionSnapshot ? { id: activeSessionId, ...chat.sessionSnapshot } : undefined,
+      savedChatId: chatId
     }
     const next = { ...assistantThreadsRef.current, [activeSessionId]: thread }
     assistantThreadsRef.current = next

@@ -116,6 +116,14 @@ export interface SecretMaskingAuditEvent {
   categories: string[]
 }
 
+export interface PrivacyMaskingNotice {
+  maskedSecretCount: number
+  categories: string[]
+  source: SecretMaskingAuditSource
+  scope: SecretMaskingAuditScope
+  sessionLabel?: string
+}
+
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 
 export interface SaveLLMProviderRequest {
@@ -146,6 +154,7 @@ export type RestorableThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status' | 'privacy-status'
   command?: string
   output?: string
+  privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
 
@@ -153,6 +162,7 @@ export interface RestorableAssistantThread {
   messages: RestorableThreadMessage[]
   draft: string
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  savedChatId?: string
 }
 
 export type RestorableAssistantThreads = Record<string, RestorableAssistantThread>
@@ -230,7 +240,15 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
-  | { requestId: string; type: 'privacy'; maskedSecrets: number }
+  | {
+      requestId: string
+      type: 'privacy'
+      maskedSecrets: number
+      categories?: string[]
+      source?: SecretMaskingAuditSource
+      scope?: SecretMaskingAuditScope
+      sessionLabel?: string
+    }
   | { requestId: string; type: 'progress'; stage: 'model_load' | 'prompt_processing'; progress: number }
   | { requestId: string; type: 'error'; message: string }
   | { requestId: string; type: 'done'; maskedContent?: string }

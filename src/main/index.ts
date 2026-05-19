@@ -1321,7 +1321,11 @@ function registerIpc(): void {
               event.sender.send('llm:chatStream:event', {
                 requestId: request.requestId,
                 type: 'privacy',
-                maskedSecrets: chunk.maskedSecrets
+                maskedSecrets: chunk.maskedSecrets,
+                categories: chunk.categories ?? [],
+                source: 'chat-stream',
+                scope: 'provider-payload',
+                sessionLabel: policyRequest.context.session?.label
               })
             }
 

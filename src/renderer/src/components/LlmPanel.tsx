@@ -2907,6 +2907,7 @@ export function LlmPanel({
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => {
+                                  if (e.target !== e.currentTarget) return
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault()
                                     switchProvider(p)
@@ -2937,6 +2938,7 @@ export function LlmPanel({
                                     className="provider-list-item-delete icon-button"
                                     title={t('providers.deleteProvider')}
                                     aria-label={t('providers.deleteProvider')}
+                                    onKeyDown={(e) => e.stopPropagation()}
                                     onClick={(e) => { e.stopPropagation(); void handleDeleteProvider(p.apiKeyRef) }}
                                   >
                                     <Trash2 size={14} aria-hidden />
@@ -3422,6 +3424,7 @@ export function LlmPanel({
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => {
+                                  if (e.target !== e.currentTarget) return
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault()
                                     setSshProfile(p)
@@ -3435,6 +3438,7 @@ export function LlmPanel({
                                   className="provider-list-item-delete icon-button"
                                   title={t('connections.deleteConnection')}
                                   aria-label={t('connections.deleteConnection')}
+                                  onKeyDown={(e) => e.stopPropagation()}
                                   onClick={(e) => { e.stopPropagation(); void deleteSshProfile(p.id) }}
                                 >
                                   <Trash2 size={14} aria-hidden />

@@ -433,6 +433,7 @@ function showAboutWindow(): void {
     aboutWindow = undefined
   })
 
+  const applicationVersion = app.getVersion()
   const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -496,7 +497,7 @@ function showAboutWindow(): void {
     <main>
       <div class="mark" aria-hidden="true">T</div>
       <h1>Taviraq</h1>
-      <p>Version ${app.getVersion()}</p>
+      <p>Version ${applicationVersion}</p>
       <a href="${TAVIRAQ_WEBSITE}" target="_blank" rel="noreferrer">${TAVIRAQ_WEBSITE}</a>
       <p>AI-native macOS terminal</p>
     </main>

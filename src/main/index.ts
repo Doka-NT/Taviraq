@@ -1245,6 +1245,10 @@ function registerIpc(): void {
 
 void app.whenReady().then(async () => {
   await initializeSecretMaskingModeCache()
+  app.setAboutPanelOptions({
+    applicationVersion: app.getVersion(),
+    website: 'https://taviraq.dev'
+  })
   registerApplicationMenu()
   registerIpc()
   void createWindow()

@@ -1,7 +1,7 @@
 {
   "name": "taviraq",
   "productName": "Taviraq",
-  "version": "0.0.0",
+  "version": "0.2.1",
   "description": "AI-native macOS terminal with built-in assistant workflows and safe command execution.",
   "author": "Soshnikov Artem",
   "private": true,

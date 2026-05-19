@@ -4276,7 +4276,14 @@ export function LlmPanel({
           }
 
           if (message.display === 'privacy-status') {
-            return null
+            return (
+              <PrivacyTrustCard
+                key={`privacy-status-${index}`}
+                content={message.content}
+                notice={message.privacy}
+                onOpenSecuritySettings={openSecuritySettings}
+              />
+            )
           }
 
           if (message.display === 'system-status') {

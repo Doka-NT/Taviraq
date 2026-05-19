@@ -336,7 +336,7 @@ function PrivacyTrustCard({
 }: PrivacyTrustCardProps): JSX.Element {
   const { t } = useT()
   const [expanded, setExpanded] = useState(false)
-  const categories = notice?.categories.length ? notice.categories : ['unknown']
+  const categories = notice?.categories?.length ? notice.categories : ['unknown']
   const source = notice ? auditSourceLabel(notice.source, t) : t('security.audit.source.chatStream')
   const scope = notice ? scopeLabel(notice.scope, t) : t('security.audit.scope.provider')
 

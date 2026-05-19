@@ -2728,16 +2728,33 @@ export function LlmPanel({
   const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
   const composerSelectedText = strictTerminalContextActive ? '' : selectedText
   const composerMaskedSecretCount = lastMaskedSecretCount
-  const composerPayloadChars = estimateComposerPayloadChars({
-    messages: messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+  const composerChatMessages = useMemo(
+    () => messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+    [messages, strictTerminalContextActive]
+  )
+  const composerSession = useMemo(
+    () => activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession]
+  )
+  const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
+    messages: composerChatMessages,
     draft,
     assistMode,
     language,
     selectedText: composerSelectedText,
     terminalOutput: composerTerminalOutput,
-    session: activeSession ? summarizeSession(activeSession) : undefined,
+    session: composerSession,
     maskedSecretCount: composerMaskedSecretCount
-  })
+  }), [
+    assistMode,
+    composerChatMessages,
+    composerMaskedSecretCount,
+    composerSelectedText,
+    composerSession,
+    composerTerminalOutput,
+    draft,
+    language
+  ])
   const composerPayloadTokens = estimateComposerContextTokens(composerPayloadChars)
   const composerContextLabel = t('chat.composer.context', { count: formatComposerContextTokens(composerPayloadTokens) })
   const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })

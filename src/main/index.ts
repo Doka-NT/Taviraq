@@ -330,6 +330,10 @@ async function openAllowedExternalUrl(url: string): Promise<void> {
   await shell.openExternal(url)
 }
 
+function escapeHtml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+}
+
 async function sendDemoChatStream(
   event: Electron.IpcMainEvent,
   request: ChatStreamRequest,
@@ -421,19 +425,12 @@ function showAboutWindow(): void {
     return { action: 'deny' }
   })
 
-  aboutWindow.webContents.on('will-navigate', (event, url) => {
-    if (url.startsWith('data:text/html')) return
-    event.preventDefault()
-    void openAllowedExternalUrl(url).catch((error: unknown) => {
-      console.error('[open about external url failed]', error)
-    })
-  })
-
   aboutWindow.on('closed', () => {
     aboutWindow = undefined
   })
 
-  const applicationVersion = app.getVersion()
+  const applicationVersion = escapeHtml(app.getVersion())
+  const websiteHref = escapeHtml(TAVIRAQ_WEBSITE)
   const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -498,13 +495,22 @@ function showAboutWindow(): void {
       <div class="mark" aria-hidden="true">T</div>
       <h1>Taviraq</h1>
       <p>Version ${applicationVersion}</p>
-      <a href="${TAVIRAQ_WEBSITE}" target="_blank" rel="noreferrer">${TAVIRAQ_WEBSITE}</a>
+      <a href="${websiteHref}" target="_blank" rel="noreferrer">${websiteHref}</a>
       <p>AI-native macOS terminal</p>
     </main>
   </body>
 </html>`
+  const aboutUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
 
-  void aboutWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+  aboutWindow.webContents.on('will-navigate', (event, url) => {
+    if (url === aboutUrl) return
+    event.preventDefault()
+    void openAllowedExternalUrl(url).catch((error: unknown) => {
+      console.error('[open about external url failed]', error)
+    })
+  })
+
+  void aboutWindow.loadURL(aboutUrl)
 }
 
 function registerApplicationMenu(): void {

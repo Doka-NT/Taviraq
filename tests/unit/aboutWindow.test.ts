@@ -21,10 +21,22 @@ describe('about window html', () => {
       iconDataUrl: 'data:image/png;base64,icon'
     })
 
-    expect(html).toContain("event.key === 'Escape'")
-    expect(html).toContain('event.target === document.body')
+    expect(html).toContain("document.querySelector('main')")
+    expect(html).toContain('!content?.contains(event.target)')
     expect(html).toContain('window.close()')
     expect(html).not.toContain('<button')
+  })
+
+  it('avoids a broken image when the icon data URL is unavailable', () => {
+    const html = createAboutWindowHtml({
+      version: '0.2.2',
+      websiteHref: 'https://taviraq.dev',
+      iconDataUrl: ''
+    })
+
+    expect(html).toContain('<div class="mark mark-fallback" role="img" aria-label="Taviraq app icon"></div>')
+    expect(html).not.toContain('src=""')
+    expect(html).not.toContain('>T</div>')
   })
 
   it('escapes dynamic values before inserting them into the document', () => {

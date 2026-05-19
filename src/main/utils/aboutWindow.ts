@@ -12,6 +12,9 @@ export function createAboutWindowHtml({ version, websiteHref, iconDataUrl }: Abo
   const applicationVersion = escapeHtml(version)
   const safeWebsiteHref = escapeHtml(websiteHref)
   const safeIconDataUrl = escapeHtml(iconDataUrl)
+  const iconMarkup = safeIconDataUrl
+    ? `<img class="mark" src="${safeIconDataUrl}" width="72" height="72" alt="Taviraq app icon">`
+    : '<div class="mark mark-fallback" role="img" aria-label="Taviraq app icon"></div>'
 
   return `<!doctype html>
 <html lang="en">
@@ -66,24 +69,24 @@ export function createAboutWindowHtml({ version, websiteHref, iconDataUrl }: Abo
         display: block;
         box-shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
       }
+      .mark-fallback {
+        background: #171827;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
     </style>
   </head>
   <body>
     <main>
-      <img class="mark" src="${safeIconDataUrl}" width="72" height="72" alt="Taviraq app icon">
+      ${iconMarkup}
       <h1>Taviraq</h1>
       <p>Version ${applicationVersion}</p>
       <a href="${safeWebsiteHref}" target="_blank" rel="noreferrer">${safeWebsiteHref}</a>
       <p>AI-native macOS terminal</p>
     </main>
     <script>
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          window.close()
-        }
-      })
-      document.body.addEventListener('click', (event) => {
-        if (event.target === document.body) {
+      document.addEventListener('click', (event) => {
+        const content = document.querySelector('main')
+        if (event.target instanceof Node && !content?.contains(event.target)) {
           window.close()
         }
       })

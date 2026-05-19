@@ -864,6 +864,7 @@ export function LlmPanel({
         display: m.display,
         command: hidePersistedSecretPlaceholders(m.command),
         output: hidePersistedSecretPlaceholders(m.output),
+        privacy: m.privacy,
         reasoningContent: hidePersistedSecretPlaceholders(m.reasoningContent)
       })),
       createdAt: new Date().toISOString(),

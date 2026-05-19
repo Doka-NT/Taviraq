@@ -44,6 +44,7 @@ import {
   SECRET_PLACEHOLDER_RE
 } from '@shared/secretPlaceholders'
 import { isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
+import { findFuzzySettingsSuggestions, matchesSearchQuery, type SettingsSearchItem } from '@renderer/utils/settingsSearch'
 
 // ...existing code...
 
@@ -253,12 +254,6 @@ function clampOutputContext(value: string, fallback: number): number {
 
 function normalizeLibraryName(value: string): string {
   return value.trim().toLowerCase()
-}
-
-function matchesSearchQuery(query: string, terms: Array<string | undefined>): boolean {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return false
-  return terms.some((term) => term?.toLowerCase().includes(normalizedQuery))
 }
 
 function providerNeedsApiKey(providerType: LLMProviderType): boolean {
@@ -2475,7 +2470,7 @@ export function LlmPanel({
   const visibleCommandConfirmationCommand = commandConfirmation
     ? hideSecretPlaceholders(commandConfirmation.command, maskedSecretLabel)
     : ''
-  const settingsNavItems = useMemo<Array<{ id: SettingsTab; label: string; terms: string[] }>>(() => [
+  const settingsNavItems = useMemo<Array<SettingsSearchItem<SettingsTab>>>(() => [
     {
       id: 'appearance',
       label: t('settings.tab.appearance'),
@@ -2558,9 +2553,17 @@ export function LlmPanel({
     )
   }, [settingsNavItems, settingsSearch])
   const settingsNoResults = settingsSearch.trim().length > 0 && filteredSettingsNavItems.length === 0
+  const fuzzySettingsSuggestions = useMemo(() => (
+    settingsNoResults ? findFuzzySettingsSuggestions(settingsSearch, settingsNavItems) : []
+  ), [settingsNavItems, settingsNoResults, settingsSearch])
   const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
     matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
   ), [settingsSearch])
+  const openSettingsSection = useCallback((tab: SettingsTab) => {
+    setSettingsTab(tab)
+    setSettingsSearch('')
+    lastAutoOpenedSettingsQueryRef.current = ''
+  }, [])
   const handleSettingsNavKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex = index
     if (event.key === 'ArrowDown') nextIndex = Math.min(index + 1, filteredSettingsNavItems.length - 1)
@@ -2728,7 +2731,7 @@ export function LlmPanel({
                     placeholder={t('settings.search')}
                   />
                 </label>
-                {filteredSettingsNavItems.length > 0 ? filteredSettingsNavItems.map((item, index) => (
+                {filteredSettingsNavItems.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
@@ -2738,14 +2741,48 @@ export function LlmPanel({
                   >
                     <HighlightSearchText text={item.label} query={settingsSearch} />
                   </button>
-                )) : (
-                  <p className="settings-nav-empty">{t('settings.search.empty')}</p>
-                )}
+                ))}
               </nav>
 
               <div className="settings-content">
                 {settingsNoResults ? (
-                  <p className="settings-content-empty">{t('settings.search.empty')}</p>
+                  <div className="settings-search-empty-state">
+                    <h3>{t('settings.search.empty.title', { query: settingsSearch.trim() })}</h3>
+                    <p>{t('settings.search.empty.hint')}</p>
+                    {fuzzySettingsSuggestions.length > 0 ? (
+                      <div className="settings-empty-group">
+                        <span className="settings-empty-label">{t('settings.search.empty.didYouMean')}</span>
+                        <div className="settings-empty-chips">
+                          {fuzzySettingsSuggestions.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className="settings-empty-chip suggested"
+                              onClick={() => openSettingsSection(item.id)}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="settings-empty-group">
+                      <span className="settings-empty-label">{t('settings.search.empty.sections')}</span>
+                      <div className="settings-empty-chips">
+                        {settingsNavItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="settings-empty-chip"
+                            onClick={() => openSettingsSection(item.id)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="settings-empty-examples">{t('settings.search.empty.examples')}</p>
+                  </div>
                 ) : settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>

@@ -13,6 +13,11 @@ export interface Translations {
   'settings.tab.data': string
   'settings.search': string
   'settings.search.empty': string
+  'settings.search.empty.title': string
+  'settings.search.empty.hint': string
+  'settings.search.empty.didYouMean': string
+  'settings.search.empty.sections': string
+  'settings.search.empty.examples': string
   'status.saved': string
 
   // Appearance tab
@@ -424,6 +429,11 @@ export const en: Translations = {
   'settings.tab.data': 'Data',
   'settings.search': 'Search settings',
   'settings.search.empty': 'No sections found',
+  'settings.search.empty.title': 'No results for "{query}"',
+  'settings.search.empty.hint': 'Try a nearby section or search for a setting name, shortcut, provider, model, SSH, prompt, snippet, or export.',
+  'settings.search.empty.didYouMean': 'Suggested sections',
+  'settings.search.empty.sections': 'All settings sections',
+  'settings.search.empty.examples': 'Examples: API key, terminal font, SSH host, secret masking, command snippet.',
   'status.saved': 'Saved',
 
   'appearance.title': 'Appearance',
@@ -817,6 +827,11 @@ export const ru: Translations = {
   'settings.tab.data': 'Данные',
   'settings.search': 'Поиск настроек',
   'settings.search.empty': 'Разделы не найдены',
+  'settings.search.empty.title': 'По запросу «{query}» ничего не найдено',
+  'settings.search.empty.hint': 'Попробуйте ближайший раздел или ищите по названию настройки, shortcut, provider, model, SSH, prompt, snippet или export.',
+  'settings.search.empty.didYouMean': 'Похожие разделы',
+  'settings.search.empty.sections': 'Все разделы настроек',
+  'settings.search.empty.examples': 'Примеры: API key, terminal font, SSH host, secret masking, command snippet.',
   'status.saved': 'Сохранено',
 
   'appearance.title': 'Внешний вид',
@@ -1210,6 +1225,11 @@ export const cn: Translations = {
   'settings.tab.data': '数据',
   'settings.search': '搜索设置',
   'settings.search.empty': '未找到部分',
+  'settings.search.empty.title': '没有找到“{query}”的结果',
+  'settings.search.empty.hint': '尝试附近的部分，或搜索设置名称、快捷键、提供商、模型、SSH、提示词、片段或导出。',
+  'settings.search.empty.didYouMean': '建议的部分',
+  'settings.search.empty.sections': '所有设置部分',
+  'settings.search.empty.examples': '示例：API key、terminal font、SSH host、secret masking、command snippet。',
   'status.saved': '已保存',
 
   'appearance.title': '外观',

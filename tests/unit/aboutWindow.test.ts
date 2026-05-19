@@ -14,7 +14,7 @@ describe('about window html', () => {
     expect(html).not.toContain('linear-gradient')
   })
 
-  it('closes from Esc and background clicks without visible controls', () => {
+  it('closes from background clicks without visible controls', () => {
     const html = createAboutWindowHtml({
       version: '0.2.2',
       websiteHref: 'https://taviraq.dev',

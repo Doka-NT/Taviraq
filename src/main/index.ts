@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -62,6 +62,7 @@ import {
 import { buildAccelerator } from '../shared/accelerator'
 import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
+import { createAboutWindowHtml } from './utils/aboutWindow'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -70,6 +71,7 @@ if (userDataDir) {
 }
 
 let mainWindow: BrowserWindow | undefined
+let aboutWindow: BrowserWindow | undefined
 let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
@@ -90,6 +92,8 @@ const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextLocksBySession.delete(sessionId)
 })
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
+const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
 const demoProvider = {
   name: 'Taviraq Demo',
@@ -384,12 +388,92 @@ function requestQuit(): void {
   app.quit()
 }
 
+function getAboutIconDataUrl(): string {
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(app.getAppPath(), 'build', 'icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
+
+  if (icon.isEmpty()) {
+    return ''
+  }
+
+  return icon.resize({ width: ABOUT_ICON_SIZE, height: ABOUT_ICON_SIZE, quality: 'best' }).toDataURL()
+}
+
+function showAboutWindow(): void {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.show()
+    aboutWindow.focus()
+    return
+  }
+
+  const visibleMainWindow = mainWindow?.isVisible() ? mainWindow : undefined
+
+  aboutWindow = new BrowserWindow({
+    width: 360,
+    height: 300,
+    parent: visibleMainWindow,
+    modal: Boolean(visibleMainWindow),
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: 'About Taviraq',
+    backgroundColor: '#10101a',
+    autoHideMenuBar: true,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  aboutWindow.webContents.setWindowOpenHandler((details) => {
+    void openAllowedExternalUrl(details.url).catch((error: unknown) => {
+      console.error('[open about external url failed]', error)
+    })
+    return { action: 'deny' }
+  })
+
+  aboutWindow.on('closed', () => {
+    aboutWindow = undefined
+  })
+
+  aboutWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Escape' && aboutWindow && !aboutWindow.isDestroyed()) {
+      event.preventDefault()
+      aboutWindow.close()
+    }
+  })
+
+  const html = createAboutWindowHtml({
+    version: app.getVersion(),
+    websiteHref: TAVIRAQ_WEBSITE,
+    iconDataUrl: getAboutIconDataUrl()
+  })
+  const aboutUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+
+  aboutWindow.webContents.on('will-navigate', (event, url) => {
+    if (url === aboutUrl) return
+    event.preventDefault()
+    void openAllowedExternalUrl(url).catch((error: unknown) => {
+      console.error('[open about external url failed]', error)
+    })
+  })
+
+  void aboutWindow.loadURL(aboutUrl)
+}
+
 function registerApplicationMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        {
+          label: 'About Taviraq',
+          click: showAboutWindow
+        },
         { type: 'separator' },
         {
           label: 'Quit Taviraq',
@@ -725,6 +809,14 @@ function registerIpc(): void {
 
   ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
     return openAllowedExternalUrl(url)
+  })
+
+  ipcMain.handle('app:setWindowOpacity', (_event, opacity: number) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const normalizedOpacity = Number.isFinite(opacity)
+      ? Math.min(1, Math.max(0.9, opacity))
+      : 1
+    mainWindow.setOpacity(normalizedOpacity)
   })
 
   ipcMain.handle('shortcut:setHide', async (_event, shortcut: string) => {
@@ -1184,7 +1276,11 @@ function registerIpc(): void {
               event.sender.send('llm:chatStream:event', {
                 requestId: request.requestId,
                 type: 'privacy',
-                maskedSecrets: chunk.maskedSecrets
+                maskedSecrets: chunk.maskedSecrets,
+                categories: chunk.categories ?? [],
+                source: 'chat-stream',
+                scope: 'provider-payload',
+                sessionLabel: policyRequest.context.session?.label
               })
             }
 

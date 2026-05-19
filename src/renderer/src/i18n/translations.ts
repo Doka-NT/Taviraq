@@ -12,14 +12,39 @@ export interface Translations {
   'settings.tab.snippets': string
   'settings.tab.data': string
   'settings.search': string
-  'settings.search.empty': string
+  'settings.search.empty.title': string
+  'settings.search.empty.hint': string
+  'settings.search.empty.didYouMean': string
+  'settings.search.empty.sections': string
+  'settings.search.empty.examples': string
   'status.saved': string
 
   // Appearance tab
   'appearance.title': string
+  'appearance.group.typography': string
+  'appearance.group.cursor': string
+  'appearance.group.terminal': string
+  'appearance.group.window': string
+  'appearance.fontFamily.label': string
+  'appearance.fontFamily.desc': string
   'appearance.fontSize.label': string
   'appearance.fontSize.desc': string
   'appearance.fontSize.applied': string
+  'appearance.lineHeight.label': string
+  'appearance.lineHeight.desc': string
+  'appearance.cursorStyle.label': string
+  'appearance.cursorStyle.desc': string
+  'appearance.cursorStyle.block': string
+  'appearance.cursorStyle.underline': string
+  'appearance.cursorStyle.bar': string
+  'appearance.cursorBlink.label': string
+  'appearance.cursorBlink.desc': string
+  'appearance.scrollback.label': string
+  'appearance.scrollback.desc': string
+  'appearance.windowOpacity.label': string
+  'appearance.windowOpacity.desc': string
+  'appearance.preview.title': string
+  'appearance.preview.command': string
   'appearance.language.label': string
   'appearance.language.desc': string
   'appearance.language.en': string
@@ -171,6 +196,11 @@ export interface Translations {
   'security.audit.source.summary': string
   'security.audit.source.terminalDisplay': string
   'security.audit.source.chatStorage': string
+  'privacy.trustCard.title': string
+  'privacy.trustCard.categories': string
+  'privacy.trustCard.context': string
+  'privacy.trustCard.note': string
+  'privacy.trustCard.openSettings': string
 
   // Prompts tab
   'prompts.title': string
@@ -432,13 +462,38 @@ export const en: Translations = {
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
   'settings.search': 'Search settings',
-  'settings.search.empty': 'No sections found',
+  'settings.search.empty.title': 'No results for "{query}"',
+  'settings.search.empty.hint': 'Try a nearby section or search for a setting name, shortcut, provider, model, SSH, prompt, snippet, or export.',
+  'settings.search.empty.didYouMean': 'Suggested sections',
+  'settings.search.empty.sections': 'All settings sections',
+  'settings.search.empty.examples': 'Examples: API key, terminal font, SSH host, secret masking, command snippet.',
   'status.saved': 'Saved',
 
   'appearance.title': 'Appearance',
+  'appearance.group.typography': 'Typography',
+  'appearance.group.cursor': 'Cursor',
+  'appearance.group.terminal': 'Terminal',
+  'appearance.group.window': 'Window',
+  'appearance.fontFamily.label': 'Terminal font family',
+  'appearance.fontFamily.desc': 'Monospace stack used by every terminal session',
   'appearance.fontSize.label': 'Terminal font size',
   'appearance.fontSize.desc': 'Applied to all terminal sessions, 8-32 px',
   'appearance.fontSize.applied': '{value}px applied',
+  'appearance.lineHeight.label': 'Line height',
+  'appearance.lineHeight.desc': 'Terminal row spacing, 1.0-2.0',
+  'appearance.cursorStyle.label': 'Cursor style',
+  'appearance.cursorStyle.desc': 'Shape of the active terminal cursor',
+  'appearance.cursorStyle.block': 'Block',
+  'appearance.cursorStyle.underline': 'Underline',
+  'appearance.cursorStyle.bar': 'Bar',
+  'appearance.cursorBlink.label': 'Cursor blink',
+  'appearance.cursorBlink.desc': 'Animate the active cursor while the terminal is focused',
+  'appearance.scrollback.label': 'Scrollback',
+  'appearance.scrollback.desc': 'Lines kept in terminal history, 100-100000',
+  'appearance.windowOpacity.label': 'Window opacity',
+  'appearance.windowOpacity.desc': 'Subtle app window transparency, 90-100%',
+  'appearance.preview.title': 'Live preview',
+  'appearance.preview.command': 'npm run build',
   'appearance.language.label': 'Language',
   'appearance.language.desc': 'UI language and LLM response language',
   'appearance.language.en': 'English',
@@ -587,6 +642,11 @@ export const en: Translations = {
   'security.audit.source.summary': 'Prompt summary',
   'security.audit.source.terminalDisplay': 'Terminal output display',
   'security.audit.source.chatStorage': 'Saved chat',
+  'privacy.trustCard.title': 'Privacy masking',
+  'privacy.trustCard.categories': 'Masked categories',
+  'privacy.trustCard.context': 'Source context',
+  'privacy.trustCard.note': 'Values stay hidden. Adjust masking rules in Security if needed.',
+  'privacy.trustCard.openSettings': 'Security settings',
 
   'prompts.title': 'Prompts',
   'prompts.importFromFile': 'Import from file',
@@ -833,13 +893,38 @@ export const ru: Translations = {
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
   'settings.search': 'Поиск настроек',
-  'settings.search.empty': 'Разделы не найдены',
+  'settings.search.empty.title': 'По запросу «{query}» ничего не найдено',
+  'settings.search.empty.hint': 'Попробуйте ближайший раздел или ищите по названию настройки, shortcut, provider, model, SSH, prompt, snippet или export.',
+  'settings.search.empty.didYouMean': 'Похожие разделы',
+  'settings.search.empty.sections': 'Все разделы настроек',
+  'settings.search.empty.examples': 'Примеры: API key, terminal font, SSH host, secret masking, command snippet.',
   'status.saved': 'Сохранено',
 
   'appearance.title': 'Внешний вид',
+  'appearance.group.typography': 'Типографика',
+  'appearance.group.cursor': 'Курсор',
+  'appearance.group.terminal': 'Терминал',
+  'appearance.group.window': 'Окно',
+  'appearance.fontFamily.label': 'Шрифт терминала',
+  'appearance.fontFamily.desc': 'Моноширинный стек для всех сессий терминала',
   'appearance.fontSize.label': 'Размер шрифта терминала',
   'appearance.fontSize.desc': 'Применяется ко всем сессиям терминала, 8-32 px',
   'appearance.fontSize.applied': 'применено {value}px',
+  'appearance.lineHeight.label': 'Высота строки',
+  'appearance.lineHeight.desc': 'Интервал строк терминала, 1.0-2.0',
+  'appearance.cursorStyle.label': 'Стиль курсора',
+  'appearance.cursorStyle.desc': 'Форма активного курсора терминала',
+  'appearance.cursorStyle.block': 'Блок',
+  'appearance.cursorStyle.underline': 'Подчёркивание',
+  'appearance.cursorStyle.bar': 'Черта',
+  'appearance.cursorBlink.label': 'Мигание курсора',
+  'appearance.cursorBlink.desc': 'Анимировать активный курсор в фокусе терминала',
+  'appearance.scrollback.label': 'История вывода',
+  'appearance.scrollback.desc': 'Строки, сохраняемые в истории терминала, 100-100000',
+  'appearance.windowOpacity.label': 'Прозрачность окна',
+  'appearance.windowOpacity.desc': 'Мягкая прозрачность окна приложения, 90-100%',
+  'appearance.preview.title': 'Живой предпросмотр',
+  'appearance.preview.command': 'npm run build',
   'appearance.language.label': 'Язык',
   'appearance.language.desc': 'Язык интерфейса и ответов ИИ',
   'appearance.language.en': 'English',
@@ -988,6 +1073,11 @@ export const ru: Translations = {
   'security.audit.source.summary': 'Саммари промпта',
   'security.audit.source.terminalDisplay': 'Вывод терминала',
   'security.audit.source.chatStorage': 'Сохраненный чат',
+  'privacy.trustCard.title': 'Маскирование приватных данных',
+  'privacy.trustCard.categories': 'Категории',
+  'privacy.trustCard.context': 'Источник',
+  'privacy.trustCard.note': 'Значения остаются скрытыми. При необходимости настройте правила в разделе безопасности.',
+  'privacy.trustCard.openSettings': 'Настройки безопасности',
 
   'prompts.title': 'Промпты',
   'prompts.importFromFile': 'Импорт из файла',
@@ -1234,13 +1324,38 @@ export const cn: Translations = {
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
   'settings.search': '搜索设置',
-  'settings.search.empty': '未找到部分',
+  'settings.search.empty.title': '没有找到“{query}”的结果',
+  'settings.search.empty.hint': '尝试附近的部分，或搜索设置名称、快捷键、提供商、模型、SSH、提示词、片段或导出。',
+  'settings.search.empty.didYouMean': '建议的部分',
+  'settings.search.empty.sections': '所有设置部分',
+  'settings.search.empty.examples': '示例：API key、terminal font、SSH host、secret masking、command snippet。',
   'status.saved': '已保存',
 
   'appearance.title': '外观',
+  'appearance.group.typography': '字体',
+  'appearance.group.cursor': '光标',
+  'appearance.group.terminal': '终端',
+  'appearance.group.window': '窗口',
+  'appearance.fontFamily.label': '终端字体',
+  'appearance.fontFamily.desc': '用于所有终端会话的等宽字体栈',
   'appearance.fontSize.label': '终端字体大小',
   'appearance.fontSize.desc': '应用于所有终端会话，8-32 px',
   'appearance.fontSize.applied': '已应用 {value}px',
+  'appearance.lineHeight.label': '行高',
+  'appearance.lineHeight.desc': '终端行间距，1.0-2.0',
+  'appearance.cursorStyle.label': '光标样式',
+  'appearance.cursorStyle.desc': '活动终端光标的形状',
+  'appearance.cursorStyle.block': '方块',
+  'appearance.cursorStyle.underline': '下划线',
+  'appearance.cursorStyle.bar': '竖线',
+  'appearance.cursorBlink.label': '光标闪烁',
+  'appearance.cursorBlink.desc': '终端聚焦时让活动光标闪烁',
+  'appearance.scrollback.label': '回滚历史',
+  'appearance.scrollback.desc': '终端历史中保留的行数，100-100000',
+  'appearance.windowOpacity.label': '窗口不透明度',
+  'appearance.windowOpacity.desc': '轻微的应用窗口透明度，90-100%',
+  'appearance.preview.title': '实时预览',
+  'appearance.preview.command': 'npm run build',
   'appearance.language.label': '语言',
   'appearance.language.desc': '界面语言和AI回复语言',
   'appearance.language.en': 'English',
@@ -1389,6 +1504,11 @@ export const cn: Translations = {
   'security.audit.source.summary': '提示词摘要',
   'security.audit.source.terminalDisplay': '终端输出显示',
   'security.audit.source.chatStorage': '已保存聊天',
+  'privacy.trustCard.title': '隐私遮蔽',
+  'privacy.trustCard.categories': '遮蔽类别',
+  'privacy.trustCard.context': '来源上下文',
+  'privacy.trustCard.note': '值会保持隐藏。可按需在安全设置中调整规则。',
+  'privacy.trustCard.openSettings': '安全设置',
 
   'prompts.title': '提示词',
   'prompts.importFromFile': '从文件导入',

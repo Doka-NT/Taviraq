@@ -117,6 +117,7 @@ type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
   content?: string
   reasoningContent?: string
   maskedSecrets?: number
+  categories?: string[]
   stage?: 'model_load' | 'prompt_processing'
   progress?: number
 }
@@ -140,7 +141,11 @@ export async function streamChatCompletion(
   let maskedContent = ''
 
   if (masked.context.bindings.length > 0) {
-    onChunk({ type: 'privacy', maskedSecrets: masked.context.bindings.length })
+    onChunk({
+      type: 'privacy',
+      maskedSecrets: masked.context.bindings.length,
+      categories: [...new Set(masked.context.bindings.map((binding) => binding.kind))]
+    })
   }
 
   await streamChatCompletionUnsafe(masked.request, (chunk) => {

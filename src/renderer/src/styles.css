@@ -2050,6 +2050,13 @@ textarea:focus {
     linear-gradient(90deg, rgba(var(--accent-cyan-rgb), 0.08), rgba(var(--accent-green-rgb), 0.08));
 }
 
+.provider-status-badge.active-local {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background:
+    linear-gradient(90deg, rgba(var(--accent-cyan-rgb), 0.08), rgba(var(--surface-rgb), 0.055));
+}
+
 .provider-status-badge.error,
 .provider-status-badge.no-key {
   color: var(--accent-red-text);

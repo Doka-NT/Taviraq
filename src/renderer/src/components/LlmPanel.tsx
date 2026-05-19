@@ -168,7 +168,7 @@ type ThreadMessage = ChatMessage & {
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
-type ProviderListStatusTone = 'active' | 'active-ready' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
+type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
 
 interface CommandConfirmation {
   sessionId: string
@@ -611,6 +611,7 @@ export function LlmPanel({
   const [isTestingProvider, setIsTestingProvider] = useState(false)
   const [providerKeyAvailability, setProviderKeyAvailability] = useState<Record<string, boolean>>({})
   const [providerConnectionStates, setProviderConnectionStates] = useState<Record<string, ProviderConnectionState>>({})
+  const [shouldFocusApiKeyInput, setShouldFocusApiKeyInput] = useState(false)
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
@@ -968,6 +969,18 @@ export function LlmPanel({
   useEffect(() => {
     setHasProxyPassword(Boolean(provider.proxyPasswordRef))
   }, [provider.proxyPasswordRef])
+
+  useEffect(() => {
+    if (!shouldFocusApiKeyInput) return
+
+    const frameId = requestAnimationFrame(() => {
+      apiKeyInputRef.current?.focus()
+      apiKeyInputRef.current?.select()
+      setShouldFocusApiKeyInput(false)
+    })
+
+    return () => cancelAnimationFrame(frameId)
+  }, [provider.apiKeyRef, shouldFocusApiKeyInput])
 
   // Prompt listener for agentic mode
   useEffect(() => {
@@ -2428,12 +2441,6 @@ export function LlmPanel({
   const handleFirstQuestion = useCallback(() => {
     setPromptDraft(t('onboarding.firstQuestionPrompt'))
   }, [setPromptDraft, t])
-  const focusApiKeyInput = useCallback(() => {
-    requestAnimationFrame(() => {
-      apiKeyInputRef.current?.focus()
-      apiKeyInputRef.current?.select()
-    })
-  }, [])
   const getProviderListStatus = useCallback((candidate: LLMProviderConfig): { tone: ProviderListStatusTone; label: string } => {
     const providerType = getProviderType(candidate)
     const needsApiKey = providerNeedsApiKey(providerType)
@@ -2461,7 +2468,12 @@ export function LlmPanel({
       }
       return { tone: 'ready', label: t('providers.status.ready') }
     }
-    if (!needsApiKey) return { tone: 'local', label: t('providers.status.local') }
+    if (!needsApiKey) {
+      if (candidate.apiKeyRef === activeProviderRef) {
+        return { tone: 'active-local', label: t('providers.status.activeLocal') }
+      }
+      return { tone: 'local', label: t('providers.status.local') }
+    }
     if (candidate.apiKeyRef === activeProviderRef) return { tone: 'active', label: t('providers.status.active') }
     return { tone: 'not-tested', label: t('providers.status.notTested') }
   }, [
@@ -2491,7 +2503,7 @@ export function LlmPanel({
         switchProvider(candidate)
       }
       setEditingApiKey(true)
-      focusApiKeyInput()
+      setShouldFocusApiKeyInput(true)
       return
     }
 
@@ -2501,7 +2513,7 @@ export function LlmPanel({
     }
 
     void loadModels()
-  }, [focusApiKeyInput, loadModels, provider.apiKeyRef, switchProvider])
+  }, [loadModels, provider.apiKeyRef, switchProvider])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
@@ -2910,6 +2922,7 @@ export function LlmPanel({
                                     title={statusActionLabel}
                                     aria-label={`${listStatus.label}. ${statusActionLabel}`}
                                     disabled={listStatus.tone === 'checking'}
+                                    onKeyDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       handleProviderStatusAction(p, listStatus.tone)

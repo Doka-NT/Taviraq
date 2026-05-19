@@ -76,6 +76,7 @@ export interface Translations {
   'providers.searchSafetyModel': string
   'providers.status.active': string
   'providers.status.activeReady': string
+  'providers.status.activeLocal': string
   'providers.status.ready': string
   'providers.status.error': string
   'providers.status.noKey': string
@@ -491,6 +492,7 @@ export const en: Translations = {
   'providers.searchSafetyModel': 'Search safety model',
   'providers.status.active': 'active',
   'providers.status.activeReady': 'active · ready',
+  'providers.status.activeLocal': 'active · local',
   'providers.status.ready': 'ready',
   'providers.status.error': 'error',
   'providers.status.noKey': 'no key',
@@ -890,6 +892,7 @@ export const ru: Translations = {
   'providers.searchSafetyModel': 'Поиск модели безопасности',
   'providers.status.active': 'активный',
   'providers.status.activeReady': 'активный · готов',
+  'providers.status.activeLocal': 'активный · локальный',
   'providers.status.ready': 'готов',
   'providers.status.error': 'ошибка',
   'providers.status.noKey': 'нет ключа',
@@ -1289,6 +1292,7 @@ export const cn: Translations = {
   'providers.searchSafetyModel': '搜索安全模型',
   'providers.status.active': '活跃',
   'providers.status.activeReady': '活跃 · 就绪',
+  'providers.status.activeLocal': '活跃 · 本地',
   'providers.status.ready': '就绪',
   'providers.status.error': '错误',
   'providers.status.noKey': '无密钥',

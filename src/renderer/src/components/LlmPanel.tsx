@@ -1533,7 +1533,9 @@ export function LlmPanel({
           } else {
             messages.push({
               role: 'assistant',
-              content: '',
+              content: t('status.privacyMasked', { count: event.maskedSecrets }),
+              display: 'privacy-status',
+              output: String(event.maskedSecrets),
               privacy
             })
           }

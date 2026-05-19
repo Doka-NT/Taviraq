@@ -1,6 +1,7 @@
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type SecretMaskingMode = 'off' | 'on'
+export type TerminalCursorStyle = 'block' | 'underline' | 'bar'
 export type SecretMaskingAuditScope = 'chat-display' | 'provider-payload'
 export type SecretMaskingAuditSource = 'chat-stream' | 'chat-display' | 'command-risk' | 'summary' | 'terminal-display' | 'chat-storage'
 export type AppShortcutAction =
@@ -306,6 +307,12 @@ export interface ExportData {
     sidebarWidth?: number
     language?: string
     themeId?: string
+    terminalFontFamily?: string
+    terminalCursorStyle?: TerminalCursorStyle
+    terminalCursorBlink?: boolean
+    terminalLineHeight?: number
+    terminalScrollback?: number
+    windowOpacity?: number
   }
 }
 
@@ -314,5 +321,5 @@ export interface ImportResult {
   promptsAdded: number
   commandSnippetsAdded: number
   sshProfilesAdded: number
-  preferences?: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }
+  preferences?: ExportData['preferences']
 }

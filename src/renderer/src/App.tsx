@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Play, Plus, Search, Settings2, ShieldAlert } from 'lucide-react'
-import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalSessionInfo } from '@shared/types'
+import type { CommandSnippet, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { LanguageProvider } from './i18n/LanguageContext'
@@ -28,12 +28,23 @@ const LEGACY_STORAGE_PREFIX = 'ai-terminal'
 const SIDEBAR_WIDTH_KEY = `${STORAGE_PREFIX}.sidebarWidth`
 const SIDEBAR_VISIBLE_KEY = `${STORAGE_PREFIX}.sidebarVisible`
 const TEXT_SIZE_KEY = `${STORAGE_PREFIX}.textSize`
+const TERMINAL_FONT_FAMILY_KEY = `${STORAGE_PREFIX}.terminalFontFamily`
+const TERMINAL_CURSOR_STYLE_KEY = `${STORAGE_PREFIX}.terminalCursorStyle`
+const TERMINAL_CURSOR_BLINK_KEY = `${STORAGE_PREFIX}.terminalCursorBlink`
+const TERMINAL_LINE_HEIGHT_KEY = `${STORAGE_PREFIX}.terminalLineHeight`
+const TERMINAL_SCROLLBACK_KEY = `${STORAGE_PREFIX}.terminalScrollback`
+const WINDOW_OPACITY_KEY = `${STORAGE_PREFIX}.windowOpacity`
 const LANGUAGE_KEY = `${STORAGE_PREFIX}.language`
 const THEME_KEY = `${STORAGE_PREFIX}.theme`
 const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
 const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
+const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, monospace'
+const DEFAULT_TERMINAL_CURSOR_STYLE: TerminalCursorStyle = 'block'
+const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
+const DEFAULT_TERMINAL_SCROLLBACK = 5000
+const DEFAULT_WINDOW_OPACITY = 1
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
@@ -113,6 +124,24 @@ function storedPositiveNumber(key: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
+function storedClampedNumber(key: string, fallback: number, min: number, max: number): number {
+  const rawValue = window.localStorage.getItem(key)
+  if (rawValue === null) return fallback
+  const value = Number(rawValue)
+  return Number.isFinite(value) ? clamp(value, min, max) : fallback
+}
+
+function storedCursorStyle(): TerminalCursorStyle {
+  const value = window.localStorage.getItem(TERMINAL_CURSOR_STYLE_KEY)
+  return value === 'underline' || value === 'bar' || value === 'block'
+    ? value
+    : DEFAULT_TERMINAL_CURSOR_STYLE
+}
+
+function storedTerminalFontFamily(): string {
+  return window.localStorage.getItem(TERMINAL_FONT_FAMILY_KEY) || DEFAULT_TERMINAL_FONT_FAMILY
+}
+
 function migrateLocalStorageKeys(): void {
   if (storageMigrationComplete) return
   storageMigrationComplete = true
@@ -121,6 +150,12 @@ function migrateLocalStorageKeys(): void {
     'sidebarWidth',
     'sidebarVisible',
     'textSize',
+    'terminalFontFamily',
+    'terminalCursorStyle',
+    'terminalCursorBlink',
+    'terminalLineHeight',
+    'terminalScrollback',
+    'windowOpacity',
     'language',
     'theme',
     'restoreSessions',
@@ -226,6 +261,20 @@ export function App(): JSX.Element {
   const [textSize, setTextSize] = useState(() =>
     storedPositiveNumber(TEXT_SIZE_KEY, DEFAULT_TEXT_SIZE)
   )
+  const [terminalFontFamily, setTerminalFontFamily] = useState(storedTerminalFontFamily)
+  const [terminalCursorStyle, setTerminalCursorStyle] = useState<TerminalCursorStyle>(storedCursorStyle)
+  const [terminalCursorBlink, setTerminalCursorBlink] = useState(() =>
+    window.localStorage.getItem(TERMINAL_CURSOR_BLINK_KEY) !== 'false'
+  )
+  const [terminalLineHeight, setTerminalLineHeight] = useState(() =>
+    storedClampedNumber(TERMINAL_LINE_HEIGHT_KEY, DEFAULT_TERMINAL_LINE_HEIGHT, 1, 2)
+  )
+  const [terminalScrollback, setTerminalScrollback] = useState(() =>
+    Math.round(storedClampedNumber(TERMINAL_SCROLLBACK_KEY, DEFAULT_TERMINAL_SCROLLBACK, 100, 100000))
+  )
+  const [windowOpacity, setWindowOpacity] = useState(() =>
+    storedClampedNumber(WINDOW_OPACITY_KEY, DEFAULT_WINDOW_OPACITY, 0.9, 1)
+  )
   const [language, setLanguage] = useState<Language>(() =>
     (window.localStorage.getItem(LANGUAGE_KEY) as Language) ?? 'en'
   )
@@ -250,6 +299,7 @@ export function App(): JSX.Element {
   const [promptLibraryRequestVersion, setPromptLibraryRequestVersion] = useState(0)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
+  const windowOpacityRef = useRef(windowOpacity)
   const outputBuffers = useRef(new Map<string, string>())
   const terminalBlocksRef = useRef(new Map<string, TerminalBlock[]>())
   const activeBlockIdsRef = useRef(new Map<string, string>())
@@ -510,6 +560,35 @@ export function App(): JSX.Element {
   useEffect(() => {
     window.localStorage.setItem(TEXT_SIZE_KEY, String(textSize))
   }, [textSize])
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_FONT_FAMILY_KEY, terminalFontFamily)
+  }, [terminalFontFamily])
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_CURSOR_STYLE_KEY, terminalCursorStyle)
+  }, [terminalCursorStyle])
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_CURSOR_BLINK_KEY, String(terminalCursorBlink))
+  }, [terminalCursorBlink])
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_LINE_HEIGHT_KEY, String(terminalLineHeight))
+  }, [terminalLineHeight])
+
+  useEffect(() => {
+    window.localStorage.setItem(TERMINAL_SCROLLBACK_KEY, String(terminalScrollback))
+  }, [terminalScrollback])
+
+  useEffect(() => {
+    window.localStorage.setItem(WINDOW_OPACITY_KEY, String(windowOpacity))
+    windowOpacityRef.current = windowOpacity
+    const timer = window.setTimeout(() => {
+      void window.api.app.setWindowOpacity(windowOpacity)
+    }, 50)
+    return () => window.clearTimeout(timer)
+  }, [windowOpacity])
 
   useEffect(() => {
     window.localStorage.setItem(LANGUAGE_KEY, language)
@@ -1073,6 +1152,7 @@ export function App(): JSX.Element {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           window.api.shortcuts.notifyWindowReady()
+          void window.api.app.setWindowOpacity(windowOpacityRef.current)
         })
       })
     })
@@ -1303,8 +1383,13 @@ export function App(): JSX.Element {
           ref={terminalPaneRef}
           activeSession={activeSession}
           sessionIds={sessions.map((session) => session.id)}
-          layoutKey={`${sidebarWidth}-${textSize}-${sidebarVisible}`}
+          layoutKey={`${sidebarWidth}-${textSize}-${terminalFontFamily}-${terminalLineHeight}-${sidebarVisible}`}
           textSize={textSize}
+          fontFamily={terminalFontFamily}
+          cursorStyle={terminalCursorStyle}
+          cursorBlink={terminalCursorBlink}
+          lineHeight={terminalLineHeight}
+          scrollback={terminalScrollback}
           clearSignal={terminalClearVersion}
           onSelectionChange={setSelectedText}
           outputBuffers={outputBuffers}
@@ -1356,6 +1441,18 @@ export function App(): JSX.Element {
         promptLibraryRequestVersion={promptLibraryRequestVersion}
         textSize={textSize}
         onTextSizeChange={updateTextSize}
+        terminalFontFamily={terminalFontFamily}
+        onTerminalFontFamilyChange={setTerminalFontFamily}
+        terminalCursorStyle={terminalCursorStyle}
+        onTerminalCursorStyleChange={setTerminalCursorStyle}
+        terminalCursorBlink={terminalCursorBlink}
+        onTerminalCursorBlinkChange={setTerminalCursorBlink}
+        terminalLineHeight={terminalLineHeight}
+        onTerminalLineHeightChange={setTerminalLineHeight}
+        terminalScrollback={terminalScrollback}
+        onTerminalScrollbackChange={setTerminalScrollback}
+        windowOpacity={windowOpacity}
+        onWindowOpacityChange={setWindowOpacity}
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={updateSidebarWidth}
         language={language}

@@ -8,7 +8,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { BookmarkPlus, ChevronDown, ChevronUp, Copy, FileText, MousePointerClick, Play, Search, Sparkles, SquareCheckBig, SquareTerminal, X } from 'lucide-react'
-import type { TerminalBlock } from '@shared/types'
+import type { TerminalBlock, TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
@@ -20,6 +20,11 @@ interface TerminalPaneProps {
   sessionIds: string[]
   layoutKey: string
   textSize: number
+  fontFamily: string
+  cursorStyle: TerminalCursorStyle
+  cursorBlink: boolean
+  lineHeight: number
+  scrollback: number
   clearSignal: number
   onSelectionChange: (selection: string) => void
   outputBuffers: MutableRefObject<Map<string, string>>
@@ -285,6 +290,11 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   sessionIds,
   layoutKey,
   textSize,
+  fontFamily,
+  cursorStyle,
+  cursorBlink,
+  lineHeight,
+  scrollback,
   clearSignal,
   onSelectionChange,
   outputBuffers,
@@ -310,6 +320,11 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const metricsFrameRef = useRef<number>()
   const initialResizeTimerRef = useRef<number>()
   const textSizeRef = useRef(textSize)
+  const fontFamilyRef = useRef(fontFamily)
+  const cursorStyleRef = useRef(cursorStyle)
+  const cursorBlinkRef = useRef(cursorBlink)
+  const lineHeightRef = useRef(lineHeight)
+  const scrollbackRef = useRef(scrollback)
   const activeSessionStatusRef = useRef(activeSession?.status)
   const renderedSessionKeyRef = useRef<string>()
   const restoringRef = useRef(false)
@@ -499,15 +514,16 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   useEffect(() => {
     const terminal = new Terminal({
-      cursorBlink: true,
-      cursorInactiveStyle: 'block',
-      fontFamily: '"SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace',
+      cursorBlink: cursorBlinkRef.current,
+      cursorStyle: cursorStyleRef.current,
+      cursorInactiveStyle: cursorStyleRef.current,
+      fontFamily: fontFamilyRef.current,
       fontSize: textSizeRef.current,
-      lineHeight: 1.25,
+      lineHeight: lineHeightRef.current,
       allowProposedApi: true,
       macOptionIsMeta: true,
       minimumContrastRatio: 4.5,
-      scrollback: 5000,
+      scrollback: scrollbackRef.current,
       overviewRulerWidth: 0,
       theme: DEFAULT_TERMINAL_THEME
     })
@@ -704,6 +720,27 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       scheduleTerminalMetricsUpdate()
     }
   }, [scheduleTerminalMetricsUpdate, textSize])
+
+  useEffect(() => {
+    const terminal = terminalRef.current
+    fontFamilyRef.current = fontFamily
+    cursorStyleRef.current = cursorStyle
+    cursorBlinkRef.current = cursorBlink
+    lineHeightRef.current = lineHeight
+    scrollbackRef.current = scrollback
+    if (!terminal) return
+
+    terminal.options.fontFamily = fontFamily
+    terminal.options.cursorStyle = cursorStyle
+    terminal.options.cursorInactiveStyle = cursorStyle
+    terminal.options.cursorBlink = cursorBlink
+    terminal.options.lineHeight = lineHeight
+    terminal.options.scrollback = scrollback
+    if (containerRef.current) {
+      scheduleResize(terminal, containerRef.current, activeSessionIdRef.current, resizeFrameRef)
+      scheduleTerminalMetricsUpdate()
+    }
+  }, [cursorBlink, cursorStyle, fontFamily, lineHeight, scheduleTerminalMetricsUpdate, scrollback])
 
   useEffect(() => {
     activeSessionIdRef.current = isLiveSessionStatus(activeSession?.status) ? activeSessionId : undefined

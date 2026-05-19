@@ -125,15 +125,14 @@ const MIN_LINE_HEIGHT = 1
 const MAX_LINE_HEIGHT = 2
 const MIN_SCROLLBACK = 100
 const MAX_SCROLLBACK = 100000
-const MIN_WINDOW_OPACITY = 0.65
+const MIN_WINDOW_OPACITY = 0.9
 const MAX_WINDOW_OPACITY = 1
 const TERMINAL_FONT_OPTIONS = [
-  { value: '"SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace', label: 'SF Mono / Menlo' },
-  { value: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace', label: 'JetBrains Mono' },
-  { value: '"Fira Code", "SFMono-Regular", Menlo, Consolas, monospace', label: 'Fira Code' },
-  { value: 'Monaco, "SFMono-Regular", Menlo, Consolas, monospace', label: 'Monaco' },
-  { value: 'Menlo, "SFMono-Regular", Consolas, monospace', label: 'Menlo' },
-  { value: 'Consolas, "SFMono-Regular", Menlo, monospace', label: 'Consolas' }
+  { value: 'Menlo, monospace', label: 'Menlo' },
+  { value: 'Monaco, monospace', label: 'Monaco' },
+  { value: '"Courier New", monospace', label: 'Courier New' },
+  { value: 'Courier, monospace', label: 'Courier' },
+  { value: '"Andale Mono", monospace', label: 'Andale Mono' }
 ]
 const TERMINAL_CURSOR_STYLE_OPTIONS: TerminalCursorStyle[] = ['block', 'underline', 'bar']
 const MIN_SSH_PORT = 1
@@ -2888,6 +2887,23 @@ export function LlmPanel({
                 ) : settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.language.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.language.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select"
+                          value={language}
+                          onChange={(event) => onLanguageChange(event.target.value as Language)}
+                        >
+                          <option value="en">{t('appearance.language.en')}</option>
+                          <option value="ru">{t('appearance.language.ru')}</option>
+                          <option value="cn">{t('appearance.language.cn')}</option>
+                        </select>
+                      </div>
+                    </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.theme.label'), t('appearance.theme.desc'), 'theme color scheme ui terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.theme.label')} query={settingsSearch} /></span>
@@ -3047,12 +3063,12 @@ export function LlmPanel({
                           type="range"
                           min={MIN_WINDOW_OPACITY}
                           max={MAX_WINDOW_OPACITY}
-                          step="0.01"
+                          step="0.001"
                           value={windowOpacity}
                           onChange={(event) => onWindowOpacityChange(Number(event.target.value))}
                           aria-label={t('appearance.windowOpacity.label')}
                         />
-                        <span>{Math.round(windowOpacity * 100)}%</span>
+                        <span>{(windowOpacity * 100).toFixed(1)}%</span>
                       </div>
                     </div>
                     <div
@@ -3063,23 +3079,6 @@ export function LlmPanel({
                       <div><span className="appearance-preview-prompt">$</span> {t('appearance.preview.command')}</div>
                       <div className="appearance-preview-output">taviraq --daily-driver</div>
                       <span className={`appearance-preview-cursor ${terminalCursorStyle} ${terminalCursorBlink ? 'blink' : ''}`} />
-                    </div>
-                    <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
-                      <div className="appearance-row-left">
-                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.language.label')} query={settingsSearch} /></span>
-                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.language.desc')} query={settingsSearch} /></small>
-                      </div>
-                      <div className="appearance-row-right">
-                        <select
-                          className="language-select"
-                          value={language}
-                          onChange={(event) => onLanguageChange(event.target.value as Language)}
-                        >
-                          <option value="en">{t('appearance.language.en')}</option>
-                          <option value="ru">{t('appearance.language.ru')}</option>
-                          <option value="cn">{t('appearance.language.cn')}</option>
-                        </select>
-                      </div>
                     </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'), electronToDisplay(hideShortcut), 'shortcut hotkey hide show'])}`}>
                       <div className="appearance-row-left">

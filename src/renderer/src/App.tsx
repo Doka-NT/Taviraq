@@ -40,7 +40,7 @@ const RESTORE_SESSIONS_KEY = `${STORAGE_PREFIX}.restoreSessions`
 const MAX_OUTPUT_CONTEXT_KEY = `${STORAGE_PREFIX}.maxOutputContext`
 const DEFAULT_HIDE_SHORTCUT = 'CommandOrControl+Shift+Space'
 const DEFAULT_MAX_OUTPUT_CONTEXT = 20000
-const DEFAULT_TERMINAL_FONT_FAMILY = '"SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace'
+const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, monospace'
 const DEFAULT_TERMINAL_CURSOR_STYLE: TerminalCursorStyle = 'block'
 const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
 const DEFAULT_TERMINAL_SCROLLBACK = 5000
@@ -273,7 +273,7 @@ export function App(): JSX.Element {
     Math.round(storedClampedNumber(TERMINAL_SCROLLBACK_KEY, DEFAULT_TERMINAL_SCROLLBACK, 100, 100000))
   )
   const [windowOpacity, setWindowOpacity] = useState(() =>
-    storedClampedNumber(WINDOW_OPACITY_KEY, DEFAULT_WINDOW_OPACITY, 0.65, 1)
+    storedClampedNumber(WINDOW_OPACITY_KEY, DEFAULT_WINDOW_OPACITY, 0.9, 1)
   )
   const [language, setLanguage] = useState<Language>(() =>
     (window.localStorage.getItem(LANGUAGE_KEY) as Language) ?? 'en'

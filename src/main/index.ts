@@ -727,7 +727,7 @@ function registerIpc(): void {
   ipcMain.handle('app:setWindowOpacity', (_event, opacity: number) => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const normalizedOpacity = Number.isFinite(opacity)
-      ? Math.min(1, Math.max(0.65, opacity))
+      ? Math.min(1, Math.max(0.9, opacity))
       : 1
     mainWindow.setOpacity(normalizedOpacity)
   })

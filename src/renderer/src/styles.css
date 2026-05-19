@@ -102,7 +102,7 @@ button {
   background: var(--bg-window);
   color: var(--text-primary);
   transition: none;
-  contain: content;
+  contain: strict;
 }
 
 @keyframes windowEnter {
@@ -2819,7 +2819,7 @@ textarea:focus {
   scrollbar-gutter: stable;
   scrollbar-color: rgba(var(--surface-rgb), 0.16) transparent;
   scrollbar-width: thin;
-  contain: strict;
+  contain: content;
 }
 
 .chat-log::-webkit-scrollbar {

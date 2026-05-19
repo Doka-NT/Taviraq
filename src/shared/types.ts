@@ -121,7 +121,6 @@ export interface PrivacyMaskingNotice {
   source: SecretMaskingAuditSource
   scope: SecretMaskingAuditScope
   sessionLabel?: string
-  markedFalsePositive?: boolean
 }
 
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'

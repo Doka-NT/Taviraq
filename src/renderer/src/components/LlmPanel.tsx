@@ -334,7 +334,10 @@ function PrivacyTrustCard({
 }: PrivacyTrustCardProps): JSX.Element {
   const { t } = useT()
   const [expanded, setExpanded] = useState(false)
-  const categories = notice?.categories?.length ? notice.categories : ['unknown']
+  const categories = Array.isArray(notice?.categories)
+    ? [...new Set(notice.categories.filter((category): category is string => typeof category === 'string'))]
+    : []
+  const visibleCategories = categories.length > 0 ? categories : ['unknown']
   const source = notice ? auditSourceLabel(notice.source, t) : t('security.audit.source.chatStream')
   const scope = notice ? scopeLabel(notice.scope, t) : t('security.audit.scope.provider')
 
@@ -361,8 +364,8 @@ function PrivacyTrustCard({
           <div className="privacy-trust-card-row">
             <span>{t('privacy.trustCard.categories')}</span>
             <div className="privacy-trust-card-tags">
-              {categories.map((category) => (
-                <span key={category}>{formatSecretCategory(category)}</span>
+              {visibleCategories.map((category, categoryIndex) => (
+                <span key={`${category}-${categoryIndex}`}>{formatSecretCategory(category)}</span>
               ))}
             </div>
           </div>

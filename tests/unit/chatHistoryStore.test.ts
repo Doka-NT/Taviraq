@@ -40,8 +40,7 @@ describe('ChatHistoryStore', () => {
           categories: ['GENERIC_API_KEY', 'password'],
           source: 'chat-stream',
           scope: 'provider-payload',
-          sessionLabel: 'Local',
-          markedFalsePositive: true
+          sessionLabel: 'Local'
         }
       }]
     }

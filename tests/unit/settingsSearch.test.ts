@@ -33,6 +33,9 @@ describe('settings search helpers', () => {
 
   it('does not match unrelated search terms', () => {
     expect(matchesSearchQuery('billing', items.flatMap((item) => [item.label, ...item.terms]))).toBe(false)
+    expect(matchesSearchQuery('', [items[0].label])).toBe(false)
+    expect(matchesSearchQuery('   ', [items[0].label])).toBe(false)
+    expect(matchesSearchQuery('font', [undefined, items[0].terms[0]])).toBe(true)
   })
 
   it('suggests sections for fuzzy misspellings', () => {

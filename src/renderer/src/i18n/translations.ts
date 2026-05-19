@@ -12,7 +12,6 @@ export interface Translations {
   'settings.tab.snippets': string
   'settings.tab.data': string
   'settings.search': string
-  'settings.search.empty': string
   'settings.search.empty.title': string
   'settings.search.empty.hint': string
   'settings.search.empty.didYouMean': string
@@ -428,7 +427,6 @@ export const en: Translations = {
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
   'settings.search': 'Search settings',
-  'settings.search.empty': 'No sections found',
   'settings.search.empty.title': 'No results for "{query}"',
   'settings.search.empty.hint': 'Try a nearby section or search for a setting name, shortcut, provider, model, SSH, prompt, snippet, or export.',
   'settings.search.empty.didYouMean': 'Suggested sections',
@@ -826,7 +824,6 @@ export const ru: Translations = {
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
   'settings.search': 'Поиск настроек',
-  'settings.search.empty': 'Разделы не найдены',
   'settings.search.empty.title': 'По запросу «{query}» ничего не найдено',
   'settings.search.empty.hint': 'Попробуйте ближайший раздел или ищите по названию настройки, shortcut, provider, model, SSH, prompt, snippet или export.',
   'settings.search.empty.didYouMean': 'Похожие разделы',
@@ -1224,7 +1221,6 @@ export const cn: Translations = {
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
   'settings.search': '搜索设置',
-  'settings.search.empty': '未找到部分',
   'settings.search.empty.title': '没有找到“{query}”的结果',
   'settings.search.empty.hint': '尝试附近的部分，或搜索设置名称、快捷键、提供商、模型、SSH、提示词、片段或导出。',
   'settings.search.empty.didYouMean': '建议的部分',

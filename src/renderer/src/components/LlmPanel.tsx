@@ -268,6 +268,20 @@ function clampScrollback(value: string, fallback: number): number {
   return Math.min(MAX_SCROLLBACK, Math.max(MIN_SCROLLBACK, Math.round(parsed)))
 }
 
+function isTerminalCursorStyle(value: unknown): value is TerminalCursorStyle {
+  return value === 'block' || value === 'underline' || value === 'bar'
+}
+
+function isTerminalFontOption(value: unknown): value is string {
+  return typeof value === 'string' && TERMINAL_FONT_OPTIONS.some((font) => font.value === value)
+}
+
+function clampWindowOpacity(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_WINDOW_OPACITY, Math.max(MIN_WINDOW_OPACITY, parsed))
+}
+
 function isValidSshPort(value: number | undefined): boolean {
   return value === undefined || (Number.isInteger(value) && value >= MIN_SSH_PORT && value <= MAX_SSH_PORT)
 }
@@ -2381,12 +2395,22 @@ export function LlmPanel({
       if (result.preferences?.sidebarWidth) onSidebarWidthChange(result.preferences.sidebarWidth)
       if (result.preferences?.language) onLanguageChange(result.preferences.language as Language)
       if (result.preferences?.themeId) onThemeChange(result.preferences.themeId)
-      if (result.preferences?.terminalFontFamily) onTerminalFontFamilyChange(result.preferences.terminalFontFamily)
-      if (result.preferences?.terminalCursorStyle) onTerminalCursorStyleChange(result.preferences.terminalCursorStyle)
+      if (isTerminalFontOption(result.preferences?.terminalFontFamily)) {
+        onTerminalFontFamilyChange(result.preferences.terminalFontFamily)
+      }
+      if (isTerminalCursorStyle(result.preferences?.terminalCursorStyle)) {
+        onTerminalCursorStyleChange(result.preferences.terminalCursorStyle)
+      }
       if (typeof result.preferences?.terminalCursorBlink === 'boolean') onTerminalCursorBlinkChange(result.preferences.terminalCursorBlink)
-      if (result.preferences?.terminalLineHeight) onTerminalLineHeightChange(result.preferences.terminalLineHeight)
-      if (result.preferences?.terminalScrollback) onTerminalScrollbackChange(result.preferences.terminalScrollback)
-      if (result.preferences?.windowOpacity) onWindowOpacityChange(result.preferences.windowOpacity)
+      if (result.preferences?.terminalLineHeight != null) {
+        onTerminalLineHeightChange(clampLineHeight(String(result.preferences.terminalLineHeight), terminalLineHeight))
+      }
+      if (result.preferences?.terminalScrollback != null) {
+        onTerminalScrollbackChange(clampScrollback(String(result.preferences.terminalScrollback), terminalScrollback))
+      }
+      if (result.preferences?.windowOpacity != null) {
+        onWindowOpacityChange(clampWindowOpacity(result.preferences.windowOpacity, windowOpacity))
+      }
 
       await loadConfig()
 
@@ -2399,7 +2423,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange])
+  }, [loadConfig, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({

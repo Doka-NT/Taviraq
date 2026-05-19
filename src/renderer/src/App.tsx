@@ -299,6 +299,7 @@ export function App(): JSX.Element {
   const [promptLibraryRequestVersion, setPromptLibraryRequestVersion] = useState(0)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
+  const windowOpacityRef = useRef(windowOpacity)
   const outputBuffers = useRef(new Map<string, string>())
   const terminalBlocksRef = useRef(new Map<string, TerminalBlock[]>())
   const activeBlockIdsRef = useRef(new Map<string, string>())
@@ -582,6 +583,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     window.localStorage.setItem(WINDOW_OPACITY_KEY, String(windowOpacity))
+    windowOpacityRef.current = windowOpacity
     const timer = window.setTimeout(() => {
       void window.api.app.setWindowOpacity(windowOpacity)
     }, 50)
@@ -1150,11 +1152,11 @@ export function App(): JSX.Element {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           window.api.shortcuts.notifyWindowReady()
-          void window.api.app.setWindowOpacity(windowOpacity)
+          void window.api.app.setWindowOpacity(windowOpacityRef.current)
         })
       })
     })
-  }, [windowOpacity])
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {

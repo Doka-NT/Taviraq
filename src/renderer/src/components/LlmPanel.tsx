@@ -31,7 +31,7 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
-import { formatComposerContextChars } from '@renderer/utils/composerContext'
+import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -2738,7 +2738,8 @@ export function LlmPanel({
     session: activeSession ? summarizeSession(activeSession) : undefined,
     maskedSecretCount: composerMaskedSecretCount
   })
-  const composerContextLabel = t('chat.composer.context', { count: formatComposerContextChars(composerPayloadChars) })
+  const composerPayloadTokens = estimateComposerContextTokens(composerPayloadChars)
+  const composerContextLabel = t('chat.composer.context', { count: formatComposerContextTokens(composerPayloadTokens) })
   const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
   const composerModeLabel = assistMode === 'agent'
     ? t('chat.composer.mode.agent')

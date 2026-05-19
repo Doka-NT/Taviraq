@@ -1,6 +1,6 @@
 import { cleanCommandOutput } from '@renderer/utils/commandOutput'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
-import { formatComposerContextChars } from '@renderer/utils/composerContext'
+import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 
 describe('LlmPanel command output cleanup', () => {
   it('strips PTY echo when a secret placeholder was resolved before execution', () => {
@@ -33,11 +33,17 @@ describe('LlmPanel command output cleanup', () => {
     expect(wasTerminalContextSentToProvider(regularContinuation, false)).toBe(false)
   })
 
-  it('formats composer context size compactly', () => {
-    expect(formatComposerContextChars(0)).toBe('0')
-    expect(formatComposerContextChars(999)).toBe('999')
-    expect(formatComposerContextChars(1000)).toBe('1k')
-    expect(formatComposerContextChars(12_040)).toBe('12k')
-    expect(formatComposerContextChars(12_560)).toBe('12.6k')
+  it('estimates composer context tokens from payload characters', () => {
+    expect(estimateComposerContextTokens(0)).toBe(0)
+    expect(estimateComposerContextTokens(1)).toBe(1)
+    expect(estimateComposerContextTokens(78_000)).toBe(19_500)
+  })
+
+  it('formats composer context tokens compactly', () => {
+    expect(formatComposerContextTokens(0)).toBe('0')
+    expect(formatComposerContextTokens(999)).toBe('999')
+    expect(formatComposerContextTokens(1000)).toBe('1k')
+    expect(formatComposerContextTokens(12_040)).toBe('12k')
+    expect(formatComposerContextTokens(12_560)).toBe('12.6k')
   })
 })

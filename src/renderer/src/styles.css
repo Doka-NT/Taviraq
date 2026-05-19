@@ -102,7 +102,7 @@ button {
   background: var(--bg-window);
   color: var(--text-primary);
   transition: none;
-  contain: strict;
+  contain: content;
 }
 
 @keyframes windowEnter {
@@ -3020,6 +3020,7 @@ textarea:focus {
 
 .chat-message {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 4px;
   animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
@@ -3433,6 +3434,7 @@ textarea:focus {
 
 .command-output-message {
   display: grid;
+  flex: 0 0 auto;
   gap: 6px;
   max-width: calc(100% - 8px);
   padding: 6px 0;
@@ -3447,6 +3449,7 @@ textarea:focus {
 
 .privacy-trust-card {
   display: grid;
+  flex: 0 0 auto;
   gap: 0;
   max-width: calc(100% - 8px);
   margin: 4px 0;

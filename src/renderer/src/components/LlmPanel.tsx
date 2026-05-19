@@ -324,14 +324,12 @@ function scopeLabel(scope: SecretMaskingAuditEvent['scope'], t: LanguageContextV
 interface PrivacyTrustCardProps {
   content: string
   notice?: PrivacyMaskingNotice
-  onMarkFalsePositive: () => void
   onOpenSecuritySettings: () => void
 }
 
 function PrivacyTrustCard({
   content,
   notice,
-  onMarkFalsePositive,
   onOpenSecuritySettings
 }: PrivacyTrustCardProps): JSX.Element {
   const { t } = useT()
@@ -376,22 +374,9 @@ function PrivacyTrustCard({
             </small>
           </div>
           <p className="privacy-trust-card-note">
-            {notice?.markedFalsePositive
-              ? t('privacy.trustCard.falsePositiveMarked')
-              : t('privacy.trustCard.note')}
+            {t('privacy.trustCard.note')}
           </p>
           <div className="privacy-trust-card-actions">
-            <button
-              type="button"
-              className="quiet-button"
-              onClick={onMarkFalsePositive}
-              disabled={Boolean(notice?.markedFalsePositive)}
-            >
-              <Check size={13} aria-hidden />
-              {notice?.markedFalsePositive
-                ? t('privacy.trustCard.falsePositiveDone')
-                : t('privacy.trustCard.falsePositive')}
-            </button>
             <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
               <Settings2 size={13} aria-hidden />
               {t('privacy.trustCard.openSettings')}
@@ -2525,36 +2510,6 @@ export function LlmPanel({
     setSettingsSearch('')
     onOpenSettings()
   }, [onOpenSettings])
-  const markPrivacyFalsePositive = useCallback((sessionId: string, messageIndex: number) => {
-    const thread = threadsRef.current[sessionId]
-    const message = thread?.messages[messageIndex]
-    if (!message?.privacy || message.privacy.markedFalsePositive) return
-
-    const chatId = thread.savedChatId ?? crypto.randomUUID()
-    if (chatHistorySaveTimerRef.current) {
-      window.clearTimeout(chatHistorySaveTimerRef.current)
-      chatHistorySaveTimerRef.current = undefined
-    }
-    const updatedThread: AssistantThread = {
-      ...thread,
-      savedChatId: chatId,
-      messages: thread.messages.map((message, index) => {
-        if (index !== messageIndex || !message.privacy || message.privacy.markedFalsePositive) {
-          return message
-        }
-        return {
-          ...message,
-          privacy: {
-            ...message.privacy,
-            markedFalsePositive: true
-          }
-        }
-      })
-    }
-
-    updateThread(sessionId, () => updatedThread)
-    saveThreadSnapshotToHistory(updatedThread)
-  }, [saveThreadSnapshotToHistory, updateThread])
   const getProviderListStatus = useCallback((candidate: LLMProviderConfig) => {
     const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
     const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef
@@ -3930,9 +3885,6 @@ export function LlmPanel({
                 key={`privacy-status-${index}`}
                 content={message.content}
                 notice={message.privacy}
-                onMarkFalsePositive={() => {
-                  if (activeSessionId) markPrivacyFalsePositive(activeSessionId, index)
-                }}
                 onOpenSecuritySettings={openSecuritySettings}
               />
             )

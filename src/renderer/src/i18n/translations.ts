@@ -175,9 +175,6 @@ export interface Translations {
   'privacy.trustCard.categories': string
   'privacy.trustCard.context': string
   'privacy.trustCard.note': string
-  'privacy.trustCard.falsePositive': string
-  'privacy.trustCard.falsePositiveDone': string
-  'privacy.trustCard.falsePositiveMarked': string
   'privacy.trustCard.openSettings': string
 
   // Prompts tab
@@ -589,10 +586,7 @@ export const en: Translations = {
   'privacy.trustCard.title': 'Privacy masking',
   'privacy.trustCard.categories': 'Masked categories',
   'privacy.trustCard.context': 'Source context',
-  'privacy.trustCard.note': 'Values stay hidden. Mark false positives here, then adjust masking rules in Security if needed.',
-  'privacy.trustCard.falsePositive': 'Mark false positive',
-  'privacy.trustCard.falsePositiveDone': 'False positive marked',
-  'privacy.trustCard.falsePositiveMarked': 'Marked as a false positive for review. Future sends still use masking until Security settings are changed.',
+  'privacy.trustCard.note': 'Values stay hidden. Adjust masking rules in Security if needed.',
   'privacy.trustCard.openSettings': 'Security settings',
 
   'prompts.title': 'Prompts',
@@ -990,10 +984,7 @@ export const ru: Translations = {
   'privacy.trustCard.title': 'Маскирование приватных данных',
   'privacy.trustCard.categories': 'Категории',
   'privacy.trustCard.context': 'Источник',
-  'privacy.trustCard.note': 'Значения остаются скрытыми. Отметьте ложное срабатывание здесь, затем при необходимости настройте правила в разделе безопасности.',
-  'privacy.trustCard.falsePositive': 'Ложное срабатывание',
-  'privacy.trustCard.falsePositiveDone': 'Отмечено',
-  'privacy.trustCard.falsePositiveMarked': 'Отмечено как ложное срабатывание для проверки. Следующие отправки всё равно маскируются, пока настройки безопасности не изменены.',
+  'privacy.trustCard.note': 'Значения остаются скрытыми. При необходимости настройте правила в разделе безопасности.',
   'privacy.trustCard.openSettings': 'Настройки безопасности',
 
   'prompts.title': 'Промпты',
@@ -1391,10 +1382,7 @@ export const cn: Translations = {
   'privacy.trustCard.title': '隐私遮蔽',
   'privacy.trustCard.categories': '遮蔽类别',
   'privacy.trustCard.context': '来源上下文',
-  'privacy.trustCard.note': '值会保持隐藏。可在此标记误报，并按需在安全设置中调整规则。',
-  'privacy.trustCard.falsePositive': '标记为误报',
-  'privacy.trustCard.falsePositiveDone': '已标记误报',
-  'privacy.trustCard.falsePositiveMarked': '已标记为误报以便检查。更改安全设置前，后续发送仍会继续遮蔽。',
+  'privacy.trustCard.note': '值会保持隐藏。可按需在安全设置中调整规则。',
   'privacy.trustCard.openSettings': '安全设置',
 
   'prompts.title': '提示词',

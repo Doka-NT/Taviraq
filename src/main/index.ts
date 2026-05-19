@@ -724,6 +724,14 @@ function registerIpc(): void {
     return openAllowedExternalUrl(url)
   })
 
+  ipcMain.handle('app:setWindowOpacity', (_event, opacity: number) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const normalizedOpacity = Number.isFinite(opacity)
+      ? Math.min(1, Math.max(0.65, opacity))
+      : 1
+    mainWindow.setOpacity(normalizedOpacity)
+  })
+
   ipcMain.handle('shortcut:setHide', async (_event, shortcut: string) => {
     const success = registerHideShortcut(shortcut)
     if (success) {

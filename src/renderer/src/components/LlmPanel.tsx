@@ -12,7 +12,7 @@ import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
   PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
-  TerminalContext, TerminalSessionInfo
+  TerminalContext, TerminalCursorStyle, TerminalSessionInfo
 } from '@shared/types'
 import {
   createDefaultSecretMaskingSettings,
@@ -121,6 +121,21 @@ const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
 const MAX_TEXT_SIZE = 32
+const MIN_LINE_HEIGHT = 1
+const MAX_LINE_HEIGHT = 2
+const MIN_SCROLLBACK = 100
+const MAX_SCROLLBACK = 100000
+const MIN_WINDOW_OPACITY = 0.65
+const MAX_WINDOW_OPACITY = 1
+const TERMINAL_FONT_OPTIONS = [
+  { value: '"SFMono-Regular", "SF Mono", Menlo, Monaco, Consolas, monospace', label: 'SF Mono / Menlo' },
+  { value: '"JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace', label: 'JetBrains Mono' },
+  { value: '"Fira Code", "SFMono-Regular", Menlo, Consolas, monospace', label: 'Fira Code' },
+  { value: 'Monaco, "SFMono-Regular", Menlo, Consolas, monospace', label: 'Monaco' },
+  { value: 'Menlo, "SFMono-Regular", Consolas, monospace', label: 'Menlo' },
+  { value: 'Consolas, "SFMono-Regular", Menlo, monospace', label: 'Consolas' }
+]
+const TERMINAL_CURSOR_STYLE_OPTIONS: TerminalCursorStyle[] = ['block', 'underline', 'bar']
 const MIN_SSH_PORT = 1
 const MAX_SSH_PORT = 65535
 const MIN_OUTPUT_CONTEXT = 1000
@@ -229,6 +244,28 @@ function clampTextSize(value: string, fallback: number): number {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
   return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, parsed))
+}
+
+function isValidLineHeight(value: string): boolean {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LINE_HEIGHT && parsed <= MAX_LINE_HEIGHT
+}
+
+function clampLineHeight(value: string, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_LINE_HEIGHT, Math.max(MIN_LINE_HEIGHT, parsed))
+}
+
+function isValidScrollback(value: string): boolean {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= MIN_SCROLLBACK && parsed <= MAX_SCROLLBACK
+}
+
+function clampScrollback(value: string, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_SCROLLBACK, Math.max(MIN_SCROLLBACK, Math.round(parsed)))
 }
 
 function isValidSshPort(value: number | undefined): boolean {
@@ -522,6 +559,18 @@ interface LlmPanelProps {
   promptLibraryRequestVersion: number
   textSize: number
   onTextSizeChange: (textSize: number) => void
+  terminalFontFamily: string
+  onTerminalFontFamilyChange: (fontFamily: string) => void
+  terminalCursorStyle: TerminalCursorStyle
+  onTerminalCursorStyleChange: (cursorStyle: TerminalCursorStyle) => void
+  terminalCursorBlink: boolean
+  onTerminalCursorBlinkChange: (cursorBlink: boolean) => void
+  terminalLineHeight: number
+  onTerminalLineHeightChange: (lineHeight: number) => void
+  terminalScrollback: number
+  onTerminalScrollbackChange: (scrollback: number) => void
+  windowOpacity: number
+  onWindowOpacityChange: (opacity: number) => void
   sidebarWidth: number
   onSidebarWidthChange: (sidebarWidth: number) => void
   language: Language
@@ -558,6 +607,18 @@ export function LlmPanel({
   promptLibraryRequestVersion,
   textSize,
   onTextSizeChange,
+  terminalFontFamily,
+  onTerminalFontFamilyChange,
+  terminalCursorStyle,
+  onTerminalCursorStyleChange,
+  terminalCursorBlink,
+  onTerminalCursorBlinkChange,
+  terminalLineHeight,
+  onTerminalLineHeightChange,
+  terminalScrollback,
+  onTerminalScrollbackChange,
+  windowOpacity,
+  onWindowOpacityChange,
   sidebarWidth,
   onSidebarWidthChange,
   language,
@@ -588,6 +649,8 @@ export function LlmPanel({
   const [threadsBySessionId, setThreadsBySessionId] = useState<AssistantThreads>({})
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
+  const [lineHeightDraft, setLineHeightDraft] = useState(String(terminalLineHeight))
+  const [scrollbackDraft, setScrollbackDraft] = useState(String(terminalScrollback))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
@@ -702,6 +765,8 @@ export function LlmPanel({
   useEffect(() => { providerRef.current = provider }, [provider])
   useEffect(() => { selectedTextRef.current = selectedText }, [selectedText])
   useEffect(() => { setTextSizeDraft(String(textSize)) }, [textSize])
+  useEffect(() => { setLineHeightDraft(String(terminalLineHeight)) }, [terminalLineHeight])
+  useEffect(() => { setScrollbackDraft(String(terminalScrollback)) }, [terminalScrollback])
   useEffect(() => { setMaxOutputContextDraft(String(maxOutputContext)) }, [maxOutputContext])
   useEffect(() => () => {
     if (chatHistorySaveTimerRef.current) {
@@ -2236,6 +2301,36 @@ export function LlmPanel({
     onTextSizeChange(nextTextSize)
   }, [onTextSizeChange, textSize, textSizeDraft])
 
+  const handleLineHeightChange = useCallback((value: string) => {
+    setLineHeightDraft(value)
+
+    const parsed = Number(value)
+    if (isValidLineHeight(value)) {
+      onTerminalLineHeightChange(parsed)
+    }
+  }, [onTerminalLineHeightChange])
+
+  const commitLineHeightDraft = useCallback(() => {
+    const nextLineHeight = clampLineHeight(lineHeightDraft, terminalLineHeight)
+    setLineHeightDraft(String(nextLineHeight))
+    onTerminalLineHeightChange(nextLineHeight)
+  }, [lineHeightDraft, onTerminalLineHeightChange, terminalLineHeight])
+
+  const handleScrollbackChange = useCallback((value: string) => {
+    setScrollbackDraft(value)
+
+    const parsed = Number(value)
+    if (isValidScrollback(value)) {
+      onTerminalScrollbackChange(parsed)
+    }
+  }, [onTerminalScrollbackChange])
+
+  const commitScrollbackDraft = useCallback(() => {
+    const nextScrollback = clampScrollback(scrollbackDraft, terminalScrollback)
+    setScrollbackDraft(String(nextScrollback))
+    onTerminalScrollbackChange(nextScrollback)
+  }, [onTerminalScrollbackChange, scrollbackDraft, terminalScrollback])
+
   const handleMaxOutputContextChange = useCallback((value: string) => {
     setMaxOutputContextDraft(value)
 
@@ -2254,13 +2349,24 @@ export function LlmPanel({
   const handleExport = useCallback(async () => {
     setDataStatus('Exporting...')
     try {
-      await window.api.data.export({ textSize, sidebarWidth, language, themeId })
+      await window.api.data.export({
+        textSize,
+        sidebarWidth,
+        language,
+        themeId,
+        terminalFontFamily,
+        terminalCursorStyle,
+        terminalCursorBlink,
+        terminalLineHeight,
+        terminalScrollback,
+        windowOpacity
+      })
       setDataStatus('Export complete')
       setTimeout(() => setDataStatus(''), 3000)
     } catch (error) {
       setDataStatus(`Export failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [sidebarWidth, textSize, language, themeId])
+  }, [sidebarWidth, textSize, language, themeId, terminalFontFamily, terminalCursorStyle, terminalCursorBlink, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleImport = useCallback(async () => {
     setDataStatus('Importing...')
@@ -2275,6 +2381,12 @@ export function LlmPanel({
       if (result.preferences?.sidebarWidth) onSidebarWidthChange(result.preferences.sidebarWidth)
       if (result.preferences?.language) onLanguageChange(result.preferences.language as Language)
       if (result.preferences?.themeId) onThemeChange(result.preferences.themeId)
+      if (result.preferences?.terminalFontFamily) onTerminalFontFamilyChange(result.preferences.terminalFontFamily)
+      if (result.preferences?.terminalCursorStyle) onTerminalCursorStyleChange(result.preferences.terminalCursorStyle)
+      if (typeof result.preferences?.terminalCursorBlink === 'boolean') onTerminalCursorBlinkChange(result.preferences.terminalCursorBlink)
+      if (result.preferences?.terminalLineHeight) onTerminalLineHeightChange(result.preferences.terminalLineHeight)
+      if (result.preferences?.terminalScrollback) onTerminalScrollbackChange(result.preferences.terminalScrollback)
+      if (result.preferences?.windowOpacity) onWindowOpacityChange(result.preferences.windowOpacity)
 
       await loadConfig()
 
@@ -2287,7 +2399,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange, onThemeChange])
+  }, [loadConfig, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -2482,9 +2594,12 @@ export function LlmPanel({
       terms: [
         t('appearance.title'), t('appearance.theme.label'), t('appearance.theme.desc'),
         t('appearance.fontSize.label'), t('appearance.fontSize.desc'),
+        t('appearance.fontFamily.label'), t('appearance.fontFamily.desc'), t('appearance.lineHeight.label'),
+        t('appearance.cursorStyle.label'), t('appearance.cursorBlink.label'), t('appearance.scrollback.label'),
+        t('appearance.windowOpacity.label'), t('appearance.preview.title'),
         t('appearance.language.label'), t('appearance.language.desc'),
         t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'),
-        'font size theme language shortcut hotkey appearance terminal'
+        'font family cursor blink line height scrollback opacity preview theme language shortcut hotkey appearance terminal'
       ]
     },
     {
@@ -2766,6 +2881,24 @@ export function LlmPanel({
                         </select>
                       </div>
                     </div>
+                    <div className="appearance-group-heading">{t('appearance.group.typography')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.fontFamily.label'), t('appearance.fontFamily.desc'), 'font family typeface mono monospace terminal'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.fontFamily.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.fontFamily.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select appearance-wide-select"
+                          value={terminalFontFamily}
+                          onChange={(event) => onTerminalFontFamilyChange(event.target.value)}
+                        >
+                          {TERMINAL_FONT_OPTIONS.map((font) => (
+                            <option key={font.value} value={font.value}>{font.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.fontSize.label'), t('appearance.fontSize.desc'), 'font size text terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.fontSize.label')} query={settingsSearch} /></span>
@@ -2789,6 +2922,123 @@ export function LlmPanel({
                           }}
                         />
                       </div>
+                    </div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.lineHeight.label'), t('appearance.lineHeight.desc'), 'line height spacing terminal typography'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.lineHeight.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.lineHeight.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <input
+                          className={`numeric-input ${!isValidLineHeight(lineHeightDraft) ? 'invalid-input' : ''}`}
+                          type="number"
+                          step="0.05"
+                          min={MIN_LINE_HEIGHT}
+                          max={MAX_LINE_HEIGHT}
+                          inputMode="decimal"
+                          value={lineHeightDraft}
+                          onChange={(event) => handleLineHeightChange(event.target.value)}
+                          onBlur={commitLineHeightDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.cursor')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.cursorStyle.label'), t('appearance.cursorStyle.desc'), t('appearance.cursorStyle.block'), t('appearance.cursorStyle.underline'), t('appearance.cursorStyle.bar'), 'cursor caret block underline bar'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.cursorStyle.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.cursorStyle.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select"
+                          value={terminalCursorStyle}
+                          onChange={(event) => onTerminalCursorStyleChange(event.target.value as TerminalCursorStyle)}
+                        >
+                          {TERMINAL_CURSOR_STYLE_OPTIONS.map((style) => (
+                            <option key={style} value={style}>
+                              {style === 'block'
+                                ? t('appearance.cursorStyle.block')
+                                : style === 'underline'
+                                  ? t('appearance.cursorStyle.underline')
+                                  : t('appearance.cursorStyle.bar')}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.cursorBlink.label'), t('appearance.cursorBlink.desc'), 'cursor blink caret animation'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.cursorBlink.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.cursorBlink.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <label className="settings-switch">
+                          <input
+                            type="checkbox"
+                            checked={terminalCursorBlink}
+                            onChange={(event) => onTerminalCursorBlinkChange(event.target.checked)}
+                          />
+                          <span />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.terminal')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.scrollback.label'), t('appearance.scrollback.desc'), 'scrollback buffer history terminal'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.scrollback.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.scrollback.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <input
+                          className={`numeric-input appearance-scrollback-input ${!isValidScrollback(scrollbackDraft) ? 'invalid-input' : ''}`}
+                          type="number"
+                          step="500"
+                          min={MIN_SCROLLBACK}
+                          max={MAX_SCROLLBACK}
+                          inputMode="numeric"
+                          value={scrollbackDraft}
+                          onChange={(event) => handleScrollbackChange(event.target.value)}
+                          onBlur={commitScrollbackDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.window')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.windowOpacity.label'), t('appearance.windowOpacity.desc'), 'macos window opacity transparency vibrancy'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.windowOpacity.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.windowOpacity.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right appearance-slider-control">
+                        <input
+                          type="range"
+                          min={MIN_WINDOW_OPACITY}
+                          max={MAX_WINDOW_OPACITY}
+                          step="0.01"
+                          value={windowOpacity}
+                          onChange={(event) => onWindowOpacityChange(Number(event.target.value))}
+                          aria-label={t('appearance.windowOpacity.label')}
+                        />
+                        <span>{Math.round(windowOpacity * 100)}%</span>
+                      </div>
+                    </div>
+                    <div
+                      className={`appearance-preview ${settingsMatchClass([t('appearance.preview.title'), t('appearance.preview.command'), 'preview terminal live font cursor'])}`}
+                      style={{ fontFamily: terminalFontFamily, fontSize: textSize, lineHeight: terminalLineHeight }}
+                    >
+                      <div className="appearance-preview-title">{t('appearance.preview.title')}</div>
+                      <div><span className="appearance-preview-prompt">$</span> {t('appearance.preview.command')}</div>
+                      <div className="appearance-preview-output">taviraq --daily-driver</div>
+                      <span className={`appearance-preview-cursor ${terminalCursorStyle} ${terminalCursorBlink ? 'blink' : ''}`} />
                     </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
                       <div className="appearance-row-left">

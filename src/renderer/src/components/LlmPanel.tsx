@@ -2723,7 +2723,7 @@ export function LlmPanel({
   }, [assistModeRequest, stopAgentic])
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
-  const terminalOutputForComposer = stripAnsi(getOutput())
+  const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
   const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
   const composerSelectedText = strictTerminalContextActive ? '' : selectedText

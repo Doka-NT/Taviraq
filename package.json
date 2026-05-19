@@ -73,6 +73,10 @@
     ],
     "extraResources": [
       {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
         "from": "resources/gitleaks",
         "to": "gitleaks"
       }

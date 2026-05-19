@@ -1031,6 +1031,12 @@ export function LlmPanel({
     setThreadsBySessionId(next)
   }, [])
 
+  const getBoundedTerminalOutputForRequest = useCallback((sessionId: string, mode: AssistMode): string | undefined => {
+    if (mode === 'off') return undefined
+    const terminalOutput = getOutputForSessionRef.current(sessionId).slice(-maxOutputContextRef.current)
+    return terminalOutput || undefined
+  }, [])
+
   const saveThreadSnapshotToHistory = useCallback((thread: AssistantThread): string | undefined => {
     if (thread.messages.length === 0) return undefined
     const chatId = thread.savedChatId ?? crypto.randomUUID()
@@ -1346,7 +1352,7 @@ export function LlmPanel({
       }))
 
       const mode = assistModeRef.current
-      const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+      const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
       window.api.llm.chatStream({
         requestId,
@@ -1375,7 +1381,7 @@ export function LlmPanel({
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
     }
-  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
 
   const startGuardedStream = useCallback((
     sessionId: string,
@@ -1438,7 +1444,7 @@ export function LlmPanel({
     }))
 
     const mode = assistModeRef.current
-    const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+    const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
     window.api.llm.chatStream({
       requestId,
@@ -1453,7 +1459,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, strictTerminalContextActive, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})

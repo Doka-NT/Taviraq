@@ -2524,11 +2524,14 @@ export function LlmPanel({
     onOpenSettings()
   }, [onOpenSettings])
   const markPrivacyFalsePositive = useCallback((sessionId: string, messageIndex: number) => {
-    const message = threadsRef.current[sessionId]?.messages[messageIndex]
+    const thread = threadsRef.current[sessionId]
+    const message = thread?.messages[messageIndex]
     if (!message?.privacy || message.privacy.markedFalsePositive) return
 
-    updateThread(sessionId, (thread) => ({
+    const chatId = thread.savedChatId ?? crypto.randomUUID()
+    const updatedThread: AssistantThread = {
       ...thread,
+      savedChatId: chatId,
       messages: thread.messages.map((message, index) => {
         if (index !== messageIndex || !message.privacy || message.privacy.markedFalsePositive) {
           return message
@@ -2541,9 +2544,11 @@ export function LlmPanel({
           }
         }
       })
-    }))
-    autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, updateThread])
+    }
+
+    updateThread(sessionId, () => updatedThread)
+    saveThreadSnapshotToHistory(updatedThread)
+  }, [saveThreadSnapshotToHistory, updateThread])
   const getProviderListStatus = useCallback((candidate: LLMProviderConfig) => {
     const needsApiKey = providerNeedsApiKey(getProviderType(candidate))
     const isCurrentProvider = candidate.apiKeyRef === provider.apiKeyRef

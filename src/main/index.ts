@@ -70,6 +70,7 @@ if (userDataDir) {
 }
 
 let mainWindow: BrowserWindow | undefined
+let aboutWindow: BrowserWindow | undefined
 let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
@@ -90,6 +91,7 @@ const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextLocksBySession.delete(sessionId)
 })
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
 const demoProvider = {
   name: 'Taviraq Demo',
@@ -328,6 +330,10 @@ async function openAllowedExternalUrl(url: string): Promise<void> {
   await shell.openExternal(url)
 }
 
+function escapeHtml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
+}
+
 async function sendDemoChatStream(
   event: Electron.IpcMainEvent,
   request: ChatStreamRequest,
@@ -384,12 +390,138 @@ function requestQuit(): void {
   app.quit()
 }
 
+function showAboutWindow(): void {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.show()
+    aboutWindow.focus()
+    return
+  }
+
+  const visibleMainWindow = mainWindow?.isVisible() ? mainWindow : undefined
+
+  aboutWindow = new BrowserWindow({
+    width: 360,
+    height: 300,
+    parent: visibleMainWindow,
+    modal: Boolean(visibleMainWindow),
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: 'About Taviraq',
+    backgroundColor: '#10101a',
+    autoHideMenuBar: true,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  aboutWindow.webContents.setWindowOpenHandler((details) => {
+    void openAllowedExternalUrl(details.url).catch((error: unknown) => {
+      console.error('[open about external url failed]', error)
+    })
+    return { action: 'deny' }
+  })
+
+  aboutWindow.on('closed', () => {
+    aboutWindow = undefined
+  })
+
+  const applicationVersion = escapeHtml(app.getVersion())
+  const websiteHref = escapeHtml(TAVIRAQ_WEBSITE)
+  const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+    <title>About Taviraq</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #10101a;
+        color: #f4f4f8;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+      main {
+        display: grid;
+        gap: 12px;
+        justify-items: center;
+        padding: 28px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 650;
+        letter-spacing: 0;
+      }
+      p {
+        margin: 0;
+        color: #b8b8c6;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      a {
+        color: #8bd5ff;
+        font-size: 13px;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .mark {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #2f7dff, #26d07c);
+        color: #ffffff;
+        font-size: 32px;
+        font-weight: 760;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="mark" aria-hidden="true">T</div>
+      <h1>Taviraq</h1>
+      <p>Version ${applicationVersion}</p>
+      <a href="${websiteHref}" target="_blank" rel="noreferrer">${websiteHref}</a>
+      <p>AI-native macOS terminal</p>
+    </main>
+  </body>
+</html>`
+  const aboutUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`
+
+  aboutWindow.webContents.on('will-navigate', (event, url) => {
+    if (url === aboutUrl) return
+    event.preventDefault()
+    void openAllowedExternalUrl(url).catch((error: unknown) => {
+      console.error('[open about external url failed]', error)
+    })
+  })
+
+  void aboutWindow.loadURL(aboutUrl)
+}
+
 function registerApplicationMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
-        { role: 'about' },
+        {
+          label: 'About Taviraq',
+          click: showAboutWindow
+        },
         { type: 'separator' },
         {
           label: 'Quit Taviraq',

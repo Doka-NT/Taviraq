@@ -31,6 +31,7 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
+import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -513,6 +514,7 @@ interface AssistantThread {
   agenticStep: number
   agenticCommand: string
   commandConfirmation: CommandConfirmation | null
+  lastMaskedSecretCount: number
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
   savedChatId?: string
 }
@@ -531,7 +533,8 @@ function createThread(): AssistantThread {
     agenticCommandRunning: false,
     agenticStep: 0,
     agenticCommand: '',
-    commandConfirmation: null
+    commandConfirmation: null,
+    lastMaskedSecretCount: 0
   }
 }
 
@@ -586,6 +589,77 @@ function toChatMessage(message: ThreadMessage, strictTerminalContext = false): C
     role: message.role,
     content: message.maskedContent ?? message.content
   }
+}
+
+const COMPOSER_LANGUAGE_NAMES: Partial<Record<Language, string>> = {
+  ru: 'Russian',
+  cn: 'Chinese'
+}
+
+function buildComposerModeInstructions(mode: AssistMode): string[] {
+  if (mode === 'agent') {
+    return [
+      'Agent mode is enabled. The app can run one command from your response automatically in the active terminal.',
+      'When you need the app to run a command, write a short marker line exactly like "Выполню:" or "I will run:" immediately followed by exactly one fenced shell code block containing only that command.',
+      'Example of an auto-runnable command:\nВыполню:\n```bash\npwd\n```',
+      'You may include other fenced bash/sh examples for the user to read, but do not put the marker line immediately before examples, alternatives, or explanatory snippets.',
+      'If you include examples, clearly introduce them as examples, such as "Например, вручную можно было бы:" before the code block.',
+      'The app will send the command output back to you; do not claim success until you see that output.',
+      'Avoid destructive commands unless the user explicitly asked for them, and finish with a normal answer when no more commands are needed.'
+    ]
+  }
+
+  if (mode === 'read') {
+    return [
+      'Read-only terminal context is enabled.',
+      'When suggesting commands, put each command in a fenced bash code block.',
+      'Never claim a command was executed unless the user confirmed it.'
+    ]
+  }
+
+  return [
+    'When suggesting commands, put each command in a fenced bash code block.',
+    'Never claim a command was executed unless the user confirmed it.'
+  ]
+}
+
+function estimateComposerPayloadChars({
+  messages,
+  draft,
+  assistMode,
+  language,
+  selectedText,
+  terminalOutput,
+  session,
+  maskedSecretCount
+}: {
+  messages: ChatMessage[]
+  draft: string
+  assistMode: AssistMode
+  language: Language
+  selectedText: string
+  terminalOutput: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  maskedSecretCount: number
+}): number {
+  const languageName = COMPOSER_LANGUAGE_NAMES[language]
+  const systemPrompt = [
+    'You are an AI assistant embedded in a desktop terminal.',
+    'Prefer concise, actionable terminal help.',
+    languageName ? `Always respond in ${languageName}.` : undefined,
+    ...buildComposerModeInstructions(assistMode),
+    maskedSecretCount > 0
+      ? 'Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.'
+      : undefined,
+    session ? `Active session: ${session.label} (${session.kind}).` : undefined,
+    session?.cwd ? `Current directory: ${session.cwd}.` : undefined,
+    selectedText ? `Selected terminal output:\n${selectedText}` : undefined,
+    terminalOutput ? `Recent terminal output:\n${terminalOutput}` : undefined
+  ].filter(Boolean).join('\n')
+  const draftMessage = draft.trim() ? [{ role: 'user' as const, content: draft }] : []
+
+  return [systemPrompt, ...messages.map((message) => message.content), ...draftMessage.map((message) => message.content)]
+    .reduce((sum, content) => sum + content.length, 0)
 }
 
 function upsertProviderInOrder(providers: LLMProviderConfig[], provider: LLMProviderConfig): LLMProviderConfig[] {
@@ -806,10 +880,46 @@ export function LlmPanel({
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
-  const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const {
+    messages,
+    draft,
+    status,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning,
+    agenticStep,
+    agenticCommand,
+    commandConfirmation,
+    lastMaskedSecretCount
+  } = activeThread
+  const [confirmCountdown, setConfirmCountdown] = useState(0)
+
+  const resizeComposerTextarea = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`
+  }, [])
+
+  useEffect(() => {
+    resizeComposerTextarea()
+  }, [draft, resizeComposerTextarea])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    const composer = textarea?.parentElement
+    if (!composer || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      resizeComposerTextarea()
+    })
+    observer.observe(composer)
+
+    return () => observer.disconnect()
+  }, [resizeComposerTextarea])
+
   const commandConfirmationTone = commandConfirmation?.tone
   const commandConfirmationCommandId = commandConfirmation?.commandId
-  const [confirmCountdown, setConfirmCountdown] = useState(0)
 
   // Countdown timer for destructive (danger) command confirmations
   // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
@@ -830,7 +940,7 @@ export function LlmPanel({
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [commandConfirmationCommandId, commandConfirmationTone])
+  }, [commandConfirmationTone, commandConfirmationCommandId])
 
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
@@ -919,6 +1029,12 @@ export function LlmPanel({
     const next = { ...current, [sessionId]: nextThread }
     threadsRef.current = next
     setThreadsBySessionId(next)
+  }, [])
+
+  const getBoundedTerminalOutputForRequest = useCallback((sessionId: string, mode: AssistMode): string | undefined => {
+    if (mode === 'off') return undefined
+    const terminalOutput = getOutputForSessionRef.current(sessionId).slice(-maxOutputContextRef.current)
+    return terminalOutput || undefined
   }, [])
 
   const saveThreadSnapshotToHistory = useCallback((thread: AssistantThread): string | undefined => {
@@ -1230,12 +1346,13 @@ export function LlmPanel({
         streaming: true,
         activeRequestId: requestId,
         streamingContent: '',
+        lastMaskedSecretCount: 0,
         status: null,
         session
       }))
 
       const mode = assistModeRef.current
-      const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+      const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
       window.api.llm.chatStream({
         requestId,
@@ -1264,7 +1381,7 @@ export function LlmPanel({
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
     }
-  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
 
   const startGuardedStream = useCallback((
     sessionId: string,
@@ -1320,13 +1437,14 @@ export function LlmPanel({
       streaming: true,
       activeRequestId: requestId,
       streamingContent: '',
+      lastMaskedSecretCount: 0,
       status: null,
       agenticPending: null,
       session
     }))
 
     const mode = assistModeRef.current
-    const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+    const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
     window.api.llm.chatStream({
       requestId,
@@ -1341,7 +1459,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, strictTerminalContextActive, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})
@@ -1406,30 +1524,32 @@ export function LlmPanel({
       if (event.type === 'privacy') {
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
-          const message: ThreadMessage = {
-            role: 'assistant',
-            content: t('status.privacyMasked', { count: event.maskedSecrets }),
-            display: 'privacy-status',
-            output: String(event.maskedSecrets),
-            privacy: {
-              maskedSecretCount: event.maskedSecrets,
-              categories: event.categories ?? [],
-              source: event.source ?? 'chat-stream',
-              scope: event.scope ?? 'provider-payload',
-              sessionLabel: event.sessionLabel
-            }
-          }
           const messages = [...thread.messages]
           const last = messages.at(-1)
+          const privacy: PrivacyMaskingNotice = {
+            maskedSecretCount: event.maskedSecrets,
+            categories: event.categories ?? [],
+            source: event.source ?? 'chat-stream',
+            scope: event.scope ?? 'provider-payload',
+            sessionLabel: event.sessionLabel
+          }
+
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages.splice(messages.length - 1, 0, message)
+            messages[messages.length - 1] = { ...last, privacy }
           } else {
-            messages.push(message)
+            messages.push({
+              role: 'assistant',
+              content: t('status.privacyMasked', { count: event.maskedSecrets }),
+              display: 'privacy-status',
+              output: String(event.maskedSecrets),
+              privacy
+            })
           }
 
           return {
             ...thread,
             messages,
+            lastMaskedSecretCount: event.maskedSecrets,
             status: null
           }
         })
@@ -2609,7 +2729,46 @@ export function LlmPanel({
   }, [assistModeRequest, stopAgentic])
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
-  const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
+  const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
+  const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
+  const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
+  const composerSelectedText = strictTerminalContextActive ? '' : selectedText
+  const composerMaskedSecretCount = lastMaskedSecretCount
+  const composerChatMessages = useMemo(
+    () => messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+    [messages, strictTerminalContextActive]
+  )
+  const composerSession = useMemo(
+    () => activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession]
+  )
+  const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
+    messages: composerChatMessages,
+    draft,
+    assistMode,
+    language,
+    selectedText: composerSelectedText,
+    terminalOutput: composerTerminalOutput,
+    session: composerSession,
+    maskedSecretCount: composerMaskedSecretCount
+  }), [
+    assistMode,
+    composerChatMessages,
+    composerMaskedSecretCount,
+    composerSelectedText,
+    composerSession,
+    composerTerminalOutput,
+    draft,
+    language
+  ])
+  const composerPayloadTokens = estimateComposerContextTokens(composerPayloadChars)
+  const composerContextLabel = t('chat.composer.context', { count: formatComposerContextTokens(composerPayloadTokens) })
+  const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
+  const composerModeLabel = assistMode === 'agent'
+    ? t('chat.composer.mode.agent')
+    : assistMode === 'read'
+      ? t('chat.composer.mode.read')
+      : t('chat.composer.mode.off')
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -4280,6 +4439,13 @@ export function LlmPanel({
                   title={t('chat.thinking')}
                 />
               ) : null}
+              {message.role === 'assistant' && message.privacy ? (
+                <PrivacyTrustCard
+                  content={t('status.privacyMasked', { count: message.privacy.maskedSecretCount })}
+                  notice={message.privacy}
+                  onOpenSecuritySettings={openSecuritySettings}
+                />
+              ) : null}
               {showDots ? (
                 <div className="streaming-dots">
                   <span /><span /><span />
@@ -4408,50 +4574,71 @@ export function LlmPanel({
           sendMessage()
         }}
       >
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          disabled={inputDisabled}
-          onChange={(event) => {
-            if (activeSessionId) {
-              updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
-            }
-          }}
-          onKeyDown={(event) => {
-            const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
-            const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
-            if (wantsSend || wantsMetaSend) {
-              event.preventDefault()
-              sendMessage()
-            }
-          }}
-          placeholder={t('chat.input.placeholder')}
-          rows={1}
-        />
-        <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
-          {streaming || agenticRunning ? (
-            <button
-              className="stop-button"
-              type="button"
-              onClick={() => {
-                if (activeSessionId) stopAgentic(activeSessionId)
-              }}
-              title={t('chat.stopAgent')}
-              aria-label={t('chat.stopAgent')}
-            >
-              <Square size={14} aria-hidden />
-            </button>
-          ) : null}
-          <button
-            className={`send-button ${streaming ? 'streaming' : ''}`}
-            type="submit"
-            disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
-            title={t('chat.send')}
-            aria-label={t('chat.send')}
-          >
-            <Send size={15} aria-hidden />
-          </button>
+        <div className="chat-composer-shell">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            disabled={inputDisabled}
+            onChange={(event) => {
+              if (activeSessionId) {
+                updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
+              }
+            }}
+            onKeyDown={(event) => {
+              const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
+              const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
+              if (wantsSend || wantsMetaSend) {
+                event.preventDefault()
+                sendMessage()
+              }
+            }}
+            placeholder={t('chat.input.placeholder')}
+            title={t('chat.input.tooltip')}
+            rows={1}
+          />
+          <div className="chat-composer-footer">
+            <div className="chat-composer-indicators">
+              <span className={`composer-context-chip ${assistMode === 'off' ? 'off' : ''}`} title={composerContextLabel}>
+                <ScrollText size={12} aria-hidden />
+                <span>{composerContextLabel}</span>
+              </span>
+              {composerMaskedSecretCount > 0 ? (
+                <span className="composer-context-chip" title={composerMaskedSecretLabel}>
+                  <ShieldCheck size={12} aria-hidden />
+                  <span>{composerMaskedSecretLabel}</span>
+                </span>
+              ) : null}
+            </div>
+            <div className="chat-form-actions">
+              <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
+                {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
+                <span>{composerModeLabel}</span>
+              </span>
+              <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
+              {streaming || agenticRunning ? (
+                <button
+                  className="stop-button"
+                  type="button"
+                  onClick={() => {
+                    if (activeSessionId) stopAgentic(activeSessionId)
+                  }}
+                  title={t('chat.stopAgent')}
+                  aria-label={t('chat.stopAgent')}
+                >
+                  <Square size={14} aria-hidden />
+                </button>
+              ) : null}
+              <button
+                className={`send-button ${streaming ? 'streaming' : ''}`}
+                type="submit"
+                disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
+                title={t('chat.send')}
+                aria-label={t('chat.send')}
+              >
+                <Send size={15} aria-hidden />
+              </button>
+            </div>
+          </div>
         </div>
       </form>
       </>

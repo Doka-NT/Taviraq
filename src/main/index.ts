@@ -699,6 +699,7 @@ async function createWindow(): Promise<void> {
     const isSettingsShortcut = key === ',' || input.code === 'Comma'
     const isNewTabShortcut = key === 't' || input.code === 'KeyT'
     const isCloseTabShortcut = key === 'w' || input.code === 'KeyW'
+    const isClearTerminalShortcut = key === 'k' || input.code === 'KeyK'
     const tabShortcut = /^[1-9]$/.test(key) ? Number(key) : undefined
     let action: AppShortcutAction | undefined
 
@@ -716,6 +717,8 @@ async function createWindow(): Promise<void> {
       action = 'new-tab'
     } else if (isCloseTabShortcut) {
       action = 'close-tab'
+    } else if (isClearTerminalShortcut) {
+      action = 'clear-terminal'
     }
 
     if (!action) return

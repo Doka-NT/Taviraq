@@ -2531,6 +2531,10 @@ export function LlmPanel({
     if (!message?.privacy || message.privacy.markedFalsePositive) return
 
     const chatId = thread.savedChatId ?? crypto.randomUUID()
+    if (chatHistorySaveTimerRef.current) {
+      window.clearTimeout(chatHistorySaveTimerRef.current)
+      chatHistorySaveTimerRef.current = undefined
+    }
     const updatedThread: AssistantThread = {
       ...thread,
       savedChatId: chatId,

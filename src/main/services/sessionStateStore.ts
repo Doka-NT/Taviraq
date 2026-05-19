@@ -27,7 +27,8 @@ export function normalizeSessionState(snapshot: SaveSessionStateRequest): Sessio
         {
           messages: Array.isArray(thread.messages) ? thread.messages : [],
           draft: typeof thread.draft === 'string' ? thread.draft : '',
-          session: thread.session
+          session: thread.session,
+          savedChatId: thread.savedChatId
         }
       ])
   )

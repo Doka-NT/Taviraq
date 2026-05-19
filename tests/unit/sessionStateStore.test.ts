@@ -39,6 +39,32 @@ describe('session state helpers', () => {
     expect(Object.keys(snapshot.assistantThreads)).toEqual(['live'])
   })
 
+  it('preserves saved chat ids for restorable assistant threads', () => {
+    const snapshot = normalizeSessionState({
+      version: 1,
+      savedAt: '2026-05-03T00:00:00.000Z',
+      activeSessionId: 'live',
+      sessions: [{
+        id: 'live',
+        kind: 'local',
+        label: 'zsh',
+        command: '/bin/zsh',
+        createdAt: 1,
+        status: 'running',
+        output: ''
+      }],
+      assistantThreads: {
+        live: {
+          messages: [{ role: 'assistant', content: '2 secret(s) masked before sending to LLM.' }],
+          draft: '',
+          savedChatId: 'chat-privacy'
+        }
+      }
+    })
+
+    expect(snapshot.assistantThreads.live?.savedChatId).toBe('chat-privacy')
+  })
+
   it('backfills an ssh reconnect command from the saved remote target', () => {
     const snapshot = normalizeSessionState({
       version: 1,

@@ -1290,13 +1290,6 @@ textarea:focus {
   color: var(--text-muted);
 }
 
-.settings-nav-empty {
-  margin: 6px 8px;
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.35;
-}
-
 .settings-nav-item {
   position: relative;
   display: flex;
@@ -1366,12 +1359,81 @@ textarea:focus {
   color: var(--text-primary);
 }
 
-.settings-content-empty {
+.settings-search-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  max-width: 520px;
+  padding: 20px 0 8px;
+}
+
+.settings-search-empty-state h3 {
   margin: 0;
-  padding: 32px 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.settings-search-empty-state p {
+  margin: 0;
   color: var(--text-secondary);
-  font-size: 13px;
-  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-empty-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.settings-empty-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.settings-empty-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.settings-empty-chip {
+  width: auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--surface-rgb), 0.045);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), color var(--transition);
+}
+
+.settings-empty-chip:hover,
+.settings-empty-chip:focus-visible {
+  border-color: rgba(var(--accent-cyan-rgb), 0.42);
+  background: rgba(var(--accent-cyan-rgb), 0.10);
+  color: var(--text-primary);
+}
+
+.settings-empty-chip.suggested {
+  border-color: rgba(var(--accent-amber-rgb), 0.34);
+  background: rgba(var(--accent-amber-rgb), 0.08);
+  color: var(--text-primary);
+}
+
+.settings-empty-examples {
+  max-width: 440px;
 }
 
 .settings-search-match {

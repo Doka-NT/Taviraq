@@ -162,6 +162,7 @@ export interface RestorableAssistantThread {
   messages: RestorableThreadMessage[]
   draft: string
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  savedChatId?: string
 }
 
 export type RestorableAssistantThreads = Record<string, RestorableAssistantThread>

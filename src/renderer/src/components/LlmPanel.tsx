@@ -514,7 +514,8 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
       reasoningContent: hidePersistedSecretPlaceholders(message.reasoningContent)
     })),
     draft: thread.draft,
-    session: thread.session
+    session: thread.session,
+    savedChatId: thread.savedChatId
   }
 }
 
@@ -529,7 +530,8 @@ function fromRestorableThread(thread: RestorableAssistantThread): AssistantThrea
     ...createThread(),
     messages: thread.messages ?? [],
     draft: thread.draft ?? '',
-    session: thread.session
+    session: thread.session,
+    savedChatId: thread.savedChatId
   }
 }
 

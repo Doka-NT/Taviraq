@@ -65,6 +65,32 @@ describe('session state helpers', () => {
     expect(snapshot.assistantThreads.live?.savedChatId).toBe('chat-privacy')
   })
 
+  it('drops malformed saved chat ids from restorable assistant threads', () => {
+    const snapshot = normalizeSessionState({
+      version: 1,
+      savedAt: '2026-05-03T00:00:00.000Z',
+      activeSessionId: 'live',
+      sessions: [{
+        id: 'live',
+        kind: 'local',
+        label: 'zsh',
+        command: '/bin/zsh',
+        createdAt: 1,
+        status: 'running',
+        output: ''
+      }],
+      assistantThreads: {
+        live: {
+          messages: [],
+          draft: '',
+          savedChatId: 42 as unknown as string
+        }
+      }
+    })
+
+    expect(snapshot.assistantThreads.live?.savedChatId).toBeUndefined()
+  })
+
   it('backfills an ssh reconnect command from the saved remote target', () => {
     const snapshot = normalizeSessionState({
       version: 1,

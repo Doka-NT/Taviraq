@@ -393,11 +393,13 @@ function showAboutWindow(): void {
     return
   }
 
+  const visibleMainWindow = mainWindow?.isVisible() ? mainWindow : undefined
+
   aboutWindow = new BrowserWindow({
     width: 360,
     height: 300,
-    parent: mainWindow,
-    modal: Boolean(mainWindow),
+    parent: visibleMainWindow,
+    modal: Boolean(visibleMainWindow),
     resizable: false,
     minimizable: false,
     maximizable: false,

@@ -38,10 +38,12 @@ describe('settings search helpers', () => {
   it('suggests sections for fuzzy misspellings', () => {
     expect(findFuzzySettingsSuggestions('apprnce', items).map((item) => item.id)).toContain('appearance')
     expect(findFuzzySettingsSuggestions('securrty', items).map((item) => item.id)).toContain('security')
+    expect(findFuzzySettingsSuggestions('secret maskng', items).map((item) => item.id)).toContain('security')
   })
 
   it('returns no fuzzy suggestions for empty or unrelated queries', () => {
     expect(findFuzzySettingsSuggestions('', items)).toEqual([])
     expect(findFuzzySettingsSuggestions('billing', items)).toEqual([])
+    expect(findFuzzySettingsSuggestions('api billing', items)).toEqual([])
   })
 })

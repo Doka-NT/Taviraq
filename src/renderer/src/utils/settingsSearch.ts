@@ -67,13 +67,13 @@ export function findFuzzySettingsSuggestions<T extends string>(
   items: Array<SettingsSearchItem<T>>,
   limit = 3
 ): Array<SettingsSearchItem<T>> {
-  const queryTokens = splitSearchTokens(query)
+  const queryTokens = splitSearchTokens(query).filter((token) => token.length >= 3)
   if (queryTokens.length === 0) return []
 
   return items
     .map((item) => {
       const candidateTokens = splitSearchTokens([item.label, ...item.terms].join(' '))
-      const bestScore = queryTokens.reduce<number | undefined>((best, queryToken) => {
+      const totalScore = queryTokens.reduce<number | undefined>((total, queryToken) => {
         const tokenScore = candidateTokens.reduce<number | undefined>((candidateBest, candidateToken) => {
           const score = scoreFuzzyToken(queryToken, candidateToken)
           return score === undefined || (candidateBest !== undefined && candidateBest <= score)
@@ -81,15 +81,17 @@ export function findFuzzySettingsSuggestions<T extends string>(
             : score
         }, undefined)
 
-        return tokenScore === undefined || (best !== undefined && best <= tokenScore)
-          ? best
-          : tokenScore
-      }, undefined)
+        if (tokenScore === undefined || total === undefined) return undefined
+        return total + tokenScore
+      }, 0)
 
-      return bestScore === undefined ? undefined : { item, score: bestScore }
+      return totalScore === undefined ? undefined : { item, score: totalScore }
     })
     .filter((result): result is { item: SettingsSearchItem<T>; score: number } => result !== undefined)
-    .sort((a, b) => a.score - b.score || a.item.label.localeCompare(b.item.label))
+    .sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score
+      return a.item.label.localeCompare(b.item.label)
+    })
     .slice(0, limit)
     .map((result) => result.item)
 }

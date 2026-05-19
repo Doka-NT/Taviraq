@@ -672,6 +672,8 @@ interface LlmPanelProps {
   onConnectSsh: (profile: SSHProfileConfig) => void
   blockPromptRequest?: { id: string; sessionId: string; prompt: string } | null
   snippetDraftRequest?: { id: string; name?: string; command?: string } | null
+  promptInsertRequest?: { id: string; content: string } | null
+  assistModeRequest?: { id: string; mode: AssistMode } | null
 }
 
 export function LlmPanel({
@@ -720,6 +722,8 @@ export function LlmPanel({
   onConnectSsh,
   blockPromptRequest,
   snippetDraftRequest,
+  promptInsertRequest,
+  assistModeRequest,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -788,6 +792,8 @@ export function LlmPanel({
   const promptResolversRef = useRef(new Map<string, () => void>())
   const commandConfirmationResolversRef = useRef(new Map<string, (result: CommandConfirmationResult) => void>())
   const handledBlockPromptRequestRef = useRef<string>()
+  const handledPromptInsertRequestRef = useRef<string>()
+  const handledAssistModeRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const pendingStreamStartsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
@@ -801,12 +807,14 @@ export function LlmPanel({
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
   const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const commandConfirmationTone = commandConfirmation?.tone
+  const commandConfirmationCommandId = commandConfirmation?.commandId
   const [confirmCountdown, setConfirmCountdown] = useState(0)
 
   // Countdown timer for destructive (danger) command confirmations
   // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
   useEffect(() => {
-    if (!commandConfirmation || commandConfirmation.tone !== 'danger') {
+    if (commandConfirmationTone !== 'danger') {
       setConfirmCountdown(0)
       return
     }
@@ -822,7 +830,7 @@ export function LlmPanel({
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [commandConfirmation?.tone, commandConfirmation?.commandId])
+  }, [commandConfirmationCommandId, commandConfirmationTone])
 
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
@@ -2547,6 +2555,14 @@ export function LlmPanel({
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [activeSessionId, updateThread])
 
+  useEffect(() => {
+    if (!promptInsertRequest || handledPromptInsertRequestRef.current === promptInsertRequest.id) return
+    handledPromptInsertRequestRef.current = promptInsertRequest.id
+    setPromptDraft(promptInsertRequest.content)
+    setHistoryOpen(false)
+    setPromptPickerOpen(false)
+  }, [promptInsertRequest, setPromptDraft])
+
   const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       closePromptPicker()
@@ -2580,6 +2596,17 @@ export function LlmPanel({
       return next
     })
   }, [stopAgentic])
+
+  useEffect(() => {
+    if (!assistModeRequest || handledAssistModeRequestRef.current === assistModeRequest.id) return
+    handledAssistModeRequestRef.current = assistModeRequest.id
+    if (assistModeRequest.mode !== 'agent') {
+      for (const [sessionId, thread] of Object.entries(threadsRef.current)) {
+        if (thread.agenticRunning) stopAgentic(sessionId)
+      }
+    }
+    setAssistMode(assistModeRequest.mode)
+  }, [assistModeRequest, stopAgentic])
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)

@@ -432,6 +432,15 @@ export interface Translations {
   'snippetPalette.emptyCta': string
   'snippetPalette.noMatch': string
 
+  // Unified command palette
+  'commandPalette.title': string
+  'commandPalette.search': string
+  'commandPalette.recent': string
+  'commandPalette.all': string
+  'commandPalette.noMatch': string
+  'commandPalette.enterRuns': string
+  'commandPalette.escapeCloses': string
+
   // Prompt palette
   'promptPalette.title': string
   'promptPalette.search': string
@@ -735,7 +744,7 @@ export const en: Translations = {
   'app.showSidebar': 'Show assistant sidebar (⌘\\)',
   'app.hideSidebar': 'Hide assistant sidebar (⌘\\)',
   'chat.runInTerminal': 'Run in terminal',
-  'panel.promptLibrary': 'Prompt library (⌘⇧P)',
+  'panel.promptLibrary': 'Prompt library (⌘⇧J)',
 
   'chat.empty.title': 'Ready to help',
   'chat.empty.body': 'Ask about your terminal, commands, or selected text',
@@ -855,6 +864,14 @@ export const en: Translations = {
   'snippetPalette.empty': 'No command snippets yet.',
   'snippetPalette.emptyCta': 'Add snippet',
   'snippetPalette.noMatch': 'No matching snippets.',
+
+  'commandPalette.title': 'Command palette',
+  'commandPalette.search': 'Search actions, tabs, prompts, snippets...',
+  'commandPalette.recent': 'Recent',
+  'commandPalette.all': 'All actions',
+  'commandPalette.noMatch': 'No matching actions.',
+  'commandPalette.enterRuns': 'Enter runs',
+  'commandPalette.escapeCloses': 'Esc closes',
 
   'promptPalette.title': 'Prompts',
   'promptPalette.search': 'Search prompts...',
@@ -1158,7 +1175,7 @@ export const ru: Translations = {
   'app.showSidebar': 'Показать ассистента (⌘\\)',
   'app.hideSidebar': 'Скрыть ассистента (⌘\\)',
   'chat.runInTerminal': 'Запустить в терминале',
-  'panel.promptLibrary': 'Библиотека промптов (⌘⇧P)',
+  'panel.promptLibrary': 'Библиотека промптов (⌘⇧J)',
 
   'chat.empty.title': 'Готов помочь',
   'chat.empty.body': 'Спросите о терминале, командах или выделенном тексте',
@@ -1278,6 +1295,14 @@ export const ru: Translations = {
   'snippetPalette.empty': 'Сниппетов команд пока нет.',
   'snippetPalette.emptyCta': 'Добавить сниппет',
   'snippetPalette.noMatch': 'Подходящих сниппетов нет.',
+
+  'commandPalette.title': 'Палитра команд',
+  'commandPalette.search': 'Поиск действий, вкладок, промптов, сниппетов...',
+  'commandPalette.recent': 'Недавние',
+  'commandPalette.all': 'Все действия',
+  'commandPalette.noMatch': 'Подходящих действий нет.',
+  'commandPalette.enterRuns': 'Enter запускает',
+  'commandPalette.escapeCloses': 'Esc закрывает',
 
   'promptPalette.title': 'Промпты',
   'promptPalette.search': 'Поиск промптов...',
@@ -1581,7 +1606,7 @@ export const cn: Translations = {
   'app.showSidebar': '显示助手面板 (⌘\\)',
   'app.hideSidebar': '隐藏助手面板 (⌘\\)',
   'chat.runInTerminal': '在终端中运行',
-  'panel.promptLibrary': '提示词库 (⌘⇧P)',
+  'panel.promptLibrary': '提示词库 (⌘⇧J)',
 
   'chat.empty.title': '准备就绪',
   'chat.empty.body': '询问关于终端、命令或选定文本的问题',
@@ -1701,6 +1726,14 @@ export const cn: Translations = {
   'snippetPalette.empty': '还没有命令片段。',
   'snippetPalette.emptyCta': '添加片段',
   'snippetPalette.noMatch': '没有匹配的片段。',
+
+  'commandPalette.title': '命令面板',
+  'commandPalette.search': '搜索操作、标签、提示词、片段...',
+  'commandPalette.recent': '最近使用',
+  'commandPalette.all': '所有操作',
+  'commandPalette.noMatch': '没有匹配的操作。',
+  'commandPalette.enterRuns': 'Enter 执行',
+  'commandPalette.escapeCloses': 'Esc 关闭',
 
   'promptPalette.title': '提示词',
   'promptPalette.search': '搜索提示词...',

@@ -10,6 +10,7 @@ import type {
   CommandProposal,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  ExportData,
   GeneratedPrompt,
   ImportResult,
   ListModelsResult,
@@ -32,7 +33,8 @@ import type {
 
 const api = {
   app: {
-    openExternalUrl: (url: string) => ipcRenderer.invoke('app:openExternalUrl', url) as Promise<void>
+    openExternalUrl: (url: string) => ipcRenderer.invoke('app:openExternalUrl', url) as Promise<void>,
+    setWindowOpacity: (opacity: number) => ipcRenderer.invoke('app:setWindowOpacity', opacity) as Promise<void>
   },
   shortcuts: {
     onShortcut: (callback: (action: AppShortcutAction) => void) => {
@@ -204,7 +206,7 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('commandSnippet:delete', id) as Promise<void>
   },
   data: {
-    export: (preferences: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }) =>
+    export: (preferences: ExportData['preferences']) =>
       ipcRenderer.invoke('data:export', preferences) as Promise<void>,
     import: () =>
       ipcRenderer.invoke('data:import') as Promise<ImportResult | undefined>

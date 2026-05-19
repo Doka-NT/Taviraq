@@ -311,8 +311,6 @@ export interface Translations {
   'chat.input.placeholder': string
   'chat.input.tooltip': string
   'chat.composer.context': string
-  'chat.composer.contextProtected': string
-  'chat.composer.contextOff': string
   'chat.composer.maskedSecrets': string
   'chat.composer.mode.agent': string
   'chat.composer.mode.read': string
@@ -759,8 +757,6 @@ export const en: Translations = {
   'chat.input.placeholder': 'Ask about this terminal…',
   'chat.input.tooltip': 'Enter sends. Shift+Enter adds a new line.',
   'chat.composer.context': 'Context {count}',
-  'chat.composer.contextProtected': 'Context protected',
-  'chat.composer.contextOff': 'Terminal context: off',
   'chat.composer.maskedSecrets': '{count} masked',
   'chat.composer.mode.agent': 'Agent',
   'chat.composer.mode.read': 'Read',
@@ -1198,8 +1194,6 @@ export const ru: Translations = {
   'chat.input.placeholder': 'Спросите о терминале…',
   'chat.input.tooltip': 'Enter отправляет. Shift+Enter добавляет новую строку.',
   'chat.composer.context': 'Контекст {count}',
-  'chat.composer.contextProtected': 'Контекст защищен',
-  'chat.composer.contextOff': 'Контекст терминала: выкл.',
   'chat.composer.maskedSecrets': 'Скрыто {count}',
   'chat.composer.mode.agent': 'Агент',
   'chat.composer.mode.read': 'Чтение',
@@ -1637,8 +1631,6 @@ export const cn: Translations = {
   'chat.input.placeholder': '询问关于此终端的问题…',
   'chat.input.tooltip': 'Enter 发送。Shift+Enter 添加新行。',
   'chat.composer.context': '上下文 {count}',
-  'chat.composer.contextProtected': '上下文已保护',
-  'chat.composer.contextOff': '终端上下文：关闭',
   'chat.composer.maskedSecrets': '已遮蔽 {count}',
   'chat.composer.mode.agent': '代理',
   'chat.composer.mode.read': '只读',

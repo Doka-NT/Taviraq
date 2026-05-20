@@ -94,10 +94,18 @@ Run at least `npm run typecheck` after TypeScript changes. Prefer `npm run lint`
 When asked to run or update Taviraq QA/test cases:
 
 1. Read `docs/qa/README.md` and `docs/qa/agent-runbook.md`.
-2. Use `scripts/qa-cases.mjs` to list, filter, export, or generate run reports.
-3. Treat `docs/qa/test-cases/*.md` as the source of truth for case IDs and expected behavior.
-4. After a run, report grouped results and include a `Not Passed` block with detailed `Reason`, `Expected`, `Actual`, `Evidence`, and `Next` fields for every failed, blocked, or skipped case.
+2. Use `scripts/qa-cases.mjs` only to list, filter, export, or generate report checklists. Do not describe checklist generation as running the test cases.
+3. Treat `docs/qa/test-cases/*.md` as the source of truth for case IDs, steps, expected results, and automation notes.
+4. For each requested case, actually execute the steps or the closest relevant automated, Electron smoke, or manual verification.
 5. Do not mark a case as passed unless every expected result was actually checked.
+6. For Electron smoke cases, prefer `TAVIRAQ_DEMO_MODE=1` when real provider credentials are not required. Capture observable evidence such as screenshots, IPC payloads, terminal output, or generated files.
+7. After every run, write a Markdown report file and also paste the report in chat.
+8. Report grouped results and include a `Not Passed` block with detailed `Reason`, `Expected`, `Actual`, `Evidence`, and `Next` fields for every failed, blocked, or skipped case.
+9. Clearly distinguish:
+   - tooling validation, such as `qa-cases.mjs list/json/report`;
+   - automated project checks, such as lint, typecheck, tests, and build;
+   - actual QA test-case execution.
+10. If a case cannot be fully executed because of missing providers, SSH hosts, keychain access, packaging requirements, or other environment limits, mark it as `⚠️ blocked`, not passed.
 
 ## Editing Notes
 

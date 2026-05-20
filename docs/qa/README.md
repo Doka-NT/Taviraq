@@ -4,16 +4,16 @@ This folder stores the product feature inventory and test-case catalog for Tavir
 
 ## Files
 
-- `implementation-plan.md` - the saved plan for building and maintaining this QA catalog.
-- `agent-runbook.md` - instructions for LLM agents that run scoped QA passes.
-- `feature-matrix.md` - grouped product feature inventory with sources and coverage notes.
-- `manual-qa.md` - manual verification scenarios for macOS, SSH, keychain, providers, packaging, and release.
-- `test-cases/` - domain-specific test cases.
-- `assets/` - optional reference screenshots for visually important cases.
+- [implementation-plan.md](implementation-plan.md) - the saved plan for building and maintaining this QA catalog.
+- [agent-runbook.md](agent-runbook.md) - instructions for LLM agents that run scoped QA passes.
+- [feature-matrix.md](feature-matrix.md) - grouped product feature inventory with sources and coverage notes.
+- [manual-qa.md](manual-qa.md) - manual verification scenarios for macOS, SSH, keychain, providers, packaging, and release.
+- [test-cases/](test-cases/) - domain-specific test cases.
+- [assets/](assets/) - optional reference screenshots for visually important cases.
 
 ## Agent Runner
 
-Use `scripts/qa-cases.mjs` to list cases, export machine-readable JSON, or generate a report checklist:
+Use [`scripts/qa-cases.mjs`](../../scripts/qa-cases.mjs) to list cases, export machine-readable JSON, or generate a report checklist:
 
 ```bash
 node scripts/qa-cases.mjs list --priority P0
@@ -21,7 +21,7 @@ node scripts/qa-cases.mjs json --group command-safety
 node scripts/qa-cases.mjs report --ids TC-TERMINAL-001,TC-SAFETY-001 --output /tmp/taviraq-qa-report.md
 ```
 
-LLM agents should follow `agent-runbook.md` before starting a run.
+LLM agents should follow [agent-runbook.md](agent-runbook.md) before starting a run.
 
 ## Test Case Format
 

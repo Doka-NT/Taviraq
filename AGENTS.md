@@ -89,6 +89,16 @@ npm run build
 
 Run at least `npm run typecheck` after TypeScript changes. Prefer `npm run lint`, `npm test`, and `npm run build` before handing off larger changes.
 
+## QA Catalog And Test-Case Runs
+
+When asked to run or update Taviraq QA/test cases:
+
+1. Read `docs/qa/README.md` and `docs/qa/agent-runbook.md`.
+2. Use `scripts/qa-cases.mjs` to list, filter, export, or generate run reports.
+3. Treat `docs/qa/test-cases/*.md` as the source of truth for case IDs and expected behavior.
+4. After a run, report grouped results and include a `Not Passed` block with detailed `Reason`, `Expected`, `Actual`, `Evidence`, and `Next` fields for every failed, blocked, or skipped case.
+5. Do not mark a case as passed unless every expected result was actually checked.
+
 ## Editing Notes
 
 - Prefer minimal changes over broad refactors.

@@ -10,9 +10,9 @@ import {
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
+  PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
-  TerminalContext, TerminalSessionInfo
+  TerminalContext, TerminalCursorStyle, TerminalSessionInfo
 } from '@shared/types'
 import {
   createDefaultSecretMaskingSettings,
@@ -31,6 +31,7 @@ import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
+import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -44,6 +45,7 @@ import {
   SECRET_PLACEHOLDER_RE
 } from '@shared/secretPlaceholders'
 import { isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
+import { findFuzzySettingsSuggestions, matchesSearchQuery, type SettingsSearchItem } from '@renderer/utils/settingsSearch'
 
 // ...existing code...
 
@@ -121,6 +123,20 @@ const DEFAULT_ASSIST_MODE: AssistMode = 'agent'
 const MAX_VISIBLE_MODELS = 80
 const MIN_TEXT_SIZE = 8
 const MAX_TEXT_SIZE = 32
+const MIN_LINE_HEIGHT = 1
+const MAX_LINE_HEIGHT = 2
+const MIN_SCROLLBACK = 100
+const MAX_SCROLLBACK = 100000
+const MIN_WINDOW_OPACITY = 0.9
+const MAX_WINDOW_OPACITY = 1
+const TERMINAL_FONT_OPTIONS = [
+  { value: 'Menlo, monospace', label: 'Menlo' },
+  { value: 'Monaco, monospace', label: 'Monaco' },
+  { value: '"Courier New", monospace', label: 'Courier New' },
+  { value: 'Courier, monospace', label: 'Courier' },
+  { value: '"Andale Mono", monospace', label: 'Andale Mono' }
+]
+const TERMINAL_CURSOR_STYLE_OPTIONS: TerminalCursorStyle[] = ['block', 'underline', 'bar']
 const MIN_SSH_PORT = 1
 const MAX_SSH_PORT = 65535
 const MIN_OUTPUT_CONTEXT = 1000
@@ -164,6 +180,7 @@ type ThreadMessage = ChatMessage & {
   output?: string
   terminalContextSent?: boolean
   maskedContent?: string
+  privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
@@ -232,6 +249,42 @@ function clampTextSize(value: string, fallback: number): number {
   return Math.min(MAX_TEXT_SIZE, Math.max(MIN_TEXT_SIZE, parsed))
 }
 
+function isValidLineHeight(value: string): boolean {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= MIN_LINE_HEIGHT && parsed <= MAX_LINE_HEIGHT
+}
+
+function clampLineHeight(value: string, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_LINE_HEIGHT, Math.max(MIN_LINE_HEIGHT, parsed))
+}
+
+function isValidScrollback(value: string): boolean {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed >= MIN_SCROLLBACK && parsed <= MAX_SCROLLBACK
+}
+
+function clampScrollback(value: string, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_SCROLLBACK, Math.max(MIN_SCROLLBACK, Math.round(parsed)))
+}
+
+function isTerminalCursorStyle(value: unknown): value is TerminalCursorStyle {
+  return value === 'block' || value === 'underline' || value === 'bar'
+}
+
+function isTerminalFontOption(value: unknown): value is string {
+  return typeof value === 'string' && TERMINAL_FONT_OPTIONS.some((font) => font.value === value)
+}
+
+function clampWindowOpacity(value: unknown, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(MAX_WINDOW_OPACITY, Math.max(MIN_WINDOW_OPACITY, parsed))
+}
+
 function isValidSshPort(value: number | undefined): boolean {
   return value === undefined || (Number.isInteger(value) && value >= MIN_SSH_PORT && value <= MAX_SSH_PORT)
 }
@@ -254,12 +307,6 @@ function clampOutputContext(value: string, fallback: number): number {
 
 function normalizeLibraryName(value: string): string {
   return value.trim().toLowerCase()
-}
-
-function matchesSearchQuery(query: string, terms: Array<string | undefined>): boolean {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return false
-  return terms.some((term) => term?.toLowerCase().includes(normalizedQuery))
 }
 
 function providerNeedsApiKey(providerType: LLMProviderType): boolean {
@@ -319,6 +366,76 @@ function scopeLabel(scope: SecretMaskingAuditEvent['scope'], t: LanguageContextV
   return scope === 'provider-payload'
     ? t('security.audit.scope.provider')
     : t('security.audit.scope.display')
+}
+
+interface PrivacyTrustCardProps {
+  content: string
+  notice?: PrivacyMaskingNotice
+  onOpenSecuritySettings: () => void
+}
+
+function PrivacyTrustCard({
+  content,
+  notice,
+  onOpenSecuritySettings
+}: PrivacyTrustCardProps): JSX.Element {
+  const { t } = useT()
+  const [expanded, setExpanded] = useState(false)
+  const categories = Array.isArray(notice?.categories)
+    ? [...new Set(notice.categories.filter((category): category is string => typeof category === 'string'))]
+    : []
+  const visibleCategories = categories.length > 0 ? categories : ['unknown']
+  const source = notice ? auditSourceLabel(notice.source, t) : t('security.audit.source.chatStream')
+  const scope = notice ? scopeLabel(notice.scope, t) : t('security.audit.scope.provider')
+
+  return (
+    <div className={`privacy-trust-card ${expanded ? 'expanded' : ''}`}>
+      <button
+        type="button"
+        className="privacy-trust-card-header"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className="privacy-trust-card-icon" aria-hidden>
+          <ShieldAlert size={14} />
+        </span>
+        <span className="privacy-trust-card-title">
+          <strong>{t('privacy.trustCard.title')}</strong>
+          <small>{content}</small>
+        </span>
+        <ChevronDown className="privacy-trust-card-chevron" size={14} aria-hidden />
+      </button>
+
+      {expanded ? (
+        <div className="privacy-trust-card-details">
+          <div className="privacy-trust-card-row">
+            <span>{t('privacy.trustCard.categories')}</span>
+            <div className="privacy-trust-card-tags">
+              {visibleCategories.map((category, categoryIndex) => (
+                <span key={`${category}-${categoryIndex}`}>{formatSecretCategory(category)}</span>
+              ))}
+            </div>
+          </div>
+          <div className="privacy-trust-card-row">
+            <span>{t('privacy.trustCard.context')}</span>
+            <small>
+              {source} · {scope}
+              {notice?.sessionLabel ? ` · ${notice.sessionLabel}` : ''}
+            </small>
+          </div>
+          <p className="privacy-trust-card-note">
+            {t('privacy.trustCard.note')}
+          </p>
+          <div className="privacy-trust-card-actions">
+            <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
+              <Settings2 size={13} aria-hidden />
+              {t('privacy.trustCard.openSettings')}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function escapeRegExp(value: string): string {
@@ -398,6 +515,7 @@ interface AssistantThread {
   agenticStep: number
   agenticCommand: string
   commandConfirmation: CommandConfirmation | null
+  lastMaskedSecretCount: number
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
   savedChatId?: string
 }
@@ -416,7 +534,8 @@ function createThread(): AssistantThread {
     agenticCommandRunning: false,
     agenticStep: 0,
     agenticCommand: '',
-    commandConfirmation: null
+    commandConfirmation: null,
+    lastMaskedSecretCount: 0
   }
 }
 
@@ -428,10 +547,12 @@ function toRestorableThread(thread: AssistantThread): RestorableAssistantThread 
       display: message.display,
       command: hidePersistedSecretPlaceholders(message.command),
       output: hidePersistedSecretPlaceholders(message.output),
+      privacy: message.privacy,
       reasoningContent: hidePersistedSecretPlaceholders(message.reasoningContent)
     })),
     draft: thread.draft,
-    session: thread.session
+    session: thread.session,
+    savedChatId: thread.savedChatId
   }
 }
 
@@ -446,7 +567,8 @@ function fromRestorableThread(thread: RestorableAssistantThread): AssistantThrea
     ...createThread(),
     messages: thread.messages ?? [],
     draft: thread.draft ?? '',
-    session: thread.session
+    session: thread.session,
+    savedChatId: thread.savedChatId
   }
 }
 
@@ -468,6 +590,77 @@ function toChatMessage(message: ThreadMessage, strictTerminalContext = false): C
     role: message.role,
     content: message.maskedContent ?? message.content
   }
+}
+
+const COMPOSER_LANGUAGE_NAMES: Partial<Record<Language, string>> = {
+  ru: 'Russian',
+  cn: 'Chinese'
+}
+
+function buildComposerModeInstructions(mode: AssistMode): string[] {
+  if (mode === 'agent') {
+    return [
+      'Agent mode is enabled. The app can run one command from your response automatically in the active terminal.',
+      'When you need the app to run a command, write a short marker line exactly like "Выполню:" or "I will run:" immediately followed by exactly one fenced shell code block containing only that command.',
+      'Example of an auto-runnable command:\nВыполню:\n```bash\npwd\n```',
+      'You may include other fenced bash/sh examples for the user to read, but do not put the marker line immediately before examples, alternatives, or explanatory snippets.',
+      'If you include examples, clearly introduce them as examples, such as "Например, вручную можно было бы:" before the code block.',
+      'The app will send the command output back to you; do not claim success until you see that output.',
+      'Avoid destructive commands unless the user explicitly asked for them, and finish with a normal answer when no more commands are needed.'
+    ]
+  }
+
+  if (mode === 'read') {
+    return [
+      'Read-only terminal context is enabled.',
+      'When suggesting commands, put each command in a fenced bash code block.',
+      'Never claim a command was executed unless the user confirmed it.'
+    ]
+  }
+
+  return [
+    'When suggesting commands, put each command in a fenced bash code block.',
+    'Never claim a command was executed unless the user confirmed it.'
+  ]
+}
+
+function estimateComposerPayloadChars({
+  messages,
+  draft,
+  assistMode,
+  language,
+  selectedText,
+  terminalOutput,
+  session,
+  maskedSecretCount
+}: {
+  messages: ChatMessage[]
+  draft: string
+  assistMode: AssistMode
+  language: Language
+  selectedText: string
+  terminalOutput: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  maskedSecretCount: number
+}): number {
+  const languageName = COMPOSER_LANGUAGE_NAMES[language]
+  const systemPrompt = [
+    'You are an AI assistant embedded in a desktop terminal.',
+    'Prefer concise, actionable terminal help.',
+    languageName ? `Always respond in ${languageName}.` : undefined,
+    ...buildComposerModeInstructions(assistMode),
+    maskedSecretCount > 0
+      ? 'Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.'
+      : undefined,
+    session ? `Active session: ${session.label} (${session.kind}).` : undefined,
+    session?.cwd ? `Current directory: ${session.cwd}.` : undefined,
+    selectedText ? `Selected terminal output:\n${selectedText}` : undefined,
+    terminalOutput ? `Recent terminal output:\n${terminalOutput}` : undefined
+  ].filter(Boolean).join('\n')
+  const draftMessage = draft.trim() ? [{ role: 'user' as const, content: draft }] : []
+
+  return [systemPrompt, ...messages.map((message) => message.content), ...draftMessage.map((message) => message.content)]
+    .reduce((sum, content) => sum + content.length, 0)
 }
 
 function upsertProviderInOrder(providers: LLMProviderConfig[], provider: LLMProviderConfig): LLMProviderConfig[] {
@@ -523,6 +716,18 @@ interface LlmPanelProps {
   promptLibraryRequestVersion: number
   textSize: number
   onTextSizeChange: (textSize: number) => void
+  terminalFontFamily: string
+  onTerminalFontFamilyChange: (fontFamily: string) => void
+  terminalCursorStyle: TerminalCursorStyle
+  onTerminalCursorStyleChange: (cursorStyle: TerminalCursorStyle) => void
+  terminalCursorBlink: boolean
+  onTerminalCursorBlinkChange: (cursorBlink: boolean) => void
+  terminalLineHeight: number
+  onTerminalLineHeightChange: (lineHeight: number) => void
+  terminalScrollback: number
+  onTerminalScrollbackChange: (scrollback: number) => void
+  windowOpacity: number
+  onWindowOpacityChange: (opacity: number) => void
   sidebarWidth: number
   onSidebarWidthChange: (sidebarWidth: number) => void
   language: Language
@@ -542,6 +747,8 @@ interface LlmPanelProps {
   onConnectSsh: (profile: SSHProfileConfig) => void
   blockPromptRequest?: { id: string; sessionId: string; prompt: string } | null
   snippetDraftRequest?: { id: string; name?: string; command?: string } | null
+  promptInsertRequest?: { id: string; content: string } | null
+  assistModeRequest?: { id: string; mode: AssistMode } | null
 }
 
 export function LlmPanel({
@@ -559,6 +766,18 @@ export function LlmPanel({
   promptLibraryRequestVersion,
   textSize,
   onTextSizeChange,
+  terminalFontFamily,
+  onTerminalFontFamilyChange,
+  terminalCursorStyle,
+  onTerminalCursorStyleChange,
+  terminalCursorBlink,
+  onTerminalCursorBlinkChange,
+  terminalLineHeight,
+  onTerminalLineHeightChange,
+  terminalScrollback,
+  onTerminalScrollbackChange,
+  windowOpacity,
+  onWindowOpacityChange,
   sidebarWidth,
   onSidebarWidthChange,
   language,
@@ -578,6 +797,8 @@ export function LlmPanel({
   onConnectSsh,
   blockPromptRequest,
   snippetDraftRequest,
+  promptInsertRequest,
+  assistModeRequest,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -589,6 +810,8 @@ export function LlmPanel({
   const [threadsBySessionId, setThreadsBySessionId] = useState<AssistantThreads>({})
   const [assistMode, setAssistMode] = useState<AssistMode>(DEFAULT_ASSIST_MODE)
   const [textSizeDraft, setTextSizeDraft] = useState(String(textSize))
+  const [lineHeightDraft, setLineHeightDraft] = useState(String(terminalLineHeight))
+  const [scrollbackDraft, setScrollbackDraft] = useState(String(terminalScrollback))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
@@ -646,6 +869,8 @@ export function LlmPanel({
   const promptResolversRef = useRef(new Map<string, () => void>())
   const commandConfirmationResolversRef = useRef(new Map<string, (result: CommandConfirmationResult) => void>())
   const handledBlockPromptRequestRef = useRef<string>()
+  const handledPromptInsertRequestRef = useRef<string>()
+  const handledAssistModeRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const pendingStreamStartsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
@@ -658,13 +883,51 @@ export function LlmPanel({
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
   const activeThread = activeSessionId ? threadsBySessionId[activeSessionId] ?? createThread() : createThread()
-  const { messages, draft, status, streaming, agenticRunning, agenticCommandRunning, agenticStep, agenticCommand, commandConfirmation } = activeThread
+  const {
+    messages,
+    draft,
+    status,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning,
+    agenticStep,
+    agenticCommand,
+    commandConfirmation,
+    lastMaskedSecretCount
+  } = activeThread
   const [confirmCountdown, setConfirmCountdown] = useState(0)
+
+  const resizeComposerTextarea = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 132)}px`
+  }, [])
+
+  useEffect(() => {
+    resizeComposerTextarea()
+  }, [draft, resizeComposerTextarea])
+
+  useEffect(() => {
+    const textarea = textareaRef.current
+    const composer = textarea?.parentElement
+    if (!composer || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(() => {
+      resizeComposerTextarea()
+    })
+    observer.observe(composer)
+
+    return () => observer.disconnect()
+  }, [resizeComposerTextarea])
+
+  const commandConfirmationTone = commandConfirmation?.tone
+  const commandConfirmationCommandId = commandConfirmation?.commandId
 
   // Countdown timer for destructive (danger) command confirmations
   // Depend on tone + commandRequestId so editing the command textarea won't reset the timer
   useEffect(() => {
-    if (!commandConfirmation || commandConfirmation.tone !== 'danger') {
+    if (commandConfirmationTone !== 'danger') {
       setConfirmCountdown(0)
       return
     }
@@ -680,7 +943,7 @@ export function LlmPanel({
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [commandConfirmation?.tone, commandConfirmation?.commandId])
+  }, [commandConfirmationTone, commandConfirmationCommandId])
 
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
@@ -705,6 +968,8 @@ export function LlmPanel({
   useEffect(() => { providerRef.current = provider }, [provider])
   useEffect(() => { selectedTextRef.current = selectedText }, [selectedText])
   useEffect(() => { setTextSizeDraft(String(textSize)) }, [textSize])
+  useEffect(() => { setLineHeightDraft(String(terminalLineHeight)) }, [terminalLineHeight])
+  useEffect(() => { setScrollbackDraft(String(terminalScrollback)) }, [terminalScrollback])
   useEffect(() => { setMaxOutputContextDraft(String(maxOutputContext)) }, [maxOutputContext])
   useEffect(() => () => {
     if (chatHistorySaveTimerRef.current) {
@@ -769,6 +1034,12 @@ export function LlmPanel({
     setThreadsBySessionId(next)
   }, [])
 
+  const getBoundedTerminalOutputForRequest = useCallback((sessionId: string, mode: AssistMode): string | undefined => {
+    if (mode === 'off') return undefined
+    const terminalOutput = getOutputForSessionRef.current(sessionId).slice(-maxOutputContextRef.current)
+    return terminalOutput || undefined
+  }, [])
+
   const saveThreadSnapshotToHistory = useCallback((thread: AssistantThread): string | undefined => {
     if (thread.messages.length === 0) return undefined
     const chatId = thread.savedChatId ?? crypto.randomUUID()
@@ -783,6 +1054,7 @@ export function LlmPanel({
         display: m.display,
         command: hidePersistedSecretPlaceholders(m.command),
         output: hidePersistedSecretPlaceholders(m.output),
+        privacy: m.privacy,
         reasoningContent: hidePersistedSecretPlaceholders(m.reasoningContent)
       })),
       createdAt: new Date().toISOString(),
@@ -1089,12 +1361,13 @@ export function LlmPanel({
         streaming: true,
         activeRequestId: requestId,
         streamingContent: '',
+        lastMaskedSecretCount: 0,
         status: null,
         session
       }))
 
       const mode = assistModeRef.current
-      const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+      const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
       window.api.llm.chatStream({
         requestId,
@@ -1123,7 +1396,7 @@ export function LlmPanel({
         status: { tone: 'danger', label: error instanceof Error ? error.message : String(error) }
       }))
     }
-  }, [autoSaveThreadToHistory, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, maskChatDisplayContent, strictTerminalContextActive, summarizeSession, updateThread])
 
   const startGuardedStream = useCallback((
     sessionId: string,
@@ -1179,13 +1452,14 @@ export function LlmPanel({
       streaming: true,
       activeRequestId: requestId,
       streamingContent: '',
+      lastMaskedSecretCount: 0,
       status: null,
       agenticPending: null,
       session
     }))
 
     const mode = assistModeRef.current
-    const terminalOutput = mode !== 'off' ? getOutputForSessionRef.current(sessionId) : undefined
+    const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
 
     window.api.llm.chatStream({
       requestId,
@@ -1200,7 +1474,7 @@ export function LlmPanel({
       }
     })
     autoSaveThreadToHistory(sessionId)
-  }, [autoSaveThreadToHistory, getThread, strictTerminalContextActive, summarizeSession, updateThread])
+  }, [autoSaveThreadToHistory, getBoundedTerminalOutputForRequest, getThread, strictTerminalContextActive, summarizeSession, updateThread])
 
   // Stream event handler
   const runAgenticStepRef = useRef<(sessionId: string, content: string) => Promise<void>>(async () => {})
@@ -1265,23 +1539,32 @@ export function LlmPanel({
       if (event.type === 'privacy') {
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
-          const message: ThreadMessage = {
-            role: 'assistant',
-            content: t('status.privacyMasked', { count: event.maskedSecrets }),
-            display: 'privacy-status',
-            output: String(event.maskedSecrets)
-          }
           const messages = [...thread.messages]
           const last = messages.at(-1)
+          const privacy: PrivacyMaskingNotice = {
+            maskedSecretCount: event.maskedSecrets,
+            categories: event.categories ?? [],
+            source: event.source ?? 'chat-stream',
+            scope: event.scope ?? 'provider-payload',
+            sessionLabel: event.sessionLabel
+          }
+
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages.splice(messages.length - 1, 0, message)
+            messages[messages.length - 1] = { ...last, privacy }
           } else {
-            messages.push(message)
+            messages.push({
+              role: 'assistant',
+              content: t('status.privacyMasked', { count: event.maskedSecrets }),
+              display: 'privacy-status',
+              output: String(event.maskedSecrets),
+              privacy
+            })
           }
 
           return {
             ...thread,
             messages,
+            lastMaskedSecretCount: event.maskedSecrets,
             status: null
           }
         })
@@ -2251,6 +2534,36 @@ export function LlmPanel({
     onTextSizeChange(nextTextSize)
   }, [onTextSizeChange, textSize, textSizeDraft])
 
+  const handleLineHeightChange = useCallback((value: string) => {
+    setLineHeightDraft(value)
+
+    const parsed = Number(value)
+    if (isValidLineHeight(value)) {
+      onTerminalLineHeightChange(parsed)
+    }
+  }, [onTerminalLineHeightChange])
+
+  const commitLineHeightDraft = useCallback(() => {
+    const nextLineHeight = clampLineHeight(lineHeightDraft, terminalLineHeight)
+    setLineHeightDraft(String(nextLineHeight))
+    onTerminalLineHeightChange(nextLineHeight)
+  }, [lineHeightDraft, onTerminalLineHeightChange, terminalLineHeight])
+
+  const handleScrollbackChange = useCallback((value: string) => {
+    setScrollbackDraft(value)
+
+    const parsed = Number(value)
+    if (isValidScrollback(value)) {
+      onTerminalScrollbackChange(parsed)
+    }
+  }, [onTerminalScrollbackChange])
+
+  const commitScrollbackDraft = useCallback(() => {
+    const nextScrollback = clampScrollback(scrollbackDraft, terminalScrollback)
+    setScrollbackDraft(String(nextScrollback))
+    onTerminalScrollbackChange(nextScrollback)
+  }, [onTerminalScrollbackChange, scrollbackDraft, terminalScrollback])
+
   const handleMaxOutputContextChange = useCallback((value: string) => {
     setMaxOutputContextDraft(value)
 
@@ -2269,13 +2582,24 @@ export function LlmPanel({
   const handleExport = useCallback(async () => {
     setDataStatus('Exporting...')
     try {
-      await window.api.data.export({ textSize, sidebarWidth, language, themeId })
+      await window.api.data.export({
+        textSize,
+        sidebarWidth,
+        language,
+        themeId,
+        terminalFontFamily,
+        terminalCursorStyle,
+        terminalCursorBlink,
+        terminalLineHeight,
+        terminalScrollback,
+        windowOpacity
+      })
       setDataStatus('Export complete')
       setTimeout(() => setDataStatus(''), 3000)
     } catch (error) {
       setDataStatus(`Export failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [sidebarWidth, textSize, language, themeId])
+  }, [sidebarWidth, textSize, language, themeId, terminalFontFamily, terminalCursorStyle, terminalCursorBlink, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleImport = useCallback(async () => {
     setDataStatus('Importing...')
@@ -2290,6 +2614,22 @@ export function LlmPanel({
       if (result.preferences?.sidebarWidth) onSidebarWidthChange(result.preferences.sidebarWidth)
       if (result.preferences?.language) onLanguageChange(result.preferences.language as Language)
       if (result.preferences?.themeId) onThemeChange(result.preferences.themeId)
+      if (isTerminalFontOption(result.preferences?.terminalFontFamily)) {
+        onTerminalFontFamilyChange(result.preferences.terminalFontFamily)
+      }
+      if (isTerminalCursorStyle(result.preferences?.terminalCursorStyle)) {
+        onTerminalCursorStyleChange(result.preferences.terminalCursorStyle)
+      }
+      if (typeof result.preferences?.terminalCursorBlink === 'boolean') onTerminalCursorBlinkChange(result.preferences.terminalCursorBlink)
+      if (result.preferences?.terminalLineHeight != null) {
+        onTerminalLineHeightChange(clampLineHeight(String(result.preferences.terminalLineHeight), terminalLineHeight))
+      }
+      if (result.preferences?.terminalScrollback != null) {
+        onTerminalScrollbackChange(clampScrollback(String(result.preferences.terminalScrollback), terminalScrollback))
+      }
+      if (result.preferences?.windowOpacity != null) {
+        onWindowOpacityChange(clampWindowOpacity(result.preferences.windowOpacity, windowOpacity))
+      }
 
       await loadConfig()
 
@@ -2302,7 +2642,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, onSidebarWidthChange, onTextSizeChange, onLanguageChange, onThemeChange])
+  }, [loadConfig, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -2350,6 +2690,14 @@ export function LlmPanel({
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [activeSessionId, updateThread])
 
+  useEffect(() => {
+    if (!promptInsertRequest || handledPromptInsertRequestRef.current === promptInsertRequest.id) return
+    handledPromptInsertRequestRef.current = promptInsertRequest.id
+    setPromptDraft(promptInsertRequest.content)
+    setHistoryOpen(false)
+    setPromptPickerOpen(false)
+  }, [promptInsertRequest, setPromptDraft])
+
   const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       closePromptPicker()
@@ -2384,8 +2732,58 @@ export function LlmPanel({
     })
   }, [stopAgentic])
 
+  useEffect(() => {
+    if (!assistModeRequest || handledAssistModeRequestRef.current === assistModeRequest.id) return
+    handledAssistModeRequestRef.current = assistModeRequest.id
+    if (assistModeRequest.mode !== 'agent') {
+      for (const [sessionId, thread] of Object.entries(threadsRef.current)) {
+        if (thread.agenticRunning) stopAgentic(sessionId)
+      }
+    }
+    setAssistMode(assistModeRequest.mode)
+  }, [assistModeRequest, stopAgentic])
+
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
-  const strippedTerminalOutput = stripAnsi(getOutput()).slice(-2000)
+  const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
+  const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
+  const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
+  const composerSelectedText = strictTerminalContextActive ? '' : selectedText
+  const composerMaskedSecretCount = lastMaskedSecretCount
+  const composerChatMessages = useMemo(
+    () => messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+    [messages, strictTerminalContextActive]
+  )
+  const composerSession = useMemo(
+    () => activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession]
+  )
+  const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
+    messages: composerChatMessages,
+    draft,
+    assistMode,
+    language,
+    selectedText: composerSelectedText,
+    terminalOutput: composerTerminalOutput,
+    session: composerSession,
+    maskedSecretCount: composerMaskedSecretCount
+  }), [
+    assistMode,
+    composerChatMessages,
+    composerMaskedSecretCount,
+    composerSelectedText,
+    composerSession,
+    composerTerminalOutput,
+    draft,
+    language
+  ])
+  const composerPayloadTokens = estimateComposerContextTokens(composerPayloadChars)
+  const composerContextLabel = t('chat.composer.context', { count: formatComposerContextTokens(composerPayloadTokens) })
+  const composerMaskedSecretLabel = t('chat.composer.maskedSecrets', { count: composerMaskedSecretCount })
+  const composerModeLabel = assistMode === 'agent'
+    ? t('chat.composer.mode.agent')
+    : assistMode === 'read'
+      ? t('chat.composer.mode.read')
+      : t('chat.composer.mode.off')
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -2441,6 +2839,11 @@ export function LlmPanel({
   const handleFirstQuestion = useCallback(() => {
     setPromptDraft(t('onboarding.firstQuestionPrompt'))
   }, [setPromptDraft, t])
+  const openSecuritySettings = useCallback(() => {
+    setSettingsTab('security')
+    setSettingsSearch('')
+    onOpenSettings()
+  }, [onOpenSettings])
   const getProviderListStatus = useCallback((candidate: LLMProviderConfig): { tone: ProviderListStatusTone; label: string } => {
     const providerType = getProviderType(candidate)
     const needsApiKey = providerNeedsApiKey(providerType)
@@ -2523,16 +2926,19 @@ export function LlmPanel({
   const visibleCommandConfirmationCommand = commandConfirmation
     ? hideSecretPlaceholders(commandConfirmation.command, maskedSecretLabel)
     : ''
-  const settingsNavItems = useMemo<Array<{ id: SettingsTab; label: string; terms: string[] }>>(() => [
+  const settingsNavItems = useMemo<Array<SettingsSearchItem<SettingsTab>>>(() => [
     {
       id: 'appearance',
       label: t('settings.tab.appearance'),
       terms: [
         t('appearance.title'), t('appearance.theme.label'), t('appearance.theme.desc'),
         t('appearance.fontSize.label'), t('appearance.fontSize.desc'),
+        t('appearance.fontFamily.label'), t('appearance.fontFamily.desc'), t('appearance.lineHeight.label'),
+        t('appearance.cursorStyle.label'), t('appearance.cursorBlink.label'), t('appearance.scrollback.label'),
+        t('appearance.windowOpacity.label'), t('appearance.preview.title'),
         t('appearance.language.label'), t('appearance.language.desc'),
         t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'),
-        'font size theme language shortcut hotkey appearance terminal'
+        'font family cursor blink line height scrollback opacity preview theme language shortcut hotkey appearance terminal'
       ]
     },
     {
@@ -2606,9 +3012,17 @@ export function LlmPanel({
     )
   }, [settingsNavItems, settingsSearch])
   const settingsNoResults = settingsSearch.trim().length > 0 && filteredSettingsNavItems.length === 0
+  const fuzzySettingsSuggestions = useMemo(() => (
+    settingsNoResults ? findFuzzySettingsSuggestions(settingsSearch, settingsNavItems) : []
+  ), [settingsNavItems, settingsNoResults, settingsSearch])
   const settingsMatchClass = useCallback((terms: Array<string | undefined>) => (
     matchesSearchQuery(settingsSearch, terms) ? 'settings-search-match' : ''
   ), [settingsSearch])
+  const openSettingsSection = useCallback((tab: SettingsTab) => {
+    setSettingsTab(tab)
+    setSettingsSearch('')
+    lastAutoOpenedSettingsQueryRef.current = ''
+  }, [])
   const handleSettingsNavKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex = index
     if (event.key === 'ArrowDown') nextIndex = Math.min(index + 1, filteredSettingsNavItems.length - 1)
@@ -2776,7 +3190,7 @@ export function LlmPanel({
                     placeholder={t('settings.search')}
                   />
                 </label>
-                {filteredSettingsNavItems.length > 0 ? filteredSettingsNavItems.map((item, index) => (
+                {filteredSettingsNavItems.map((item, index) => (
                   <button
                     key={item.id}
                     type="button"
@@ -2786,17 +3200,68 @@ export function LlmPanel({
                   >
                     <HighlightSearchText text={item.label} query={settingsSearch} />
                   </button>
-                )) : (
-                  <p className="settings-nav-empty">{t('settings.search.empty')}</p>
-                )}
+                ))}
               </nav>
 
               <div className="settings-content">
                 {settingsNoResults ? (
-                  <p className="settings-content-empty">{t('settings.search.empty')}</p>
+                  <div className="settings-search-empty-state">
+                    <h3>{t('settings.search.empty.title', { query: settingsSearch.trim() })}</h3>
+                    <p>{t('settings.search.empty.hint')}</p>
+                    {fuzzySettingsSuggestions.length > 0 ? (
+                      <div className="settings-empty-group">
+                        <span className="settings-empty-label">{t('settings.search.empty.didYouMean')}</span>
+                        <div className="settings-empty-chips">
+                          {fuzzySettingsSuggestions.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className="settings-empty-chip suggested"
+                              onClick={() => openSettingsSection(item.id)}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="settings-empty-group">
+                      <span className="settings-empty-label">{t('settings.search.empty.sections')}</span>
+                      <div className="settings-empty-chips">
+                        {settingsNavItems.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            className="settings-empty-chip"
+                            onClick={() => openSettingsSection(item.id)}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="settings-empty-examples">{t('settings.search.empty.examples')}</p>
+                  </div>
                 ) : settingsTab === 'appearance' ? (
                   <>
                     <h3 className="settings-content-title">{t('appearance.title')}</h3>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.language.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.language.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select"
+                          value={language}
+                          onChange={(event) => onLanguageChange(event.target.value as Language)}
+                        >
+                          <option value="en">{t('appearance.language.en')}</option>
+                          <option value="ru">{t('appearance.language.ru')}</option>
+                          <option value="cn">{t('appearance.language.cn')}</option>
+                        </select>
+                      </div>
+                    </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.theme.label'), t('appearance.theme.desc'), 'theme color scheme ui terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.theme.label')} query={settingsSearch} /></span>
@@ -2810,6 +3275,24 @@ export function LlmPanel({
                         >
                           {themes.map((theme) => (
                             <option key={theme.id} value={theme.id}>{theme.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.typography')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.fontFamily.label'), t('appearance.fontFamily.desc'), 'font family typeface mono monospace terminal'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.fontFamily.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.fontFamily.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <select
+                          className="language-select appearance-wide-select"
+                          value={terminalFontFamily}
+                          onChange={(event) => onTerminalFontFamilyChange(event.target.value)}
+                        >
+                          {TERMINAL_FONT_OPTIONS.map((font) => (
+                            <option key={font.value} value={font.value}>{font.label}</option>
                           ))}
                         </select>
                       </div>
@@ -2838,22 +3321,122 @@ export function LlmPanel({
                         />
                       </div>
                     </div>
-                    <div className={`appearance-row ${settingsMatchClass([t('appearance.language.label'), t('appearance.language.desc'), t('appearance.language.en'), t('appearance.language.ru'), t('appearance.language.cn'), 'language locale translation'])}`}>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.lineHeight.label'), t('appearance.lineHeight.desc'), 'line height spacing terminal typography'])}`}>
                       <div className="appearance-row-left">
-                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.language.label')} query={settingsSearch} /></span>
-                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.language.desc')} query={settingsSearch} /></small>
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.lineHeight.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.lineHeight.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <input
+                          className={`numeric-input ${!isValidLineHeight(lineHeightDraft) ? 'invalid-input' : ''}`}
+                          type="number"
+                          step="0.05"
+                          min={MIN_LINE_HEIGHT}
+                          max={MAX_LINE_HEIGHT}
+                          inputMode="decimal"
+                          value={lineHeightDraft}
+                          onChange={(event) => handleLineHeightChange(event.target.value)}
+                          onBlur={commitLineHeightDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.cursor')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.cursorStyle.label'), t('appearance.cursorStyle.desc'), t('appearance.cursorStyle.block'), t('appearance.cursorStyle.underline'), t('appearance.cursorStyle.bar'), 'cursor caret block underline bar'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.cursorStyle.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.cursorStyle.desc')} query={settingsSearch} /></small>
                       </div>
                       <div className="appearance-row-right">
                         <select
                           className="language-select"
-                          value={language}
-                          onChange={(event) => onLanguageChange(event.target.value as Language)}
+                          value={terminalCursorStyle}
+                          onChange={(event) => onTerminalCursorStyleChange(event.target.value as TerminalCursorStyle)}
                         >
-                          <option value="en">{t('appearance.language.en')}</option>
-                          <option value="ru">{t('appearance.language.ru')}</option>
-                          <option value="cn">{t('appearance.language.cn')}</option>
+                          {TERMINAL_CURSOR_STYLE_OPTIONS.map((style) => (
+                            <option key={style} value={style}>
+                              {style === 'block'
+                                ? t('appearance.cursorStyle.block')
+                                : style === 'underline'
+                                  ? t('appearance.cursorStyle.underline')
+                                  : t('appearance.cursorStyle.bar')}
+                            </option>
+                          ))}
                         </select>
                       </div>
+                    </div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.cursorBlink.label'), t('appearance.cursorBlink.desc'), 'cursor blink caret animation'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.cursorBlink.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.cursorBlink.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <label className="settings-switch">
+                          <input
+                            type="checkbox"
+                            checked={terminalCursorBlink}
+                            onChange={(event) => onTerminalCursorBlinkChange(event.target.checked)}
+                          />
+                          <span />
+                        </label>
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.terminal')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.scrollback.label'), t('appearance.scrollback.desc'), 'scrollback buffer history terminal'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.scrollback.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.scrollback.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <input
+                          className={`numeric-input appearance-scrollback-input ${!isValidScrollback(scrollbackDraft) ? 'invalid-input' : ''}`}
+                          type="number"
+                          step="500"
+                          min={MIN_SCROLLBACK}
+                          max={MAX_SCROLLBACK}
+                          inputMode="numeric"
+                          value={scrollbackDraft}
+                          onChange={(event) => handleScrollbackChange(event.target.value)}
+                          onBlur={commitScrollbackDraft}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="appearance-group-heading">{t('appearance.group.window')}</div>
+                    <div className={`appearance-row ${settingsMatchClass([t('appearance.windowOpacity.label'), t('appearance.windowOpacity.desc'), 'macos window opacity transparency vibrancy'])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('appearance.windowOpacity.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('appearance.windowOpacity.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right appearance-slider-control">
+                        <input
+                          type="range"
+                          min={MIN_WINDOW_OPACITY}
+                          max={MAX_WINDOW_OPACITY}
+                          step="0.001"
+                          value={windowOpacity}
+                          onChange={(event) => onWindowOpacityChange(Number(event.target.value))}
+                          aria-label={t('appearance.windowOpacity.label')}
+                        />
+                        <span>{(windowOpacity * 100).toFixed(1)}%</span>
+                      </div>
+                    </div>
+                    <div
+                      className={`appearance-preview ${settingsMatchClass([t('appearance.preview.title'), t('appearance.preview.command'), 'preview terminal live font cursor'])}`}
+                      style={{ fontFamily: terminalFontFamily, fontSize: textSize, lineHeight: terminalLineHeight }}
+                    >
+                      <div className="appearance-preview-title">{t('appearance.preview.title')}</div>
+                      <div><span className="appearance-preview-prompt">$</span> {t('appearance.preview.command')}</div>
+                      <div className="appearance-preview-output">taviraq --daily-driver</div>
+                      <span className={`appearance-preview-cursor ${terminalCursorStyle} ${terminalCursorBlink ? 'blink' : ''}`} />
                     </div>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.hideShortcut.label'), t('appearance.hideShortcut.desc'), electronToDisplay(hideShortcut), 'shortcut hotkey hide show'])}`}>
                       <div className="appearance-row-left">
@@ -3880,12 +4463,12 @@ export function LlmPanel({
 
           if (message.display === 'privacy-status') {
             return (
-              <div className="command-output-message privacy-status-message" key={`privacy-status-${index}`}>
-                <div>
-                  <span className="system-prefix">&gt;</span>
-                  <span>{message.content}</span>
-                </div>
-              </div>
+              <PrivacyTrustCard
+                key={`privacy-status-${index}`}
+                content={message.content}
+                notice={message.privacy}
+                onOpenSecuritySettings={openSecuritySettings}
+              />
             )
           }
 
@@ -3937,6 +4520,13 @@ export function LlmPanel({
                   content={hideSecretPlaceholders(message.reasoningContent, maskedSecretLabel)}
                   isStreaming={reasoningIsStreaming}
                   title={t('chat.thinking')}
+                />
+              ) : null}
+              {message.role === 'assistant' && message.privacy ? (
+                <PrivacyTrustCard
+                  content={t('status.privacyMasked', { count: message.privacy.maskedSecretCount })}
+                  notice={message.privacy}
+                  onOpenSecuritySettings={openSecuritySettings}
                 />
               ) : null}
               {showDots ? (
@@ -4067,50 +4657,71 @@ export function LlmPanel({
           sendMessage()
         }}
       >
-        <textarea
-          ref={textareaRef}
-          value={draft}
-          disabled={inputDisabled}
-          onChange={(event) => {
-            if (activeSessionId) {
-              updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
-            }
-          }}
-          onKeyDown={(event) => {
-            const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
-            const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
-            if (wantsSend || wantsMetaSend) {
-              event.preventDefault()
-              sendMessage()
-            }
-          }}
-          placeholder={t('chat.input.placeholder')}
-          rows={1}
-        />
-        <div className="chat-form-actions">
-          <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
-          {streaming || agenticRunning ? (
-            <button
-              className="stop-button"
-              type="button"
-              onClick={() => {
-                if (activeSessionId) stopAgentic(activeSessionId)
-              }}
-              title={t('chat.stopAgent')}
-              aria-label={t('chat.stopAgent')}
-            >
-              <Square size={14} aria-hidden />
-            </button>
-          ) : null}
-          <button
-            className={`send-button ${streaming ? 'streaming' : ''}`}
-            type="submit"
-            disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
-            title={t('chat.send')}
-            aria-label={t('chat.send')}
-          >
-            <Send size={15} aria-hidden />
-          </button>
+        <div className="chat-composer-shell">
+          <textarea
+            ref={textareaRef}
+            value={draft}
+            disabled={inputDisabled}
+            onChange={(event) => {
+              if (activeSessionId) {
+                updateThread(activeSessionId, (thread) => ({ ...thread, draft: event.target.value }))
+              }
+            }}
+            onKeyDown={(event) => {
+              const wantsSend = event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing
+              const wantsMetaSend = event.key === 'Enter' && event.metaKey && !event.nativeEvent.isComposing
+              if (wantsSend || wantsMetaSend) {
+                event.preventDefault()
+                sendMessage()
+              }
+            }}
+            placeholder={t('chat.input.placeholder')}
+            title={t('chat.input.tooltip')}
+            rows={1}
+          />
+          <div className="chat-composer-footer">
+            <div className="chat-composer-indicators">
+              <span className={`composer-context-chip ${assistMode === 'off' ? 'off' : ''}`} title={composerContextLabel}>
+                <ScrollText size={12} aria-hidden />
+                <span>{composerContextLabel}</span>
+              </span>
+              {composerMaskedSecretCount > 0 ? (
+                <span className="composer-context-chip" title={composerMaskedSecretLabel}>
+                  <ShieldCheck size={12} aria-hidden />
+                  <span>{composerMaskedSecretLabel}</span>
+                </span>
+              ) : null}
+            </div>
+            <div className="chat-form-actions">
+              <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
+                {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
+                <span>{composerModeLabel}</span>
+              </span>
+              <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
+              {streaming || agenticRunning ? (
+                <button
+                  className="stop-button"
+                  type="button"
+                  onClick={() => {
+                    if (activeSessionId) stopAgentic(activeSessionId)
+                  }}
+                  title={t('chat.stopAgent')}
+                  aria-label={t('chat.stopAgent')}
+                >
+                  <Square size={14} aria-hidden />
+                </button>
+              ) : null}
+              <button
+                className={`send-button ${streaming ? 'streaming' : ''}`}
+                type="submit"
+                disabled={streaming || agenticCommandRunning || inputDisabled || !draft.trim()}
+                title={t('chat.send')}
+                aria-label={t('chat.send')}
+              >
+                <Send size={15} aria-hidden />
+              </button>
+            </div>
+          </div>
         </div>
       </form>
       </>

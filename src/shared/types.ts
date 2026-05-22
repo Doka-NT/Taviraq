@@ -1,10 +1,12 @@
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type SecretMaskingMode = 'off' | 'on'
+export type TerminalCursorStyle = 'block' | 'underline' | 'bar'
 export type SecretMaskingAuditScope = 'chat-display' | 'provider-payload'
 export type SecretMaskingAuditSource = 'chat-stream' | 'chat-display' | 'command-risk' | 'summary' | 'terminal-display' | 'chat-storage'
 export type AppShortcutAction =
   | 'clear-terminal'
+  | 'open-command-palette'
   | 'open-prompt-library'
   | 'open-command-snippets'
   | 'open-settings'
@@ -115,6 +117,14 @@ export interface SecretMaskingAuditEvent {
   categories: string[]
 }
 
+export interface PrivacyMaskingNotice {
+  maskedSecretCount: number
+  categories: string[]
+  source: SecretMaskingAuditSource
+  scope: SecretMaskingAuditScope
+  sessionLabel?: string
+}
+
 export type LLMProviderType = 'openai' | 'ollama' | 'lmstudio' | 'anthropic'
 
 export interface SaveLLMProviderRequest {
@@ -145,6 +155,7 @@ export type RestorableThreadMessage = ChatMessage & {
   display?: 'command-output' | 'system-status' | 'privacy-status'
   command?: string
   output?: string
+  privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
 
@@ -152,6 +163,7 @@ export interface RestorableAssistantThread {
   messages: RestorableThreadMessage[]
   draft: string
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  savedChatId?: string
 }
 
 export type RestorableAssistantThreads = Record<string, RestorableAssistantThread>
@@ -229,7 +241,15 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
-  | { requestId: string; type: 'privacy'; maskedSecrets: number }
+  | {
+      requestId: string
+      type: 'privacy'
+      maskedSecrets: number
+      categories?: string[]
+      source?: SecretMaskingAuditSource
+      scope?: SecretMaskingAuditScope
+      sessionLabel?: string
+    }
   | { requestId: string; type: 'progress'; stage: 'model_load' | 'prompt_processing'; progress: number }
   | { requestId: string; type: 'error'; message: string }
   | { requestId: string; type: 'done'; maskedContent?: string }
@@ -306,6 +326,12 @@ export interface ExportData {
     sidebarWidth?: number
     language?: string
     themeId?: string
+    terminalFontFamily?: string
+    terminalCursorStyle?: TerminalCursorStyle
+    terminalCursorBlink?: boolean
+    terminalLineHeight?: number
+    terminalScrollback?: number
+    windowOpacity?: number
   }
 }
 
@@ -314,5 +340,5 @@ export interface ImportResult {
   promptsAdded: number
   commandSnippetsAdded: number
   sshProfilesAdded: number
-  preferences?: { textSize?: number; sidebarWidth?: number; language?: string; themeId?: string }
+  preferences?: ExportData['preferences']
 }

@@ -19,6 +19,47 @@ await rm(screenshotDir, { recursive: true, force: true })
 await mkdir(screenshotDir, { recursive: true })
 
 const userDataDir = await mkdtemp(join(tmpdir(), 'taviraq-security-ui-'))
+await writeFile(join(userDataDir, 'session-state.json'), JSON.stringify({
+  version: 1,
+  savedAt: new Date().toISOString(),
+  activeSessionId: 'security-ui-session',
+  sessions: [{
+    id: 'security-ui-session',
+    kind: 'local',
+    label: 'Local',
+    cwd: repoRoot,
+    shell: '/bin/zsh',
+    command: '/bin/zsh',
+    createdAt: Date.now(),
+    status: 'running',
+    output: ''
+  }],
+  assistantThreads: {
+    'security-ui-session': {
+      messages: [{
+        role: 'assistant',
+        content: '2 secret(s) masked before sending to LLM.',
+        display: 'privacy-status',
+        output: '2',
+        privacy: {
+          maskedSecretCount: 2,
+          categories: ['GENERIC_API_KEY', 'password'],
+          source: 'chat-stream',
+          scope: 'provider-payload',
+          sessionLabel: 'Local'
+        }
+      }],
+      draft: '',
+      session: {
+        id: 'security-ui-session',
+        kind: 'local',
+        label: 'Local',
+        cwd: repoRoot,
+        shell: '/bin/zsh'
+      }
+    }
+  }
+}, null, 2), 'utf8')
 const app = await electron.launch({
   args: [repoRoot],
   env: {
@@ -33,6 +74,12 @@ const screenshots = []
 async function capture(page, name) {
   const path = join(screenshotDir, name)
   await page.locator('.settings-screen').screenshot({ path })
+  screenshots.push(path)
+}
+
+async function captureLocator(locator, name) {
+  const path = join(screenshotDir, name)
+  await locator.screenshot({ path })
   screenshots.push(path)
 }
 
@@ -52,6 +99,14 @@ try {
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('.app-shell').waitFor({ state: 'visible' })
+
+  const privacyCard = page.locator('.privacy-trust-card').first()
+  await privacyCard.waitFor({ state: 'visible' })
+  await privacyCard.locator('.privacy-trust-card-header').click()
+  await page.getByText('Категории').waitFor({ state: 'visible' })
+  await page.getByText('Generic Api Key').waitFor({ state: 'visible' })
+  await page.getByText('Настройки безопасности').waitFor({ state: 'visible' })
+  await captureLocator(privacyCard, '00-privacy-trust-card-expanded.png')
 
   await page.getByRole('button', { name: 'Настройки (⌘,)' }).click()
   await page.getByRole('button', { name: 'Безопасность' }).click()

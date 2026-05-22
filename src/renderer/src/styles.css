@@ -2218,9 +2218,23 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.04);
   font-size: 9.5px;
   line-height: 1.15;
+  font-family: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.provider-status-badge:hover:not(:disabled),
+.provider-status-badge:focus-visible {
+  color: var(--text-secondary);
+  border-color: rgba(var(--surface-rgb), 0.28);
+  background: rgba(var(--surface-rgb), 0.075);
+}
+
+.provider-status-badge:disabled {
+  cursor: wait;
 }
 
 .provider-status-badge.active {
@@ -2242,6 +2256,13 @@ textarea:focus {
     linear-gradient(90deg, rgba(var(--accent-cyan-rgb), 0.08), rgba(var(--accent-green-rgb), 0.08));
 }
 
+.provider-status-badge.active-local {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background:
+    linear-gradient(90deg, rgba(var(--accent-cyan-rgb), 0.08), rgba(var(--surface-rgb), 0.055));
+}
+
 .provider-status-badge.error,
 .provider-status-badge.no-key {
   color: var(--accent-red-text);
@@ -2255,10 +2276,21 @@ textarea:focus {
   background: rgba(var(--accent-amber-rgb), 0.08);
 }
 
+.provider-status-badge.local,
+.provider-status-badge.not-tested {
+  color: var(--text-muted);
+  border-color: rgba(var(--surface-rgb), 0.16);
+  background: rgba(var(--surface-rgb), 0.055);
+}
+
 .provider-list-item-delete {
   width: 34px;
   height: 32px;
+  margin-left: 2px;
+  padding-left: 7px;
   flex-shrink: 0;
+  border-left: 0.5px solid rgba(var(--surface-rgb), 0.12);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   color: rgba(var(--surface-rgb), 0.42);
   opacity: 0.72;
   background: transparent;

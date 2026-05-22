@@ -101,11 +101,18 @@ export interface Translations {
   'providers.searchSafetyModel': string
   'providers.status.active': string
   'providers.status.activeReady': string
+  'providers.status.activeLocal': string
   'providers.status.ready': string
   'providers.status.error': string
   'providers.status.noKey': string
   'providers.status.checking': string
   'providers.status.notTested': string
+  'providers.status.local': string
+  'providers.status.action.noKey': string
+  'providers.status.action.select': string
+  'providers.status.action.test': string
+  'providers.status.action.ready': string
+  'providers.status.action.checking': string
 
   // Connections tab
   'connections.title': string
@@ -555,11 +562,18 @@ export const en: Translations = {
   'providers.searchSafetyModel': 'Search safety model',
   'providers.status.active': 'active',
   'providers.status.activeReady': 'active · ready',
+  'providers.status.activeLocal': 'active · local',
   'providers.status.ready': 'ready',
   'providers.status.error': 'error',
   'providers.status.noKey': 'no key',
   'providers.status.checking': 'checking',
   'providers.status.notTested': 'not tested',
+  'providers.status.local': 'local',
+  'providers.status.action.noKey': 'Enter API key',
+  'providers.status.action.select': 'Select provider',
+  'providers.status.action.test': 'Test connection',
+  'providers.status.action.ready': 'Retest connection',
+  'providers.status.action.checking': 'Connection check in progress',
 
   'connections.title': 'SSH Connections',
   'connections.addConnection': 'Add connection',
@@ -992,11 +1006,18 @@ export const ru: Translations = {
   'providers.searchSafetyModel': 'Поиск модели безопасности',
   'providers.status.active': 'активный',
   'providers.status.activeReady': 'активный · готов',
+  'providers.status.activeLocal': 'активный · локальный',
   'providers.status.ready': 'готов',
   'providers.status.error': 'ошибка',
   'providers.status.noKey': 'нет ключа',
   'providers.status.checking': 'проверка',
   'providers.status.notTested': 'не проверен',
+  'providers.status.local': 'локальный',
+  'providers.status.action.noKey': 'Ввести API-ключ',
+  'providers.status.action.select': 'Выбрать провайдера',
+  'providers.status.action.test': 'Проверить подключение',
+  'providers.status.action.ready': 'Проверить ещё раз',
+  'providers.status.action.checking': 'Проверка подключения уже идёт',
 
   'connections.title': 'SSH-подключения',
   'connections.addConnection': 'Добавить подключение',
@@ -1429,11 +1450,18 @@ export const cn: Translations = {
   'providers.searchSafetyModel': '搜索安全模型',
   'providers.status.active': '活跃',
   'providers.status.activeReady': '活跃 · 就绪',
+  'providers.status.activeLocal': '活跃 · 本地',
   'providers.status.ready': '就绪',
   'providers.status.error': '错误',
   'providers.status.noKey': '无密钥',
   'providers.status.checking': '检查中',
   'providers.status.notTested': '未测试',
+  'providers.status.local': '本地',
+  'providers.status.action.noKey': '输入 API 密钥',
+  'providers.status.action.select': '选择提供商',
+  'providers.status.action.test': '测试连接',
+  'providers.status.action.ready': '重新测试连接',
+  'providers.status.action.checking': '连接检查正在进行',
 
   'connections.title': 'SSH 连接',
   'connections.addConnection': '添加连接',

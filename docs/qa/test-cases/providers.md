@@ -195,3 +195,26 @@ Automation:
 - Existing: service/provider tests.
 - Missing: UI test for feedback lifecycle.
 
+## TC-PROVIDER-010: New provider draft appears in provider list
+
+- Priority: P1
+- Type: UI, manual
+- Sources: issue #64
+- Coverage: missing/partial
+- Screenshot: TODO for provider draft row
+
+Steps:
+1. Open Settings > Providers with at least one saved provider.
+2. Click Add provider.
+3. Inspect the provider list before saving.
+4. Switch back to an existing provider without saving.
+
+Expected:
+- A new provider row appears immediately after clicking Add provider.
+- The draft row is visually distinct from saved providers.
+- The form edits the draft provider, not the previously selected provider.
+- Switching away without saving removes the unsaved draft row.
+
+Automation:
+- Existing: none.
+- Missing: UI regression test for provider draft list rendering.

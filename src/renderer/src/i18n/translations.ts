@@ -94,6 +94,7 @@ export interface Translations {
   'providers.deleteConfirmMessage': string
   'providers.deleteConfirmBtn': string
   'providers.active': string
+  'providers.draft': string
   'providers.unnamed': string
   'providers.chatModel': string
   'providers.safetyModel': string
@@ -560,6 +561,7 @@ export const en: Translations = {
   'providers.deleteConfirmMessage': 'This provider configuration and its saved keychain secret will be removed.',
   'providers.deleteConfirmBtn': 'Delete',
   'providers.active': 'active',
+  'providers.draft': 'new',
   'providers.unnamed': 'Unnamed',
   'providers.chatModel': 'Chat model',
   'providers.safetyModel': 'Command safety model',
@@ -1009,6 +1011,7 @@ export const ru: Translations = {
   'providers.deleteConfirmMessage': 'Конфигурация провайдера и сохранённый секрет из keychain будут удалены.',
   'providers.deleteConfirmBtn': 'Удалить',
   'providers.active': 'активный',
+  'providers.draft': 'новый',
   'providers.unnamed': 'Без имени',
   'providers.chatModel': 'Модель чата',
   'providers.safetyModel': 'Модель проверки безопасности',
@@ -1458,6 +1461,7 @@ export const cn: Translations = {
   'providers.deleteConfirmMessage': '此提供商配置及其保存的钥匙串密钥将被删除。',
   'providers.deleteConfirmBtn': '删除',
   'providers.active': '活跃',
+  'providers.draft': '新建',
   'providers.unnamed': '未命名',
   'providers.chatModel': '聊天模型',
   'providers.safetyModel': '命令安全模型',

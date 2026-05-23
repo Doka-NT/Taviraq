@@ -2183,6 +2183,11 @@ textarea:focus {
   border-color: var(--border-strong);
 }
 
+.provider-list-item.draft {
+  border-color: rgba(var(--accent-amber-rgb), 0.26);
+  background: rgba(var(--accent-amber-rgb), 0.055);
+}
+
 .provider-list-item.active::before {
   content: '';
   position: absolute;
@@ -2210,6 +2215,18 @@ textarea:focus {
   color: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.provider-list-item-draft {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  color: var(--accent-amber);
+  background: rgba(var(--accent-amber-rgb), 0.1);
+  font-size: 9.5px;
+  line-height: 1.1;
+  vertical-align: 1px;
 }
 
 .provider-status-badge {

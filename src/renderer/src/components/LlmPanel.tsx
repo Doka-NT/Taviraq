@@ -1626,9 +1626,9 @@ export function LlmPanel({
         requestSessionRef.current.delete(event.requestId)
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
-          const nextMessages = event.maskedContent ? [...thread.messages] : thread.messages
+          const nextMessages = event.maskedContent !== undefined ? [...thread.messages] : thread.messages
           const lastMessage = nextMessages.at(-1)
-          if (event.maskedContent && lastMessage?.role === 'assistant') {
+          if (event.maskedContent !== undefined && lastMessage?.role === 'assistant') {
             nextMessages[nextMessages.length - 1] = applyAuthoritativeAssistantContent(lastMessage, event.maskedContent)
           }
 

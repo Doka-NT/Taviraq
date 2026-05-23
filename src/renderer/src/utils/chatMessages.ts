@@ -22,7 +22,7 @@ export function applyAuthoritativeAssistantContent<
   authoritativeMaskedContent: string | undefined,
   secretReplacement = DISPLAY_SECRET_LABEL
 ): T {
-  if (message.role !== 'assistant' || !authoritativeMaskedContent) return message
+  if (message.role !== 'assistant' || authoritativeMaskedContent === undefined) return message
 
   const hasSecretPlaceholders = SECRET_PLACEHOLDER_RE.test(authoritativeMaskedContent)
   return {

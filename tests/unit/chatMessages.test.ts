@@ -1,4 +1,5 @@
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
+import { DISPLAY_SECRET_LABEL } from '@shared/secretPlaceholders'
 import type { ChatMessage } from '@shared/types'
 
 describe('chat message utilities', () => {
@@ -60,8 +61,21 @@ describe('chat message utilities', () => {
 
     expect(applyAuthoritativeAssistantContent(message, authoritative)).toEqual({
       role: 'assistant',
-      content: 'Use [secret]',
+      content: `Use ${DISPLAY_SECRET_LABEL}`,
       maskedContent: authoritative
+    })
+  })
+
+  it('allows an empty authoritative assistant response to clear streamed text', () => {
+    const message = {
+      role: 'assistant' as const,
+      content: 'partial stale text'
+    }
+
+    expect(applyAuthoritativeAssistantContent(message, '')).toEqual({
+      role: 'assistant',
+      content: '',
+      maskedContent: undefined
     })
   })
 

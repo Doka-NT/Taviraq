@@ -259,7 +259,10 @@ async function streamChatCompletionUnsafe(
       return
     }
 
-    const chunk = parseChatCompletionChunk(JSON.parse(event) as unknown)
+    const payload = safeParseJson(event)
+    if (!payload) continue
+
+    const chunk = parseChatCompletionChunk(payload)
     if (chunk?.content || chunk?.reasoningContent) {
       onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
     }

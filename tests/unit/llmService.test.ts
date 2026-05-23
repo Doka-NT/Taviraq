@@ -208,6 +208,38 @@ describe('llmService', () => {
     expect(chunks.join('')).toBe('Конечно. Готовый markdown-список:\n- 3.233.166.60:443')
   })
 
+  it('ignores malformed trailing OpenAI-compatible SSE data after emitted chunks', async () => {
+    const encoder = new TextEncoder()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Already visible."}}]}\n\n'))
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" truncated'))
+        controller.close()
+      }
+    }), { status: 200, statusText: 'OK' })))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-truncated-tail',
+      provider: {
+        name: 'test',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'test',
+        selectedModel: 'chat-model'
+      },
+      messages: [{ role: 'user', content: 'Answer briefly' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Already visible.')
+  })
+
   it('keeps an unterminated final Anthropic SSE delta', async () => {
     vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
     const encoder = new TextEncoder()

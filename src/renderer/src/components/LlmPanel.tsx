@@ -835,6 +835,7 @@ export function LlmPanel({
   const [isTestingProvider, setIsTestingProvider] = useState(false)
   const [providerKeyAvailability, setProviderKeyAvailability] = useState<Record<string, boolean>>({})
   const [providerConnectionStates, setProviderConnectionStates] = useState<Record<string, ProviderConnectionState>>({})
+  const [draftProviderRef, setDraftProviderRef] = useState<string | null>(null)
   const [shouldFocusApiKeyInput, setShouldFocusApiKeyInput] = useState(false)
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
@@ -1154,6 +1155,7 @@ export function LlmPanel({
     setProvider(loaded)
     setAllProviders(providers)
     setActiveProviderRef(loadedActiveProviderRef)
+    setDraftProviderRef(null)
     setSecretMaskingSettings(config.secretMasking ?? createDefaultSecretMaskingSettings())
   }, [])
 
@@ -2205,6 +2207,9 @@ export function LlmPanel({
     setProvider(savedProvider)
     setAllProviders(result.providers)
     setActiveProviderRef(result.activeProviderRef ?? provider.apiKeyRef)
+    if (draftProviderRef === savedProvider.apiKeyRef) {
+      setDraftProviderRef(null)
+    }
     setApiKey('')
     setProxyPassword('')
     setEditingProxyPassword(false)
@@ -2219,7 +2224,7 @@ export function LlmPanel({
       setProviderSecretsLoaded(true)
     }
     setHasProxyPassword(Boolean(savedProvider.proxyPasswordRef))
-  }, [provider])
+  }, [draftProviderRef, provider])
 
   const saveProvider = useCallback(async () => {
     if (!isValidProviderBaseUrl(provider.baseUrl)) {
@@ -2273,6 +2278,10 @@ export function LlmPanel({
   }, [apiKey, applySavedProviderResult, editingProxyPassword, provider, proxyPassword, t])
 
   const switchProvider = useCallback((target: LLMProviderConfig) => {
+    if (draftProviderRef && target.apiKeyRef !== draftProviderRef) {
+      setAllProviders((providers) => providers.filter((candidate) => candidate.apiKeyRef !== draftProviderRef))
+      setDraftProviderRef(null)
+    }
     setProvider(target)
     setModels([])
     setProxyPassword('')
@@ -2282,6 +2291,7 @@ export function LlmPanel({
     setProviderSecretsLoaded(false)
     setHasProxyPassword(Boolean(target.proxyPasswordRef))
     setProviderStatus('')
+    if (target.apiKeyRef === draftProviderRef) return
     setActiveProviderRef(target.apiKeyRef)
     void window.api.llm.saveProvider({ provider: target }).then((result) => {
       setAllProviders(result.providers)
@@ -2289,17 +2299,25 @@ export function LlmPanel({
     }).catch((err: unknown) => {
       setProviderStatus(`Switch failed: ${err instanceof Error ? err.message : String(err)}`)
     })
-  }, [])
+  }, [draftProviderRef])
 
   const addProvider = useCallback(() => {
-    setProvider({
+    const nextProvider: LLMProviderConfig = {
       name: providerTypeDefaults.openai.name,
       providerType: 'openai',
       baseUrl: providerTypeDefaults.openai.baseUrl,
       apiKeyRef: `provider-${crypto.randomUUID()}`,
       selectedModel: '',
       commandRiskModel: ''
+    }
+    setProvider(nextProvider)
+    setAllProviders((providers) => {
+      const withoutCurrentDraft = draftProviderRef
+        ? providers.filter((candidate) => candidate.apiKeyRef !== draftProviderRef)
+        : providers
+      return upsertProviderInOrder(withoutCurrentDraft, nextProvider)
     })
+    setDraftProviderRef(nextProvider.apiKeyRef)
     setModels([])
     setApiKey('')
     setProxyPassword('')
@@ -2307,9 +2325,28 @@ export function LlmPanel({
     setEditingProxyPassword(false)
     setHasApiKey(false)
     setHasProxyPassword(false)
-  }, [])
+    setProviderStatus('')
+  }, [draftProviderRef])
 
   const handleDeleteProvider = useCallback((apiKeyRef: string) => {
+    if (apiKeyRef === draftProviderRef) {
+      const nextProviders = allProviders.filter((candidate) => candidate.apiKeyRef !== apiKeyRef)
+      const next = nextProviders.find((candidate) => candidate.apiKeyRef === activeProviderRef) ??
+        nextProviders[0] ??
+        defaultProvider
+      setAllProviders(nextProviders.length > 0 ? nextProviders : [defaultProvider])
+      setDraftProviderRef(null)
+      setProvider(next)
+      setModels([])
+      setApiKey('')
+      setProxyPassword('')
+      setEditingApiKey(false)
+      setEditingProxyPassword(false)
+      setHasApiKey(false)
+      setHasProxyPassword(Boolean(next.proxyPasswordRef))
+      setProviderStatus('')
+      return
+    }
     const target = allProviders.find((candidate) => candidate.apiKeyRef === apiKeyRef)
     setDeleteConfirmation({
       title: withObjectName(t('providers.deleteConfirmTitle'), target?.name),
@@ -2333,7 +2370,7 @@ export function LlmPanel({
         }
       }
     })
-  }, [allProviders, provider.apiKeyRef, t])
+  }, [activeProviderRef, allProviders, draftProviderRef, provider.apiKeyRef, t])
 
   const loadSshProfiles = useCallback(async () => {
     const profiles = await window.api.ssh.listProfiles()
@@ -2449,13 +2486,14 @@ export function LlmPanel({
   const updateProvider = useCallback((updated: LLMProviderConfig) => {
     setProvider(updated)
     setAllProviders((providers) => upsertProviderInOrder(providers, updated))
+    if (updated.apiKeyRef === draftProviderRef) return
     void window.api.llm.saveProvider({ provider: updated }).then((result) => {
       setAllProviders(result.providers)
       setActiveProviderRef(result.activeProviderRef ?? updated.apiKeyRef)
     }).catch((err: unknown) => {
       setProviderStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
     })
-  }, [])
+  }, [draftProviderRef])
 
   const saveSecretMaskingSettings = useCallback((settings: SecretMaskingSettings) => {
     setSecretMaskingSettings(settings)
@@ -3522,13 +3560,14 @@ export function LlmPanel({
                           {allProviders.map((p) => {
                             const isEditingProvider = p.apiKeyRef === provider.apiKeyRef
                             const isActiveProvider = p.apiKeyRef === activeProviderRef
+                            const isDraftProvider = p.apiKeyRef === draftProviderRef
                             const listStatus = getProviderListStatus(p)
                             const providerListName = p.name || t('providers.unnamed')
                             const statusActionLabel = getProviderStatusActionLabel(p, listStatus.tone)
                             return (
                               <div
                                 key={p.apiKeyRef}
-                                className={`provider-list-item ${isEditingProvider ? 'active' : ''} ${isActiveProvider ? 'chat-active' : ''}`}
+                                className={`provider-list-item ${isEditingProvider ? 'active' : ''} ${isActiveProvider ? 'chat-active' : ''} ${isDraftProvider ? 'draft' : ''}`}
                                 title={providerListName}
                                 aria-label={providerListName}
                                 onClick={() => switchProvider(p)}
@@ -3544,7 +3583,10 @@ export function LlmPanel({
                               >
                                 <span className={`provider-active-dot ${isActiveProvider ? 'visible' : ''}`} />
                                 <span className="provider-list-item-main">
-                                  <span className="provider-list-item-name" title={providerListName}>{providerListName}</span>
+                                  <span className="provider-list-item-name" title={providerListName}>
+                                    {providerListName}
+                                    {isDraftProvider ? <span className="provider-list-item-draft">{t('providers.draft')}</span> : null}
+                                  </span>
                                   <button
                                     type="button"
                                     className={`provider-status-badge ${listStatus.tone}`}
@@ -3560,7 +3602,7 @@ export function LlmPanel({
                                     {listStatus.label}
                                   </button>
                                 </span>
-                                {allProviders.length > 1 ? (
+                                {allProviders.length > 1 || isDraftProvider ? (
                                   <button
                                     type="button"
                                     className="provider-list-item-delete icon-button"

@@ -4271,10 +4271,10 @@ textarea:focus {
 .msg-action-pill--multiline > code {
   max-height: none;
   overflow: auto;
+  overflow-wrap: break-word;
   line-height: 1.45;
   text-overflow: clip;
   white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .msg-action-pill--collapsed > code {

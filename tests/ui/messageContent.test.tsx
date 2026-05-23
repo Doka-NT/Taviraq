@@ -147,6 +147,27 @@ describe('MessageContent', () => {
     expect(onRun).toHaveBeenCalledWith(command)
   })
 
+  it('lets long single-line shell commands expand before running', () => {
+    const onRun = vi.fn()
+    const command = 'docker compose --project-name taviraq --file docker-compose.yml --profile demo up --detach --remove-orphans'
+
+    render(
+      <MessageContent
+        content={`\`\`\`bash\n${command}\n\`\`\``}
+        onRun={onRun}
+      />
+    )
+
+    const expandButton = screen.getByRole('button', { name: 'Show full command' })
+    expect(expandButton.closest('.msg-action-pill')).toHaveClass('msg-action-pill--collapsed')
+
+    fireEvent.click(expandButton)
+    expect(screen.getByRole('button', { name: 'Collapse command' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run in terminal' }))
+    expect(onRun).toHaveBeenCalledWith(command)
+  })
+
   it('redacts displayed shell commands without changing the runnable command', () => {
     const onRun = vi.fn()
     const command = 'echo "[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]"'

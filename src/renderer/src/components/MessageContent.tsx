@@ -25,6 +25,7 @@ type TextBlock =
 const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
+const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 
 function parseContent(content: string): Segment[] {
   const segments: Segment[] = []
@@ -177,7 +178,10 @@ export function MessageContent({
           const normalizedLang = seg.lang.toLowerCase()
           const isShell = SHELL_LANGS.has(normalizedLang)
           const codeLanguage = normalizedLang || 'code'
-          const isMultilineShell = isShell && seg.code.split('\n').length > COLLAPSIBLE_SHELL_LINE_COUNT
+          const isCollapsibleShell = isShell && (
+            seg.code.split('\n').length > COLLAPSIBLE_SHELL_LINE_COUNT ||
+            seg.code.length > COLLAPSIBLE_SHELL_CHAR_COUNT
+          )
           const isExpanded = expandedCodeBlocks.has(i)
 
           if (!isShell) {
@@ -195,14 +199,14 @@ export function MessageContent({
             <div
               className={[
                 'msg-action-pill',
-                isMultilineShell ? 'msg-action-pill--multiline' : '',
-                isMultilineShell && !isExpanded ? 'msg-action-pill--collapsed' : ''
+                isCollapsibleShell ? 'msg-action-pill--multiline' : '',
+                isCollapsibleShell && !isExpanded ? 'msg-action-pill--collapsed' : ''
               ].filter(Boolean).join(' ')}
               key={i}
             >
               <TerminalSquare size={12} aria-hidden />
               <code>{redactContent(seg.code)}</code>
-              {isMultilineShell ? (
+              {isCollapsibleShell ? (
                 <button
                   className="msg-expand-button"
                   type="button"

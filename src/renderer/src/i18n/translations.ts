@@ -328,6 +328,13 @@ export interface Translations {
   'chat.composer.mode.agent': string
   'chat.composer.mode.read': string
   'chat.composer.mode.off': string
+  'model.switch.title': string
+  'model.switch.search': string
+  'model.switch.all': string
+  'model.switch.category': string
+  'model.switch.current': string
+  'model.switch.choose': string
+  'model.switch.loadDescription': string
   'chat.send': string
   'chat.stopAgent': string
   'chat.role.user': string
@@ -787,6 +794,13 @@ export const en: Translations = {
   'chat.composer.mode.agent': 'Agent',
   'chat.composer.mode.read': 'Read',
   'chat.composer.mode.off': 'Off',
+  'model.switch.title': 'Switch model',
+  'model.switch.search': 'Search models from current provider...',
+  'model.switch.all': 'Available models',
+  'model.switch.category': 'Model',
+  'model.switch.current': 'Current chat model.',
+  'model.switch.choose': 'Use this model for the next assistant request.',
+  'model.switch.loadDescription': 'Open provider settings or test the current provider to load models.',
   'chat.send': 'Send (Enter)',
   'chat.stopAgent': 'Stop agent',
   'chat.role.user': 'user',
@@ -1237,6 +1251,13 @@ export const ru: Translations = {
   'chat.composer.mode.agent': 'Агент',
   'chat.composer.mode.read': 'Чтение',
   'chat.composer.mode.off': 'Выкл.',
+  'model.switch.title': 'Сменить модель',
+  'model.switch.search': 'Поиск моделей текущего провайдера...',
+  'model.switch.all': 'Доступные модели',
+  'model.switch.category': 'Модель',
+  'model.switch.current': 'Текущая модель чата.',
+  'model.switch.choose': 'Использовать эту модель для следующего запроса.',
+  'model.switch.loadDescription': 'Откройте настройки провайдера или проверьте текущего провайдера, чтобы загрузить модели.',
   'chat.send': 'Отправить (Enter)',
   'chat.stopAgent': 'Остановить агента',
   'chat.role.user': 'пользователь',
@@ -1687,6 +1708,13 @@ export const cn: Translations = {
   'chat.composer.mode.agent': '代理',
   'chat.composer.mode.read': '只读',
   'chat.composer.mode.off': '关闭',
+  'model.switch.title': '切换模型',
+  'model.switch.search': '搜索当前提供商的模型...',
+  'model.switch.all': '可用模型',
+  'model.switch.category': '模型',
+  'model.switch.current': '当前聊天模型。',
+  'model.switch.choose': '下次助手请求使用此模型。',
+  'model.switch.loadDescription': '打开提供商设置或测试当前提供商以加载模型。',
   'chat.send': '发送（Enter）',
   'chat.stopAgent': '停止代理',
   'chat.role.user': '用户',

@@ -22,6 +22,7 @@ import {
 } from '@shared/secretMaskingConfig'
 import { MessageContent } from './MessageContent'
 import { PromptPicker } from './PromptPicker'
+import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
@@ -750,6 +751,7 @@ interface LlmPanelProps {
   snippetDraftRequest?: { id: string; name?: string; command?: string } | null
   promptInsertRequest?: { id: string; content: string } | null
   assistModeRequest?: { id: string; mode: AssistMode } | null
+  modelSwitchRequest?: { id: string } | null
 }
 
 export function LlmPanel({
@@ -800,6 +802,7 @@ export function LlmPanel({
   snippetDraftRequest,
   promptInsertRequest,
   assistModeRequest,
+  modelSwitchRequest,
 }: LlmPanelProps): JSX.Element {
   const { t } = useT()
   const [provider, setProvider] = useState<LLMProviderConfig>(defaultProvider)
@@ -857,6 +860,7 @@ export function LlmPanel({
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
+  const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
@@ -875,6 +879,7 @@ export function LlmPanel({
   const handledBlockPromptRequestRef = useRef<string>()
   const handledPromptInsertRequestRef = useRef<string>()
   const handledAssistModeRequestRef = useRef<string>()
+  const handledModelSwitchRequestRef = useRef<string>()
   const runningCommandsRef = useRef(new Set<string>())
   const pendingStreamStartsRef = useRef(new Set<string>())
   const savePromptGenerationRequestIdRef = useRef<string | null>(null)
@@ -2495,6 +2500,48 @@ export function LlmPanel({
     })
   }, [draftProviderRef])
 
+  const availableModelOptions = useMemo(() => {
+    if (!provider.selectedModel || models.some((model) => model.id === provider.selectedModel)) {
+      return models
+    }
+
+    return [{ id: provider.selectedModel }, ...models]
+  }, [models, provider.selectedModel])
+
+  const openModelSwitcher = useCallback(() => {
+    setModelSwitcherOpen(true)
+    void loadModels()
+  }, [loadModels])
+
+  const selectChatModel = useCallback((modelId: string) => {
+    setModelSwitcherOpen(false)
+    updateProvider({ ...providerRef.current, selectedModel: modelId })
+  }, [updateProvider])
+
+  const modelSwitchActions = useMemo<CommandPaletteAction[]>(() => {
+    if (availableModelOptions.length === 0) {
+      return [{
+        id: 'model:load',
+        title: t('model.loadFirst'),
+        description: providerStatus || t('model.switch.loadDescription'),
+        category: t('model.switch.category'),
+        disabled: true,
+        keywords: ['model', 'provider', 'llm']
+      }]
+    }
+
+    return availableModelOptions.map((model) => {
+      const selected = model.id === provider.selectedModel
+      return {
+        id: `model:${model.id}`,
+        title: formatModelDisplay(model.id),
+        description: selected ? t('model.switch.current') : t('model.switch.choose'),
+        category: t('model.switch.category'),
+        keywords: ['model', 'switch', 'provider', model.id, model.ownedBy ?? '']
+      }
+    })
+  }, [availableModelOptions, provider.selectedModel, providerStatus, t])
+
   const saveSecretMaskingSettings = useCallback((settings: SecretMaskingSettings) => {
     setSecretMaskingSettings(settings)
     setSecurityStatus('')
@@ -2810,6 +2857,12 @@ export function LlmPanel({
     }
     setAssistMode(assistModeRequest.mode)
   }, [assistModeRequest, stopAgentic])
+
+  useEffect(() => {
+    if (!modelSwitchRequest || handledModelSwitchRequestRef.current === modelSwitchRequest.id) return
+    handledModelSwitchRequestRef.current = modelSwitchRequest.id
+    openModelSwitcher()
+  }, [modelSwitchRequest, openModelSwitcher])
 
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
@@ -4804,6 +4857,17 @@ export function LlmPanel({
                 {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
                 <span>{composerModeLabel}</span>
               </span>
+              <button
+                type="button"
+                className="composer-model-chip"
+                onClick={openModelSwitcher}
+                title={t('model.switch.title')}
+                aria-label={t('model.switch.title')}
+              >
+                <Brain size={12} aria-hidden />
+                <span>{modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name}</span>
+                <ChevronDown size={11} aria-hidden />
+              </button>
               <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
               {streaming || agenticRunning ? (
                 <button
@@ -4968,6 +5032,28 @@ export function LlmPanel({
           onCancel={() => setDeleteConfirmation(null)}
         />
       ) : null}
+
+      {modelSwitcherOpen ? createPortal(
+        <CommandPalette
+          actions={modelSwitchActions}
+          recentActionIds={[]}
+          labels={{
+            title: t('model.switch.title'),
+            search: t('model.switch.search'),
+            recent: t('commandPalette.recent'),
+            all: t('model.switch.all'),
+            noMatch: t('model.noMatch'),
+            enterRuns: t('commandPalette.enterRuns'),
+            escapeCloses: t('commandPalette.escapeCloses')
+          }}
+          onClose={() => setModelSwitcherOpen(false)}
+          onRun={(action) => {
+            if (action.id.startsWith('model:') && action.id !== 'model:load') {
+              selectChatModel(action.id.slice('model:'.length))
+            }
+          }}
+        />
+      , document.body) : null}
     </aside>
   )
 }

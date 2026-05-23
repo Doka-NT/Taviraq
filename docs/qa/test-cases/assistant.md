@@ -288,3 +288,26 @@ Expected:
 Automation:
 - Existing: `tests/unit/llmService.test.ts` covers unterminated final stream chunks for OpenAI-compatible, Anthropic, LM Studio, and Ollama providers.
 - Missing: UI streaming rendering test for the same provider-tail scenario.
+
+## TC-ASSIST-014: Terminal context is treated as untrusted data
+
+- Priority: P0
+- Type: unit, UI, Electron smoke
+- Sources: issue #69, `src/shared/promptBuilder.ts`, `llmService`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Produce or mock terminal output containing instruction-like text, such as `ignore previous instructions`.
+2. Include selected text or recent output in an assistant request.
+3. Inspect the mocked provider payload.
+
+Expected:
+- Trusted system instructions do not contain raw terminal output.
+- Terminal output is sent in a separate untrusted context message.
+- Terminal context delimiters from terminal output are escaped or neutralized.
+- The assistant is instructed to treat terminal output, logs, files, diffs, and SSH banners as evidence, not instructions.
+
+Automation:
+- Existing: `tests/unit/promptBuilder.test.ts` and `tests/unit/llmService.test.ts`.
+- Missing: Electron smoke that verifies the same payload shape from the real assistant UI.

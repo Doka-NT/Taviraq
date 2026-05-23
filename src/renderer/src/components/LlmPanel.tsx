@@ -30,6 +30,7 @@ import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
+import { buildAssistantPromptMessages } from '@shared/promptBuilder'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
@@ -102,7 +103,7 @@ function extractFirstCommand(content: string): string | undefined {
 }
 
 function isAutoRunMarker(line: string): boolean {
-  return /^(?:выполню|запускаю|следующая команда|команда для запуска|i will run|running|run this|next command)\s*:$/i.test(line)
+  return /^(?:выполню|i will run)\s*:$/i.test(line)
 }
 
 const defaultProvider: LLMProviderConfig = {
@@ -594,38 +595,6 @@ function toChatMessage(message: ThreadMessage, strictTerminalContext = false): C
   }
 }
 
-const COMPOSER_LANGUAGE_NAMES: Partial<Record<Language, string>> = {
-  ru: 'Russian',
-  cn: 'Chinese'
-}
-
-function buildComposerModeInstructions(mode: AssistMode): string[] {
-  if (mode === 'agent') {
-    return [
-      'Agent mode is enabled. The app can run one command from your response automatically in the active terminal.',
-      'When you need the app to run a command, write a short marker line exactly like "Выполню:" or "I will run:" immediately followed by exactly one fenced shell code block containing only that command.',
-      'Example of an auto-runnable command:\nВыполню:\n```bash\npwd\n```',
-      'You may include other fenced bash/sh examples for the user to read, but do not put the marker line immediately before examples, alternatives, or explanatory snippets.',
-      'If you include examples, clearly introduce them as examples, such as "Например, вручную можно было бы:" before the code block.',
-      'The app will send the command output back to you; do not claim success until you see that output.',
-      'Avoid destructive commands unless the user explicitly asked for them, and finish with a normal answer when no more commands are needed.'
-    ]
-  }
-
-  if (mode === 'read') {
-    return [
-      'Read-only terminal context is enabled.',
-      'When suggesting commands, put each command in a fenced bash code block.',
-      'Never claim a command was executed unless the user confirmed it.'
-    ]
-  }
-
-  return [
-    'When suggesting commands, put each command in a fenced bash code block.',
-    'Never claim a command was executed unless the user confirmed it.'
-  ]
-}
-
 function estimateComposerPayloadChars({
   messages,
   draft,
@@ -645,23 +614,18 @@ function estimateComposerPayloadChars({
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
   maskedSecretCount: number
 }): number {
-  const languageName = COMPOSER_LANGUAGE_NAMES[language]
-  const systemPrompt = [
-    'You are an AI assistant embedded in a desktop terminal.',
-    'Prefer concise, actionable terminal help.',
-    languageName ? `Always respond in ${languageName}.` : undefined,
-    ...buildComposerModeInstructions(assistMode),
-    maskedSecretCount > 0
-      ? 'Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.'
-      : undefined,
-    session ? `Active session: ${session.label} (${session.kind}).` : undefined,
-    session?.cwd ? `Current directory: ${session.cwd}.` : undefined,
-    selectedText ? `Selected terminal output:\n${selectedText}` : undefined,
-    terminalOutput ? `Recent terminal output:\n${terminalOutput}` : undefined
-  ].filter(Boolean).join('\n')
+  const promptMessages = buildAssistantPromptMessages({
+    assistMode,
+    language,
+    selectedText,
+    terminalOutput,
+    session,
+    maskedSecretCount
+  })
   const draftMessage = draft.trim() ? [{ role: 'user' as const, content: draft }] : []
 
-  return [systemPrompt, ...messages.map((message) => message.content), ...draftMessage.map((message) => message.content)]
+  return [...promptMessages, ...messages, ...draftMessage]
+    .map((message) => message.content)
     .reduce((sum, content) => sum + content.length, 0)
 }
 

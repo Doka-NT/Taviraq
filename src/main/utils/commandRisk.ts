@@ -56,6 +56,21 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'danger'
   },
   {
+    pattern: /\b(?:cat|less|more|head|tail|sed|awk|grep|rg|find)\b[\s\S]*(?:^|[/\s~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|config\.json|secrets?\b|tokens?\b|passwd\b|shadow\b)/i,
+    reason: 'This command can read files or paths that often contain secrets or credentials.',
+    riskLevel: 'warning'
+  },
+  {
+    pattern: /\bgrep\b[\s\S]*(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)/i,
+    reason: 'This command searches for secret-like values that should be reviewed before being shown or shared.',
+    riskLevel: 'warning'
+  },
+  {
+    pattern: /\b(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|\b(?:scp|rsync|nc|ncat|netcat)\b/i,
+    reason: 'This command can upload or send local data to another host.',
+    riskLevel: 'danger'
+  },
+  {
     pattern: /\bsudo\b/i,
     reason: 'This command asks for elevated privileges and can change system state.'
   },

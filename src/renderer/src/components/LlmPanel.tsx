@@ -2949,11 +2949,7 @@ export function LlmPanel({
   }, [loadModels, provider.apiKeyRef, switchProvider])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
-  const copyAssistantMessage = useCallback(async (index: number, message: ThreadMessage): Promise<void> => {
-    const copyContent = message.displayContent ?? hideSecretPlaceholders(
-      message.maskedContent ?? message.content,
-      maskedSecretLabel
-    )
+  const copyAssistantMessage = useCallback(async (index: number, copyContent: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(copyContent)
     } catch {
@@ -2967,7 +2963,7 @@ export function LlmPanel({
       setCopiedMessageIndex(null)
       copiedMessageTimerRef.current = undefined
     }, 1500)
-  }, [maskedSecretLabel])
+  }, [])
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
   const commandConfirmationUsesLocalSecret = commandConfirmation
     ? containsSecretPlaceholder(commandConfirmation.command)
@@ -4490,7 +4486,10 @@ export function LlmPanel({
           const messageActionsDisabled = streaming || agenticRunning || agenticCommandRunning || Boolean(commandConfirmation)
           const canRegenerate = message.role === 'assistant' && index > 0
           const canFork = message.role === 'assistant'
-          const canCopyMessage = message.role === 'assistant' && Boolean(message.content)
+          const assistantCopyContent = message.role === 'assistant'
+            ? message.displayContent ?? hideSecretPlaceholders(message.maskedContent ?? message.content, maskedSecretLabel)
+            : ''
+          const canCopyMessage = Boolean(assistantCopyContent)
 
           if (message.display === 'command-output') {
             const visibleCommand = message.command ? hideSecretPlaceholders(message.command, maskedSecretLabel) : ''
@@ -4605,7 +4604,7 @@ export function LlmPanel({
                     <button
                       type="button"
                       className="chat-message-action"
-                      onClick={() => { void copyAssistantMessage(index, message) }}
+                      onClick={() => { void copyAssistantMessage(index, assistantCopyContent) }}
                       disabled={messageActionsDisabled}
                       title={copiedMessageIndex === index ? t('chat.copied') : t('chat.copyMessage')}
                       aria-label={copiedMessageIndex === index ? t('chat.copied') : t('chat.copyMessage')}

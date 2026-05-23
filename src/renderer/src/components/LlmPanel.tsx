@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Eye, FileText, GitFork, History, KeyRound,
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Eye, FileText, GitFork, History, KeyRound,
   ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
   ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
@@ -855,6 +855,7 @@ export function LlmPanel({
   const [historySearch, setHistorySearch] = useState('')
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
@@ -881,6 +882,7 @@ export function LlmPanel({
   const languageRef = useRef<Language>(language)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
+  const copiedMessageTimerRef = useRef<number>()
   const loadingModelsRef = useRef(false)
   const activeSessionId = activeSession?.id
   const sessionIdKey = sessionIds.join('\0')
@@ -909,6 +911,14 @@ export function LlmPanel({
   useEffect(() => {
     resizeComposerTextarea()
   }, [draft, resizeComposerTextarea])
+
+  useEffect(() => {
+    return () => {
+      if (copiedMessageTimerRef.current) {
+        window.clearTimeout(copiedMessageTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     chatAutoScrollPausedRef.current = false
@@ -2939,6 +2949,21 @@ export function LlmPanel({
   }, [loadModels, provider.apiKeyRef, switchProvider])
   const inputDisabled = Boolean(commandConfirmation)
   const maskedSecretLabel = t('security.maskedSecret.inline')
+  const copyAssistantMessage = useCallback(async (index: number, copyContent: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(copyContent)
+    } catch {
+      return
+    }
+    setCopiedMessageIndex(index)
+    if (copiedMessageTimerRef.current) {
+      window.clearTimeout(copiedMessageTimerRef.current)
+    }
+    copiedMessageTimerRef.current = window.setTimeout(() => {
+      setCopiedMessageIndex(null)
+      copiedMessageTimerRef.current = undefined
+    }, 1500)
+  }, [])
   const visibleAgenticCommand = hideSecretPlaceholders(agenticCommand, maskedSecretLabel)
   const commandConfirmationUsesLocalSecret = commandConfirmation
     ? containsSecretPlaceholder(commandConfirmation.command)
@@ -4461,6 +4486,10 @@ export function LlmPanel({
           const messageActionsDisabled = streaming || agenticRunning || agenticCommandRunning || Boolean(commandConfirmation)
           const canRegenerate = message.role === 'assistant' && index > 0
           const canFork = message.role === 'assistant'
+          const assistantCopyContent = message.role === 'assistant'
+            ? message.displayContent ?? hideSecretPlaceholders(message.maskedContent ?? message.content, maskedSecretLabel)
+            : ''
+          const canCopyMessage = Boolean(assistantCopyContent)
 
           if (message.display === 'command-output') {
             const visibleCommand = message.command ? hideSecretPlaceholders(message.command, maskedSecretLabel) : ''
@@ -4563,12 +4592,26 @@ export function LlmPanel({
                   runLabel={t('chat.runInTerminal')}
                   expandCommandLabel={t('chat.showFullCommand')}
                   collapseCommandLabel={t('chat.collapseCommand')}
+                  copyCodeLabel={t('chat.copyCode')}
+                  copiedLabel={t('chat.copied')}
                 />
               ) : message.role === 'assistant' ? null : (
                 <p>{message.displayContent ?? hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
               )}
-              {canRegenerate || canFork ? (
+              {canCopyMessage || canRegenerate || canFork ? (
                 <div className="chat-message-actions">
+                  {canCopyMessage ? (
+                    <button
+                      type="button"
+                      className="chat-message-action"
+                      onClick={() => { void copyAssistantMessage(index, assistantCopyContent) }}
+                      disabled={messageActionsDisabled}
+                      title={copiedMessageIndex === index ? t('chat.copied') : t('chat.copyMessage')}
+                      aria-label={copiedMessageIndex === index ? t('chat.copied') : t('chat.copyMessage')}
+                    >
+                      {copiedMessageIndex === index ? <Check size={11} aria-hidden /> : <Copy size={11} aria-hidden />}
+                    </button>
+                  ) : null}
                   {canRegenerate ? (
                     <button
                       type="button"

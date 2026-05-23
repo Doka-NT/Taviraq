@@ -238,6 +238,7 @@ button {
 .danger-button,
 .msg-run-button,
 .msg-expand-button,
+.msg-copy-button,
 .agent-toggle,
 .security-switch,
 .suggestion-chips button,
@@ -329,7 +330,8 @@ button {
 .stop-button:disabled,
 .danger-button:disabled,
 .msg-run-button:disabled,
-.msg-expand-button:disabled {
+.msg-expand-button:disabled,
+.msg-copy-button:disabled {
   opacity: 0.32;
   cursor: not-allowed;
 }
@@ -4292,6 +4294,8 @@ textarea:focus {
 .msg-code-block-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   min-height: 28px;
   padding: 0 10px;
   border-bottom: 0.5px solid rgba(var(--surface-rgb), 0.06);
@@ -4319,7 +4323,8 @@ textarea:focus {
 }
 
 .msg-run-button,
-.msg-expand-button {
+.msg-expand-button,
+.msg-copy-button {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -4330,7 +4335,8 @@ textarea:focus {
 }
 
 .msg-run-button:hover:not(:disabled),
-.msg-expand-button:hover:not(:disabled) {
+.msg-expand-button:hover:not(:disabled),
+.msg-copy-button:hover:not(:disabled) {
   color: #fff;
   border-color: rgba(var(--accent-brand-rgb), 0.38);
   background: rgba(var(--accent-brand-rgb), 0.16);

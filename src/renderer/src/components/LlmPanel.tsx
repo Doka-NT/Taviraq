@@ -32,6 +32,7 @@ import { acceleratorToDisplay } from '@shared/accelerator'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
+import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import {
   activateSecretProtectionDefaults,
@@ -857,6 +858,7 @@ export function LlmPanel({
 
   // Refs for use inside stable closures
   const chatLogRef = useRef<HTMLElement | null>(null)
+  const chatAutoScrollPausedRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const threadsRef = useRef<AssistantThreads>({})
   const liveSessionIdsRef = useRef(new Set<string>())
@@ -907,6 +909,16 @@ export function LlmPanel({
   useEffect(() => {
     resizeComposerTextarea()
   }, [draft, resizeComposerTextarea])
+
+  useEffect(() => {
+    chatAutoScrollPausedRef.current = false
+  }, [activeSessionId])
+
+  const handleChatLogScroll = useCallback(() => {
+    const log = chatLogRef.current
+    if (!log) return
+    chatAutoScrollPausedRef.current = !isChatScrolledToBottom(log)
+  }, [])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -1630,7 +1642,7 @@ export function LlmPanel({
   // Auto-scroll
   useEffect(() => {
     const log = chatLogRef.current
-    if (log) log.scrollTop = log.scrollHeight
+    if (log && !chatAutoScrollPausedRef.current) log.scrollTop = log.scrollHeight
   }, [agenticCommandRunning, agenticStep, commandConfirmation, messages, status, streaming])
 
   // Stop agentic
@@ -2033,6 +2045,7 @@ export function LlmPanel({
       }))
     }
 
+    chatAutoScrollPausedRef.current = false
     updateThread(sessionId, (thread) => ({
       ...thread,
       draft: '',
@@ -4304,7 +4317,7 @@ export function LlmPanel({
         </div>
       ) : (
       <>
-      <section className="chat-log" aria-live="polite" ref={chatLogRef}>
+      <section className="chat-log" aria-live="polite" ref={chatLogRef} onScroll={handleChatLogScroll}>
         {showActivationFlow ? (
           <div className="activation-empty-state">
             <div className="activation-heading">

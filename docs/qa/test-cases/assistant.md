@@ -243,3 +243,25 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: Electron smoke for first-run state.
+
+## TC-ASSIST-012: Streaming response preserves final text and markdown
+
+- Priority: P0
+- Type: unit, UI
+- Sources: issue #57, `llmService`, `llmProtocol`, `LlmPanel`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Mock a provider stream that returns Cyrillic text and a markdown list.
+2. End the final provider event without an extra blank SSE delimiter or newline.
+3. Wait for the assistant response to finish rendering.
+
+Expected:
+- The final assistant message contains every streamed character in order.
+- Cyrillic words are not truncated or merged.
+- Markdown list item boundaries and line breaks are preserved.
+
+Automation:
+- Existing: `tests/unit/llmService.test.ts` covers unterminated final stream chunks for OpenAI-compatible, Anthropic, LM Studio, and Ollama providers.
+- Missing: UI streaming rendering test for the same provider-tail scenario.

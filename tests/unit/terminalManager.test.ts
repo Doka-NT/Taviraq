@@ -340,4 +340,8 @@ describe('looksLikeShellPrompt', () => {
   it('recognizes SSH prompts that include ST-terminated OSC title sequences', () => {
     expect(looksLikeShellPrompt('\x1b]0;deploy@example: ~\x1b\\deploy@example:~$ ')).toBe(true)
   })
+
+  it('preserves prompt text between multiple ST-terminated OSC title sequences', () => {
+    expect(looksLikeShellPrompt('\x1b]0;before\x1b\\deploy@example:~$ \x1b]0;after\x1b\\')).toBe(true)
+  })
 })

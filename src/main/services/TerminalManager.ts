@@ -17,8 +17,9 @@ const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
 const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
 const AIT_OSC_PREFIX = '\x1b]6973;'
 const OSC_END = '\x07'
-const ANSI_CSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g')
-const ANSI_OSC_PATTERN = new RegExp(`${String.fromCharCode(27)}\\][^\\x07]*(?:\\x07|${String.fromCharCode(27)}\\\\)`, 'g')
+const ESC = String.fromCharCode(27)
+const ANSI_CSI_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
+const ANSI_OSC_PATTERN = new RegExp(`${ESC}\\](?:[^${ESC}\\x07]|${ESC}(?!\\\\))*?(?:\\x07|${ESC}\\\\)`, 'g')
 
 const CANCEL_INPUT_SEQUENCE = '\x03'
 const CONFIRMED_COMMAND_DELAY_MS = 100

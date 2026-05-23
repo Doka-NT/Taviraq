@@ -252,6 +252,21 @@ async function streamChatCompletionUnsafe(
       }
     }
   }
+
+  buffer += decoder.decode()
+  for (const event of parseFinalSseLines(buffer)) {
+    if (event === '[DONE]') {
+      return
+    }
+
+    const payload = safeParseJson(event)
+    if (!payload) continue
+
+    const chunk = parseChatCompletionChunk(payload)
+    if (chunk?.content || chunk?.reasoningContent) {
+      onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
+    }
+  }
 }
 
 async function streamAnthropicChatCompletion(
@@ -310,6 +325,18 @@ async function streamAnthropicChatCompletion(
       }
     }
   }
+
+  buffer += decoder.decode()
+  for (const event of parseFinalSseEvents(buffer)) {
+    if (event.event === 'message_stop') {
+      return
+    }
+
+    const chunk = parseAnthropicStreamEvent(event)
+    if (chunk?.content) {
+      onChunk({ type: 'chunk', content: chunk.content })
+    }
+  }
 }
 
 async function streamOllamaNativeChatCompletion(
@@ -365,6 +392,7 @@ async function streamOllamaNativeChatCompletion(
     }
   }
 
+  buffer += decoder.decode()
   const payload = safeParseJson(buffer.trim())
   if (payload) {
     const content = readOllamaMessageText(payload, 'content')
@@ -420,32 +448,54 @@ async function streamLmStudioNativeChatCompletion(
     buffer = parsed.remainder
 
     for (const event of parsed.events) {
-      const payload = safeParseJson(event.data)
-      const eventType = typeof payload?.type === 'string' ? payload.type : event.event
-
-      if (eventType === 'message.delta') {
-        const content = readString(payload, 'content')
-        if (content) onChunk({ type: 'chunk', content })
-      } else if (eventType === 'reasoning.delta') {
-        const reasoningContent = readString(payload, 'content')
-        if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
-      } else if (eventType === 'prompt_processing.start') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
-      } else if (eventType === 'prompt_processing.progress') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
-      } else if (eventType === 'prompt_processing.end') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
-      } else if (eventType === 'model_load.start') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
-      } else if (eventType === 'model_load.progress') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
-      } else if (eventType === 'model_load.end') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
-      } else if (eventType === 'error') {
-        throw new Error(readLmStudioError(payload))
-      }
+      processLmStudioStreamEvent(event, onChunk)
     }
   }
+
+  buffer += decoder.decode()
+  for (const event of parseFinalSseEvents(buffer)) {
+    processLmStudioStreamEvent(event, onChunk)
+  }
+}
+
+function processLmStudioStreamEvent(
+  event: { event?: string; data: string },
+  onChunk: (chunk: ChatStreamUpdate) => void
+): void {
+  const payload = safeParseJson(event.data)
+  const eventType = typeof payload?.type === 'string' ? payload.type : event.event
+
+  if (eventType === 'message.delta') {
+    const content = readString(payload, 'content')
+    if (content) onChunk({ type: 'chunk', content })
+  } else if (eventType === 'reasoning.delta') {
+    const reasoningContent = readString(payload, 'content')
+    if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
+  } else if (eventType === 'prompt_processing.start') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
+  } else if (eventType === 'prompt_processing.progress') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
+  } else if (eventType === 'prompt_processing.end') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
+  } else if (eventType === 'model_load.start') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
+  } else if (eventType === 'model_load.progress') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
+  } else if (eventType === 'model_load.end') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
+  } else if (eventType === 'error') {
+    throw new Error(readLmStudioError(payload))
+  }
+}
+
+function parseFinalSseLines(buffer: string): string[] {
+  if (!buffer.trim()) return []
+  return parseSseLines(`${buffer}\n\n`).events
+}
+
+function parseFinalSseEvents(buffer: string): Array<{ event?: string; data: string }> {
+  if (!buffer.trim()) return []
+  return parseSseEvents(`${buffer}\n\n`).events
 }
 
 export async function assessCommandRisk(

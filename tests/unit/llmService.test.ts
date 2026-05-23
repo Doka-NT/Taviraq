@@ -176,6 +176,171 @@ describe('llmService', () => {
     expect(result.secretContext.bindings).toHaveLength(0)
   })
 
+  it('keeps an unterminated final OpenAI-compatible SSE chunk', async () => {
+    const encoder = new TextEncoder()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Конечно."}}]}\n\n'))
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" Готовый markdown-список:\\n- 3.233.166.60:443"}}]}'))
+        controller.close()
+      }
+    }), { status: 200, statusText: 'OK' })))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-tail',
+      provider: {
+        name: 'test',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'test',
+        selectedModel: 'chat-model'
+      },
+      messages: [{ role: 'user', content: 'Answer in Russian markdown' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Конечно. Готовый markdown-список:\n- 3.233.166.60:443')
+  })
+
+  it('ignores malformed trailing OpenAI-compatible SSE data after emitted chunks', async () => {
+    const encoder = new TextEncoder()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Already visible."}}]}\n\n'))
+        controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" truncated'))
+        controller.close()
+      }
+    }), { status: 200, statusText: 'OK' })))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-truncated-tail',
+      provider: {
+        name: 'test',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'test',
+        selectedModel: 'chat-model'
+      },
+      messages: [{ role: 'user', content: 'Answer briefly' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Already visible.')
+  })
+
+  it('keeps an unterminated final Anthropic SSE delta', async () => {
+    vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
+    const encoder = new TextEncoder()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Конечно."}}\n\n'))
+        controller.enqueue(encoder.encode('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" Готовый текст."}}'))
+        controller.close()
+      }
+    }))))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-anthropic-tail',
+      provider: {
+        name: 'Anthropic',
+        providerType: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        apiKeyRef: 'anthropic',
+        selectedModel: 'claude-sonnet-4-20250514'
+      },
+      messages: [{ role: 'user', content: 'Hello' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Конечно. Готовый текст.')
+  })
+
+  it('keeps an unterminated final LM Studio SSE delta', async () => {
+    const encoder = new TextEncoder()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: message.delta\ndata: {"type":"message.delta","content":"Также недоступны:\\n"}\n\n'))
+        controller.enqueue(encoder.encode('event: message.delta\ndata: {"type":"message.delta","content":"- 44.205.63.202:443"}'))
+        controller.close()
+      }
+    }))))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-lmstudio-tail',
+      provider: {
+        name: 'LM Studio',
+        providerType: 'lmstudio',
+        baseUrl: 'http://localhost:1234',
+        apiKeyRef: 'lmstudio',
+        selectedModel: 'local-model'
+      },
+      messages: [{ role: 'user', content: 'Hello' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Также недоступны:\n- 44.205.63.202:443')
+  })
+
+  it('flushes final decoder bytes before parsing Ollama JSON lines', async () => {
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode('{"message":{"content":"Привет"}}')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, -1))
+        controller.enqueue(bytes.slice(-1))
+        controller.close()
+      }
+    }))))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-ollama-tail',
+      provider: {
+        name: 'Ollama',
+        providerType: 'ollama',
+        baseUrl: 'http://localhost:11434',
+        apiKeyRef: 'ollama',
+        selectedModel: 'local-model'
+      },
+      messages: [{ role: 'user', content: 'Hello' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.content) chunks.push(event.content)
+    })
+
+    expect(chunks.join('')).toBe('Привет')
+  })
+
   it('lists Anthropic models with native headers', async () => {
     vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
     const fetchMock = vi.fn()

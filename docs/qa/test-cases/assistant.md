@@ -243,3 +243,26 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: Electron smoke for first-run state.
+
+## TC-ASSIST-012: Streaming autoscroll pauses when user reads earlier text
+
+- Priority: P1
+- Type: UI, Electron smoke
+- Sources: issue #58, `LlmPanel`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Send a prompt that produces a streaming assistant response longer than one chat viewport.
+2. Do not touch the chat scroll while the response streams.
+3. During the same stream, scroll upward to read earlier text.
+4. Scroll back to the bottom while the response is still streaming.
+
+Expected:
+- While untouched, the chat follows new streamed content at the bottom.
+- After manual upward scroll, new chunks do not force the viewport back to the bottom.
+- After manually returning to the bottom, autoscroll resumes for later chunks.
+
+Automation:
+- Existing: `tests/ui/llmPanel.test.tsx` covers bottom-threshold detection for pause/resume.
+- Missing: Electron smoke with a mocked long streaming response.

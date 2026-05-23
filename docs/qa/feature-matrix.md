@@ -106,6 +106,7 @@ Baseline: `origin/main`
 | --- | --- | --- | --- |
 | Markdown headings, tables, numeric mini-bars | commits `2dc4e13`, redesign tests | Partial | `TC-RENDER-001`, `TC-RENDER-002` |
 | Shell command action pills and redaction | `MessageContent`, tests | Partial | `TC-RENDER-003` |
+| Assistant message and code block copy actions | issue #62, `MessageContent`, `LlmPanel` | Partial | `TC-RENDER-008` |
 | Empty states and CTAs | issues #26, #35, commits `1c8a133`, `e857cdc` | Missing/partial | `TC-RENDER-004`, `TC-RENDER-005` |
 | Accessibility labels and keyboard navigation | commits `5b35024`, `ec573e1` | Missing/partial | `TC-RENDER-006`, `TC-RENDER-007` |
 

@@ -1,7 +1,17 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MessageContent } from '@renderer/components/MessageContent'
 
 describe('MessageContent', () => {
+  const writeText = vi.fn()
+
+  beforeEach(() => {
+    writeText.mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText }
+    })
+  })
+
   it('renders markdown headings without the leading hashes', () => {
     render(
       <MessageContent
@@ -185,5 +195,43 @@ describe('MessageContent', () => {
     expect(screen.getByText('echo "[secret]"')).toBeInTheDocument()
     expect(screen.queryByText(command)).not.toBeInTheDocument()
     expect(onRun).toHaveBeenCalledWith(command)
+  })
+
+  it('copies non-shell fenced code blocks', async () => {
+    render(
+      <MessageContent
+        content={[
+          '```json',
+          '{',
+          '  "safe": true',
+          '}',
+          '```'
+        ].join('\n')}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('{\n  "safe": true\n}')
+    })
+    expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument()
+  })
+
+  it('copies the displayed redacted shell command', async () => {
+    const command = 'echo "[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]"'
+
+    render(
+      <MessageContent
+        content={`\`\`\`bash\n${command}\n\`\`\``}
+        redactContent={(value) => value.replace(/\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]/g, '[secret]')}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy code' }))
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('echo "[secret]"')
+    })
   })
 })

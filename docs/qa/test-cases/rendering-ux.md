@@ -146,3 +146,28 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: UI keyboard navigation test.
+
+## TC-RENDER-008: Assistant messages and code blocks can be copied
+
+- Priority: P1
+- Type: UI
+- Sources: issue #62, `MessageContent`, `LlmPanel`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Render or receive an assistant response containing regular Markdown text and at least one fenced non-shell code block.
+2. Click the assistant message copy action.
+3. Click the copy action inside the fenced code block.
+4. Repeat with a fenced shell command that contains a masked secret placeholder in display.
+
+Expected:
+- Assistant messages expose a copy action with an accessible label.
+- Fenced code blocks expose their own copy action separate from run/expand controls.
+- Copy actions write the displayed assistant text or displayed code block text to the clipboard.
+- Copy actions show brief success feedback.
+- Shell code copy does not alter the runnable command path, and masked display content is copied as displayed.
+
+Automation:
+- Existing: `tests/ui/messageContent.test.tsx` covers non-shell code copy, shell code copy, success feedback, and displayed redaction.
+- Missing: full `LlmPanel` integration coverage for the assistant message-level copy action.

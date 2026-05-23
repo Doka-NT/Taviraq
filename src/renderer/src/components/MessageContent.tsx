@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp, Play, TerminalSquare } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ChevronUp, Copy, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
 
 interface MessageContentProps {
@@ -11,6 +11,8 @@ interface MessageContentProps {
   runLabel?: string
   expandCommandLabel?: string
   collapseCommandLabel?: string
+  copyCodeLabel?: string
+  copiedLabel?: string
 }
 
 type Segment =
@@ -153,11 +155,23 @@ export function MessageContent({
   disabled,
   runLabel = 'Run in terminal',
   expandCommandLabel = 'Show full command',
-  collapseCommandLabel = 'Collapse command'
+  collapseCommandLabel = 'Collapse command',
+  copyCodeLabel = 'Copy code',
+  copiedLabel = 'Copied'
 }: MessageContentProps): JSX.Element {
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(() => new Set())
+  const [copiedCodeBlock, setCopiedCodeBlock] = useState<number | null>(null)
+  const copiedCodeBlockTimerRef = useRef<number>()
   const segments = parseContent(content)
   const actionChips = onPrompt ? buildActionChips(content) : []
+
+  useEffect(() => {
+    return () => {
+      if (copiedCodeBlockTimerRef.current) {
+        window.clearTimeout(copiedCodeBlockTimerRef.current)
+      }
+    }
+  }, [])
 
   const toggleCodeBlock = (index: number): void => {
     setExpandedCodeBlocks((current) => {
@@ -169,6 +183,22 @@ export function MessageContent({
       }
       return next
     })
+  }
+
+  const copyCodeBlock = async (index: number, code: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(redactContent(code))
+    } catch {
+      return
+    }
+    setCopiedCodeBlock(index)
+    if (copiedCodeBlockTimerRef.current) {
+      window.clearTimeout(copiedCodeBlockTimerRef.current)
+    }
+    copiedCodeBlockTimerRef.current = window.setTimeout(() => {
+      setCopiedCodeBlock(null)
+      copiedCodeBlockTimerRef.current = undefined
+    }, 1500)
   }
 
   return (
@@ -189,6 +219,15 @@ export function MessageContent({
               <div className="msg-code-block" key={i}>
                 <div className="msg-code-block-header">
                   <span>{codeLanguage}</span>
+                  <button
+                    className="msg-copy-button"
+                    type="button"
+                    onClick={() => { void copyCodeBlock(i, seg.code) }}
+                    title={copiedCodeBlock === i ? copiedLabel : copyCodeLabel}
+                    aria-label={copiedCodeBlock === i ? copiedLabel : copyCodeLabel}
+                  >
+                    {copiedCodeBlock === i ? <Check size={11} aria-hidden /> : <Copy size={11} aria-hidden />}
+                  </button>
                 </div>
                 <pre><code>{redactContent(seg.code)}</code></pre>
               </div>
@@ -217,6 +256,15 @@ export function MessageContent({
                   {isExpanded ? <ChevronUp size={11} aria-hidden /> : <ChevronDown size={11} aria-hidden />}
                 </button>
               ) : null}
+              <button
+                className="msg-copy-button"
+                type="button"
+                onClick={() => { void copyCodeBlock(i, seg.code) }}
+                title={copiedCodeBlock === i ? copiedLabel : copyCodeLabel}
+                aria-label={copiedCodeBlock === i ? copiedLabel : copyCodeLabel}
+              >
+                {copiedCodeBlock === i ? <Check size={11} aria-hidden /> : <Copy size={11} aria-hidden />}
+              </button>
               {onRun ? (
                 <button
                   className="msg-run-button"

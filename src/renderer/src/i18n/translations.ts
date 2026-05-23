@@ -312,6 +312,9 @@ export interface Translations {
   'chat.runInTerminal': string
   'chat.showFullCommand': string
   'chat.collapseCommand': string
+  'chat.copyCode': string
+  'chat.copyMessage': string
+  'chat.copied': string
   'panel.promptLibrary': string
 
   // Chat area
@@ -768,6 +771,9 @@ export const en: Translations = {
   'chat.runInTerminal': 'Run in terminal',
   'chat.showFullCommand': 'Show full command',
   'chat.collapseCommand': 'Collapse command',
+  'chat.copyCode': 'Copy code',
+  'chat.copyMessage': 'Copy message',
+  'chat.copied': 'Copied',
   'panel.promptLibrary': 'Prompt library (⌘⇧J)',
 
   'chat.empty.title': 'Ready to help',
@@ -1214,6 +1220,9 @@ export const ru: Translations = {
   'chat.runInTerminal': 'Запустить в терминале',
   'chat.showFullCommand': 'Показать команду целиком',
   'chat.collapseCommand': 'Свернуть команду',
+  'chat.copyCode': 'Копировать код',
+  'chat.copyMessage': 'Копировать сообщение',
+  'chat.copied': 'Скопировано',
   'panel.promptLibrary': 'Библиотека промптов (⌘⇧J)',
 
   'chat.empty.title': 'Готов помочь',
@@ -1660,6 +1669,9 @@ export const cn: Translations = {
   'chat.runInTerminal': '在终端中运行',
   'chat.showFullCommand': '显示完整命令',
   'chat.collapseCommand': '折叠命令',
+  'chat.copyCode': '复制代码',
+  'chat.copyMessage': '复制消息',
+  'chat.copied': '已复制',
   'panel.promptLibrary': '提示词库 (⌘⇧J)',
 
   'chat.empty.title': '准备就绪',

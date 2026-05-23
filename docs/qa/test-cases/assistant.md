@@ -154,7 +154,31 @@ Automation:
 - Existing: `tests/unit/chatMessages.test.ts`.
 - Missing: UI click test for regenerate.
 
-## TC-ASSIST-008: Fork message creates a usable alternate conversation
+## TC-ASSIST-008: Regenerated agent response auto-runs safe command
+
+- Priority: P0
+- Type: UI, Electron smoke
+- Sources: issue #54, PR #55, `LlmPanel`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Enable agent mode with a live terminal session.
+2. Create or restore a chat where the last assistant response is an error.
+3. Click regenerate and return a mocked assistant response with one safe fenced shell command.
+
+Expected:
+- Previous assistant message is removed or regenerated.
+- The composer is not prefilled with assistant text.
+- If the active session is live, the regenerated command enters the normal agent execution flow automatically.
+- If the active session is disconnected, the command remains a manual runnable block and the user sees a disconnected-session status.
+
+Automation:
+- Existing: none.
+- Missing: persistent UI regression test for regenerate-to-agent execution.
+- Manual evidence: PR #55 Electron smoke covered the live-session auto-run path in demo mode.
+
+## TC-ASSIST-009: Fork message creates a usable alternate conversation
 
 - Priority: P1
 - Type: UI
@@ -176,7 +200,7 @@ Automation:
 - Existing: none.
 - Missing: UI test for fork action.
 
-## TC-ASSIST-009: Composer shows mode, context, and payload indicators
+## TC-ASSIST-010: Composer shows mode, context, and payload indicators
 
 - Priority: P1
 - Type: UI, Electron smoke
@@ -198,7 +222,7 @@ Automation:
 - Existing: some utility coverage.
 - Missing: visual UI test.
 
-## TC-ASSIST-010: First-run activation guides provider setup
+## TC-ASSIST-011: First-run activation guides provider setup
 
 - Priority: P1
 - Type: UI, Electron smoke
@@ -219,4 +243,3 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: Electron smoke for first-run state.
-

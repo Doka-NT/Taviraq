@@ -2055,21 +2055,28 @@ export function LlmPanel({
 
     const baseMessages = stripTrailingAssistantMessages(thread.messages.slice(0, messageIndex))
     if (baseMessages.length === 0) return
+    const canExecute = isLiveSessionStatus(session.status)
+    const shouldRunAgentic = assistModeRef.current === 'agent' && canExecute
+    if (shouldRunAgentic) {
+      promptResolversRef.current.delete(sessionId)
+    }
 
     updateThread(sessionId, (thread) => ({
       ...thread,
       messages: baseMessages,
-      agenticRunning: false,
+      agenticRunning: shouldRunAgentic,
       agenticCommandRunning: false,
       agenticStep: 0,
       agenticCommand: '',
       agenticPending: null,
-      status: null,
+      status: assistModeRef.current === 'agent' && !canExecute
+        ? { tone: 'info', label: t('status.disconnected.run') }
+        : null,
       savedChatId: undefined,
       session: summarizeSession(session)
     }))
     startAssistantStream(sessionId, baseMessages)
-  }, [commandConfirmation, getThread, startAssistantStream, streaming, summarizeSession, updateThread])
+  }, [commandConfirmation, getThread, startAssistantStream, streaming, summarizeSession, t, updateThread])
 
   const forkChatFromMessage = useCallback((messageIndex: number) => {
     const session = activeSessionRef.current

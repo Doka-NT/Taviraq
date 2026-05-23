@@ -155,3 +155,25 @@ Automation:
 - Existing: `tests/unit/commandRisk.test.ts`.
 - Missing: UI/Electron smoke for visible SSH risk reason.
 
+## TC-SSH-008: Detect SSH prompt after OSC title sequences
+
+- Priority: P0
+- Type: unit, Electron smoke
+- Sources: issue #53, PR #55, `TerminalManager`
+- Coverage: partial
+- Screenshot: none
+
+Steps:
+1. Start an SSH session whose prompt output includes bracketed-paste CSI and OSC title sequences before the visible shell prompt.
+2. In agent mode, run a harmless command.
+3. Wait for the command to finish and the remote prompt to return.
+
+Expected:
+- Taviraq strips generic OSC title sequences before matching SSH prompts.
+- The returned prompt is detected after the command completes.
+- The agent command-running state clears instead of waiting indefinitely.
+- Command output can be sent back to the assistant according to privacy settings.
+
+Automation:
+- Existing: `tests/unit/terminalManager.test.ts` covers BEL-terminated and ST-terminated OSC title sequences.
+- Missing: persistent Electron smoke for full SSH agent command completion.

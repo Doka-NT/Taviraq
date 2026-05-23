@@ -445,59 +445,43 @@ async function streamLmStudioNativeChatCompletion(
     buffer = parsed.remainder
 
     for (const event of parsed.events) {
-      const payload = safeParseJson(event.data)
-      const eventType = typeof payload?.type === 'string' ? payload.type : event.event
-
-      if (eventType === 'message.delta') {
-        const content = readString(payload, 'content')
-        if (content) onChunk({ type: 'chunk', content })
-      } else if (eventType === 'reasoning.delta') {
-        const reasoningContent = readString(payload, 'content')
-        if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
-      } else if (eventType === 'prompt_processing.start') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
-      } else if (eventType === 'prompt_processing.progress') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
-      } else if (eventType === 'prompt_processing.end') {
-        onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
-      } else if (eventType === 'model_load.start') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
-      } else if (eventType === 'model_load.progress') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
-      } else if (eventType === 'model_load.end') {
-        onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
-      } else if (eventType === 'error') {
-        throw new Error(readLmStudioError(payload))
-      }
+      processLmStudioStreamEvent(event, onChunk)
     }
   }
 
   buffer += decoder.decode()
   for (const event of parseFinalSseEvents(buffer)) {
-    const payload = safeParseJson(event.data)
-    const eventType = typeof payload?.type === 'string' ? payload.type : event.event
+    processLmStudioStreamEvent(event, onChunk)
+  }
+}
 
-    if (eventType === 'message.delta') {
-      const content = readString(payload, 'content')
-      if (content) onChunk({ type: 'chunk', content })
-    } else if (eventType === 'reasoning.delta') {
-      const reasoningContent = readString(payload, 'content')
-      if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
-    } else if (eventType === 'prompt_processing.start') {
-      onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
-    } else if (eventType === 'prompt_processing.progress') {
-      onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
-    } else if (eventType === 'prompt_processing.end') {
-      onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
-    } else if (eventType === 'model_load.start') {
-      onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
-    } else if (eventType === 'model_load.progress') {
-      onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
-    } else if (eventType === 'model_load.end') {
-      onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
-    } else if (eventType === 'error') {
-      throw new Error(readLmStudioError(payload))
-    }
+function processLmStudioStreamEvent(
+  event: { event?: string; data: string },
+  onChunk: (chunk: ChatStreamUpdate) => void
+): void {
+  const payload = safeParseJson(event.data)
+  const eventType = typeof payload?.type === 'string' ? payload.type : event.event
+
+  if (eventType === 'message.delta') {
+    const content = readString(payload, 'content')
+    if (content) onChunk({ type: 'chunk', content })
+  } else if (eventType === 'reasoning.delta') {
+    const reasoningContent = readString(payload, 'content')
+    if (reasoningContent) onChunk({ type: 'reasoning', reasoningContent })
+  } else if (eventType === 'prompt_processing.start') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: 0 })
+  } else if (eventType === 'prompt_processing.progress') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: readProgress(payload) })
+  } else if (eventType === 'prompt_processing.end') {
+    onChunk({ type: 'progress', stage: 'prompt_processing', progress: 1 })
+  } else if (eventType === 'model_load.start') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: 0 })
+  } else if (eventType === 'model_load.progress') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: readProgress(payload) })
+  } else if (eventType === 'model_load.end') {
+    onChunk({ type: 'progress', stage: 'model_load', progress: 1 })
+  } else if (eventType === 'error') {
+    throw new Error(readLmStudioError(payload))
   }
 }
 

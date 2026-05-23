@@ -1,4 +1,5 @@
-import { Play, TerminalSquare } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronDown, ChevronUp, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
 
 interface MessageContentProps {
@@ -8,6 +9,8 @@ interface MessageContentProps {
   redactContent?: (text: string) => string
   disabled?: boolean
   runLabel?: string
+  expandCommandLabel?: string
+  collapseCommandLabel?: string
 }
 
 type Segment =
@@ -21,6 +24,7 @@ type TextBlock =
 
 const FENCE_RE = /```([a-z]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
+const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 
 function parseContent(content: string): Segment[] {
   const segments: Segment[] = []
@@ -146,23 +150,70 @@ export function MessageContent({
   onPrompt,
   redactContent = (value) => value,
   disabled,
-  runLabel = 'Run in terminal'
+  runLabel = 'Run in terminal',
+  expandCommandLabel = 'Show full command',
+  collapseCommandLabel = 'Collapse command'
 }: MessageContentProps): JSX.Element {
+  const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(() => new Set())
   const segments = parseContent(content)
   const actionChips = onPrompt ? buildActionChips(content) : []
+
+  const toggleCodeBlock = (index: number): void => {
+    setExpandedCodeBlocks((current) => {
+      const next = new Set(current)
+      if (next.has(index)) {
+        next.delete(index)
+      } else {
+        next.add(index)
+      }
+      return next
+    })
+  }
 
   return (
     <div className="message-content">
       {segments.map((seg, i) => {
         if (seg.type === 'code') {
-          const isShell = SHELL_LANGS.has(seg.lang) || seg.lang === ''
+          const normalizedLang = seg.lang.toLowerCase()
+          const isShell = SHELL_LANGS.has(normalizedLang)
+          const codeLanguage = normalizedLang || 'code'
+          const isMultilineShell = isShell && seg.code.split('\n').length > COLLAPSIBLE_SHELL_LINE_COUNT
+          const isExpanded = expandedCodeBlocks.has(i)
+
+          if (!isShell) {
+            return (
+              <div className="msg-code-block" key={i}>
+                <div className="msg-code-block-header">
+                  <span>{codeLanguage}</span>
+                </div>
+                <pre><code>{redactContent(seg.code)}</code></pre>
+              </div>
+            )
+          }
+
           return (
-            <div className={`msg-action-pill${isShell ? '' : ' msg-action-pill--code'}`} key={i}>
-              {isShell ? <TerminalSquare size={12} aria-hidden /> : (
-                <span className="msg-code-lang">{seg.lang || 'code'}</span>
-              )}
+            <div
+              className={[
+                'msg-action-pill',
+                isMultilineShell ? 'msg-action-pill--multiline' : '',
+                isMultilineShell && !isExpanded ? 'msg-action-pill--collapsed' : ''
+              ].filter(Boolean).join(' ')}
+              key={i}
+            >
+              <TerminalSquare size={12} aria-hidden />
               <code>{redactContent(seg.code)}</code>
-              {isShell && onRun ? (
+              {isMultilineShell ? (
+                <button
+                  className="msg-expand-button"
+                  type="button"
+                  onClick={() => toggleCodeBlock(i)}
+                  title={isExpanded ? collapseCommandLabel : expandCommandLabel}
+                  aria-label={isExpanded ? collapseCommandLabel : expandCommandLabel}
+                >
+                  {isExpanded ? <ChevronUp size={11} aria-hidden /> : <ChevronDown size={11} aria-hidden />}
+                </button>
+              ) : null}
+              {onRun ? (
                 <button
                   className="msg-run-button"
                   type="button"

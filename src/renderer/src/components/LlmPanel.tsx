@@ -4548,6 +4548,8 @@ export function LlmPanel({
                   onPrompt={setPromptDraft}
                   disabled={!activeSession || agenticCommandRunning}
                   runLabel={t('chat.runInTerminal')}
+                  expandCommandLabel={t('chat.showFullCommand')}
+                  collapseCommandLabel={t('chat.collapseCommand')}
                 />
               ) : message.role === 'assistant' ? null : (
                 <p>{message.displayContent ?? hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>

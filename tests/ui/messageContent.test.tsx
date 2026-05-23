@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MessageContent } from '@renderer/components/MessageContent'
 
 describe('MessageContent', () => {
@@ -78,6 +78,73 @@ describe('MessageContent', () => {
 
     expect(screen.getByText('npm run typecheck')).toBeInTheDocument()
     expect(onRun).toHaveBeenCalledWith('npm run typecheck')
+  })
+
+  it('renders non-shell fenced code as a scrollable code block without run controls', () => {
+    const onRun = vi.fn()
+    const { container } = render(
+      <MessageContent
+        content={[
+          '```json',
+          '{',
+          '  "script": "npm run typecheck",',
+          '  "safe": true',
+          '}',
+          '```'
+        ].join('\n')}
+        onRun={onRun}
+      />
+    )
+
+    const codeBlock = container.querySelector('.msg-code-block')
+
+    expect(codeBlock).toBeInTheDocument()
+    expect(within(codeBlock as HTMLElement).getByText('json')).toBeInTheDocument()
+    expect(screen.getByText(/"script": "npm run typecheck"/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run in terminal' })).not.toBeInTheDocument()
+  })
+
+  it('treats unlabeled fenced blocks as code, not runnable commands', () => {
+    const onRun = vi.fn()
+
+    render(
+      <MessageContent
+        content={'```\nPlease send this support request.\nDo not run it.\n```'}
+        onRun={onRun}
+      />
+    )
+
+    expect(screen.getByText('code')).toBeInTheDocument()
+    expect(screen.getByText(/Please send this support request/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run in terminal' })).not.toBeInTheDocument()
+  })
+
+  it('lets multiline shell commands expand while keeping the full runnable command', () => {
+    const onRun = vi.fn()
+    const command = [
+      'docker compose \\',
+      '  --project-name taviraq \\',
+      '  --file docker-compose.yml \\',
+      '  up --detach'
+    ].join('\n')
+
+    render(
+      <MessageContent
+        content={`\`\`\`bash\n${command}\n\`\`\``}
+        onRun={onRun}
+      />
+    )
+
+    const expandButton = screen.getByRole('button', { name: 'Show full command' })
+    expect(expandButton.closest('.msg-action-pill')).toHaveClass('msg-action-pill--collapsed')
+
+    fireEvent.click(expandButton)
+    expect(screen.getByRole('button', { name: 'Collapse command' }).closest('.msg-action-pill')).not.toHaveClass(
+      'msg-action-pill--collapsed'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run in terminal' }))
+    expect(onRun).toHaveBeenCalledWith(command)
   })
 
   it('redacts displayed shell commands without changing the runnable command', () => {

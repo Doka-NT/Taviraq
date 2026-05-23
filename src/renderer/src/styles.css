@@ -237,6 +237,7 @@ button {
 .stop-button,
 .danger-button,
 .msg-run-button,
+.msg-expand-button,
 .agent-toggle,
 .security-switch,
 .suggestion-chips button,
@@ -327,7 +328,8 @@ button {
 .send-button:disabled,
 .stop-button:disabled,
 .danger-button:disabled,
-.msg-run-button:disabled {
+.msg-run-button:disabled,
+.msg-expand-button:disabled {
   opacity: 0.32;
   cursor: not-allowed;
 }
@@ -4251,6 +4253,10 @@ textarea:focus {
   flex: 0 0 auto;
 }
 
+.msg-action-pill--multiline {
+  align-items: flex-start;
+}
+
 .msg-action-pill > code {
   flex: 1 1 auto;
   min-width: 0;
@@ -4262,20 +4268,57 @@ textarea:focus {
   white-space: nowrap;
 }
 
-.msg-action-pill--code {
-  border-color: rgba(var(--surface-rgb), 0.05);
-  background: rgba(var(--surface-rgb), 0.025);
+.msg-action-pill--multiline > code {
+  max-height: none;
+  overflow: auto;
+  line-height: 1.45;
+  text-overflow: clip;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.msg-code-lang {
-  flex: 0 0 auto;
+.msg-action-pill--collapsed > code {
+  max-height: 4.4em;
+}
+
+.msg-code-block {
+  overflow: hidden;
+  border: 0.5px solid rgba(var(--surface-rgb), 0.08);
+  border-radius: var(--radius-md);
+  background: rgba(var(--surface-rgb), 0.035);
+}
+
+.msg-code-block-header {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-bottom: 0.5px solid rgba(var(--surface-rgb), 0.06);
+  color: rgba(var(--surface-rgb), 0.34);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   font-size: 10px;
-  color: rgba(var(--surface-rgb), 0.22);
   text-transform: lowercase;
 }
 
-.msg-run-button {
+.msg-code-block pre {
+  max-height: 280px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+}
+
+.msg-code-block code {
+  display: block;
+  min-width: max-content;
+  color: rgba(var(--surface-rgb), 0.52);
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.msg-run-button,
+.msg-expand-button {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -4285,7 +4328,8 @@ textarea:focus {
   background: rgba(var(--surface-rgb), 0.05);
 }
 
-.msg-run-button:hover:not(:disabled) {
+.msg-run-button:hover:not(:disabled),
+.msg-expand-button:hover:not(:disabled) {
   color: #fff;
   border-color: rgba(var(--accent-brand-rgb), 0.38);
   background: rgba(var(--accent-brand-rgb), 0.16);

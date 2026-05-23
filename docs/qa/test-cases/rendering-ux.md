@@ -43,17 +43,21 @@ Automation:
 
 - Priority: P1
 - Type: UI
-- Sources: MessageContent, command proposal extraction
-- Coverage: partial
+- Sources: MessageContent, command proposal extraction, issue #56
+- Coverage: existing/partial
 - Screenshot: none
 
 Steps:
 1. Render assistant response with fenced `sh` command.
 2. Render response with non-shell code block.
+3. Render response with an unlabeled fenced text block.
+4. Render response with a multiline fenced shell command.
 
 Expected:
 - Shell command renders as runnable action.
 - Non-shell code block is not offered as a terminal command.
+- Unlabeled fenced text is displayed as code, not as a runnable terminal command.
+- Long or multiline code content remains viewable through scrolling or expansion instead of being permanently truncated.
 - Display redaction does not alter underlying runnable command unexpectedly.
 
 Automation:
@@ -142,4 +146,3 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: UI keyboard navigation test.
-

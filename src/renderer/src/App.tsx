@@ -73,6 +73,10 @@ interface AssistModeRequest {
   mode: AssistMode
 }
 
+interface ModelSwitchRequest {
+  id: string
+}
+
 interface PendingBlockPrompt {
   id: string
   sessionId: string
@@ -346,6 +350,7 @@ export function App(): JSX.Element {
   const [snippetDraftRequest, setSnippetDraftRequest] = useState<SnippetDraftRequest | null>(null)
   const [promptInsertRequest, setPromptInsertRequest] = useState<PromptInsertRequest | null>(null)
   const [assistModeRequest, setAssistModeRequest] = useState<AssistModeRequest | null>(null)
+  const [modelSwitchRequest, setModelSwitchRequest] = useState<ModelSwitchRequest | null>(null)
   const [pendingBlockPrompt, setPendingBlockPrompt] = useState<PendingBlockPrompt | null>(null)
   const [pendingBlockRerun, setPendingBlockRerun] = useState<PendingBlockRerun | null>(null)
   const [tabContextMenu, setTabContextMenu] = useState<TabContextMenuState | null>(null)
@@ -1239,6 +1244,7 @@ export function App(): JSX.Element {
       { id: 'assistant:agent', title: 'Enable agent mode', description: 'Allow the assistant to propose and run approved commands.', category: 'Agent Mode', keywords: ['assistant', 'agent', 'execute', 'mode'] },
       { id: 'assistant:read', title: 'Use read-only assistant mode', description: 'Let the assistant read terminal context without executing commands.', category: 'Agent Mode', keywords: ['assistant', 'read only', 'mode'] },
       { id: 'assistant:off', title: 'Turn assistant context off', description: 'Stop sharing terminal context with the assistant.', category: 'Agent Mode', keywords: ['assistant', 'off', 'mode', 'privacy'] },
+      { id: 'assistant:switch-model', title: 'Switch model', description: 'Choose a chat model for the current provider.', category: 'Assistant', keywords: ['assistant', 'model', 'provider', 'llm', 'switch'] },
       ...themes.map((theme) => ({
         id: `theme:${theme.id}`,
         title: `Switch theme: ${theme.name}`,
@@ -1309,6 +1315,12 @@ export function App(): JSX.Element {
     }
 
     if (action.id.startsWith('assistant:')) {
+      if (action.id === 'assistant:switch-model') {
+        setSidebarVisible(true)
+        setModelSwitchRequest({ id: crypto.randomUUID() })
+        return
+      }
+
       const mode = action.id.slice('assistant:'.length) as AssistMode
       setSidebarVisible(true)
       setAssistModeRequest({ id: crypto.randomUUID(), mode })
@@ -1693,6 +1705,7 @@ export function App(): JSX.Element {
         snippetDraftRequest={snippetDraftRequest}
         promptInsertRequest={promptInsertRequest}
         assistModeRequest={assistModeRequest}
+        modelSwitchRequest={modelSwitchRequest}
       />
 
       {pendingBlockPrompt ? (

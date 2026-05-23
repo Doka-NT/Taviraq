@@ -4738,7 +4738,8 @@ textarea:focus {
 }
 
 .composer-context-chip,
-.composer-mode-badge {
+.composer-mode-badge,
+.composer-model-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4755,7 +4756,8 @@ textarea:focus {
 }
 
 .composer-context-chip span,
-.composer-mode-badge span {
+.composer-mode-badge span,
+.composer-model-chip span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4792,6 +4794,24 @@ textarea:focus {
 
 .composer-mode-badge.off {
   color: var(--text-ghost);
+}
+
+.composer-model-chip {
+  max-width: 150px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.composer-model-chip:hover,
+.composer-model-chip:focus-visible {
+  color: var(--text-primary);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background: rgba(var(--surface-rgb), 0.10);
+}
+
+.composer-model-chip:focus-visible {
+  outline: 2px solid rgba(var(--accent-cyan-rgb), 0.32);
+  outline-offset: 1px;
 }
 
 .chat-form-actions {

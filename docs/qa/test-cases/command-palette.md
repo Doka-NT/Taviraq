@@ -109,3 +109,26 @@ Automation:
 - Existing: none.
 - Missing: Electron shortcut regression test.
 
+## TC-PALETTE-006: Switch model command opens model picker
+
+- Priority: P1
+- Type: UI, Electron smoke
+- Sources: issue #66
+- Coverage: missing/partial
+- Screenshot: TODO under `../assets/command-palette/model-switcher.png`
+
+Steps:
+1. Configure a provider with at least two chat models.
+2. Open the command palette.
+3. Search for "Switch model" and run the action.
+4. Filter the model list and select a different model.
+
+Expected:
+- The assistant sidebar opens if it was hidden.
+- A filterable model picker appears with models from the current provider only.
+- Selecting a model updates the composer model chip.
+- Existing chat messages and terminal context remain in place.
+
+Automation:
+- Existing: none.
+- Missing: UI/Electron smoke for command-palette model switching.

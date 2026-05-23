@@ -4279,6 +4279,7 @@ textarea:focus {
 
 .msg-action-pill--collapsed > code {
   max-height: 4.4em;
+  overflow: hidden;
 }
 
 .msg-code-block {

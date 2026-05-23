@@ -69,7 +69,7 @@ describe('MessageContent', () => {
 
     render(
       <MessageContent
-        content={'```bash\nnpm run typecheck\n```'}
+        content={'```Bash\nnpm run typecheck\n```'}
         onRun={onRun}
       />
     )

@@ -22,7 +22,7 @@ type TextBlock =
   | { type: 'heading'; level: number; text: string }
   | { type: 'table'; header: string[]; rows: string[][] }
 
-const FENCE_RE = /```([a-z]*)\n([\s\S]*?)```/g
+const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 

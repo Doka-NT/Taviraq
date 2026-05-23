@@ -310,6 +310,8 @@ export interface Translations {
   'app.showSidebar': string
   'app.hideSidebar': string
   'chat.runInTerminal': string
+  'chat.showFullCommand': string
+  'chat.collapseCommand': string
   'panel.promptLibrary': string
 
   // Chat area
@@ -764,6 +766,8 @@ export const en: Translations = {
   'app.showSidebar': 'Show assistant sidebar (⌘\\)',
   'app.hideSidebar': 'Hide assistant sidebar (⌘\\)',
   'chat.runInTerminal': 'Run in terminal',
+  'chat.showFullCommand': 'Show full command',
+  'chat.collapseCommand': 'Collapse command',
   'panel.promptLibrary': 'Prompt library (⌘⇧J)',
 
   'chat.empty.title': 'Ready to help',
@@ -1208,6 +1212,8 @@ export const ru: Translations = {
   'app.showSidebar': 'Показать ассистента (⌘\\)',
   'app.hideSidebar': 'Скрыть ассистента (⌘\\)',
   'chat.runInTerminal': 'Запустить в терминале',
+  'chat.showFullCommand': 'Показать команду целиком',
+  'chat.collapseCommand': 'Свернуть команду',
   'panel.promptLibrary': 'Библиотека промптов (⌘⇧J)',
 
   'chat.empty.title': 'Готов помочь',
@@ -1652,6 +1658,8 @@ export const cn: Translations = {
   'app.showSidebar': '显示助手面板 (⌘\\)',
   'app.hideSidebar': '隐藏助手面板 (⌘\\)',
   'chat.runInTerminal': '在终端中运行',
+  'chat.showFullCommand': '显示完整命令',
+  'chat.collapseCommand': '折叠命令',
   'panel.promptLibrary': '提示词库 (⌘⇧J)',
 
   'chat.empty.title': '准备就绪',

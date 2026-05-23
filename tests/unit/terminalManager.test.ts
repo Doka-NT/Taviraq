@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
-import { TerminalManager } from '../../src/main/services/TerminalManager'
+import { looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
 function createManagerWithSession(
@@ -329,5 +329,11 @@ describe('TerminalManager.connectSshCommand', () => {
       remoteHost: 'myhost.com',
       remoteTarget: 'myhost.com'
     }))
+  })
+})
+
+describe('looksLikeShellPrompt', () => {
+  it('recognizes SSH prompts that include bracketed paste and OSC title sequences', () => {
+    expect(looksLikeShellPrompt('\x1b[?2004h\x1b]0;root@vpn: ~\x07root@vpn:~# ')).toBe(true)
   })
 })

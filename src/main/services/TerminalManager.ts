@@ -18,6 +18,7 @@ const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
 const AIT_OSC_PREFIX = '\x1b]6973;'
 const OSC_END = '\x07'
 const ANSI_CSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, 'g')
+const ANSI_OSC_PATTERN = new RegExp(`${String.fromCharCode(27)}\\][^\\x07]*(?:\\x07|${String.fromCharCode(27)}\\\\)`, 'g')
 
 const CANCEL_INPUT_SEQUENCE = '\x03'
 const CONFIRMED_COMMAND_DELAY_MS = 100
@@ -573,7 +574,7 @@ function longestTerminalMarkerPrefixAtEnd(value: string): number {
   return 0
 }
 
-function looksLikeShellPrompt(data: string): boolean {
+export function looksLikeShellPrompt(data: string): boolean {
   const lastLine = stripAnsi(data)
     .replace(/\r/g, '\n')
     .split('\n')
@@ -591,7 +592,9 @@ function looksLikeShellPrompt(data: string): boolean {
 }
 
 function stripAnsi(value: string): string {
-  return value.replace(ANSI_CSI_PATTERN, '')
+  return value
+    .replace(ANSI_OSC_PATTERN, '')
+    .replace(ANSI_CSI_PATTERN, '')
 }
 
 function expandSshCommandArgs(args: string[], argSingleQuoted: boolean[]): string[] {

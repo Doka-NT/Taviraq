@@ -56,7 +56,7 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'danger'
   },
   {
-    pattern: /\b(?:cat|less|more|head|tail|sed|awk|grep|rg|find)\b[\s\S]*(?:^|[/\s~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|config\.json|secrets?\b|tokens?\b|passwd\b|shadow\b)/i,
+    pattern: /\b(?:cat|less|more|head|tail|sed|awk|grep|rg|find)\b[\s\S]*(?:^|[/\s~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)/i,
     reason: 'This command can read files or paths that often contain secrets or credentials.',
     riskLevel: 'warning'
   },
@@ -67,7 +67,7 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
   },
   {
     pattern: /\b(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|\b(?:scp|rsync|nc|ncat|netcat)\b/i,
-    reason: 'This command can upload or send local data to another host.',
+    reason: 'This command can transfer local data or open a raw network stream.',
     riskLevel: 'danger'
   },
   {

@@ -64,7 +64,8 @@ describe('protected command risk checks', () => {
     'git status',
     'kubectl get pods',
     'terraform plan',
-    'grep -R "error" logs'
+    'grep -R "error" logs',
+    'cat config.json'
   ])('does not pre-classify read-only command %s', (command) => {
     expect(assessProtectedCommandRisk({
       command,

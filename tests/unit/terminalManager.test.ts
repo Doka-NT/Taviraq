@@ -334,6 +334,10 @@ describe('TerminalManager.connectSshCommand', () => {
 
 describe('looksLikeShellPrompt', () => {
   it('recognizes SSH prompts that include bracketed paste and OSC title sequences', () => {
-    expect(looksLikeShellPrompt('\x1b[?2004h\x1b]0;root@vpn: ~\x07root@vpn:~# ')).toBe(true)
+    expect(looksLikeShellPrompt('\x1b[?2004h\x1b]0;deploy@example: ~\x07deploy@example:~$ ')).toBe(true)
+  })
+
+  it('recognizes SSH prompts that include ST-terminated OSC title sequences', () => {
+    expect(looksLikeShellPrompt('\x1b]0;deploy@example: ~\x1b\\deploy@example:~$ ')).toBe(true)
   })
 })

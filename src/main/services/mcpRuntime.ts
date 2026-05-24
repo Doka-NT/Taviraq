@@ -107,9 +107,7 @@ class McpStdioSession {
     if (!child) return Promise.reject(new Error('MCP server is not running.'))
     const id = this.nextId++
     const payload = { jsonrpc: '2.0', id, method, params }
-    const body = Buffer.from(JSON.stringify(payload), 'utf8')
-    child.stdin.write(`Content-Length: ${body.byteLength}\r\n\r\n`)
-    child.stdin.write(body)
+    child.stdin.write(`${JSON.stringify(payload)}\n`)
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(id)
@@ -122,9 +120,7 @@ class McpStdioSession {
   notify(method: string, params: Record<string, unknown>): void {
     const child = this.child
     if (!child) return
-    const body = Buffer.from(JSON.stringify({ jsonrpc: '2.0', method, params }), 'utf8')
-    child.stdin.write(`Content-Length: ${body.byteLength}\r\n\r\n`)
-    child.stdin.write(body)
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`)
   }
 
   close(): void {
@@ -136,22 +132,36 @@ class McpStdioSession {
   private receive(chunk: Buffer): void {
     this.buffer = Buffer.concat([this.buffer, chunk])
     while (true) {
-      const headerEnd = this.buffer.indexOf('\r\n\r\n')
-      if (headerEnd === -1) return
-      const header = this.buffer.slice(0, headerEnd).toString('utf8')
-      const length = header.match(/Content-Length:\s*(\d+)/i)?.[1]
-      if (!length) {
-        this.buffer = this.buffer.slice(headerEnd + 4)
+      if (this.buffer.toString('utf8', 0, Math.min(this.buffer.length, 32)).startsWith('Content-Length:')) {
+        if (!this.receiveContentLengthMessage()) return
         continue
       }
-      const bodyLength = Number(length)
-      const bodyStart = headerEnd + 4
-      const bodyEnd = bodyStart + bodyLength
-      if (this.buffer.length < bodyEnd) return
-      const body = this.buffer.slice(bodyStart, bodyEnd).toString('utf8')
-      this.buffer = this.buffer.slice(bodyEnd)
-      this.handleMessage(body)
+
+      const newline = this.buffer.indexOf('\n')
+      if (newline === -1) return
+      const line = this.buffer.slice(0, newline).toString('utf8').trim()
+      this.buffer = this.buffer.slice(newline + 1)
+      if (line) this.handleMessage(line)
     }
+  }
+
+  private receiveContentLengthMessage(): boolean {
+    const headerEnd = this.buffer.indexOf('\r\n\r\n')
+    if (headerEnd === -1) return false
+    const header = this.buffer.slice(0, headerEnd).toString('utf8')
+    const length = header.match(/Content-Length:\s*(\d+)/i)?.[1]
+    if (!length) {
+      this.buffer = this.buffer.slice(headerEnd + 4)
+      return true
+    }
+    const bodyLength = Number(length)
+    const bodyStart = headerEnd + 4
+    const bodyEnd = bodyStart + bodyLength
+    if (this.buffer.length < bodyEnd) return false
+    const body = this.buffer.slice(bodyStart, bodyEnd).toString('utf8')
+    this.buffer = this.buffer.slice(bodyEnd)
+    this.handleMessage(body)
+    return true
   }
 
   private handleMessage(body: string): void {

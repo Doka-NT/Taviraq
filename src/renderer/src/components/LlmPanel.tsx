@@ -994,6 +994,7 @@ export function LlmPanel({
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
+  const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(() => new Set())
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
 
   // Refs for use inside stable closures
@@ -5140,7 +5141,10 @@ export function LlmPanel({
 
           if (message.display === 'tool-call') {
             const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
-            const output = hideSecretPlaceholders(formatToolCallOutput(message.output ?? ''), maskedSecretLabel)
+            const toolResultKey = `${index}:${message.command ?? ''}`
+            const hasOutput = Boolean(message.output?.trim())
+            const expandedResult = expandedToolResults.has(toolResultKey)
+            const output = expandedResult ? hideSecretPlaceholders(formatToolCallOutput(message.output ?? ''), maskedSecretLabel) : ''
             const failed = /failed$/i.test(message.content)
             const running = /^Calling MCP tool/i.test(message.content)
             return (
@@ -5151,13 +5155,26 @@ export function LlmPanel({
                   </span>
                   <span className="tool-call-label">{failed ? 'MCP failed' : running ? 'MCP running' : 'MCP used'}</span>
                   {toolName ? <code>{toolName}</code> : null}
+                  {hasOutput ? (
+                    <button
+                      type="button"
+                      className="tool-call-result-toggle"
+                      onClick={() => {
+                        setExpandedToolResults((current) => {
+                          const next = new Set(current)
+                          if (next.has(toolResultKey)) next.delete(toolResultKey)
+                          else next.add(toolResultKey)
+                          return next
+                        })
+                      }}
+                      aria-expanded={expandedResult}
+                    >
+                      <ChevronDown size={11} aria-hidden />
+                      <span>{failed ? 'Error' : 'Result'}</span>
+                    </button>
+                  ) : null}
                 </div>
-                {output ? (
-                  <details>
-                    <summary>{failed ? 'Error' : 'Result'}</summary>
-                    <pre>{output}</pre>
-                  </details>
-                ) : null}
+                {expandedResult && output ? <pre>{output}</pre> : null}
               </div>
             )
           }

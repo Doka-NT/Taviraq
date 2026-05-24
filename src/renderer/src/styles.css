@@ -4129,14 +4129,15 @@ textarea:focus {
 }
 
 .tool-call-message {
-  display: inline-grid;
+  display: grid;
   align-self: flex-start;
   flex: 0 0 auto;
   gap: 5px;
-  width: fit-content;
-  max-width: min(560px, calc(100% - 42px));
+  box-sizing: border-box;
+  width: calc(100% - 31px);
+  max-width: none;
   margin: -2px 0 -8px 31px;
-  padding: 4px 6px;
+  padding: 5px 7px;
   border: 0.5px solid rgba(var(--surface-rgb), 0.08);
   border-radius: var(--radius-xs);
   color: var(--text-muted);
@@ -4174,8 +4175,9 @@ textarea:focus {
 
 .tool-call-message code {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
-  max-width: min(280px, 42vw);
+  max-width: none;
   padding: 1px 4px;
   border: 0;
   border-radius: var(--radius-xs);
@@ -4200,11 +4202,32 @@ textarea:focus {
   color: var(--accent-red-text);
 }
 
-.tool-call-message summary {
-  width: max-content;
+.tool-call-result-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  outline: none;
   cursor: pointer;
   color: rgba(var(--surface-rgb), 0.42);
+  background: transparent;
+  font: inherit;
   font-size: 10.5px;
+  transition: color var(--transition), background var(--transition);
+}
+
+.tool-call-result-toggle:hover,
+.tool-call-result-toggle:focus-visible {
+  color: rgba(var(--surface-rgb), 0.68);
+  background: rgba(var(--surface-rgb), 0.045);
+}
+
+.tool-call-result-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
 }
 
 .tool-call-message pre {

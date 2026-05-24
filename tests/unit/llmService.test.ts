@@ -24,6 +24,7 @@ describe('llmService', () => {
     vi.restoreAllMocks()
     vi.unstubAllEnvs()
     vi.doUnmock('@main/utils/secretMasking')
+    vi.doUnmock('@main/services/mcpRuntime')
     vi.resetModules()
   })
 
@@ -174,6 +175,450 @@ describe('llmService', () => {
     expect(requestBody).toContain(secret)
     expect(result.maskedSecretCount).toBe(0)
     expect(result.secretContext.bindings).toHaveLength(0)
+  })
+
+  it('wraps MCP tool JSON before sending it back to the model', async () => {
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockResolvedValue('{"days":[{"date":"2026-05-25","is_day_off":false}]}')
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'calendar_get_days', arguments: '{}' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Нет, 25 мая 2026 года рабочий день.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-mcp-json',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Завтра выходной?' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(chunks.join('')).toBe('Нет, 25 мая 2026 года рабочий день.')
+    const firstBody = JSON.parse(readStringBody(fetchMock.mock.calls[0][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    expect(firstBody.messages[0]?.role).toBe('system')
+    expect(firstBody.messages[0]?.content).toContain('Do not paste raw JSON')
+    expect(secondBody.messages.at(-1)?.role).toBe('tool')
+    expect(secondBody.messages.at(-1)?.content).toContain('Tool result:')
+    expect(secondBody.messages.at(-1)?.content).toContain('Do not paste raw JSON')
+    expect(secondBody.messages.at(-1)?.content).toContain('"is_day_off":false')
+  })
+
+  it('masks MCP tool output before exposing it to the model or trace', async () => {
+    const secret = 'mcp-secret-value-ABC123_mcp-secret-value-ABC123'
+    const placeholder = '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]'
+    const tempDir = await mkdtemp(join(tmpdir(), 'taviraq-gitleaks-mcp-test-'))
+    const fakeGitleaks = join(tempDir, 'gitleaks')
+    await writeFile(fakeGitleaks, [
+      '#!/bin/sh',
+      'payload=$(cat)',
+      `case "$payload" in *"${secret}"*) printf '%s' '${JSON.stringify([{ RuleID: 'generic-api-key', Secret: secret, Match: `MCP_TOKEN=${secret}` }])}' ;; *) printf '' ;; esac`
+    ].join('\n'), 'utf8')
+    await chmod(fakeGitleaks, 0o755)
+    vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
+
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'vault',
+          command: 'vault-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'read_secret',
+          description: 'Reads a secret',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockResolvedValue(`{"MCP_TOKEN":"${secret}"}`)
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'vault_read_secret', arguments: '{}' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Готово.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const { streamChatCompletion } = await import('@main/services/llmService')
+      const toolEvents: Array<{ status?: string; content?: string }> = []
+      const privacy: number[] = []
+      const result = await streamChatCompletion({
+        requestId: 'request-mcp-secret',
+        provider: {
+          name: 'OpenAI Compatible',
+          baseUrl: 'https://example.test',
+          apiKeyRef: 'openai',
+          selectedModel: 'gpt-4.1'
+        },
+        messages: [{ role: 'user', content: 'Use the vault tool' }],
+        context: {
+          selectedText: '',
+          assistMode: 'read'
+        }
+      }, (event) => {
+        if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+        if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
+      }, undefined, 'on', undefined, [{
+        id: 'server-1',
+        name: 'vault',
+        command: 'vault-mcp',
+        enabled: true,
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }])
+
+      const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+      const toolPayload = secondBody.messages.at(-1)?.content ?? ''
+      expect(privacy).toEqual([1])
+      expect(result.secretContext.bindings).toHaveLength(1)
+      expect(toolEvents.at(-1)?.status).toBe('done')
+      expect(toolEvents.at(-1)?.content).not.toContain(secret)
+      expect(toolEvents.at(-1)?.content).toContain(placeholder)
+      expect(toolPayload).not.toContain(secret)
+      expect(toolPayload).toContain(placeholder)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('does not send MCP tools to models without inferred tool support', async () => {
+    const callMcpTool = vi.fn()
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const encoder = new TextEncoder()
+    let requestBody = ''
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit): Promise<Response> => {
+      requestBody = typeof init?.body === 'string' ? init.body : ''
+      return Promise.resolve(new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'))
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+        }
+      }), { status: 200, statusText: 'OK' }))
+    }))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-non-tool-model',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'text-embedding-3-small'
+      },
+      messages: [{ role: 'user', content: 'hello' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(chunks.join('')).toBe('ok')
+    expect(callMcpTool).not.toHaveBeenCalled()
+    expect(requestBody).not.toContain('"tools"')
+    expect(requestBody).not.toContain('"tool_choice"')
+  })
+
+  it('rethrows masked MCP tool errors', async () => {
+    const secret = 'mcp-error-secret-ABC123_mcp-error-secret-ABC123'
+    const placeholder = '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]'
+    const tempDir = await mkdtemp(join(tmpdir(), 'taviraq-gitleaks-mcp-error-test-'))
+    const fakeGitleaks = join(tempDir, 'gitleaks')
+    await writeFile(fakeGitleaks, [
+      '#!/bin/sh',
+      'payload=$(cat)',
+      `case "$payload" in *"${secret}"*) printf '%s' '${JSON.stringify([{ RuleID: 'generic-api-key', Secret: secret, Match: `MCP_TOKEN=${secret}` }])}' ;; *) printf '' ;; esac`
+    ].join('\n'), 'utf8')
+    await chmod(fakeGitleaks, 0o755)
+    vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
+
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'vault',
+          command: 'vault-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'read_secret',
+          description: 'Reads a secret',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockRejectedValue(new Error(`MCP_TOKEN=${secret}`))
+    }))
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'vault_read_secret', arguments: '{}' }
+          }]
+        }
+      }]
+    }))))
+
+    try {
+      const { streamChatCompletion } = await import('@main/services/llmService')
+      const toolEvents: Array<{ status?: string; content?: string }> = []
+      await expect(streamChatCompletion({
+        requestId: 'request-mcp-error-secret',
+        provider: {
+          name: 'OpenAI Compatible',
+          baseUrl: 'https://example.test',
+          apiKeyRef: 'openai',
+          selectedModel: 'gpt-4.1'
+        },
+        messages: [{ role: 'user', content: 'Use the vault tool' }],
+        context: {
+          selectedText: '',
+          assistMode: 'read'
+        }
+      }, (event) => {
+        if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+      }, undefined, 'on', undefined, [{
+        id: 'server-1',
+        name: 'vault',
+        command: 'vault-mcp',
+        enabled: true,
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }])).rejects.toThrow(`MCP_TOKEN=${placeholder}`)
+
+      expect(toolEvents.at(-1)?.status).toBe('error')
+      expect(toolEvents.at(-1)?.content).not.toContain(secret)
+      expect(toolEvents.at(-1)?.content).toContain(placeholder)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
+  it('reports malformed MCP tool arguments without executing the tool', async () => {
+    const callMcpTool = vi.fn()
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'calendar_get_days', arguments: '{not-json' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Не смог вызвать инструмент.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const toolEvents: Array<{ status?: string; content?: string }> = []
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-mcp-bad-args',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Use the calendar tool' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    expect(callMcpTool).not.toHaveBeenCalled()
+    expect(toolEvents).toEqual([{ status: 'error', content: 'Invalid MCP tool arguments: malformed JSON.' }])
+    expect(secondBody.messages.at(-1)?.content).toContain('Invalid MCP tool arguments: malformed JSON.')
+    expect(chunks.join('')).toBe('Не смог вызвать инструмент.')
+  })
+
+  it('passes parsed object MCP tool arguments through unchanged', async () => {
+    const callMcpTool = vi.fn().mockResolvedValue('{"ok":true}')
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: {
+                name: 'calendar_get_days',
+                arguments: { date: '2026-05-25' }
+              }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'ok' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    await streamChatCompletion({
+      requestId: 'request-mcp-object-args',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Use the calendar tool' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, () => {}, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(callMcpTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'calendar' }), 'get_days', { date: '2026-05-25' }, undefined)
   })
 
   it('sends terminal context as untrusted user data instead of system instructions', async () => {
@@ -412,8 +857,8 @@ describe('llmService', () => {
     })
 
     expect(models).toEqual([
-      { id: 'claude-haiku-4-20250514', ownedBy: 'Claude Haiku 4' },
-      { id: 'claude-sonnet-4-20250514', ownedBy: 'Claude Sonnet 4' }
+      { id: 'claude-haiku-4-20250514', ownedBy: 'Claude Haiku 4', supportsMcp: true },
+      { id: 'claude-sonnet-4-20250514', ownedBy: 'Claude Sonnet 4', supportsMcp: true }
     ])
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=1000')
     expect(fetchMock.mock.calls[1][0]).toBe('https://api.anthropic.com/v1/models?limit=1000&after_id=claude-sonnet-4-20250514')

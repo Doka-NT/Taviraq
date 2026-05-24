@@ -5,11 +5,12 @@ import {
 import { createPortal } from 'react-dom'
 import {
   Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Eye, FileText, GitFork, History, KeyRound,
-  ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
+  Hammer, ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
   ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
@@ -143,6 +144,17 @@ const TERMINAL_CURSOR_STYLE_OPTIONS: TerminalCursorStyle[] = ['block', 'underlin
 const MIN_SSH_PORT = 1
 const MAX_SSH_PORT = 65535
 const MIN_OUTPUT_CONTEXT = 1000
+const MCP_SOURCE_LABELS: Record<NonNullable<McpServerConfig['source']>, string> = {
+  manual: 'Manual',
+  claude: 'Claude',
+  copilot: 'Copilot',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  lmstudio: 'LM Studio',
+  ollama: 'Ollama',
+  cursor: 'Cursor',
+  windsurf: 'Windsurf'
+}
 const SECURITY_PATTERN_CATEGORIES = [
   {
     id: 'api-keys',
@@ -177,16 +189,44 @@ const SECURITY_PATTERN_CATEGORIES = [
 ] as const
 
 type ThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status' | 'privacy-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status' | 'tool-call'
   displayContent?: string
   command?: string
   output?: string
+  toolCallId?: string
   terminalContextSent?: boolean
   maskedContent?: string
   privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
-type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
+
+function formatToolCallOutput(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2)
+  } catch {
+    return trimmed
+  }
+}
+
+function isAssistantResponseMessage(message: ThreadMessage | undefined): message is ThreadMessage {
+  return Boolean(message && message.role === 'assistant' && !message.display)
+}
+
+function isEmptyAssistantDraft(message: ThreadMessage | undefined): message is ThreadMessage {
+  return isAssistantResponseMessage(message) && !message.content && !message.reasoningContent && !message.privacy
+}
+
+function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isAssistantResponseMessage(messages[index])) return index
+  }
+  return -1
+}
+
+type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
 
@@ -239,6 +279,96 @@ function isValidProviderProxyUrl(value: string | undefined): boolean {
   } catch {
     return false
   }
+}
+
+function createEmptyMcpServer(): McpServerConfig {
+  const now = new Date().toISOString()
+  return {
+    id: `mcp-${crypto.randomUUID()}`,
+    name: '',
+    command: '',
+    args: [],
+    env: {},
+    enabled: true,
+    source: 'manual',
+    createdAt: now,
+    updatedAt: now
+  }
+}
+
+function parseMcpArgs(value: string): string[] {
+  const args: string[] = []
+  let current = ''
+  let quote: '"' | "'" | undefined
+  let escaping = false
+
+  for (const char of value) {
+    if (escaping) {
+      current += char
+      escaping = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaping = true
+      continue
+    }
+
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? undefined : char
+      continue
+    }
+
+    if (!quote && /\s/.test(char)) {
+      if (current) {
+        args.push(current)
+        current = ''
+      }
+      continue
+    }
+
+    current += char
+  }
+
+  if (escaping) current += '\\'
+  if (current) args.push(current)
+  return args
+}
+
+function parseMcpEnv(value: string): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const line of value.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const separatorIndex = trimmed.indexOf('=')
+    if (separatorIndex <= 0) continue
+    env[trimmed.slice(0, separatorIndex).trim()] = trimmed.slice(separatorIndex + 1)
+  }
+  return env
+}
+
+function formatMcpArgs(args: string[] | undefined): string {
+  return (args ?? []).map(formatMcpArg).join(' ')
+}
+
+function formatMcpEnv(env: Record<string, string> | undefined): string {
+  return Object.entries(env ?? {}).map(([key, value]) => `${key}=${value}`).join('\n')
+}
+
+function formatMcpArg(arg: string): string {
+  if (!arg) return '""'
+  if (!/[\s"'\\]/.test(arg)) return arg
+  return `"${arg.replace(/(["\\])/g, '\\$1')}"`
+}
+
+function getDiscoveredMcpKey(server: DiscoveredMcpServer): string {
+  return [
+    server.source,
+    server.sourcePath,
+    server.name.trim().toLowerCase(),
+    server.command.trim(),
+    ...(server.args ?? [])
+  ].join('\u0000')
 }
 
 function isValidTextSize(value: string): boolean {
@@ -595,6 +725,12 @@ function toChatMessage(message: ThreadMessage, strictTerminalContext = false): C
   }
 }
 
+function toConversationalChatMessages(messages: ThreadMessage[], strictTerminalContext = false): ChatMessage[] {
+  return messages
+    .filter((message) => message.display !== 'tool-call')
+    .map((message) => toChatMessage(message, strictTerminalContext))
+}
+
 function estimateComposerPayloadChars({
   messages,
   draft,
@@ -804,6 +940,15 @@ export function LlmPanel({
   const [providerConnectionStates, setProviderConnectionStates] = useState<Record<string, ProviderConnectionState>>({})
   const [draftProviderRef, setDraftProviderRef] = useState<string | null>(null)
   const [shouldFocusApiKeyInput, setShouldFocusApiKeyInput] = useState(false)
+  const [mcpServers, setMcpServers] = useState<McpServerConfig[]>([])
+  const [mcpDraft, setMcpDraft] = useState<McpServerConfig>(createEmptyMcpServer)
+  const [mcpArgsDraft, setMcpArgsDraft] = useState('')
+  const [mcpEnvDraft, setMcpEnvDraft] = useState('')
+  const [mcpStatus, setMcpStatus] = useState('')
+  const [mcpDiscovering, setMcpDiscovering] = useState(false)
+  const [mcpRefreshingTools, setMcpRefreshingTools] = useState(false)
+  const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
+  const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
@@ -824,6 +969,8 @@ export function LlmPanel({
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
+  const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(() => new Set())
+  const [toolResultOutputs, setToolResultOutputs] = useState<Map<string, string>>(() => new Map())
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
 
   // Refs for use inside stable closures
@@ -1365,9 +1512,7 @@ export function LlmPanel({
       window.api.llm.chatStream({
         requestId,
         provider: providerRef.current,
-        messages: nextMessages
-          .slice(0, -1)
-          .map((message) => toChatMessage(message, strictTerminalContextActive)),
+        messages: toConversationalChatMessages(nextMessages.slice(0, -1), strictTerminalContextActive),
         context: {
           selectedText: selectedTextRef.current,
           assistMode: mode,
@@ -1457,7 +1602,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: requestMessages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+      messages: toConversationalChatMessages(requestMessages, strictTerminalContextActive),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1482,8 +1627,10 @@ export function LlmPanel({
           if (thread.activeRequestId !== event.requestId) return thread
           const next = [...thread.messages]
           const last = next.at(-1)
-          if (last?.role === 'assistant') {
+          if (isAssistantResponseMessage(last)) {
             next[next.length - 1] = { ...last, content: last.content + event.content }
+          } else {
+            next.push({ role: 'assistant', content: event.content ?? '' })
           }
           return {
             ...thread,
@@ -1499,11 +1646,17 @@ export function LlmPanel({
           if (thread.activeRequestId !== event.requestId) return thread
           const next = [...thread.messages]
           const last = next.at(-1)
-          if (last?.role === 'assistant') {
+          if (isAssistantResponseMessage(last)) {
             next[next.length - 1] = {
               ...last,
               reasoningContent: `${last.reasoningContent ?? ''}${event.content}`
             }
+          } else {
+            next.push({
+              role: 'assistant',
+              content: '',
+              reasoningContent: event.content
+            })
           }
           return {
             ...thread,
@@ -1564,6 +1717,55 @@ export function LlmPanel({
         autoSaveThreadToHistory(sessionId)
       }
 
+      if (event.type === 'tool') {
+        const command = `${event.serverName}.${event.toolName}`
+        const toolCallId = `${event.requestId}:${event.toolCallId ?? command}`
+        if (event.status !== 'running') {
+          const rawOutput = event.content ?? ''
+          setToolResultOutputs((current) => {
+            const next = new Map(current)
+            if (rawOutput) next.set(toolCallId, rawOutput)
+            else next.delete(toolCallId)
+            return next
+          })
+        }
+        updateThread(sessionId, (thread) => {
+          if (thread.activeRequestId !== event.requestId) return thread
+          const messages = [...thread.messages]
+          const last = messages.at(-1)
+          const content = event.status === 'running'
+            ? `Calling MCP tool ${command}`
+            : event.status === 'error'
+              ? `MCP tool ${command} failed`
+              : `MCP tool ${command} returned`
+          const toolMessage: ThreadMessage = {
+            role: 'assistant',
+            content,
+            display: 'tool-call',
+            command,
+            toolCallId
+          }
+
+          if (last?.display === 'tool-call' && last.toolCallId === toolCallId && event.status !== 'running') {
+            messages[messages.length - 1] = toolMessage
+          } else if (isEmptyAssistantDraft(last)) {
+            messages[messages.length - 1] = toolMessage
+          } else {
+            messages.push(toolMessage)
+          }
+
+          if (event.status === 'done') {
+            messages.push({ role: 'assistant', content: '' })
+          }
+
+          return {
+            ...thread,
+            messages,
+            status: null
+          }
+        })
+      }
+
       if (event.type === 'error') {
         requestSessionRef.current.delete(event.requestId)
         promptResolversRef.current.delete(sessionId)
@@ -1591,9 +1793,12 @@ export function LlmPanel({
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
           const nextMessages = event.maskedContent !== undefined ? [...thread.messages] : thread.messages
-          const lastMessage = nextMessages.at(-1)
-          if (event.maskedContent !== undefined && lastMessage?.role === 'assistant') {
-            nextMessages[nextMessages.length - 1] = applyAuthoritativeAssistantContent(lastMessage, event.maskedContent)
+          const assistantIndex = event.maskedContent !== undefined ? findLastAssistantResponseIndex(nextMessages) : -1
+          const assistantMessage = assistantIndex >= 0 ? nextMessages[assistantIndex] : undefined
+          if (event.maskedContent !== undefined && assistantMessage) {
+            nextMessages[assistantIndex] = applyAuthoritativeAssistantContent(assistantMessage, event.maskedContent)
+          } else if (event.maskedContent) {
+            nextMessages.push({ role: 'assistant', content: event.maskedContent })
           }
 
           return {
@@ -1762,7 +1967,7 @@ export function LlmPanel({
       const prompt = await window.api.llm.summarizeConversation({
         requestId,
         provider: providerRef.current,
-        messages: messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+        messages: toConversationalChatMessages(messages, strictTerminalContextActive),
         language: languageRef.current
       })
       if (savePromptGenerationRequestIdRef.current !== requestId) return
@@ -2347,6 +2552,158 @@ export function LlmPanel({
     void loadSshProfiles()
   }, [loadSshProfiles])
 
+  const loadMcpServers = useCallback(async () => {
+    try {
+      setMcpServers(await window.api.mcp.listServers())
+    } catch (error) {
+      setMcpStatus(`Load failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadMcpServers()
+  }, [loadMcpServers])
+
+  const editMcpServer = useCallback((server: McpServerConfig) => {
+    setMcpDraft(server)
+    setMcpArgsDraft(formatMcpArgs(server.args))
+    setMcpEnvDraft(formatMcpEnv(server.env))
+    setMcpStatus('')
+  }, [])
+
+  const addMcpServer = useCallback(() => {
+    const next = createEmptyMcpServer()
+    setMcpDraft(next)
+    setMcpArgsDraft('')
+    setMcpEnvDraft('')
+    setMcpStatus('')
+  }, [])
+
+  const saveMcpServer = useCallback(async (enabledOverride?: boolean) => {
+    const name = mcpDraft.name.trim()
+    const command = mcpDraft.command.trim()
+    if (!name || !command) {
+      setMcpStatus(t('mcp.status.required'))
+      return
+    }
+    if (mcpServers.some((server) => server.id !== mcpDraft.id && server.name.trim().toLowerCase() === name.toLowerCase())) {
+      setMcpStatus(t('mcp.status.duplicateName'))
+      return
+    }
+
+    setMcpStatus(t('mcp.status.saving'))
+    try {
+      const now = new Date().toISOString()
+      const result = await window.api.mcp.saveServer({
+        ...mcpDraft,
+        enabled: enabledOverride ?? mcpDraft.enabled,
+        name,
+        command,
+        args: parseMcpArgs(mcpArgsDraft),
+        env: parseMcpEnv(mcpEnvDraft),
+        source: mcpDraft.source ?? 'manual',
+        updatedAt: now,
+        createdAt: mcpDraft.createdAt || now
+      })
+      setMcpServers(result)
+      setMcpStatus(t('status.saved'))
+    } catch (error) {
+      setMcpStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [mcpArgsDraft, mcpDraft, mcpEnvDraft, mcpServers, t])
+
+  const setMcpServerEnabled = useCallback(async (enabled: boolean) => {
+    setMcpDraft((draft) => ({ ...draft, enabled }))
+    if (!mcpServers.some((server) => server.id === mcpDraft.id)) return
+    await saveMcpServer(enabled)
+  }, [mcpDraft.id, mcpServers, saveMcpServer])
+
+  const refreshMcpTools = useCallback(async (server: McpServerConfig) => {
+    setMcpRefreshingTools(true)
+    setMcpStatus(t('mcp.tools.refreshing'))
+    try {
+      const result = await window.api.mcp.refreshTools(server.id)
+      setMcpServers(result)
+      const updated = result.find((candidate) => candidate.id === server.id)
+      if (updated) setMcpDraft(updated)
+      setMcpStatus(t('mcp.tools.refreshed', { count: updated?.tools?.length ?? 0 }))
+    } catch (error) {
+      setMcpStatus(`Tool refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setMcpRefreshingTools(false)
+    }
+  }, [t])
+
+  const toggleMcpTool = useCallback(async (serverId: string, toolName: string, enabled: boolean) => {
+    try {
+      const result = await window.api.mcp.setToolEnabled(serverId, toolName, enabled)
+      setMcpServers(result)
+      const updated = result.find((server) => server.id === serverId)
+      if (updated && mcpDraft.id === serverId) setMcpDraft(updated)
+    } catch (error) {
+      setMcpStatus(`Tool update failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [mcpDraft.id])
+
+  const deleteMcpServer = useCallback((id: string) => {
+    const target = mcpServers.find((server) => server.id === id)
+    setDeleteConfirmation({
+      title: withObjectName(t('mcp.deleteConfirmTitle'), target?.name),
+      message: t('mcp.deleteConfirmMessage'),
+      confirmLabel: t('mcp.deleteConfirmBtn'),
+      onConfirm: async () => {
+        const result = await window.api.mcp.deleteServer(id)
+        setMcpServers(result)
+        if (mcpDraft.id === id) {
+          addMcpServer()
+        }
+      }
+    })
+  }, [addMcpServer, mcpDraft.id, mcpServers, t])
+
+  const discoverMcpServers = useCallback(async () => {
+    setMcpDiscovering(true)
+    setMcpStatus(t('mcp.status.discovering'))
+    try {
+      const result = await window.api.mcp.discoverExternal()
+      setDiscoveredMcpServers(result.servers)
+      setSelectedDiscoveredMcpIds([])
+      const warningSuffix = result.warnings.length > 0 ? ` ${result.warnings.length} warning(s).` : ''
+      setMcpStatus(result.servers.length > 0
+        ? `${result.servers.length} MCP server(s) found.${warningSuffix}`
+        : `${t('mcp.status.noneFound')}${warningSuffix}`)
+    } catch (error) {
+      setMcpStatus(`Discovery failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setMcpDiscovering(false)
+    }
+  }, [t])
+
+  const toggleDiscoveredMcp = useCallback((key: string) => {
+    setSelectedDiscoveredMcpIds((current) => current.includes(key)
+      ? current.filter((candidate) => candidate !== key)
+      : [...current, key])
+  }, [])
+
+  const importSelectedMcpServers = useCallback(async () => {
+    const selected = discoveredMcpServers.filter((server) => selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server)))
+    if (selected.length === 0) {
+      setMcpStatus(t('mcp.status.selectImport'))
+      return
+    }
+
+    setMcpStatus(t('mcp.status.importing'))
+    try {
+      const result = await window.api.mcp.importServers(selected)
+      setMcpServers(result.servers)
+      setDiscoveredMcpServers([])
+      setSelectedDiscoveredMcpIds([])
+      setMcpStatus(`Imported ${result.imported} server(s), skipped ${result.skipped}.`)
+    } catch (error) {
+      setMcpStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [discoveredMcpServers, selectedDiscoveredMcpIds, t])
+
   const addSshProfile = useCallback(() => {
     const newProfile: SSHProfileConfig = {
       id: `ssh-${crypto.randomUUID()}`,
@@ -2705,17 +3062,19 @@ export function LlmPanel({
       }
 
       await loadConfig()
+      await loadMcpServers()
 
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
       if (result.promptsAdded) parts.push(`${result.promptsAdded} prompt(s)`)
       if (result.commandSnippetsAdded) parts.push(`${result.commandSnippetsAdded} command snippet(s)`)
+      if (result.mcpServersAdded) parts.push(`${result.mcpServersAdded} MCP server(s)`)
       setDataStatus(parts.length ? `Added: ${parts.join(', ')}` : 'Nothing new to import')
       setTimeout(() => setDataStatus(''), 4000)
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
+  }, [loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -2829,7 +3188,7 @@ export function LlmPanel({
   const composerSelectedText = strictTerminalContextActive ? '' : selectedText
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerChatMessages = useMemo(
-    () => messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+    () => toConversationalChatMessages(messages, strictTerminalContextActive),
     [messages, strictTerminalContextActive]
   )
   const composerSession = useMemo(
@@ -3045,6 +3404,15 @@ export function LlmPanel({
         t('providers.chatModel'), t('providers.safetyModel'), t('providers.fetchModels'),
         t('providers.testConnection'), t('providers.status.ready'), t('providers.status.error'),
         'openai ollama lm studio anthropic claude model api key base url proxy http https tls provider safety test connection status'
+      ]
+    },
+    {
+      id: 'mcp',
+      label: t('settings.tab.mcp'),
+      terms: [
+        t('mcp.title'), t('mcp.discovery.title'), t('mcp.addServer'), t('mcp.importSelected'),
+        t('mcp.name'), t('mcp.command'), t('mcp.args'), t('mcp.env'),
+        'mcp model context protocol tools servers claude copilot codex opencode import discovery mcp.json'
       ]
     },
     {
@@ -3805,6 +4173,176 @@ export function LlmPanel({
                             </button>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
+                {!settingsNoResults && settingsTab === 'mcp' ? (
+                  <>
+                    <h3 className="settings-content-title">{t('mcp.title')}</h3>
+                    <section className="settings-section mcp-discovery">
+                      <div className="settings-section-heading">
+                        <span><HighlightSearchText text={t('mcp.discovery.title')} query={settingsSearch} /></span>
+                      </div>
+                      <p className="mcp-discovery-note">{t('mcp.discovery.desc')}</p>
+                      <button type="button" className="quiet-button mcp-discovery-button" disabled={mcpDiscovering} onClick={() => void discoverMcpServers()}>
+                        <Search size={14} aria-hidden />
+                        {mcpDiscovering ? t('mcp.discovery.scanning') : t('mcp.discovery.scan')}
+                      </button>
+                      {mcpStatus ? <p className="settings-status mcp-discovery-status">{mcpStatus}</p> : null}
+                      {discoveredMcpServers.length > 0 ? (
+                        <div className="mcp-discovery-list">
+                          {discoveredMcpServers.map((server) => (
+                            <label key={getDiscoveredMcpKey(server)} className="mcp-discovery-item">
+                              <span className="mcp-discovery-copy">
+                                <strong>{server.name}</strong>
+                                <small>{MCP_SOURCE_LABELS[server.source]} · {server.command}</small>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server))}
+                                onChange={() => toggleDiscoveredMcp(getDiscoveredMcpKey(server))}
+                              />
+                              <i aria-hidden />
+                            </label>
+                          ))}
+                          <button type="button" className="primary-button mcp-import-button" onClick={() => void importSelectedMcpServers()}>
+                            <Check size={14} aria-hidden />
+                            {t('mcp.importSelected')}
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
+                    <div className="mcp-layout">
+                      <div>
+                        <div className="providers-list-header">
+                          <span>{t('mcp.servers')}</span>
+                          <button type="button" className="quiet-button settings-add-button" title={t('mcp.addServer')} aria-label={t('mcp.addServer')} onClick={addMcpServer}>
+                            <Plus size={15} aria-hidden />
+                          </button>
+                        </div>
+                        <div className="provider-list">
+                          {mcpServers.length === 0 ? (
+                            <div className="mcp-empty">{t('mcp.empty')}</div>
+                          ) : mcpServers.map((server) => {
+                            const sourceLabel = MCP_SOURCE_LABELS[server.source ?? 'manual']
+                            return (
+                              <div
+                                key={server.id}
+                                className={`provider-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
+                                role="button"
+                                tabIndex={0}
+                                title={server.name}
+                                onClick={() => editMcpServer(server)}
+                                onKeyDown={(event) => {
+                                  if (event.target !== event.currentTarget) return
+                                  if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault()
+                                    editMcpServer(server)
+                                  }
+                                }}
+                              >
+                                <span className={`provider-active-dot ${server.enabled ? 'visible' : ''}`} />
+                                <span className="provider-list-item-main">
+                                  <span className="provider-list-item-name">{server.name}</span>
+                                  <span className="mcp-source-label">{sourceLabel}</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  className="provider-list-item-delete icon-button"
+                                  title={t('mcp.deleteServer')}
+                                  aria-label={t('mcp.deleteServer')}
+                                  onKeyDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => { event.stopPropagation(); deleteMcpServer(server.id) }}
+                                >
+                                  <Trash2 size={14} aria-hidden />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="provider-form">
+                        <label className={`provider-toggle-field ${settingsMatchClass([t('mcp.enabled'), 'mcp server enabled disabled tools'])}`}>
+                          <span>
+                            <strong><HighlightSearchText text={t('mcp.enabled')} query={settingsSearch} /></strong>
+                            <small><HighlightSearchText text={t('mcp.enabled.desc')} query={settingsSearch} /></small>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={mcpDraft.enabled}
+                            onChange={(event) => { void setMcpServerEnabled(event.target.checked) }}
+                          />
+                          <i aria-hidden />
+                        </label>
+                        <div className={`provider-field ${settingsMatchClass([t('mcp.name'), mcpDraft.name, 'mcp server name'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('mcp.name')} query={settingsSearch} /></span>
+                          <input value={mcpDraft.name} onChange={(event) => setMcpDraft((draft) => ({ ...draft, name: event.target.value }))} />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('mcp.command'), mcpDraft.command, 'mcp command executable'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('mcp.command')} query={settingsSearch} /></span>
+                          <input value={mcpDraft.command} placeholder="npx" onChange={(event) => setMcpDraft((draft) => ({ ...draft, command: event.target.value }))} />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('mcp.args'), mcpArgsDraft, 'mcp args arguments'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('mcp.args')} query={settingsSearch} /></span>
+                          <input value={mcpArgsDraft} placeholder="-y @modelcontextprotocol/server-filesystem ~/Projects" onChange={(event) => setMcpArgsDraft(event.target.value)} />
+                        </div>
+                        <div className={`provider-field ${settingsMatchClass([t('mcp.env'), mcpEnvDraft, 'mcp env environment secret token'])}`}>
+                          <span className="provider-field-label"><HighlightSearchText text={t('mcp.env')} query={settingsSearch} /></span>
+                          <textarea
+                            className="mcp-env-input"
+                            value={mcpEnvDraft}
+                            placeholder="TOKEN=..."
+                            onChange={(event) => setMcpEnvDraft(event.target.value)}
+                          />
+                        </div>
+                        <div className="provider-actions">
+                          <button type="button" className="primary-button provider-save-button" onClick={() => void saveMcpServer()}>
+                            <Server size={14} aria-hidden />
+                            {t('mcp.save')}
+                          </button>
+                        </div>
+
+                        <section className="settings-section mcp-tools">
+                          <div className="settings-section-heading">
+                            <span>
+                              <HighlightSearchText text={t('mcp.tools.title')} query={settingsSearch} />
+                              {(mcpDraft.tools ?? []).length > 0 ? <small className="mcp-tools-count">{(mcpDraft.tools ?? []).filter((tool) => tool.enabled).length}/{(mcpDraft.tools ?? []).length}</small> : null}
+                            </span>
+                            <button
+                              type="button"
+                              className="icon-button mcp-refresh-button"
+                              title={mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
+                              aria-label={mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
+                              disabled={mcpRefreshingTools || !mcpServers.some((server) => server.id === mcpDraft.id)}
+                              onClick={() => void refreshMcpTools(mcpDraft)}
+                            >
+                              <RefreshCw size={14} aria-hidden />
+                            </button>
+                          </div>
+                          {(mcpDraft.tools ?? []).length === 0 ? (
+                            <p className="mcp-discovery-note">{t('mcp.tools.empty')}</p>
+                          ) : (
+                            <div className="mcp-tool-list">
+                              {(mcpDraft.tools ?? []).map((tool) => (
+                                <label key={tool.name} className="mcp-tool-item">
+                                  <span className="mcp-tool-copy">
+                                    <strong>{tool.name}</strong>
+                                    {tool.description ? <small>{tool.description}</small> : null}
+                                  </span>
+                                  <input
+                                    type="checkbox"
+                                    checked={tool.enabled}
+                                    onChange={(event) => void toggleMcpTool(mcpDraft.id, tool.name, event.target.checked)}
+                                  />
+                                  <i aria-hidden />
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </section>
                       </div>
                     </div>
                   </>
@@ -4574,6 +5112,47 @@ export function LlmPanel({
             )
           }
 
+          if (message.display === 'tool-call') {
+            const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
+            const toolResultKey = message.toolCallId ?? `${index}:${message.command ?? ''}`
+            const rawToolOutput = toolResultOutputs.get(toolResultKey) ?? ''
+            const hasOutput = Boolean(rawToolOutput.trim())
+            const expandedResult = expandedToolResults.has(toolResultKey)
+            const output = expandedResult ? hideSecretPlaceholders(formatToolCallOutput(rawToolOutput), maskedSecretLabel) : ''
+            const failed = /failed$/i.test(message.content)
+            const running = /^Calling MCP tool/i.test(message.content)
+            return (
+              <div className={`tool-call-message ${running ? 'running' : ''} ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>
+                <div>
+                  <span className="tool-call-icon">
+                    {running ? <RefreshCw size={12} aria-hidden /> : <Hammer size={12} aria-hidden />}
+                  </span>
+                  <span className="tool-call-label">{failed ? 'MCP failed' : running ? 'MCP running' : 'MCP used'}</span>
+                  {toolName ? <code>{toolName}</code> : null}
+                  {hasOutput ? (
+                    <button
+                      type="button"
+                      className="tool-call-result-toggle"
+                      onClick={() => {
+                        setExpandedToolResults((current) => {
+                          const next = new Set(current)
+                          if (next.has(toolResultKey)) next.delete(toolResultKey)
+                          else next.add(toolResultKey)
+                          return next
+                        })
+                      }}
+                      aria-expanded={expandedResult}
+                    >
+                      <ChevronDown size={11} aria-hidden />
+                      <span>{failed ? 'Error' : 'Result'}</span>
+                    </button>
+                  ) : null}
+                </div>
+                {expandedResult && output ? <pre>{output}</pre> : null}
+              </div>
+            )
+          }
+
           if (message.display === 'system-status') {
             if (message.command && message.output) {
               const visibleOriginalCommand = hideSecretPlaceholders(message.output, maskedSecretLabel)
@@ -5176,7 +5755,10 @@ function ModelCombobox({ value, models, placeholder, onOpen, onChange }: ModelCo
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => commitModel(model.id)}
             >
-              <span>{modelDisplay}</span>
+              <span className="model-combobox-option-name">
+                {model.supportsMcp ? <Hammer className="model-mcp-icon" size={12} aria-label={t('model.supportsMcp')} /> : null}
+                <span>{modelDisplay}</span>
+              </span>
               {model.ownedBy ? <small>{model.ownedBy}</small> : null}
             </button>
           )

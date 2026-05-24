@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -9,10 +10,12 @@ import type {
   CommandRiskAssessmentRequest,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  DiscoveredMcpServer,
   ExportData,
   ImportResult,
   ListModelsResult,
   LLMProviderConfig,
+  McpServerConfig,
   PromptTemplate,
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
@@ -42,6 +45,8 @@ import {
   saveApiKey,
   saveProxyPassword
 } from './services/secretStore'
+import { discoverExternalMcpServers, McpConfigStore } from './services/mcpConfigStore'
+import { listMcpServerTools } from './services/mcpRuntime'
 import {
   assessCommandRisk,
   invalidateProviderProxyAgents,
@@ -82,6 +87,7 @@ const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
+const mcpConfigStore = new McpConfigStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
@@ -92,6 +98,16 @@ const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextLocksBySession.delete(sessionId)
 })
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
+  'claude',
+  'copilot',
+  'codex',
+  'opencode',
+  'lmstudio',
+  'ollama',
+  'cursor',
+  'windsurf'
+])
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
@@ -322,6 +338,45 @@ function buildImportableProxyRefs(
     return { ...provider, proxyPasswordRef: canonicalRef }
   })
   return { providers: importableProviders, proxyPasswords: canonicalProxyPasswords }
+}
+
+function withExportableMcpServers(servers: McpServerConfig[], includeSecrets: boolean): McpServerConfig[] {
+  if (includeSecrets) return servers
+  return servers.map((server) => {
+    const safeServer: McpServerConfig = {
+      id: server.id,
+      name: server.name,
+      command: server.command,
+      enabled: server.enabled,
+      source: server.source,
+      importedFrom: server.importedFrom,
+      createdAt: server.createdAt,
+      updatedAt: server.updatedAt,
+      ...(server.args ? { args: server.args } : {}),
+      ...(server.tools ? { tools: server.tools } : {})
+    }
+    return safeServer
+  })
+}
+
+function getMcpImportKey(server: Pick<McpServerConfig, 'name'>): string {
+  return server.name.trim().toLowerCase()
+}
+
+function isObjectPayload(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isMcpServerPayload(value: unknown): value is McpServerConfig {
+  return isObjectPayload(value) && typeof value.name === 'string' && typeof value.command === 'string'
+}
+
+function isDiscoveredMcpServerPayload(value: unknown): value is DiscoveredMcpServer {
+  if (!isObjectPayload(value)) return false
+  return typeof value.name === 'string' &&
+    typeof value.command === 'string' &&
+    typeof value.sourcePath === 'string' &&
+    DISCOVERED_MCP_SOURCES.has(value.source as DiscoveredMcpServer['source'])
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -909,6 +964,39 @@ function registerIpc(): void {
     return result.filePaths[0]
   })
 
+  ipcMain.handle('mcp:listServers', () => mcpConfigStore.list())
+
+  ipcMain.handle('mcp:saveServer', (_event, server: unknown) => {
+    if (!isMcpServerPayload(server)) {
+      throw new Error('Invalid MCP server payload')
+    }
+    return mcpConfigStore.upsert(server)
+  })
+
+  ipcMain.handle('mcp:deleteServer', (_event, id: string) => {
+    return mcpConfigStore.delete(id)
+  })
+
+  ipcMain.handle('mcp:refreshTools', async (_event, serverId: string) => {
+    const server = (await mcpConfigStore.list()).find((candidate) => candidate.id === serverId)
+    if (!server) throw new Error('MCP server not found.')
+    const tools = await listMcpServerTools(server)
+    return mcpConfigStore.saveTools(serverId, tools)
+  })
+
+  ipcMain.handle('mcp:setToolEnabled', (_event, serverId: string, toolName: string, enabled: boolean) => {
+    return mcpConfigStore.setToolEnabled(serverId, toolName, enabled)
+  })
+
+  ipcMain.handle('mcp:discoverExternal', () => discoverExternalMcpServers())
+
+  ipcMain.handle('mcp:importServers', (_event, servers: unknown) => {
+    if (!Array.isArray(servers)) {
+      throw new Error('Invalid MCP import payload')
+    }
+    return mcpConfigStore.importDiscovered(servers.filter(isDiscoveredMcpServerPayload))
+  })
+
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
     if (DEMO_MODE) {
       return demoConfig
@@ -941,7 +1029,7 @@ function registerIpc(): void {
     if (DEMO_MODE) {
       return {
         models: [
-          { id: 'demo-agent', ownedBy: 'Taviraq' },
+          { id: 'demo-agent', ownedBy: 'Taviraq', supportsMcp: true },
           { id: 'demo-safety', ownedBy: 'Taviraq' }
         ],
         provider: request.provider
@@ -1114,13 +1202,14 @@ function registerIpc(): void {
     const config = await configStore.load()
     const prompts = await promptStore.list()
     const commandSnippets = await commandSnippetStore.list()
+    const mcpServers = await mcpConfigStore.list()
     const includeKeysResult = await dialog.showMessageBox({
       type: 'question',
       buttons: ['Continue', 'Cancel'],
       cancelId: 1,
       defaultId: 0,
       message: 'Export Taviraq data',
-      detail: 'Choose whether this export should include plaintext API keys and proxy passwords.',
+      detail: 'Choose whether this export should include plaintext API keys, proxy passwords, and MCP environment values.',
       checkboxLabel: 'Include secrets in export file',
       checkboxChecked: false
     })
@@ -1149,6 +1238,7 @@ function registerIpc(): void {
       prompts,
       commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
+      mcpServers: withExportableMcpServers(mcpServers, includeKeysResult.checkboxChecked),
       preferences
     }
 
@@ -1195,6 +1285,25 @@ function registerIpc(): void {
     const snippetsAdded = await commandSnippetStore.importMany(
       Array.isArray(data.commandSnippets) ? data.commandSnippets : []
     )
+    const currentMcpServers = await mcpConfigStore.list()
+    const currentMcpKeys = new Set(currentMcpServers.map(getMcpImportKey))
+    const importedMcpServers = Array.isArray(data.mcpServers) ? data.mcpServers : []
+    const newMcpServers = importedMcpServers.reduce<McpServerConfig[]>((servers, server) => {
+      if (!isMcpServerPayload(server) || typeof server.name !== 'string' || typeof server.command !== 'string') {
+        return servers
+      }
+      const key = getMcpImportKey(server)
+      if (currentMcpKeys.has(key)) return servers
+      currentMcpKeys.add(key)
+      const now = new Date().toISOString()
+      servers.push({
+        ...server,
+        id: randomUUID(),
+        createdAt: typeof server.createdAt === 'string' ? server.createdAt : now,
+        updatedAt: now
+      })
+      return servers
+    }, [])
 
     const newProviderRefs = new Set(newProviders.map((provider) => provider.apiKeyRef))
     if (data.apiKeys) {
@@ -1230,12 +1339,16 @@ function registerIpc(): void {
     for (const profile of newSshProfiles) {
       await configStore.upsertSshProfile(profile)
     }
+    if (newMcpServers.length > 0) {
+      await mcpConfigStore.saveAll([...currentMcpServers, ...newMcpServers])
+    }
 
     return {
       providersAdded: newProviders.length,
       promptsAdded: newPrompts.length,
       commandSnippetsAdded: snippetsAdded,
       sshProfilesAdded: newSshProfiles.length,
+      mcpServersAdded: newMcpServers.length,
       preferences: data.preferences
     }
   })
@@ -1274,6 +1387,7 @@ function registerIpc(): void {
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)
           const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
+          const mcpServers = await mcpConfigStore.list()
           const result = await streamChatCompletion(policyRequest, (chunk) => {
             if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
               event.sender.send('llm:chatStream:event', {
@@ -1296,6 +1410,19 @@ function registerIpc(): void {
               })
             }
 
+            if (chunk.type === 'tool' && chunk.status && chunk.serverName && chunk.toolName) {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'tool',
+                status: chunk.status,
+                serverName: chunk.serverName,
+                toolName: chunk.toolName,
+                ...(chunk.toolCallId ? { toolCallId: chunk.toolCallId } : {}),
+                ...(chunk.content ? { content: chunk.content } : {})
+              })
+              return
+            }
+
             if (chunk.reasoningContent) {
               event.sender.send('llm:chatStream:event', {
                 requestId: request.requestId,
@@ -1311,7 +1438,7 @@ function registerIpc(): void {
                 content: chunk.content
               })
             }
-          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext)
+          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext, mcpServers)
 
           if (controller.signal.aborted) return
           const newContext = diffSecretMaskContext(result.secretContext, previousContext)

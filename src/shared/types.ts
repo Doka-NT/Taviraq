@@ -142,6 +142,55 @@ export interface ListModelsResult {
 export interface LLMModel {
   id: string
   ownedBy?: string
+  supportsMcp?: boolean
+}
+
+export type McpServerSource =
+  | 'manual'
+  | 'claude'
+  | 'copilot'
+  | 'codex'
+  | 'opencode'
+  | 'lmstudio'
+  | 'ollama'
+  | 'cursor'
+  | 'windsurf'
+
+export interface McpServerConfig {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  tools?: McpToolConfig[]
+  enabled: boolean
+  source?: McpServerSource
+  importedFrom?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface McpToolConfig {
+  name: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+  enabled: boolean
+}
+
+export interface DiscoveredMcpServer extends McpServerConfig {
+  source: Exclude<McpServerSource, 'manual'>
+  sourcePath: string
+}
+
+export interface McpDiscoveryResult {
+  servers: DiscoveredMcpServer[]
+  warnings: string[]
+}
+
+export interface McpImportResult {
+  servers: McpServerConfig[]
+  imported: number
+  skipped: number
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant'
@@ -152,7 +201,7 @@ export interface ChatMessage {
 }
 
 export type RestorableThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status' | 'privacy-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status' | 'tool-call'
   command?: string
   output?: string
   privacy?: PrivacyMaskingNotice
@@ -241,6 +290,7 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
+  | { requestId: string; type: 'tool'; status: 'running' | 'done' | 'error'; serverName: string; toolName: string; toolCallId?: string; content?: string }
   | {
       requestId: string
       type: 'privacy'
@@ -321,6 +371,7 @@ export interface ExportData {
   prompts: PromptTemplate[]
   commandSnippets?: CommandSnippet[]
   sshProfiles?: SSHProfileConfig[]
+  mcpServers?: McpServerConfig[]
   preferences: {
     textSize?: number
     sidebarWidth?: number
@@ -340,5 +391,6 @@ export interface ImportResult {
   promptsAdded: number
   commandSnippetsAdded: number
   sshProfilesAdded: number
+  mcpServersAdded: number
   preferences?: ExportData['preferences']
 }

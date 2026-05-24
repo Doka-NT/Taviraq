@@ -341,6 +341,148 @@ describe('llmService', () => {
     }
   })
 
+  it('does not send MCP tools to models without inferred tool support', async () => {
+    const callMcpTool = vi.fn()
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const encoder = new TextEncoder()
+    let requestBody = ''
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit): Promise<Response> => {
+      requestBody = typeof init?.body === 'string' ? init.body : ''
+      return Promise.resolve(new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'))
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+        }
+      }), { status: 200, statusText: 'OK' }))
+    }))
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-non-tool-model',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'small-local-chat'
+      },
+      messages: [{ role: 'user', content: 'hello' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(chunks.join('')).toBe('ok')
+    expect(callMcpTool).not.toHaveBeenCalled()
+    expect(requestBody).not.toContain('"tools"')
+    expect(requestBody).not.toContain('"tool_choice"')
+  })
+
+  it('rethrows masked MCP tool errors', async () => {
+    const secret = 'mcp-error-secret-ABC123_mcp-error-secret-ABC123'
+    const placeholder = '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]'
+    const tempDir = await mkdtemp(join(tmpdir(), 'taviraq-gitleaks-mcp-error-test-'))
+    const fakeGitleaks = join(tempDir, 'gitleaks')
+    await writeFile(fakeGitleaks, [
+      '#!/bin/sh',
+      'payload=$(cat)',
+      `case "$payload" in *"${secret}"*) printf '%s' '${JSON.stringify([{ RuleID: 'generic-api-key', Secret: secret, Match: `MCP_TOKEN=${secret}` }])}' ;; *) printf '' ;; esac`
+    ].join('\n'), 'utf8')
+    await chmod(fakeGitleaks, 0o755)
+    vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
+
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'vault',
+          command: 'vault-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'read_secret',
+          description: 'Reads a secret',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockRejectedValue(new Error(`MCP_TOKEN=${secret}`))
+    }))
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: null,
+          tool_calls: [{
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'vault_read_secret', arguments: '{}' }
+          }]
+        }
+      }]
+    }))))
+
+    try {
+      const { streamChatCompletion } = await import('@main/services/llmService')
+      const toolEvents: Array<{ status?: string; content?: string }> = []
+      await expect(streamChatCompletion({
+        requestId: 'request-mcp-error-secret',
+        provider: {
+          name: 'OpenAI Compatible',
+          baseUrl: 'https://example.test',
+          apiKeyRef: 'openai',
+          selectedModel: 'gpt-4.1'
+        },
+        messages: [{ role: 'user', content: 'Use the vault tool' }],
+        context: {
+          selectedText: '',
+          assistMode: 'read'
+        }
+      }, (event) => {
+        if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+      }, undefined, 'on', undefined, [{
+        id: 'server-1',
+        name: 'vault',
+        command: 'vault-mcp',
+        enabled: true,
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }])).rejects.toThrow(`MCP_TOKEN=${placeholder}`)
+
+      expect(toolEvents.at(-1)?.status).toBe('error')
+      expect(toolEvents.at(-1)?.content).not.toContain(secret)
+      expect(toolEvents.at(-1)?.content).toContain(placeholder)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   it('sends terminal context as untrusted user data instead of system instructions', async () => {
     const encoder = new TextEncoder()
     let requestBody = ''

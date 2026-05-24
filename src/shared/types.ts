@@ -290,7 +290,7 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
-  | { requestId: string; type: 'tool'; status: 'running' | 'done' | 'error'; serverName: string; toolName: string; content?: string }
+  | { requestId: string; type: 'tool'; status: 'running' | 'done' | 'error'; serverName: string; toolName: string; toolCallId?: string; content?: string }
   | {
       requestId: string
       type: 'privacy'

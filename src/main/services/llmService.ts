@@ -19,6 +19,7 @@ import {
   buildOllamaNativeUrl,
   buildProviderUrl,
   getProviderType,
+  inferModelSupportsMcp,
   parseAnthropicModelList,
   parseLmStudioNativeModelList,
   parseModelList,
@@ -127,6 +128,7 @@ type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
   status?: 'running' | 'done' | 'error'
   serverName?: string
   toolName?: string
+  toolCallId?: string
   maskedSecrets?: number
   categories?: string[]
   stage?: 'model_load' | 'prompt_processing'
@@ -212,7 +214,7 @@ async function streamChatCompletionUnsafe(
   const providerType = getProviderType(request.provider)
   const mcpTools = getEnabledMcpTools(mcpServers)
 
-  if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic')) {
+  if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic') && inferModelSupportsMcp(model) === true) {
     return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
   }
 
@@ -367,7 +369,7 @@ async function completeOpenAIWithMcpTools(
       const entry = toolMap.get(call.function.name)
       const args = safeParseToolArgs(call.function.arguments)
       const content = entry
-        ? await callMcpToolWithTrace(entry, args, onChunk, secretMaskingMode, secretContext, signal)
+        ? await callMcpToolWithTrace(entry, args, call.id, onChunk, secretMaskingMode, secretContext, signal)
         : `Unknown MCP tool: ${call.function.name}`
       messages.push({ role: 'tool', tool_call_id: call.id, content: formatMcpToolResultForModel(content) })
     }
@@ -424,7 +426,7 @@ async function completeAnthropicWithMcpTools(
       const entry = toolMap.get(name)
       const args = isRecord(use.input) ? use.input : {}
       const text = entry
-        ? await callMcpToolWithTrace(entry, args, onChunk, secretMaskingMode, secretContext, signal)
+        ? await callMcpToolWithTrace(entry, args, id, onChunk, secretMaskingMode, secretContext, signal)
         : `Unknown MCP tool: ${name}`
       toolResults.push({ type: 'tool_result', tool_use_id: id, content: formatMcpToolResultForModel(text) })
     }
@@ -436,22 +438,25 @@ async function completeAnthropicWithMcpTools(
 async function callMcpToolWithTrace(
   entry: McpRuntimeTool,
   args: Record<string, unknown>,
+  toolCallId: string,
   onChunk: (chunk: ChatStreamUpdate) => void,
   secretMaskingMode: SecretMaskingInput,
   secretContext?: SecretMaskContext,
   signal?: AbortSignal
 ): Promise<string> {
-  onChunk({ type: 'tool', status: 'running', serverName: entry.server.name, toolName: entry.tool.name })
+  onChunk({ type: 'tool', status: 'running', serverName: entry.server.name, toolName: entry.tool.name, toolCallId })
   try {
     const content = await callMcpTool(entry.server, entry.tool.name, args, signal)
     const maskedContent = await maskMcpToolContent(content, secretMaskingMode, secretContext, onChunk, signal)
-    onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, content: maskedContent })
+    onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, toolCallId, content: maskedContent })
     return maskedContent
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : String(error)
     const message = await maskMcpToolContent(rawMessage, secretMaskingMode, secretContext, onChunk, signal)
-    onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, content: message })
-    throw error
+    onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, toolCallId, content: message })
+    const maskedError = new Error(message)
+    maskedError.name = error instanceof Error ? error.name : 'Error'
+    throw maskedError
   }
 }
 

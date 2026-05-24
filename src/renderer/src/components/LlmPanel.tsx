@@ -1715,7 +1715,7 @@ export function LlmPanel({
 
       if (event.type === 'tool') {
         const command = `${event.serverName}.${event.toolName}`
-        const toolCallId = `${event.requestId}:${command}`
+        const toolCallId = `${event.requestId}:${event.toolCallId ?? command}`
         if (event.status !== 'running') {
           const rawOutput = event.content ?? ''
           setToolResultOutputs((current) => {

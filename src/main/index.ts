@@ -1417,6 +1417,7 @@ function registerIpc(): void {
                 status: chunk.status,
                 serverName: chunk.serverName,
                 toolName: chunk.toolName,
+                ...(chunk.toolCallId ? { toolCallId: chunk.toolCallId } : {}),
                 ...(chunk.content ? { content: chunk.content } : {})
               })
               return

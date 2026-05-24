@@ -66,8 +66,9 @@ export class McpConfigStore {
   async list(): Promise<McpServerConfig[]> {
     try {
       return await readMcpServersFromFile(this.path, 'manual')
-    } catch {
-      return []
+    } catch (error: unknown) {
+      if (isNodeFileNotFoundError(error)) return []
+      throw error
     }
   }
 
@@ -309,6 +310,10 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function isNodeFileNotFoundError(error: unknown): boolean {
+  return isRecord(error) && error.code === 'ENOENT'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

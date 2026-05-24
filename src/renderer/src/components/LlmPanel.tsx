@@ -315,11 +315,27 @@ function parseMcpEnv(value: string): Record<string, string> {
 }
 
 function formatMcpArgs(args: string[] | undefined): string {
-  return (args ?? []).join(' ')
+  return (args ?? []).map(formatMcpArg).join(' ')
 }
 
 function formatMcpEnv(env: Record<string, string> | undefined): string {
   return Object.entries(env ?? {}).map(([key, value]) => `${key}=${value}`).join('\n')
+}
+
+function formatMcpArg(arg: string): string {
+  if (!arg) return '""'
+  if (!/[\s"'\\]/.test(arg)) return arg
+  return `"${arg.replace(/(["\\])/g, '\\$1')}"`
+}
+
+function getDiscoveredMcpKey(server: DiscoveredMcpServer): string {
+  return [
+    server.source,
+    server.sourcePath,
+    server.name.trim().toLowerCase(),
+    server.command.trim(),
+    ...(server.args ?? [])
+  ].join('\u0000')
 }
 
 function isValidTextSize(value: string): boolean {
@@ -2570,7 +2586,7 @@ export function LlmPanel({
     try {
       const result = await window.api.mcp.discoverExternal()
       setDiscoveredMcpServers(result.servers)
-      setSelectedDiscoveredMcpIds(result.servers.map((server) => server.id))
+      setSelectedDiscoveredMcpIds(result.servers.map(getDiscoveredMcpKey))
       const warningSuffix = result.warnings.length > 0 ? ` ${result.warnings.length} warning(s).` : ''
       setMcpStatus(result.servers.length > 0
         ? `${result.servers.length} MCP server(s) found.${warningSuffix}`
@@ -2582,14 +2598,14 @@ export function LlmPanel({
     }
   }, [t])
 
-  const toggleDiscoveredMcp = useCallback((id: string) => {
-    setSelectedDiscoveredMcpIds((current) => current.includes(id)
-      ? current.filter((candidate) => candidate !== id)
-      : [...current, id])
+  const toggleDiscoveredMcp = useCallback((key: string) => {
+    setSelectedDiscoveredMcpIds((current) => current.includes(key)
+      ? current.filter((candidate) => candidate !== key)
+      : [...current, key])
   }, [])
 
   const importSelectedMcpServers = useCallback(async () => {
-    const selected = discoveredMcpServers.filter((server) => selectedDiscoveredMcpIds.includes(server.id))
+    const selected = discoveredMcpServers.filter((server) => selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server)))
     if (selected.length === 0) {
       setMcpStatus(t('mcp.status.selectImport'))
       return
@@ -4192,11 +4208,11 @@ export function LlmPanel({
                           {discoveredMcpServers.length > 0 ? (
                             <div className="mcp-discovery-list">
                               {discoveredMcpServers.map((server) => (
-                                <label key={`${server.sourcePath}-${server.id}`} className="mcp-discovery-item">
+                                <label key={getDiscoveredMcpKey(server)} className="mcp-discovery-item">
                                   <input
                                     type="checkbox"
-                                    checked={selectedDiscoveredMcpIds.includes(server.id)}
-                                    onChange={() => toggleDiscoveredMcp(server.id)}
+                                    checked={selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server))}
+                                    onChange={() => toggleDiscoveredMcp(getDiscoveredMcpKey(server))}
                                   />
                                   <span>
                                     <strong>{server.name}</strong>

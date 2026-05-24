@@ -134,6 +134,14 @@ describe('McpConfigStore', () => {
     ])
   })
 
+  it('surfaces malformed mcp.json instead of overwriting it as empty', async () => {
+    await mkdir(TMP_DIR, { recursive: true })
+    await writeFile(join(TMP_DIR, 'mcp.json'), '{not-json', 'utf8')
+
+    const store = new McpConfigStore()
+    await expect(store.list()).rejects.toThrow()
+  })
+
   it('discovers external MCP configs after approval', async () => {
     await mkdir(join(HOME_DIR, '.claude'), { recursive: true })
     await writeFile(join(HOME_DIR, '.claude', 'mcp.json'), JSON.stringify({

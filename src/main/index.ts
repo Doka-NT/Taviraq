@@ -330,7 +330,20 @@ function buildImportableProxyRefs(
 
 function withExportableMcpServers(servers: McpServerConfig[], includeSecrets: boolean): McpServerConfig[] {
   if (includeSecrets) return servers
-  return servers.map((server) => ({ ...server, env: undefined }))
+  return servers.map((server) => {
+    const safeServer: McpServerConfig = {
+      id: server.id,
+      name: server.name,
+      command: server.command,
+      enabled: server.enabled,
+      source: server.source,
+      importedFrom: server.importedFrom,
+      createdAt: server.createdAt,
+      updatedAt: server.updatedAt,
+      ...(server.args ? { args: server.args } : {})
+    }
+    return safeServer
+  })
 }
 
 function getMcpImportKey(server: Pick<McpServerConfig, 'name'>): string {

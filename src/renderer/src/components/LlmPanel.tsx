@@ -30,7 +30,7 @@ import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
 import { acceleratorToDisplay } from '@shared/accelerator'
-import { buildAssistantPromptMessages } from '@shared/promptBuilder'
+import { buildAssistantPromptMessages, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { themes } from '@renderer/themes/definitions'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
@@ -624,7 +624,7 @@ function estimateComposerPayloadChars({
   })
   const draftMessage = draft.trim() ? [{ role: 'user' as const, content: draft }] : []
 
-  return [...promptMessages, ...messages, ...draftMessage]
+  return mergeAssistantPromptMessages(promptMessages, [...messages, ...draftMessage])
     .map((message) => message.content)
     .reduce((sum, content) => sum + content.length, 0)
 }

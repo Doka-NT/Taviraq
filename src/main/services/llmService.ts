@@ -24,7 +24,7 @@ import {
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
-import { buildAssistantPromptMessages, LANGUAGE_NAMES } from '@shared/promptBuilder'
+import { buildAssistantPromptMessages, LANGUAGE_NAMES, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 import {
@@ -1205,11 +1205,10 @@ function stripAnsi(s: string): string {
 }
 
 function buildMessages(messages: ChatMessage[], context: ChatStreamRequest['context']): ChatMessage[] {
-  return [
-    ...buildAssistantPromptMessages({
-      ...context,
-      terminalOutput: context.terminalOutput ? stripAnsi(context.terminalOutput) : undefined
-    }),
-    ...messages
-  ]
+  const promptMessages = buildAssistantPromptMessages({
+    ...context,
+    terminalOutput: context.terminalOutput ? stripAnsi(context.terminalOutput) : undefined
+  })
+
+  return mergeAssistantPromptMessages(promptMessages, messages)
 }

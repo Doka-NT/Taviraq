@@ -67,6 +67,25 @@ export function buildAssistantPromptMessages(context: AssistantPromptContext): C
   return messages
 }
 
+export function mergeAssistantPromptMessages(promptMessages: ChatMessage[], messages: ChatMessage[]): ChatMessage[] {
+  const systemMessages = promptMessages.filter((message) => message.role === 'system')
+  const contextMessages = promptMessages.filter((message) => message.role !== 'system')
+  if (contextMessages.length === 0) return [...systemMessages, ...messages]
+
+  const mergedMessages = [...messages]
+  let lastUserIndex = -1
+  for (let i = mergedMessages.length - 1; i >= 0; i -= 1) {
+    if (mergedMessages[i]?.role === 'user') {
+      lastUserIndex = i
+      break
+    }
+  }
+  const insertAt = lastUserIndex === -1 ? mergedMessages.length : lastUserIndex
+  mergedMessages.splice(insertAt, 0, ...contextMessages)
+
+  return [...systemMessages, ...mergedMessages]
+}
+
 function buildTerminalContextMessage(context: AssistantPromptContext): ChatMessage | undefined {
   const sections = [
     context.selectedText ? `Selected terminal output:\n${escapeTerminalContext(context.selectedText)}` : undefined,

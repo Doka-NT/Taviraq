@@ -1,4 +1,4 @@
-import { buildAssistantPromptMessages, buildModeInstructions } from '@shared/promptBuilder'
+import { buildAssistantPromptMessages, buildModeInstructions, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 
 describe('promptBuilder', () => {
   it('keeps terminal context outside the system message', () => {
@@ -34,5 +34,21 @@ describe('promptBuilder', () => {
     expect(instructions).toContain('I will run:')
     expect(instructions).not.toContain('run this:')
     expect(instructions).not.toContain('next command:')
+  })
+
+  it('scopes terminal context to the latest user turn', () => {
+    const promptMessages = buildAssistantPromptMessages({
+      selectedText: 'current terminal output'
+    })
+    const messages = mergeAssistantPromptMessages(promptMessages, [
+      { role: 'user', content: 'Old question' },
+      { role: 'assistant', content: 'Old answer' },
+      { role: 'user', content: 'Current question' }
+    ])
+
+    expect(messages.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user', 'user'])
+    expect(messages[1].content).toBe('Old question')
+    expect(messages[3].content).toContain('<terminal-context>')
+    expect(messages[4].content).toBe('Current question')
   })
 })

@@ -605,6 +605,53 @@ describe('llmService', () => {
     expect(body.messages?.[0]?.content).toContain('Hello')
   })
 
+  it('scopes terminal context to the latest Anthropic user turn', async () => {
+    vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"ok"}}\n\n'))
+        controller.enqueue(encoder.encode('event: message_stop\ndata: {"type":"message_stop"}\n\n'))
+        controller.close()
+      }
+    })
+    const fetchMock = vi.fn().mockResolvedValue(new Response(stream))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    await streamChatCompletion({
+      requestId: 'request-anthropic-context-latest',
+      provider: {
+        name: 'Anthropic',
+        providerType: 'anthropic',
+        baseUrl: 'https://api.anthropic.com',
+        apiKeyRef: 'anthropic',
+        selectedModel: 'claude-sonnet-4-20250514'
+      },
+      messages: [
+        { role: 'user', content: 'Old question' },
+        { role: 'assistant', content: 'Old answer' },
+        { role: 'user', content: 'Current question' }
+      ],
+      context: {
+        selectedText: 'current terminal output',
+        assistMode: 'read'
+      }
+    }, () => {})
+
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    const body = JSON.parse(readStringBody(init)) as {
+      messages?: Array<{ role: string; content: string }>
+    }
+    expect(body.messages).toHaveLength(3)
+    expect(body.messages?.[0]).toMatchObject({ role: 'user', content: 'Old question' })
+    expect(body.messages?.[1]).toMatchObject({ role: 'assistant', content: 'Old answer' })
+    expect(body.messages?.[2]).toMatchObject({ role: 'user' })
+    expect(body.messages?.[2]?.content).toContain('<terminal-context>')
+    expect(body.messages?.[2]?.content).toContain('current terminal output')
+    expect(body.messages?.[2]?.content).toContain('Current question')
+  })
+
   it('assesses command risk through Anthropic messages', async () => {
     vi.mocked(getApiKey).mockResolvedValue('sk-ant-test')
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({

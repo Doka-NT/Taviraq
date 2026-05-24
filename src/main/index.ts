@@ -350,6 +350,10 @@ function getMcpImportKey(server: Pick<McpServerConfig, 'name'>): string {
   return server.name.trim().toLowerCase()
 }
 
+function isMcpServerPayload(value: unknown): value is McpServerConfig {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 async function openAllowedExternalUrl(url: string): Promise<void> {
   if (!isAllowedExternalUrl(url)) {
     throw new Error('Unsupported external URL')
@@ -937,7 +941,10 @@ function registerIpc(): void {
 
   ipcMain.handle('mcp:listServers', () => mcpConfigStore.list())
 
-  ipcMain.handle('mcp:saveServer', (_event, server: McpServerConfig) => {
+  ipcMain.handle('mcp:saveServer', (_event, server: unknown) => {
+    if (!isMcpServerPayload(server)) {
+      throw new Error('Invalid MCP server payload')
+    }
     return mcpConfigStore.upsert(server)
   })
 
@@ -947,8 +954,11 @@ function registerIpc(): void {
 
   ipcMain.handle('mcp:discoverExternal', () => discoverExternalMcpServers())
 
-  ipcMain.handle('mcp:importServers', (_event, servers: DiscoveredMcpServer[]) => {
-    return mcpConfigStore.importDiscovered(servers)
+  ipcMain.handle('mcp:importServers', (_event, servers: unknown) => {
+    if (!Array.isArray(servers)) {
+      throw new Error('Invalid MCP import payload')
+    }
+    return mcpConfigStore.importDiscovered(servers.filter(isMcpServerPayload) as DiscoveredMcpServer[])
   })
 
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {

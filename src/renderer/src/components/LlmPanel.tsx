@@ -1772,7 +1772,7 @@ export function LlmPanel({
           return {
             ...thread,
             messages,
-            status: event.status === 'running' ? { tone: 'info', label: content } : null
+            status: null
           }
         })
       }
@@ -5144,17 +5144,17 @@ export function LlmPanel({
             const failed = /failed$/i.test(message.content)
             const running = /^Calling MCP tool/i.test(message.content)
             return (
-              <div className={`tool-call-message ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>
+              <div className={`tool-call-message ${running ? 'running' : ''} ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>
                 <div>
                   <span className="tool-call-icon">
                     {running ? <RefreshCw size={12} aria-hidden /> : <Hammer size={12} aria-hidden />}
                   </span>
-                  <span>{failed ? 'MCP tool failed' : running ? 'Calling MCP tool' : 'Used MCP tool'}</span>
+                  <span className="tool-call-label">{failed ? 'MCP failed' : running ? 'MCP running' : 'MCP used'}</span>
                   {toolName ? <code>{toolName}</code> : null}
                 </div>
                 {output ? (
                   <details>
-                    <summary>{failed ? 'Show error' : 'Show result'}</summary>
+                    <summary>{failed ? 'Error' : 'Result'}</summary>
                     <pre>{output}</pre>
                   </details>
                 ) : null}

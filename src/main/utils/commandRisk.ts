@@ -414,6 +414,7 @@ function readShellCommandArgument(tokens: string[]): string | undefined {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i]
     if (token === '--command') return tokens[i + 1]
+    if (token.startsWith('--command=')) return token.slice('--command='.length)
     if (!token.startsWith('-')) continue
     if (token.startsWith('--')) continue
     if (!/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) continue

@@ -1,7 +1,7 @@
 import { mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 
 describe('privacy notice aggregation', () => {
-  it('combines repeated masking events into one inspectable notice', () => {
+  it('keeps the latest cumulative count in one inspectable notice', () => {
     const notice = mergePrivacyNotices({
       maskedSecretCount: 1,
       categories: ['GENERIC_API_KEY'],
@@ -17,7 +17,7 @@ describe('privacy notice aggregation', () => {
     })
 
     expect(notice).toEqual({
-      maskedSecretCount: 3,
+      maskedSecretCount: 2,
       categories: ['GENERIC_API_KEY', 'password'],
       source: 'chat-display',
       scope: 'chat-display'

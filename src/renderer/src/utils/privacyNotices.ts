@@ -9,7 +9,7 @@ export function mergePrivacyNotices(
     : incoming.sessionLabel ?? existing.sessionLabel
 
   return {
-    maskedSecretCount: existing.maskedSecretCount + incoming.maskedSecretCount,
+    maskedSecretCount: Math.max(existing.maskedSecretCount, incoming.maskedSecretCount),
     categories: [...new Set([...existing.categories, ...incoming.categories])],
     source: incoming.source,
     scope: incoming.scope,

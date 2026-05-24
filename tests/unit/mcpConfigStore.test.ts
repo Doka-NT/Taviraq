@@ -232,4 +232,99 @@ describe('McpConfigStore', () => {
       }
     ])
   })
+
+  it('discovers VS Code Copilot MCP configs from user and workspace paths', async () => {
+    await mkdir(join(HOME_DIR, 'Library/Application Support/Code/User'), { recursive: true })
+    await mkdir(join(HOME_DIR, 'PhpstormProjects/demo-app/.vscode'), { recursive: true })
+    await mkdir(join(HOME_DIR, 'PhpstormProjects/acme/nested-app/.vscode'), { recursive: true })
+    await writeFile(join(HOME_DIR, 'Library/Application Support/Code/User', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        vscode_user: { command: 'node', args: ['vscode-user.js'] }
+      }
+    }), 'utf8')
+    await writeFile(join(HOME_DIR, 'PhpstormProjects/demo-app/.vscode', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        vscode_workspace: { command: 'npx', args: ['workspace-mcp'] }
+      }
+    }), 'utf8')
+    await writeFile(join(HOME_DIR, 'PhpstormProjects/acme/nested-app/.vscode', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        vscode_nested_workspace: { command: 'uvx', args: ['nested-workspace-mcp'] }
+      }
+    }), 'utf8')
+
+    const result = await discoverExternalMcpServers()
+
+    expect(result.warnings).toEqual([])
+    expect(result.servers).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'vscode_user',
+        source: 'copilot',
+        sourcePath: join(HOME_DIR, 'Library/Application Support/Code/User', 'mcp.json')
+      }),
+      expect.objectContaining({
+        name: 'vscode_workspace',
+        source: 'copilot',
+        sourcePath: join(HOME_DIR, 'PhpstormProjects/demo-app/.vscode', 'mcp.json')
+      }),
+      expect.objectContaining({
+        name: 'vscode_nested_workspace',
+        source: 'copilot',
+        sourcePath: join(HOME_DIR, 'PhpstormProjects/acme/nested-app/.vscode', 'mcp.json')
+      })
+    ]))
+  })
+
+  it('discovers local model MCP host configs', async () => {
+    await mkdir(join(HOME_DIR, 'Library/Application Support/LM Studio'), { recursive: true })
+    await mkdir(join(HOME_DIR, '.config/ollama-mcp-bridge'), { recursive: true })
+    await mkdir(join(HOME_DIR, '.cursor'), { recursive: true })
+    await mkdir(join(HOME_DIR, '.codeium/windsurf'), { recursive: true })
+    await writeFile(join(HOME_DIR, 'Library/Application Support/LM Studio', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        lmstudio_search: { command: 'node', args: ['lmstudio-search.js'] }
+      }
+    }), 'utf8')
+    await writeFile(join(HOME_DIR, '.config/ollama-mcp-bridge', 'mcp-config.json'), JSON.stringify({
+      mcpServers: {
+        ollama_bridge_search: { command: 'uvx', args: ['ollama-search'] }
+      }
+    }), 'utf8')
+    await writeFile(join(HOME_DIR, '.cursor', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        cursor_files: { command: 'npx', args: ['cursor-files'] }
+      }
+    }), 'utf8')
+    await writeFile(join(HOME_DIR, '.codeium/windsurf', 'mcp_config.json'), JSON.stringify({
+      mcpServers: {
+        windsurf_docs: { command: 'python', args: ['windsurf-docs.py'] }
+      }
+    }), 'utf8')
+
+    const result = await discoverExternalMcpServers()
+
+    expect(result.warnings).toEqual([])
+    expect(result.servers).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'lmstudio_search',
+        source: 'lmstudio',
+        sourcePath: join(HOME_DIR, 'Library/Application Support/LM Studio', 'mcp.json')
+      }),
+      expect.objectContaining({
+        name: 'ollama_bridge_search',
+        source: 'ollama',
+        sourcePath: join(HOME_DIR, '.config/ollama-mcp-bridge', 'mcp-config.json')
+      }),
+      expect.objectContaining({
+        name: 'cursor_files',
+        source: 'cursor',
+        sourcePath: join(HOME_DIR, '.cursor', 'mcp.json')
+      }),
+      expect.objectContaining({
+        name: 'windsurf_docs',
+        source: 'windsurf',
+        sourcePath: join(HOME_DIR, '.codeium/windsurf', 'mcp_config.json')
+      })
+    ]))
+  })
 })

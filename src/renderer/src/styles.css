@@ -3394,6 +3394,14 @@ textarea:focus {
   line-height: 1.45;
 }
 
+.mcp-discovery-button {
+  justify-self: flex-start;
+}
+
+.mcp-discovery-status {
+  margin: 0;
+}
+
 .mcp-discovery-list {
   display: grid;
   gap: 8px;

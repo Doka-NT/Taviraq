@@ -149,7 +149,11 @@ const MCP_SOURCE_LABELS: Record<NonNullable<McpServerConfig['source']>, string> 
   claude: 'Claude',
   copilot: 'Copilot',
   codex: 'Codex',
-  opencode: 'OpenCode'
+  opencode: 'OpenCode',
+  lmstudio: 'LM Studio',
+  ollama: 'Ollama',
+  cursor: 'Cursor',
+  windsurf: 'Windsurf'
 }
 const SECURITY_PATTERN_CATEGORIES = [
   {
@@ -1746,6 +1750,10 @@ export function LlmPanel({
             messages.push(toolMessage)
           }
 
+          if (event.status === 'done') {
+            messages.push({ role: 'assistant', content: '' })
+          }
+
           return {
             ...thread,
             messages,
@@ -2567,7 +2575,7 @@ export function LlmPanel({
     setMcpStatus('')
   }, [])
 
-  const saveMcpServer = useCallback(async () => {
+  const saveMcpServer = useCallback(async (enabledOverride?: boolean) => {
     const name = mcpDraft.name.trim()
     const command = mcpDraft.command.trim()
     if (!name || !command) {
@@ -2584,6 +2592,7 @@ export function LlmPanel({
       const now = new Date().toISOString()
       const result = await window.api.mcp.saveServer({
         ...mcpDraft,
+        enabled: enabledOverride ?? mcpDraft.enabled,
         name,
         command,
         args: parseMcpArgs(mcpArgsDraft),
@@ -2599,21 +2608,11 @@ export function LlmPanel({
     }
   }, [mcpArgsDraft, mcpDraft, mcpEnvDraft, mcpServers, t])
 
-  const toggleMcpServer = useCallback(async (server: McpServerConfig) => {
-    try {
-      const result = await window.api.mcp.saveServer({
-        ...server,
-        enabled: !server.enabled,
-        updatedAt: new Date().toISOString()
-      })
-      setMcpServers(result)
-      if (mcpDraft.id === server.id) {
-        setMcpDraft((draft) => ({ ...draft, enabled: !server.enabled }))
-      }
-    } catch (error) {
-      setMcpStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }, [mcpDraft.id])
+  const setMcpServerEnabled = useCallback(async (enabled: boolean) => {
+    setMcpDraft((draft) => ({ ...draft, enabled }))
+    if (!mcpServers.some((server) => server.id === mcpDraft.id)) return
+    await saveMcpServer(enabled)
+  }, [mcpDraft.id, mcpServers, saveMcpServer])
 
   const refreshMcpTools = useCallback(async (server: McpServerConfig) => {
     setMcpRefreshingTools(true)
@@ -4181,12 +4180,13 @@ export function LlmPanel({
                     <section className="settings-section mcp-discovery">
                       <div className="settings-section-heading">
                         <span><HighlightSearchText text={t('mcp.discovery.title')} query={settingsSearch} /></span>
-                        <button type="button" className="quiet-button" disabled={mcpDiscovering} onClick={() => void discoverMcpServers()}>
-                          <Search size={14} aria-hidden />
-                          {mcpDiscovering ? t('mcp.discovery.scanning') : t('mcp.discovery.scan')}
-                        </button>
                       </div>
                       <p className="mcp-discovery-note">{t('mcp.discovery.desc')}</p>
+                      <button type="button" className="quiet-button mcp-discovery-button" disabled={mcpDiscovering} onClick={() => void discoverMcpServers()}>
+                        <Search size={14} aria-hidden />
+                        {mcpDiscovering ? t('mcp.discovery.scanning') : t('mcp.discovery.scan')}
+                      </button>
+                      {mcpStatus ? <p className="settings-status mcp-discovery-status">{mcpStatus}</p> : null}
                       {discoveredMcpServers.length > 0 ? (
                         <div className="mcp-discovery-list">
                           {discoveredMcpServers.map((server) => (
@@ -4269,7 +4269,7 @@ export function LlmPanel({
                           <input
                             type="checkbox"
                             checked={mcpDraft.enabled}
-                            onChange={(event) => setMcpDraft((draft) => ({ ...draft, enabled: event.target.checked }))}
+                            onChange={(event) => { void setMcpServerEnabled(event.target.checked) }}
                           />
                           <i aria-hidden />
                         </label>
@@ -4299,11 +4299,6 @@ export function LlmPanel({
                             <Server size={14} aria-hidden />
                             {t('mcp.save')}
                           </button>
-                          {mcpServers.some((server) => server.id === mcpDraft.id) ? (
-                            <button type="button" className="quiet-button" onClick={() => void toggleMcpServer(mcpDraft)}>
-                              {mcpDraft.enabled ? t('mcp.disable') : t('mcp.enable')}
-                            </button>
-                          ) : null}
                         </div>
 
                         <section className="settings-section mcp-tools">
@@ -4344,8 +4339,6 @@ export function LlmPanel({
                             </div>
                           )}
                         </section>
-
-                        {mcpStatus ? <p className="settings-status">{mcpStatus}</p> : null}
                       </div>
                     </div>
                   </>

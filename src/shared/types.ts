@@ -145,7 +145,16 @@ export interface LLMModel {
   supportsMcp?: boolean
 }
 
-export type McpServerSource = 'manual' | 'claude' | 'copilot' | 'codex' | 'opencode'
+export type McpServerSource =
+  | 'manual'
+  | 'claude'
+  | 'copilot'
+  | 'codex'
+  | 'opencode'
+  | 'lmstudio'
+  | 'ollama'
+  | 'cursor'
+  | 'windsurf'
 
 export interface McpServerConfig {
   id: string

@@ -1,6 +1,6 @@
 import { app, dialog, nativeImage } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { DiscoveredMcpServer, McpDiscoveryResult, McpServerConfig, McpServerSource, McpToolConfig } from '@shared/types'
 
@@ -25,7 +25,14 @@ const DISCOVERY_SOURCES: Array<{
     label: 'Copilot',
     paths: [
       '.config/github-copilot/mcp.json',
-      '.github/copilot/mcp.json'
+      '.github/copilot/mcp.json',
+      'Library/Application Support/Code/User/mcp.json',
+      'Library/Application Support/Code - Insiders/User/mcp.json',
+      'Library/Application Support/VSCodium/User/mcp.json',
+      'PhpstormProjects/*/.vscode/mcp.json',
+      'PhpstormProjects/*/*/.vscode/mcp.json',
+      'Documents/*/.vscode/mcp.json',
+      'Projects/*/.vscode/mcp.json'
     ]
   },
   {
@@ -42,6 +49,44 @@ const DISCOVERY_SOURCES: Array<{
     paths: [
       '.opencode/mcp.json',
       '.config/opencode/mcp.json'
+    ]
+  },
+  {
+    source: 'lmstudio',
+    label: 'LM Studio',
+    paths: [
+      'Library/Application Support/LM Studio/mcp.json',
+      '.lmstudio/mcp.json',
+      '.config/lmstudio/mcp.json'
+    ]
+  },
+  {
+    source: 'ollama',
+    label: 'Ollama bridge',
+    paths: [
+      '.mcphost.json',
+      '.config/mcphost/config.json',
+      '.config/mcphost/mcp.json',
+      '.config/mcphost/mcp-servers.json',
+      '.config/ollama-mcp-bridge/mcp-config.json',
+      '.ollama/mcp-config.json'
+    ]
+  },
+  {
+    source: 'cursor',
+    label: 'Cursor',
+    paths: [
+      '.cursor/mcp.json',
+      'Library/Application Support/Cursor/User/mcp.json'
+    ]
+  },
+  {
+    source: 'windsurf',
+    label: 'Windsurf',
+    paths: [
+      '.codeium/windsurf/mcp_config.json',
+      '.config/windsurf/mcp_config.json',
+      'Library/Application Support/Windsurf/User/mcp_config.json'
     ]
   }
 ]
@@ -181,7 +226,7 @@ export async function discoverExternalMcpServers(): Promise<McpDiscoveryResult> 
     defaultId: 0,
     cancelId: 1,
     message: 'Discover MCP servers',
-    detail: 'Taviraq can read known local configuration files for Claude, Copilot, Codex, and OpenCode. Review found servers before importing anything.',
+    detail: 'Taviraq can read known local MCP configuration files for Claude, VS Code Copilot, Codex, OpenCode, LM Studio, Ollama bridges, Cursor, and Windsurf. Review found servers before importing anything.',
     ...(icon && !icon.isEmpty() ? { icon } : {})
   })
   if (approval.response !== 0) return { servers: [], warnings: [] }
@@ -193,28 +238,57 @@ export async function discoverExternalMcpServers(): Promise<McpDiscoveryResult> 
 
   for (const source of DISCOVERY_SOURCES) {
     for (const relativePath of source.paths) {
-      const sourcePath = join(home, relativePath)
-      if (!await exists(sourcePath)) continue
-      try {
-        const found = await readMcpServersFromFile(sourcePath, source.source)
-        for (const server of found) {
-          const discovered: DiscoveredMcpServer = {
-            ...server,
-            source: source.source,
-            sourcePath
+      for (const sourcePath of await expandDiscoveryPaths(home, relativePath)) {
+        if (!await exists(sourcePath)) continue
+        try {
+          const found = await readMcpServersFromFile(sourcePath, source.source)
+          for (const server of found) {
+            const discovered: DiscoveredMcpServer = {
+              ...server,
+              source: source.source,
+              sourcePath
+            }
+            const key = `${source.source}:${sourcePath}:${getMcpServerKey(discovered)}`
+            if (seen.has(key)) continue
+            seen.add(key)
+            servers.push(discovered)
           }
-          const key = `${source.source}:${sourcePath}:${getMcpServerKey(discovered)}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          servers.push(discovered)
+        } catch (error: unknown) {
+          warnings.push(`${source.label}: ${sourcePath}: ${error instanceof Error ? error.message : String(error)}`)
         }
-      } catch (error: unknown) {
-        warnings.push(`${source.label}: ${sourcePath}: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
   }
 
   return { servers, warnings }
+}
+
+async function expandDiscoveryPaths(home: string, relativePath: string): Promise<string[]> {
+  const segments = relativePath.split('/')
+  const paths = await expandPathSegments(home, segments)
+  return paths
+}
+
+async function expandPathSegments(base: string, segments: string[]): Promise<string[]> {
+  const [segment, ...rest] = segments
+  if (!segment) return [base]
+  if (segment !== '*') {
+    return expandPathSegments(join(base, segment), rest)
+  }
+
+  let entries: Array<{ name: string; isDirectory: () => boolean }>
+  try {
+    entries = await readdir(base, { withFileTypes: true })
+  } catch {
+    return []
+  }
+
+  const expanded = await Promise.all(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => expandPathSegments(join(base, entry.name), rest))
+  )
+  return expanded.flat()
 }
 
 function getDiscoveryDialogIcon(): Electron.NativeImage | undefined {
@@ -399,7 +473,15 @@ function getMcpServerKey(server: Pick<McpServerConfig, 'name'>): string {
 }
 
 function isMcpServerSource(source: unknown): source is McpServerSource {
-  return source === 'manual' || source === 'claude' || source === 'copilot' || source === 'codex' || source === 'opencode'
+  return source === 'manual' ||
+    source === 'claude' ||
+    source === 'copilot' ||
+    source === 'codex' ||
+    source === 'opencode' ||
+    source === 'lmstudio' ||
+    source === 'ollama' ||
+    source === 'cursor' ||
+    source === 'windsurf'
 }
 
 async function exists(path: string): Promise<boolean> {

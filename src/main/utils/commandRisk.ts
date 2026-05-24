@@ -195,6 +195,8 @@ function hasHttpTransferRisk(args: string[]): boolean {
     const token = args[i] ?? ''
     if (HTTP_UPLOAD_FLAG_RE.test(token)) return true
     if ((token === '<' || token === '0<') && isSensitivePathToken(args[i + 1] ?? '')) return true
+    const inputRedirect = token.match(/^\d*<(.+)$/)
+    if (inputRedirect && isSensitivePathToken(inputRedirect[1] ?? '')) return true
   }
 
   return false

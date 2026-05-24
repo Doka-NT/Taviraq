@@ -224,7 +224,7 @@ export function resolveMcpBootstrapShell(
   envShell = process.env.SHELL,
   shellExists: (path: string) => boolean = existsSync
 ): string {
-  if (envShell && POSIX_COMPATIBLE_SHELLS.has(basename(envShell))) {
+  if (envShell && POSIX_COMPATIBLE_SHELLS.has(basename(envShell)) && shellExists(envShell)) {
     return envShell
   }
 

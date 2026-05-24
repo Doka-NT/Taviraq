@@ -18,7 +18,8 @@ describe('mcpRuntime', () => {
 
   it('falls back to a POSIX-compatible bootstrap shell for non-POSIX login shells', () => {
     expect(resolveMcpBootstrapShell('/opt/homebrew/bin/fish', (path) => path === '/bin/zsh')).toBe('/bin/zsh')
-    expect(resolveMcpBootstrapShell('/usr/bin/zsh', () => false)).toBe('/usr/bin/zsh')
+    expect(resolveMcpBootstrapShell('/usr/bin/zsh', (path) => path === '/usr/bin/zsh')).toBe('/usr/bin/zsh')
+    expect(resolveMcpBootstrapShell('/missing/zsh', (path) => path === '/bin/bash')).toBe('/bin/bash')
   })
 
   it('collects paginated tools/list responses', async () => {

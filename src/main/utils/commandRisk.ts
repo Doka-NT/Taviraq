@@ -130,9 +130,9 @@ export function assessProtectedCommandRisk(
 const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])
 const SENSITIVE_READ_COMMANDS = new Set(['cat', 'less', 'more', 'head', 'tail', 'sed', 'awk', 'grep', 'rg', 'find'])
 const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
-const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-binary|-raw)?|--form|--upload-file|-T|--post-(?:file|data))(?:=.*)?|-d\S*|-F\S*)$/i
+const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-binary|-raw)?|--form|--upload-file|-T|--post-(?:file|data)|--body-file|--config|--netrc-file|--cookie)(?:=.*)?|-d\S*|-F\S*|-K\S*)$/i
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/s
-const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
+const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|\.curlrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
 const SECRET_SEARCH_RE = /^(?:password|passwd|secret|secrets|token|tokens|api[_-]?key|private[_-]?key|credential|credentials)$/i
 
 function hasSensitiveReadRisk(command: string): boolean {
@@ -169,7 +169,7 @@ function hasTransferRisk(command: string, depth = 0): boolean {
 
     if (TRANSFER_COMMANDS.has(executable)) return true
 
-    if ((executable === 'curl' || executable === 'wget') && tokens.slice(1).some((token) => HTTP_UPLOAD_FLAG_RE.test(token))) {
+    if ((executable === 'curl' || executable === 'wget') && hasHttpTransferRisk(tokens.slice(1))) {
       return true
     }
 
@@ -180,6 +180,16 @@ function hasTransferRisk(command: string, depth = 0): boolean {
 
     return false
   })
+}
+
+function hasHttpTransferRisk(args: string[]): boolean {
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i] ?? ''
+    if (HTTP_UPLOAD_FLAG_RE.test(token)) return true
+    if ((token === '<' || token === '0<') && isSensitivePathToken(args[i + 1] ?? '')) return true
+  }
+
+  return false
 }
 
 function executableTokens(tokens: string[]): string[] {
@@ -371,6 +381,7 @@ function findCommandSubstitutionEnd(command: string, start: number): number {
 function readShellCommandArgument(tokens: string[]): string | undefined {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i]
+    if (token === '--command') return tokens[i + 1]
     if (!token.startsWith('-')) continue
     if (token.startsWith('--')) continue
     if (!/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) continue

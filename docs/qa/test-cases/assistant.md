@@ -286,7 +286,7 @@ Expected:
 - Markdown list item boundaries and line breaks are preserved.
 
 Automation:
-- Existing: `tests/unit/llmService.test.ts` covers unterminated final stream chunks for OpenAI-compatible, Anthropic, LM Studio, and Ollama providers.
+- Existing: `tests/unit/llmService.test.ts` covers unterminated final stream chunks for OpenAI-compatible, Anthropic, LM Studio, and Ollama providers; `tests/unit/chatMessages.test.ts` covers final authoritative content reconciliation after an incomplete streamed display.
 - Missing: UI streaming rendering test for the same provider-tail scenario.
 
 ## TC-ASSIST-014: Terminal context is treated as untrusted data

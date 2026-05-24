@@ -25,7 +25,7 @@ import { PromptPicker } from './PromptPicker'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
-import { stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
+import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
 import { useT, type LanguageContextValue } from '@renderer/i18n/language'
 import type { Language } from '@renderer/i18n/translations'
@@ -1626,16 +1626,10 @@ export function LlmPanel({
         requestSessionRef.current.delete(event.requestId)
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
-          const maskedResponseContent = event.maskedContent && containsSecretPlaceholder(event.maskedContent)
-            ? event.maskedContent
-            : undefined
-          const nextMessages = maskedResponseContent ? [...thread.messages] : thread.messages
+          const nextMessages = event.maskedContent !== undefined ? [...thread.messages] : thread.messages
           const lastMessage = nextMessages.at(-1)
-          if (maskedResponseContent && lastMessage?.role === 'assistant') {
-            nextMessages[nextMessages.length - 1] = {
-              ...lastMessage,
-              maskedContent: maskedResponseContent
-            }
+          if (event.maskedContent !== undefined && lastMessage?.role === 'assistant') {
+            nextMessages[nextMessages.length - 1] = applyAuthoritativeAssistantContent(lastMessage, event.maskedContent)
           }
 
           return {

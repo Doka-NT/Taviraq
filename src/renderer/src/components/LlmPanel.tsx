@@ -4128,6 +4128,38 @@ export function LlmPanel({
                 {!settingsNoResults && settingsTab === 'mcp' ? (
                   <>
                     <h3 className="settings-content-title">{t('mcp.title')}</h3>
+                    <section className="settings-section mcp-discovery">
+                      <div className="settings-section-heading">
+                        <span><HighlightSearchText text={t('mcp.discovery.title')} query={settingsSearch} /></span>
+                        <button type="button" className="quiet-button" disabled={mcpDiscovering} onClick={() => void discoverMcpServers()}>
+                          <Search size={14} aria-hidden />
+                          {mcpDiscovering ? t('mcp.discovery.scanning') : t('mcp.discovery.scan')}
+                        </button>
+                      </div>
+                      <p className="mcp-discovery-note">{t('mcp.discovery.desc')}</p>
+                      {discoveredMcpServers.length > 0 ? (
+                        <div className="mcp-discovery-list">
+                          {discoveredMcpServers.map((server) => (
+                            <label key={getDiscoveredMcpKey(server)} className="mcp-discovery-item">
+                              <span className="mcp-discovery-copy">
+                                <strong>{server.name}</strong>
+                                <small>{MCP_SOURCE_LABELS[server.source]} · {server.command}</small>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server))}
+                                onChange={() => toggleDiscoveredMcp(getDiscoveredMcpKey(server))}
+                              />
+                              <i aria-hidden />
+                            </label>
+                          ))}
+                          <button type="button" className="primary-button mcp-import-button" onClick={() => void importSelectedMcpServers()}>
+                            <Check size={14} aria-hidden />
+                            {t('mcp.importSelected')}
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
                     <div className="mcp-layout">
                       <div>
                         <div className="providers-list-header">
@@ -4263,37 +4295,6 @@ export function LlmPanel({
                           )}
                         </section>
 
-                        <section className="settings-section mcp-discovery">
-                          <div className="settings-section-heading">
-                            <span><HighlightSearchText text={t('mcp.discovery.title')} query={settingsSearch} /></span>
-                            <button type="button" className="quiet-button" disabled={mcpDiscovering} onClick={() => void discoverMcpServers()}>
-                              <Search size={14} aria-hidden />
-                              {mcpDiscovering ? t('mcp.discovery.scanning') : t('mcp.discovery.scan')}
-                            </button>
-                          </div>
-                          <p className="mcp-discovery-note">{t('mcp.discovery.desc')}</p>
-                          {discoveredMcpServers.length > 0 ? (
-                            <div className="mcp-discovery-list">
-                              {discoveredMcpServers.map((server) => (
-                                <label key={getDiscoveredMcpKey(server)} className="mcp-discovery-item">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedDiscoveredMcpIds.includes(getDiscoveredMcpKey(server))}
-                                    onChange={() => toggleDiscoveredMcp(getDiscoveredMcpKey(server))}
-                                  />
-                                  <span>
-                                    <strong>{server.name}</strong>
-                                    <small>{MCP_SOURCE_LABELS[server.source]} · {server.command}</small>
-                                  </span>
-                                </label>
-                              ))}
-                              <button type="button" className="primary-button" onClick={() => void importSelectedMcpServers()}>
-                                <Check size={14} aria-hidden />
-                                {t('mcp.importSelected')}
-                              </button>
-                            </div>
-                          ) : null}
-                        </section>
                         {mcpStatus ? <p className="settings-status">{mcpStatus}</p> : null}
                       </div>
                     </div>

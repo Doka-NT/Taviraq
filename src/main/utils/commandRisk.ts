@@ -204,6 +204,17 @@ function executableTokens(tokens: string[]): string[] {
   const result = [...tokens]
   while (result.length > 0) {
     const token = result[0] ?? ''
+    if (/^\(+$/.test(token)) {
+      result.shift()
+      continue
+    }
+
+    if (token.startsWith('(')) {
+      result[0] = token.replace(/^\(+/, '')
+      if (!result[0]) result.shift()
+      continue
+    }
+
     if (token === 'sudo' || token === 'command' || ENV_ASSIGNMENT_RE.test(token)) {
       result.shift()
       continue
@@ -249,7 +260,7 @@ function splitShellCommands(command: string): string[] {
       continue
     }
 
-    if (char === '|' || char === ';' || char === '&') {
+    if (char === '|' || char === ';' || char === '&' || char === '\n' || char === '\r') {
       if (current.trim()) parts.push(current.trim())
       current = ''
       continue

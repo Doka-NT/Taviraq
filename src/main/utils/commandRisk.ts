@@ -6,7 +6,7 @@ type ProtectedPattern = {
   reason: string
   reasonCode?: CommandRiskAssessment['reasonCode']
   riskLevel?: CommandRiskLevel
-  ignoreQuotedLiterals?: boolean
+  matcher?: (command: string) => boolean
 }
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
@@ -67,10 +67,10 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'warning'
   },
   {
-    pattern: /(?:^|[|;&]\s*)(?:(?:sudo|command)\s+)*(?:(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|(?:scp|rsync|nc|ncat|netcat)\b)/i,
+    pattern: /\b(?:curl|wget|scp|rsync|nc|ncat|netcat)\b/i,
     reason: 'This command can transfer local data or open a raw network stream.',
     riskLevel: 'danger',
-    ignoreQuotedLiterals: true
+    matcher: hasTransferRisk
   },
   {
     pattern: /\bsudo\b/i,
@@ -103,8 +103,8 @@ export function assessProtectedCommandRisk(
   const command = request.command.trim()
   if (!command) return undefined
 
-  const matches = PROTECTED_PATTERNS.filter(({ pattern, ignoreQuotedLiterals }) =>
-    pattern.test(ignoreQuotedLiterals ? stripQuotedLiterals(command) : command)
+  const matches = PROTECTED_PATTERNS.filter(({ pattern, matcher }) =>
+    matcher ? matcher(command) : pattern.test(command)
   )
   if (matches.length === 0) return undefined
 
@@ -131,16 +131,51 @@ export function assessProtectedCommandRisk(
   }
 }
 
-function stripQuotedLiterals(command: string): string {
-  let result = ''
+const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])
+const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
+const CURL_UPLOAD_FLAG_RE = /^(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)(?:=.*)?$/i
+
+function hasTransferRisk(command: string, depth = 0): boolean {
+  if (depth > 2) return false
+
+  return splitShellCommands(command).some((segment) => {
+    const tokens = tokenizeShellSegment(segment)
+    if (tokens.length === 0) return false
+
+    while (tokens[0] === 'sudo' || tokens[0] === 'command') {
+      tokens.shift()
+    }
+
+    const executable = basename(tokens[0] ?? '').toLowerCase()
+    if (!executable) return false
+
+    if (TRANSFER_COMMANDS.has(executable)) return true
+
+    if ((executable === 'curl' || executable === 'wget') && tokens.slice(1).some((token) => CURL_UPLOAD_FLAG_RE.test(token))) {
+      return true
+    }
+
+    if (SHELL_WRAPPERS.has(executable)) {
+      const commandArg = readShellCommandArgument(tokens.slice(1))
+      return commandArg ? hasTransferRisk(commandArg, depth + 1) : false
+    }
+
+    return false
+  })
+}
+
+function splitShellCommands(command: string): string[] {
+  const parts: string[] = []
+  let current = ''
   let quote: '"' | "'" | undefined
 
   for (let i = 0; i < command.length; i += 1) {
     const char = command[i]
 
     if (quote) {
+      current += char
       if (char === '\\' && quote === '"' && i + 1 < command.length) {
-        result += '  '
+        current += command[i + 1]
         i += 1
         continue
       }
@@ -149,18 +184,83 @@ function stripQuotedLiterals(command: string): string {
         quote = undefined
       }
 
-      result += ' '
       continue
     }
 
     if (char === '"' || char === "'") {
       quote = char
-      result += ' '
+      current += char
       continue
     }
 
-    result += char
+    if (char === '|' || char === ';' || char === '&') {
+      if (current.trim()) parts.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += char
   }
 
-  return result
+  if (current.trim()) parts.push(current.trim())
+  return parts
+}
+
+function tokenizeShellSegment(segment: string): string[] {
+  const tokens: string[] = []
+  let current = ''
+  let quote: '"' | "'" | undefined
+
+  for (let i = 0; i < segment.length; i += 1) {
+    const char = segment[i]
+
+    if (quote) {
+      if (char === '\\' && quote === '"' && i + 1 < segment.length) {
+        current += segment[i + 1]
+        i += 1
+        continue
+      }
+
+      if (char === quote) {
+        quote = undefined
+        continue
+      }
+
+      current += char
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        tokens.push(current)
+        current = ''
+      }
+      continue
+    }
+
+    current += char
+  }
+
+  if (current) tokens.push(current)
+  return tokens
+}
+
+function readShellCommandArgument(tokens: string[]): string | undefined {
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i]
+    if (!token.startsWith('-')) continue
+    if (!token.includes('c')) continue
+    return tokens[i + 1]
+  }
+
+  return undefined
+}
+
+function basename(command: string): string {
+  return command.split('/').at(-1) ?? command
 }

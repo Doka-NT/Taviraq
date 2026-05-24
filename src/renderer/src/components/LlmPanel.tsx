@@ -205,6 +205,21 @@ function formatToolCallOutput(value: string): string {
   }
 }
 
+function isAssistantResponseMessage(message: ThreadMessage | undefined): message is ThreadMessage {
+  return Boolean(message && message.role === 'assistant' && !message.display)
+}
+
+function isEmptyAssistantDraft(message: ThreadMessage | undefined): message is ThreadMessage {
+  return isAssistantResponseMessage(message) && !message.content && !message.reasoningContent && !message.privacy
+}
+
+function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isAssistantResponseMessage(messages[index])) return index
+  }
+  return -1
+}
+
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
@@ -1637,8 +1652,10 @@ export function LlmPanel({
           if (thread.activeRequestId !== event.requestId) return thread
           const next = [...thread.messages]
           const last = next.at(-1)
-          if (last?.role === 'assistant') {
+          if (isAssistantResponseMessage(last)) {
             next[next.length - 1] = { ...last, content: last.content + event.content }
+          } else {
+            next.push({ role: 'assistant', content: event.content ?? '' })
           }
           return {
             ...thread,
@@ -1654,11 +1671,17 @@ export function LlmPanel({
           if (thread.activeRequestId !== event.requestId) return thread
           const next = [...thread.messages]
           const last = next.at(-1)
-          if (last?.role === 'assistant') {
+          if (isAssistantResponseMessage(last)) {
             next[next.length - 1] = {
               ...last,
               reasoningContent: `${last.reasoningContent ?? ''}${event.content}`
             }
+          } else {
+            next.push({
+              role: 'assistant',
+              content: '',
+              reasoningContent: event.content
+            })
           }
           return {
             ...thread,
@@ -1740,6 +1763,8 @@ export function LlmPanel({
 
           if (last?.display === 'tool-call' && last.command === command && event.status !== 'running') {
             messages[messages.length - 1] = toolMessage
+          } else if (isEmptyAssistantDraft(last)) {
+            messages[messages.length - 1] = toolMessage
           } else {
             messages.push(toolMessage)
           }
@@ -1779,9 +1804,12 @@ export function LlmPanel({
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
           const nextMessages = event.maskedContent !== undefined ? [...thread.messages] : thread.messages
-          const lastMessage = nextMessages.at(-1)
-          if (event.maskedContent !== undefined && lastMessage?.role === 'assistant') {
-            nextMessages[nextMessages.length - 1] = applyAuthoritativeAssistantContent(lastMessage, event.maskedContent)
+          const assistantIndex = event.maskedContent !== undefined ? findLastAssistantResponseIndex(nextMessages) : -1
+          const assistantMessage = assistantIndex >= 0 ? nextMessages[assistantIndex] : undefined
+          if (event.maskedContent !== undefined && assistantMessage) {
+            nextMessages[assistantIndex] = applyAuthoritativeAssistantContent(assistantMessage, event.maskedContent)
+          } else if (event.maskedContent) {
+            nextMessages.push({ role: 'assistant', content: event.maskedContent })
           }
 
           return {
@@ -5114,11 +5142,14 @@ export function LlmPanel({
             const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
             const output = hideSecretPlaceholders(formatToolCallOutput(message.output ?? ''), maskedSecretLabel)
             const failed = /failed$/i.test(message.content)
+            const running = /^Calling MCP tool/i.test(message.content)
             return (
               <div className={`tool-call-message ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>
                 <div>
-                  <span className="system-prefix">&gt;</span>
-                  <span>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</span>
+                  <span className="tool-call-icon">
+                    {running ? <RefreshCw size={12} aria-hidden /> : <Hammer size={12} aria-hidden />}
+                  </span>
+                  <span>{failed ? 'MCP tool failed' : running ? 'Calling MCP tool' : 'Used MCP tool'}</span>
                   {toolName ? <code>{toolName}</code> : null}
                 </div>
                 {output ? (

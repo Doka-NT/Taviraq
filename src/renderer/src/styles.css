@@ -4129,12 +4129,17 @@ textarea:focus {
 }
 
 .tool-call-message {
-  display: grid;
+  display: inline-grid;
   flex: 0 0 auto;
   gap: 6px;
-  max-width: calc(100% - 8px);
-  padding: 7px 0;
+  width: fit-content;
+  max-width: min(640px, calc(100% - 8px));
+  margin: 2px 0 0 31px;
+  padding: 6px 8px;
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.14);
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
+  background: rgba(var(--accent-cyan-rgb), 0.035);
   font-size: 11px;
   animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
@@ -4143,17 +4148,28 @@ textarea:focus {
   display: flex;
   align-items: center;
   min-width: 0;
-  gap: 7px;
+  gap: 6px;
+}
+
+.tool-call-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent-cyan);
 }
 
 .tool-call-message code {
   min-width: 0;
   overflow: hidden;
-  padding: 2px 6px;
-  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.22);
+  max-width: min(300px, 46vw);
+  padding: 1px 5px;
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.18);
   border-radius: var(--radius-xs);
   color: var(--accent-cyan);
-  background: rgba(var(--accent-cyan-rgb), 0.065);
+  background: rgba(var(--accent-cyan-rgb), 0.055);
   font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -4163,6 +4179,15 @@ textarea:focus {
   border-color: rgba(var(--accent-red-rgb), 0.28);
   color: var(--accent-red-text);
   background: rgba(var(--accent-red-rgb), 0.08);
+}
+
+.tool-call-message.failed {
+  border-color: rgba(var(--accent-red-rgb), 0.18);
+  background: rgba(var(--accent-red-rgb), 0.045);
+}
+
+.tool-call-message.failed .tool-call-icon {
+  color: var(--accent-red-text);
 }
 
 .tool-call-message summary {

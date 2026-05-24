@@ -37,6 +37,7 @@ import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@rende
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
+import { mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -1694,9 +1695,17 @@ export function LlmPanel({
             scope: event.scope ?? 'provider-payload',
             sessionLabel: event.sessionLabel
           }
+          const mergedPrivacy = last?.privacy ? mergePrivacyNotices(last.privacy, privacy) : privacy
 
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages[messages.length - 1] = { ...last, privacy }
+            messages[messages.length - 1] = { ...last, privacy: mergedPrivacy }
+          } else if (last?.display === 'privacy-status') {
+            messages[messages.length - 1] = {
+              ...last,
+              content: t('status.privacyMasked', { count: mergedPrivacy.maskedSecretCount }),
+              output: String(mergedPrivacy.maskedSecretCount),
+              privacy: mergedPrivacy
+            }
           } else {
             messages.push({
               role: 'assistant',

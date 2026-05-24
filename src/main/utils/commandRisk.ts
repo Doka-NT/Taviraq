@@ -6,6 +6,7 @@ type ProtectedPattern = {
   reason: string
   reasonCode?: CommandRiskAssessment['reasonCode']
   riskLevel?: CommandRiskLevel
+  ignoreQuotedLiterals?: boolean
 }
 
 const PROTECTED_PATTERNS: ProtectedPattern[] = [
@@ -68,7 +69,8 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
   {
     pattern: /(?:^|[|;&]\s*)(?:(?:sudo|command)\s+)*(?:(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|(?:scp|rsync|nc|ncat|netcat)\b)/i,
     reason: 'This command can transfer local data or open a raw network stream.',
-    riskLevel: 'danger'
+    riskLevel: 'danger',
+    ignoreQuotedLiterals: true
   },
   {
     pattern: /\bsudo\b/i,
@@ -101,7 +103,9 @@ export function assessProtectedCommandRisk(
   const command = request.command.trim()
   if (!command) return undefined
 
-  const matches = PROTECTED_PATTERNS.filter(({ pattern }) => pattern.test(command))
+  const matches = PROTECTED_PATTERNS.filter(({ pattern, ignoreQuotedLiterals }) =>
+    pattern.test(ignoreQuotedLiterals ? stripQuotedLiterals(command) : command)
+  )
   if (matches.length === 0) return undefined
 
   // Pick the primary match: first pattern with the highest risk level,
@@ -125,4 +129,38 @@ export function assessProtectedCommandRisk(
     ...(sshLabel ? { reasonArgs: { sshLabel } } : {}),
     ...(bestRisk ? { riskLevel: bestRisk } : {})
   }
+}
+
+function stripQuotedLiterals(command: string): string {
+  let result = ''
+  let quote: '"' | "'" | undefined
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i]
+
+    if (quote) {
+      if (char === '\\' && quote === '"' && i + 1 < command.length) {
+        result += '  '
+        i += 1
+        continue
+      }
+
+      if (char === quote) {
+        quote = undefined
+      }
+
+      result += ' '
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      result += ' '
+      continue
+    }
+
+    result += char
+  }
+
+  return result
 }

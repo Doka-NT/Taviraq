@@ -67,7 +67,10 @@ describe('protected command risk checks', () => {
     'grep -R "error" logs',
     'cat config.json',
     'echo "rsync"',
-    'grep ncat README.md'
+    'grep ncat README.md',
+    'echo "; scp"',
+    'printf "x; scp"',
+    'printf "x; \\"scp\\""'
   ])('does not pre-classify read-only command %s', (command) => {
     expect(assessProtectedCommandRisk({
       command,

@@ -123,6 +123,6 @@ function buildTerminalContextMessage(context: AssistantPromptContext): ChatMessa
 
 function escapeTerminalContext(value: string): string {
   return value
-    .replace(/<terminal-context/gi, '< terminal-context')
-    .replace(/<\/terminal-context>/gi, '< /terminal-context>')
+    .replace(/<\s*\/\s*terminal-context\s*>/gi, '< /terminal-context>')
+    .replace(/<\s*terminal-context\b/gi, '< terminal-context')
 }

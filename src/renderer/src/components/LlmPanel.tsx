@@ -184,7 +184,7 @@ const SECURITY_PATTERN_CATEGORIES = [
 ] as const
 
 type ThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status' | 'privacy-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status' | 'tool-call'
   displayContent?: string
   command?: string
   output?: string
@@ -1705,6 +1705,39 @@ export function LlmPanel({
           }
         })
         autoSaveThreadToHistory(sessionId)
+      }
+
+      if (event.type === 'tool') {
+        const command = `${event.serverName}.${event.toolName}`
+        updateThread(sessionId, (thread) => {
+          if (thread.activeRequestId !== event.requestId) return thread
+          const messages = [...thread.messages]
+          const last = messages.at(-1)
+          const content = event.status === 'running'
+            ? `Calling MCP tool ${command}`
+            : event.status === 'error'
+              ? `MCP tool ${command} failed`
+              : `MCP tool ${command} returned`
+          const toolMessage: ThreadMessage = {
+            role: 'assistant',
+            content,
+            display: 'tool-call',
+            command,
+            output: event.content ?? ''
+          }
+
+          if (last?.display === 'tool-call' && last.command === command && event.status !== 'running') {
+            messages[messages.length - 1] = toolMessage
+          } else {
+            messages.push(toolMessage)
+          }
+
+          return {
+            ...thread,
+            messages,
+            status: event.status === 'running' ? { tone: 'info', label: content } : null
+          }
+        })
       }
 
       if (event.type === 'error') {
@@ -5062,6 +5095,27 @@ export function LlmPanel({
                 notice={message.privacy}
                 onOpenSecuritySettings={openSecuritySettings}
               />
+            )
+          }
+
+          if (message.display === 'tool-call') {
+            const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
+            const output = hideSecretPlaceholders(message.output?.trim() ?? '', maskedSecretLabel)
+            const failed = /failed$/i.test(message.content)
+            return (
+              <div className={`tool-call-message ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>
+                <div>
+                  <span className="system-prefix">&gt;</span>
+                  <span>{hideSecretPlaceholders(message.content, maskedSecretLabel)}</span>
+                  {toolName ? <code>{toolName}</code> : null}
+                </div>
+                {output ? (
+                  <details>
+                    <summary>{failed ? 'Show error' : 'Show result'}</summary>
+                    <pre>{output}</pre>
+                  </details>
+                ) : null}
+              </div>
             )
           }
 

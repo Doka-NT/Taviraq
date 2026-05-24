@@ -192,7 +192,7 @@ export interface ChatMessage {
 }
 
 export type RestorableThreadMessage = ChatMessage & {
-  display?: 'command-output' | 'system-status' | 'privacy-status'
+  display?: 'command-output' | 'system-status' | 'privacy-status' | 'tool-call'
   command?: string
   output?: string
   privacy?: PrivacyMaskingNotice
@@ -281,6 +281,7 @@ export interface GeneratedPrompt {
 export type ChatStreamEvent =
   | { requestId: string; type: 'chunk'; content: string }
   | { requestId: string; type: 'reasoning'; content: string }
+  | { requestId: string; type: 'tool'; status: 'running' | 'done' | 'error'; serverName: string; toolName: string; content?: string }
   | {
       requestId: string
       type: 'privacy'

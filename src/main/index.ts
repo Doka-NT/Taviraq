@@ -1400,6 +1400,17 @@ function registerIpc(): void {
               })
             }
 
+            if (chunk.type === 'tool' && chunk.status && chunk.serverName && chunk.toolName) {
+              event.sender.send('llm:chatStream:event', {
+                requestId: request.requestId,
+                type: 'tool',
+                status: chunk.status,
+                serverName: chunk.serverName,
+                toolName: chunk.toolName,
+                ...(chunk.content ? { content: chunk.content } : {})
+              })
+            }
+
             if (chunk.reasoningContent) {
               event.sender.send('llm:chatStream:event', {
                 requestId: request.requestId,

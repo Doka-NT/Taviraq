@@ -119,6 +119,9 @@ async function listAnthropicModels(provider: LLMProviderConfig, credentialOverri
 type ChatStreamUpdate = Pick<ChatStreamEvent, 'type'> & {
   content?: string
   reasoningContent?: string
+  status?: 'running' | 'done' | 'error'
+  serverName?: string
+  toolName?: string
   maskedSecrets?: number
   categories?: string[]
   stage?: 'model_load' | 'prompt_processing'
@@ -347,7 +350,7 @@ async function completeOpenAIWithMcpTools(
       const entry = toolMap.get(call.function.name)
       const args = safeParseToolArgs(call.function.arguments)
       const content = entry
-        ? await callMcpTool(entry.server, entry.tool.name, args, signal)
+        ? await callMcpToolWithTrace(entry, args, onChunk, signal)
         : `Unknown MCP tool: ${call.function.name}`
       messages.push({ role: 'tool', tool_call_id: call.id, content })
     }
@@ -401,13 +404,31 @@ async function completeAnthropicWithMcpTools(
       const entry = toolMap.get(name)
       const args = isRecord(use.input) ? use.input : {}
       const text = entry
-        ? await callMcpTool(entry.server, entry.tool.name, args, signal)
+        ? await callMcpToolWithTrace(entry, args, onChunk, signal)
         : `Unknown MCP tool: ${name}`
       toolResults.push({ type: 'tool_result', tool_use_id: id, content: text })
     }
     messages.push({ role: 'user', content: toolResults })
   }
   onChunk({ type: 'chunk', content: 'MCP tool loop reached the maximum number of tool calls.' })
+}
+
+async function callMcpToolWithTrace(
+  entry: McpRuntimeTool,
+  args: Record<string, unknown>,
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<string> {
+  onChunk({ type: 'tool', status: 'running', serverName: entry.server.name, toolName: entry.tool.name })
+  try {
+    const content = await callMcpTool(entry.server, entry.tool.name, args, signal)
+    onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, content })
+    return content
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, content: message })
+    throw error
+  }
 }
 
 async function streamAnthropicChatCompletion(

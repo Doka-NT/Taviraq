@@ -91,7 +91,8 @@ class McpStdioSession {
   constructor(private readonly server: McpServerConfig) {}
 
   start(): void {
-    this.child = spawn(this.server.command, this.server.args ?? [], {
+    const shell = process.env.SHELL || '/bin/zsh'
+    this.child = spawn(shell, ['-lc', buildShellLaunchScript(this.server)], {
       env: { ...process.env, ...(this.server.env ?? {}) },
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -179,6 +180,26 @@ class McpStdioSession {
       pending.reject(error)
     }
   }
+}
+
+export function buildShellLaunchScript(server: Pick<McpServerConfig, 'command' | 'args'>): string {
+  return [
+    'exec 3>&1',
+    'exec 1>&2',
+    'if [ -n "${ZSH_VERSION:-}" ] && [ -r "${HOME}/.zshrc" ]; then source "${HOME}/.zshrc"; fi',
+    'if [ -n "${BASH_VERSION:-}" ] && [ -r "${HOME}/.bashrc" ]; then source "${HOME}/.bashrc"; fi',
+    'exec 1>&3',
+    `eval ${shellQuote(buildShellCommand(server.command, server.args ?? []))}`
+  ].join('\n')
+}
+
+function buildShellCommand(command: string, args: string[]): string {
+  const executable = /^[A-Za-z0-9_.-]+$/.test(command) ? command : shellQuote(command)
+  return [executable, ...args.map(shellQuote)].join(' ')
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
 function formatToolResult(result: unknown): string {

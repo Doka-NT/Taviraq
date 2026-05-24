@@ -20,8 +20,7 @@ describe('privacy notice aggregation', () => {
       maskedSecretCount: 3,
       categories: ['GENERIC_API_KEY', 'password'],
       source: 'chat-display',
-      scope: 'chat-display',
-      sessionLabel: 'SSH'
+      scope: 'chat-display'
     })
   })
 })

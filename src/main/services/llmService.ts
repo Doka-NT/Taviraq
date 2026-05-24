@@ -303,7 +303,7 @@ async function streamChatCompletionUnsafe(
 type OpenAIMessage = ChatMessage | {
   role: 'assistant'
   content: string | null
-  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: unknown } }>
 } | {
   role: 'tool'
   tool_call_id: string
@@ -1309,7 +1309,11 @@ function normalizeJsonSchema(schema: Record<string, unknown> | undefined): Recor
   return schema
 }
 
-function parseMcpToolArgs(value: string): ParsedMcpToolArgs {
+function parseMcpToolArgs(value: unknown): ParsedMcpToolArgs {
+  if (isRecord(value)) return { ok: true, args: value }
+  if (typeof value !== 'string') {
+    return { ok: false, error: 'Invalid MCP tool arguments: expected an object.' }
+  }
   try {
     const parsed = JSON.parse(value) as unknown
     return isRecord(parsed)
@@ -1322,7 +1326,7 @@ function parseMcpToolArgs(value: string): ParsedMcpToolArgs {
 
 function readOpenAIMessage(payload: unknown): {
   content?: string
-  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: unknown } }>
 } | undefined {
   if (!isRecord(payload) || !Array.isArray(payload.choices)) return undefined
   const first: unknown = payload.choices[0]
@@ -1330,7 +1334,7 @@ function readOpenAIMessage(payload: unknown): {
   const message = first.message
   const content = typeof message.content === 'string' ? message.content : undefined
   const toolCalls = Array.isArray(message.tool_calls)
-    ? message.tool_calls.flatMap((call): Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> => {
+    ? message.tool_calls.flatMap((call): Array<{ id: string; type: 'function'; function: { name: string; arguments: unknown } }> => {
       if (!isRecord(call) || !isRecord(call.function)) return []
       const id = typeof call.id === 'string' ? call.id : randomUUID()
       const name = typeof call.function.name === 'string' ? call.function.name : ''
@@ -1340,7 +1344,7 @@ function readOpenAIMessage(payload: unknown): {
         type: 'function',
         function: {
           name,
-          arguments: typeof call.function.arguments === 'string' ? call.function.arguments : '{}'
+          arguments: call.function.arguments
         }
       }]
     })

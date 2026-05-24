@@ -555,6 +555,72 @@ describe('llmService', () => {
     expect(chunks.join('')).toBe('Не смог вызвать инструмент.')
   })
 
+  it('passes parsed object MCP tool arguments through unchanged', async () => {
+    const callMcpTool = vi.fn().mockResolvedValue('{"ok":true}')
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: {
+                name: 'calendar_get_days',
+                arguments: { date: '2026-05-25' }
+              }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'ok' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    await streamChatCompletion({
+      requestId: 'request-mcp-object-args',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Use the calendar tool' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, () => {}, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(callMcpTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'calendar' }), 'get_days', { date: '2026-05-25' }, undefined)
+  })
+
   it('sends terminal context as untrusted user data instead of system instructions', async () => {
     const encoder = new TextEncoder()
     let requestBody = ''

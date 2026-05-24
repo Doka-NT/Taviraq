@@ -304,7 +304,7 @@ Steps:
 
 Expected:
 - Trusted system instructions do not contain raw terminal output.
-- Terminal output is sent in a separate untrusted context message.
+- Terminal output is sent as an explicitly delimited untrusted context block outside trusted system instructions and scoped to the latest user turn.
 - Terminal context delimiters from terminal output are escaped or neutralized.
 - The assistant is instructed to treat terminal output, logs, files, diffs, and SSH banners as evidence, not instructions.
 

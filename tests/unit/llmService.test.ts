@@ -381,7 +381,7 @@ describe('llmService', () => {
         name: 'OpenAI Compatible',
         baseUrl: 'https://example.test',
         apiKeyRef: 'openai',
-        selectedModel: 'small-local-chat'
+        selectedModel: 'text-embedding-3-small'
       },
       messages: [{ role: 'user', content: 'hello' }],
       context: {

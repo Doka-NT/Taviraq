@@ -21,7 +21,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { discoverExternalMcpServers, extractMcpServers, McpConfigStore } from '@main/services/mcpConfigStore'
+import { discoverExternalMcpServers, extractMcpServers, McpConfigStore, parseCodexMcpServersToml } from '@main/services/mcpConfigStore'
 
 async function cleanTmp(): Promise<void> {
   if (existsSync(TMP_DIR)) {
@@ -231,6 +231,57 @@ describe('McpConfigStore', () => {
         sourcePath: join(HOME_DIR, '.claude', 'mcp.json')
       }
     ])
+  })
+
+  it('extracts Codex MCP servers from config.toml', () => {
+    expect(parseCodexMcpServersToml(`
+[mcp_servers.github]
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-github"]
+env = { GITHUB_TOKEN = "token-value" }
+
+[mcp_servers.local.env]
+TOKEN = "local-token"
+
+[mcp_servers.local]
+command = "python"
+args = ["server.py"]
+disabled = true
+    `)).toEqual({
+      mcpServers: {
+        github: {
+          command: 'npx',
+          args: ['-y', '@modelcontextprotocol/server-github'],
+          env: { GITHUB_TOKEN: 'token-value' }
+        },
+        local: {
+          command: 'python',
+          args: ['server.py'],
+          disabled: true,
+          env: { TOKEN: 'local-token' }
+        }
+      }
+    })
+  })
+
+  it('discovers Codex config.toml MCP servers', async () => {
+    await mkdir(join(HOME_DIR, '.codex'), { recursive: true })
+    await writeFile(join(HOME_DIR, '.codex', 'config.toml'), [
+      '[mcp_servers.codex_files]',
+      'command = "node"',
+      'args = ["codex-files.js"]'
+    ].join('\n'), 'utf8')
+
+    const result = await discoverExternalMcpServers()
+
+    expect(result.warnings).toEqual([])
+    expect(result.servers).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'codex_files',
+        source: 'codex',
+        sourcePath: join(HOME_DIR, '.codex', 'config.toml')
+      })
+    ]))
   })
 
   it('discovers VS Code Copilot MCP configs from user and workspace paths', async () => {

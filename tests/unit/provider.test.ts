@@ -94,6 +94,8 @@ describe('provider utilities', () => {
     expect(inferModelSupportsMcp('claude-3-5-sonnet-latest')).toBe(true)
     expect(inferModelSupportsMcp('gpt-4o-mini')).toBe(true)
     expect(inferModelSupportsMcp('o3-mini')).toBe(true)
+    expect(inferModelSupportsMcp('custom-tool-capable-alias')).toBe(true)
+    expect(inferModelSupportsMcp('text-embedding-3-small')).toBe(false)
     expect(inferModelSupportsMcp('legacy-completion-model')).toBeUndefined()
   })
 

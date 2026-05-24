@@ -229,6 +229,9 @@ export function inferModelSupportsMcp(modelId: string): boolean | undefined {
   const normalized = modelId.trim().toLowerCase()
   if (!normalized) return undefined
 
+  if (/^(?:text-embedding|omni-moderation|dall-e|tts-|whisper)/.test(normalized)) return false
+  if (/\b(?:embedding|embed|rerank|moderation|audio|image-generation)\b/.test(normalized)) return false
+
   if (/^claude-(?:3|4|sonnet|opus|haiku)/.test(normalized)) return true
   if (/^(?:gpt-4|gpt-4\.|gpt-4o|gpt-4\.1|o1|o3|o4|gpt-5)/.test(normalized)) return true
   if (normalized.includes('tool') || normalized.includes('function-calling')) return true

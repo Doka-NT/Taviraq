@@ -218,7 +218,7 @@ async function streamChatCompletionUnsafe(
   const providerType = getProviderType(request.provider)
   const mcpTools = getEnabledMcpTools(mcpServers)
 
-  if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic') && inferModelSupportsMcp(model) === true) {
+  if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic') && inferModelSupportsMcp(model) !== false) {
     return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
   }
 

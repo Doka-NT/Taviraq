@@ -40,7 +40,8 @@ const DISCOVERY_SOURCES: Array<{
     label: 'Codex',
     paths: [
       '.codex/mcp.json',
-      '.codex/config.json'
+      '.codex/config.json',
+      '.codex/config.toml'
     ]
   },
   {
@@ -311,8 +312,65 @@ function getDiscoveryDialogIcon(): Electron.NativeImage | undefined {
 
 export async function readMcpServersFromFile(path: string, source: McpServerSource): Promise<McpServerConfig[]> {
   const raw = await readFile(path, 'utf8')
+  if (path.endsWith('.toml')) {
+    return extractMcpServers(parseCodexMcpServersToml(raw), source, path)
+  }
   const payload = JSON.parse(raw) as unknown
   return extractMcpServers(payload, source, path)
+}
+
+export function parseCodexMcpServersToml(raw: string): { mcpServers: Record<string, unknown> } {
+  const servers: Record<string, Record<string, unknown>> = {}
+  let currentServer: string | undefined
+  let currentEnvServer: string | undefined
+
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = stripTomlComment(rawLine).trim()
+    if (!line) continue
+
+    const section = line.match(/^\[([^\]]+)]$/)?.[1]
+    if (section) {
+      const path = section.split('.').map((part) => part.trim().replace(/^"|"$/g, ''))
+      currentServer = path.length === 2 && path[0] === 'mcp_servers' ? path[1] : undefined
+      currentEnvServer = path.length === 3 && path[0] === 'mcp_servers' && path[2] === 'env' ? path[1] : undefined
+      if (currentServer) servers[currentServer] ??= {}
+      if (currentEnvServer) {
+        servers[currentEnvServer] ??= {}
+        servers[currentEnvServer].env ??= {}
+      }
+      continue
+    }
+
+    const assignment = line.match(/^([A-Za-z0-9_-]+)\s*=\s*(.+)$/)
+    if (!assignment) continue
+    const [, key, rawValue] = assignment
+
+    if (currentEnvServer) {
+      const value = parseTomlString(rawValue)
+      const env = servers[currentEnvServer].env
+      if (value !== undefined && isRecord(env)) {
+        env[key] = value
+      }
+      continue
+    }
+
+    if (!currentServer) continue
+    if (key === 'command') {
+      const value = parseTomlString(rawValue)
+      if (value !== undefined) servers[currentServer].command = value
+    } else if (key === 'args') {
+      const value = parseTomlStringArray(rawValue)
+      if (value) servers[currentServer].args = value
+    } else if (key === 'env') {
+      const value = parseTomlInlineStringTable(rawValue)
+      if (value) servers[currentServer].env = value
+    } else if (key === 'disabled') {
+      const value = parseTomlBoolean(rawValue)
+      if (value !== undefined) servers[currentServer].disabled = value
+    }
+  }
+
+  return { mcpServers: servers }
 }
 
 export function extractMcpServers(payload: unknown, source: McpServerSource = 'manual', importedFrom?: string): McpServerConfig[] {
@@ -482,6 +540,62 @@ function isMcpServerSource(source: unknown): source is McpServerSource {
     source === 'ollama' ||
     source === 'cursor' ||
     source === 'windsurf'
+}
+
+function stripTomlComment(line: string): string {
+  let quote: '"' | "'" | undefined
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]
+    if ((char === '"' || char === "'") && line[index - 1] !== '\\') {
+      quote = quote === char ? undefined : quote ?? char
+    }
+    if (char === '#' && !quote) return line.slice(0, index)
+  }
+  return line
+}
+
+function parseTomlString(value: string): string | undefined {
+  const trimmed = value.trim()
+  const quote = trimmed[0]
+  if ((quote !== '"' && quote !== "'") || trimmed.at(-1) !== quote) return undefined
+  const inner = trimmed.slice(1, -1)
+  return quote === '"'
+    ? inner.replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+    : inner
+}
+
+function parseTomlStringArray(value: string): string[] | undefined {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return undefined
+  const items: string[] = []
+  const matcher = /"((?:\\"|[^"])*)"|'([^']*)'/g
+  for (const match of trimmed.slice(1, -1).matchAll(matcher)) {
+    const item = match[1] !== undefined
+      ? match[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+      : match[2]
+    items.push(item)
+  }
+  return items
+}
+
+function parseTomlInlineStringTable(value: string): Record<string, string> | undefined {
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return undefined
+  const env: Record<string, string> = {}
+  const matcher = /([A-Za-z0-9_-]+)\s*=\s*("((?:\\"|[^"])*)"|'([^']*)')/g
+  for (const match of trimmed.slice(1, -1).matchAll(matcher)) {
+    env[match[1]] = match[3] !== undefined
+      ? match[3].replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+      : match[4]
+  }
+  return env
+}
+
+function parseTomlBoolean(value: string): boolean | undefined {
+  const trimmed = value.trim()
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+  return undefined
 }
 
 async function exists(path: string): Promise<boolean> {

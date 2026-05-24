@@ -78,8 +78,20 @@ export function mergeAssistantPromptMessages(promptMessages: ChatMessage[], mess
       break
     }
   }
-  const insertAt = lastUserIndex === -1 ? mergedMessages.length : lastUserIndex
-  mergedMessages.splice(insertAt, 0, ...contextMessages)
+  if (lastUserIndex === -1) {
+    mergedMessages.push(...contextMessages)
+  } else {
+    const latestUserMessage = mergedMessages[lastUserIndex]
+    if (latestUserMessage) {
+      mergedMessages[lastUserIndex] = {
+        ...latestUserMessage,
+        content: [
+          ...contextMessages.map((message) => message.content),
+          latestUserMessage.content
+        ].join('\n\n')
+      }
+    }
+  }
 
   return [...systemMessages, ...mergedMessages]
 }

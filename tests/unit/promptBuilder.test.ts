@@ -66,9 +66,10 @@ describe('promptBuilder', () => {
       { role: 'user', content: 'Current question' }
     ])
 
-    expect(messages.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user', 'user'])
+    expect(messages.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'user'])
     expect(messages[1].content).toBe('Old question')
     expect(messages[3].content).toContain('<terminal-context>')
-    expect(messages[4].content).toBe('Current question')
+    expect(messages[3].content).toContain('current terminal output')
+    expect(messages[3].content).toContain('Current question')
   })
 })

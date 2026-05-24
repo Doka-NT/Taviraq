@@ -1,8 +1,12 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { basename } from 'node:path'
 import type { McpServerConfig, McpToolConfig } from '@shared/types'
 
 const MCP_PROTOCOL_VERSION = '2024-11-05'
 const MCP_REQUEST_TIMEOUT_MS = 20_000
+const POSIX_COMPATIBLE_SHELLS = new Set(['bash', 'dash', 'ksh', 'sh', 'zsh'])
+const MCP_BOOTSTRAP_SHELL_FALLBACKS = ['/bin/zsh', '/bin/bash', '/bin/sh']
 
 interface JsonRpcResponse {
   id?: unknown
@@ -91,7 +95,7 @@ class McpStdioSession {
   constructor(private readonly server: McpServerConfig) {}
 
   start(): void {
-    const shell = process.env.SHELL || '/bin/zsh'
+    const shell = resolveMcpBootstrapShell()
     this.child = spawn(shell, ['-lc', buildShellLaunchScript(this.server)], {
       env: { ...process.env, ...(this.server.env ?? {}) },
       stdio: ['pipe', 'pipe', 'pipe']
@@ -196,11 +200,22 @@ export function buildShellLaunchScript(server: Pick<McpServerConfig, 'command' |
   return [
     'exec 3>&1',
     'exec 1>&2',
-    'if [ -n "${ZSH_VERSION:-}" ] && [ -r "${HOME}/.zshrc" ]; then source "${HOME}/.zshrc"; fi',
-    'if [ -n "${BASH_VERSION:-}" ] && [ -r "${HOME}/.bashrc" ]; then source "${HOME}/.bashrc"; fi',
+    'if [ -n "${ZSH_VERSION:-}" ] && [ -r "${HOME}/.zshrc" ]; then . "${HOME}/.zshrc"; fi',
+    'if [ -n "${BASH_VERSION:-}" ] && [ -r "${HOME}/.bashrc" ]; then . "${HOME}/.bashrc"; fi',
     'exec 1>&3',
     `eval ${shellQuote(buildShellCommand(server.command, server.args ?? []))}`
   ].join('\n')
+}
+
+export function resolveMcpBootstrapShell(
+  envShell = process.env.SHELL,
+  shellExists: (path: string) => boolean = existsSync
+): string {
+  if (envShell && POSIX_COMPATIBLE_SHELLS.has(basename(envShell))) {
+    return envShell
+  }
+
+  return MCP_BOOTSTRAP_SHELL_FALLBACKS.find((shell) => shellExists(shell)) ?? '/bin/sh'
 }
 
 function buildShellCommand(command: string, args: string[]): string {

@@ -12,6 +12,12 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showMessageBox: vi.fn(() => Promise.resolve({ response: 0 }))
+  },
+  nativeImage: {
+    createFromPath: vi.fn(() => ({
+      isEmpty: () => true,
+      resize: vi.fn()
+    }))
   }
 }))
 

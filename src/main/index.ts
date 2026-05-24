@@ -1409,6 +1409,7 @@ function registerIpc(): void {
                 toolName: chunk.toolName,
                 ...(chunk.content ? { content: chunk.content } : {})
               })
+              return
             }
 
             if (chunk.reasoningContent) {

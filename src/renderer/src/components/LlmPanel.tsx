@@ -189,6 +189,7 @@ type ThreadMessage = ChatMessage & {
   displayContent?: string
   command?: string
   output?: string
+  toolCallId?: string
   terminalContextSent?: boolean
   maskedContent?: string
   privacy?: PrivacyMaskingNotice
@@ -959,6 +960,7 @@ export function LlmPanel({
   const [sshProfile, setSshProfile] = useState<SSHProfileConfig | null>(null)
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null)
   const [expandedToolResults, setExpandedToolResults] = useState<Set<string>>(() => new Set())
+  const [toolResultOutputs, setToolResultOutputs] = useState<Map<string, string>>(() => new Map())
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
 
   // Refs for use inside stable closures
@@ -1709,6 +1711,16 @@ export function LlmPanel({
 
       if (event.type === 'tool') {
         const command = `${event.serverName}.${event.toolName}`
+        const toolCallId = `${event.requestId}:${command}`
+        if (event.status !== 'running') {
+          const rawOutput = event.content ?? ''
+          setToolResultOutputs((current) => {
+            const next = new Map(current)
+            if (rawOutput) next.set(toolCallId, rawOutput)
+            else next.delete(toolCallId)
+            return next
+          })
+        }
         updateThread(sessionId, (thread) => {
           if (thread.activeRequestId !== event.requestId) return thread
           const messages = [...thread.messages]
@@ -1723,10 +1735,10 @@ export function LlmPanel({
             content,
             display: 'tool-call',
             command,
-            output: event.content ?? ''
+            toolCallId
           }
 
-          if (last?.display === 'tool-call' && last.command === command && event.status !== 'running') {
+          if (last?.display === 'tool-call' && last.toolCallId === toolCallId && event.status !== 'running') {
             messages[messages.length - 1] = toolMessage
           } else if (isEmptyAssistantDraft(last)) {
             messages[messages.length - 1] = toolMessage
@@ -5105,10 +5117,11 @@ export function LlmPanel({
 
           if (message.display === 'tool-call') {
             const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
-            const toolResultKey = `${index}:${message.command ?? ''}`
-            const hasOutput = Boolean(message.output?.trim())
+            const toolResultKey = message.toolCallId ?? `${index}:${message.command ?? ''}`
+            const rawToolOutput = toolResultOutputs.get(toolResultKey) ?? ''
+            const hasOutput = Boolean(rawToolOutput.trim())
             const expandedResult = expandedToolResults.has(toolResultKey)
-            const output = expandedResult ? hideSecretPlaceholders(formatToolCallOutput(message.output ?? ''), maskedSecretLabel) : ''
+            const output = expandedResult ? hideSecretPlaceholders(formatToolCallOutput(rawToolOutput), maskedSecretLabel) : ''
             const failed = /failed$/i.test(message.content)
             const running = /^Calling MCP tool/i.test(message.content)
             return (

@@ -1,10 +1,11 @@
-import { app, dialog } from 'electron'
+import { app, dialog, nativeImage } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { DiscoveredMcpServer, McpDiscoveryResult, McpServerConfig, McpServerSource, McpToolConfig } from '@shared/types'
 
 const MCP_CONFIG_FILE = 'mcp.json'
+const DISCOVERY_DIALOG_ICON_SIZE = 64
 const DISCOVERY_SOURCES: Array<{
   source: Exclude<McpServerSource, 'manual'>
   label: string
@@ -173,13 +174,15 @@ export class McpConfigStore {
 }
 
 export async function discoverExternalMcpServers(): Promise<McpDiscoveryResult> {
+  const icon = getDiscoveryDialogIcon()
   const approval = await dialog.showMessageBox({
     type: 'question',
     buttons: ['Scan', 'Cancel'],
     defaultId: 0,
     cancelId: 1,
     message: 'Discover MCP servers',
-    detail: 'Taviraq can read known local configuration files for Claude, Copilot, Codex, and OpenCode. Review found servers before importing anything.'
+    detail: 'Taviraq can read known local configuration files for Claude, Copilot, Codex, and OpenCode. Review found servers before importing anything.',
+    ...(icon && !icon.isEmpty() ? { icon } : {})
   })
   if (approval.response !== 0) return { servers: [], warnings: [] }
 
@@ -212,6 +215,24 @@ export async function discoverExternalMcpServers(): Promise<McpDiscoveryResult> 
   }
 
   return { servers, warnings }
+}
+
+function getDiscoveryDialogIcon(): Electron.NativeImage | undefined {
+  if (!nativeImage || typeof nativeImage.createFromPath !== 'function') {
+    return undefined
+  }
+
+  const appPath = typeof app.getAppPath === 'function'
+    ? app.getAppPath()
+    : process.cwd()
+  const iconPath = app.isPackaged
+    ? join(process.resourcesPath, 'icon.png')
+    : join(appPath, 'build', 'icon.png')
+
+  const icon = nativeImage.createFromPath(iconPath)
+  return icon.isEmpty()
+    ? icon
+    : icon.resize({ width: DISCOVERY_DIALOG_ICON_SIZE, height: DISCOVERY_DIALOG_ICON_SIZE, quality: 'best' })
 }
 
 export async function readMcpServersFromFile(path: string, source: McpServerSource): Promise<McpServerConfig[]> {

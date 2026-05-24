@@ -2586,7 +2586,7 @@ export function LlmPanel({
     try {
       const result = await window.api.mcp.discoverExternal()
       setDiscoveredMcpServers(result.servers)
-      setSelectedDiscoveredMcpIds(result.servers.map(getDiscoveredMcpKey))
+      setSelectedDiscoveredMcpIds([])
       const warningSuffix = result.warnings.length > 0 ? ` ${result.warnings.length} warning(s).` : ''
       setMcpStatus(result.servers.length > 0
         ? `${result.servers.length} MCP server(s) found.${warningSuffix}`

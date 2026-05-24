@@ -73,12 +73,14 @@ export class McpConfigStore {
   }
 
   async saveAll(servers: McpServerConfig[]): Promise<McpServerConfig[]> {
-    const normalized = normalizeMcpServers(servers)
-    await mkdir(dirname(this.path), { recursive: true })
-    const tmpPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`
-    await writeFile(tmpPath, JSON.stringify(toMcpJson(normalized), null, 2), 'utf8')
-    await rename(tmpPath, this.path)
-    return normalized
+    let nextServers: McpServerConfig[] | undefined
+    const write = this.writeQueue.then(async () => {
+      nextServers = normalizeMcpServers(servers)
+      await this.writeAll(nextServers)
+    })
+    this.writeQueue = write.catch(() => undefined)
+    await write
+    return nextServers ?? []
   }
 
   async upsert(server: McpServerConfig): Promise<McpServerConfig[]> {
@@ -128,11 +130,18 @@ export class McpConfigStore {
     const write = this.writeQueue.then(async () => {
       const servers = await this.list()
       nextServers = normalizeMcpServers(mutator(servers))
-      await this.saveAll(nextServers)
+      await this.writeAll(nextServers)
     })
     this.writeQueue = write.catch(() => undefined)
     await write
     return nextServers ?? []
+  }
+
+  private async writeAll(servers: McpServerConfig[]): Promise<void> {
+    await mkdir(dirname(this.path), { recursive: true })
+    const tmpPath = `${this.path}.${process.pid}.${randomUUID()}.tmp`
+    await writeFile(tmpPath, JSON.stringify(toMcpJson(servers), null, 2), 'utf8')
+    await rename(tmpPath, this.path)
   }
 }
 
@@ -193,7 +202,7 @@ export function extractMcpServers(payload: unknown, source: McpServerSource = 'm
     for (const entry of container) {
       if (!isRecord(entry)) continue
       const name = typeof entry.name === 'string' ? entry.name : ''
-      const server = normalizeMcpServer({ ...entry, name, source, importedFrom })
+      const server = normalizeMcpServer(withSourceMetadata(entry, name, source, importedFrom))
       if (server) servers.push(server)
     }
     return dedupeMcpServers(servers)
@@ -202,10 +211,28 @@ export function extractMcpServers(payload: unknown, source: McpServerSource = 'm
   if (!isRecord(container)) return []
   for (const [name, definition] of Object.entries(container)) {
     if (!isRecord(definition)) continue
-    const server = normalizeMcpServer({ ...definition, name, source, importedFrom })
+    const server = normalizeMcpServer(withSourceMetadata(definition, name, source, importedFrom))
     if (server) servers.push(server)
   }
   return dedupeMcpServers(servers)
+}
+
+function withSourceMetadata(
+  definition: Record<string, unknown>,
+  name: string,
+  source: McpServerSource,
+  importedFrom?: string
+): McpServerDefinition {
+  if (source !== 'manual') {
+    return { ...definition, name, source, importedFrom }
+  }
+
+  return {
+    ...definition,
+    name,
+    source: isMcpServerSource(definition.source) ? definition.source : 'manual',
+    importedFrom: typeof definition.importedFrom === 'string' ? definition.importedFrom : undefined
+  }
 }
 
 export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig | undefined {

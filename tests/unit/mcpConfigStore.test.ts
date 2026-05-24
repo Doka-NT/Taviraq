@@ -134,6 +134,33 @@ describe('McpConfigStore', () => {
     ])
   })
 
+  it('preserves imported MCP source metadata after reload', async () => {
+    const store = new McpConfigStore()
+    await store.saveAll([
+      {
+        id: 'github',
+        name: 'github',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        enabled: true,
+        source: 'claude',
+        importedFrom: '/Users/demo/.claude/mcp.json',
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }
+    ])
+
+    expect(await store.list()).toMatchObject([
+      {
+        id: 'github',
+        name: 'github',
+        command: 'npx',
+        source: 'claude',
+        importedFrom: '/Users/demo/.claude/mcp.json'
+      }
+    ])
+  })
+
   it('surfaces malformed mcp.json instead of overwriting it as empty', async () => {
     await mkdir(TMP_DIR, { recursive: true })
     await writeFile(join(TMP_DIR, 'mcp.json'), '{not-json', 'utf8')

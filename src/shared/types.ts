@@ -153,11 +153,19 @@ export interface McpServerConfig {
   command: string
   args?: string[]
   env?: Record<string, string>
+  tools?: McpToolConfig[]
   enabled: boolean
   source?: McpServerSource
   importedFrom?: string
   createdAt: string
   updatedAt: string
+}
+
+export interface McpToolConfig {
+  name: string
+  description?: string
+  inputSchema?: Record<string, unknown>
+  enabled: boolean
 }
 
 export interface DiscoveredMcpServer extends McpServerConfig {

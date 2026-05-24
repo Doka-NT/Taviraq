@@ -944,6 +944,7 @@ export function LlmPanel({
   const [mcpEnvDraft, setMcpEnvDraft] = useState('')
   const [mcpStatus, setMcpStatus] = useState('')
   const [mcpDiscovering, setMcpDiscovering] = useState(false)
+  const [mcpRefreshingTools, setMcpRefreshingTools] = useState(false)
   const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
   const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
@@ -2561,6 +2562,33 @@ export function LlmPanel({
       }
     } catch (error) {
       setMcpStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [mcpDraft.id])
+
+  const refreshMcpTools = useCallback(async (server: McpServerConfig) => {
+    setMcpRefreshingTools(true)
+    setMcpStatus(t('mcp.tools.refreshing'))
+    try {
+      const result = await window.api.mcp.refreshTools(server.id)
+      setMcpServers(result)
+      const updated = result.find((candidate) => candidate.id === server.id)
+      if (updated) setMcpDraft(updated)
+      setMcpStatus(t('mcp.tools.refreshed', { count: updated?.tools?.length ?? 0 }))
+    } catch (error) {
+      setMcpStatus(`Tool refresh failed: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setMcpRefreshingTools(false)
+    }
+  }, [t])
+
+  const toggleMcpTool = useCallback(async (serverId: string, toolName: string, enabled: boolean) => {
+    try {
+      const result = await window.api.mcp.setToolEnabled(serverId, toolName, enabled)
+      setMcpServers(result)
+      const updated = result.find((server) => server.id === serverId)
+      if (updated && mcpDraft.id === serverId) setMcpDraft(updated)
+    } catch (error) {
+      setMcpStatus(`Tool update failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }, [mcpDraft.id])
 
@@ -4195,6 +4223,40 @@ export function LlmPanel({
                             </button>
                           ) : null}
                         </div>
+
+                        <section className="settings-section mcp-tools">
+                          <div className="settings-section-heading">
+                            <span><HighlightSearchText text={t('mcp.tools.title')} query={settingsSearch} /></span>
+                            <button
+                              type="button"
+                              className="quiet-button"
+                              disabled={mcpRefreshingTools || !mcpServers.some((server) => server.id === mcpDraft.id)}
+                              onClick={() => void refreshMcpTools(mcpDraft)}
+                            >
+                              <RefreshCw size={14} aria-hidden />
+                              {mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
+                            </button>
+                          </div>
+                          {(mcpDraft.tools ?? []).length === 0 ? (
+                            <p className="mcp-discovery-note">{t('mcp.tools.empty')}</p>
+                          ) : (
+                            <div className="mcp-tool-list">
+                              {(mcpDraft.tools ?? []).map((tool) => (
+                                <label key={tool.name} className="mcp-tool-item">
+                                  <input
+                                    type="checkbox"
+                                    checked={tool.enabled}
+                                    onChange={(event) => void toggleMcpTool(mcpDraft.id, tool.name, event.target.checked)}
+                                  />
+                                  <span>
+                                    <strong>{tool.name}</strong>
+                                    {tool.description ? <small>{tool.description}</small> : null}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </section>
 
                         <section className="settings-section mcp-discovery">
                           <div className="settings-section-heading">

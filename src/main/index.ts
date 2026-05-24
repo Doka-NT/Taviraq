@@ -46,6 +46,7 @@ import {
   saveProxyPassword
 } from './services/secretStore'
 import { discoverExternalMcpServers, McpConfigStore } from './services/mcpConfigStore'
+import { listMcpServerTools } from './services/mcpRuntime'
 import {
   assessCommandRisk,
   invalidateProviderProxyAgents,
@@ -341,7 +342,8 @@ function withExportableMcpServers(servers: McpServerConfig[], includeSecrets: bo
       importedFrom: server.importedFrom,
       createdAt: server.createdAt,
       updatedAt: server.updatedAt,
-      ...(server.args ? { args: server.args } : {})
+      ...(server.args ? { args: server.args } : {}),
+      ...(server.tools ? { tools: server.tools } : {})
     }
     return safeServer
   })
@@ -965,6 +967,17 @@ function registerIpc(): void {
     return mcpConfigStore.delete(id)
   })
 
+  ipcMain.handle('mcp:refreshTools', async (_event, serverId: string) => {
+    const server = (await mcpConfigStore.list()).find((candidate) => candidate.id === serverId)
+    if (!server) throw new Error('MCP server not found.')
+    const tools = await listMcpServerTools(server)
+    return mcpConfigStore.saveTools(serverId, tools)
+  })
+
+  ipcMain.handle('mcp:setToolEnabled', (_event, serverId: string, toolName: string, enabled: boolean) => {
+    return mcpConfigStore.setToolEnabled(serverId, toolName, enabled)
+  })
+
   ipcMain.handle('mcp:discoverExternal', () => discoverExternalMcpServers())
 
   ipcMain.handle('mcp:importServers', (_event, servers: unknown) => {
@@ -1364,6 +1377,7 @@ function registerIpc(): void {
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)
           const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
+          const mcpServers = await mcpConfigStore.list()
           const result = await streamChatCompletion(policyRequest, (chunk) => {
             if (chunk.type === 'privacy' && typeof chunk.maskedSecrets === 'number') {
               event.sender.send('llm:chatStream:event', {
@@ -1401,7 +1415,7 @@ function registerIpc(): void {
                 content: chunk.content
               })
             }
-          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext)
+          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext, mcpServers)
 
           if (controller.signal.aborted) return
           const newContext = diffSecretMaskContext(result.secretContext, previousContext)

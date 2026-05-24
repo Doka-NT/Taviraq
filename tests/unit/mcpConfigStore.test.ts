@@ -161,6 +161,44 @@ describe('McpConfigStore', () => {
     ])
   })
 
+  it('persists and updates per-tool enabled settings', async () => {
+    const store = new McpConfigStore()
+    await store.upsert({
+      id: 'filesystem',
+      name: 'filesystem',
+      command: 'npx',
+      enabled: true,
+      source: 'manual',
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    })
+    await store.saveTools('filesystem', [
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        inputSchema: { type: 'object' },
+        enabled: true
+      }
+    ])
+    const servers = await store.setToolEnabled('filesystem', 'read_file', false)
+
+    expect(servers[0].tools).toEqual([
+      {
+        name: 'read_file',
+        description: 'Read a file',
+        inputSchema: { type: 'object' },
+        enabled: false
+      }
+    ])
+    expect(JSON.parse(await readFile(join(TMP_DIR, 'mcp.json'), 'utf8'))).toMatchObject({
+      mcpServers: {
+        filesystem: {
+          tools: [{ name: 'read_file', enabled: false }]
+        }
+      }
+    })
+  })
+
   it('surfaces malformed mcp.json instead of overwriting it as empty', async () => {
     await mkdir(TMP_DIR, { recursive: true })
     await writeFile(join(TMP_DIR, 'mcp.json'), '{not-json', 'utf8')

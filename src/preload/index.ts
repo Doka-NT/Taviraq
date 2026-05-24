@@ -157,6 +157,9 @@ const api = {
     saveServer: (server: McpServerConfig) =>
       ipcRenderer.invoke('mcp:saveServer', server) as Promise<McpServerConfig[]>,
     deleteServer: (id: string) => ipcRenderer.invoke('mcp:deleteServer', id) as Promise<McpServerConfig[]>,
+    refreshTools: (serverId: string) => ipcRenderer.invoke('mcp:refreshTools', serverId) as Promise<McpServerConfig[]>,
+    setToolEnabled: (serverId: string, toolName: string, enabled: boolean) =>
+      ipcRenderer.invoke('mcp:setToolEnabled', serverId, toolName, enabled) as Promise<McpServerConfig[]>,
     discoverExternal: () => ipcRenderer.invoke('mcp:discoverExternal') as Promise<McpDiscoveryResult>,
     importServers: (servers: DiscoveredMcpServer[]) =>
       ipcRenderer.invoke('mcp:importServers', servers) as Promise<McpImportResult>

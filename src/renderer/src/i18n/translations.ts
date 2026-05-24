@@ -134,6 +134,11 @@ export interface Translations {
   'mcp.deleteConfirmTitle': string
   'mcp.deleteConfirmMessage': string
   'mcp.deleteConfirmBtn': string
+  'mcp.tools.title': string
+  'mcp.tools.refresh': string
+  'mcp.tools.refreshing': string
+  'mcp.tools.refreshed': string
+  'mcp.tools.empty': string
   'mcp.discovery.title': string
   'mcp.discovery.desc': string
   'mcp.discovery.scan': string
@@ -640,6 +645,11 @@ export const en: Translations = {
   'mcp.deleteConfirmTitle': 'Delete MCP server?',
   'mcp.deleteConfirmMessage': 'This MCP server will be removed from mcp.json.',
   'mcp.deleteConfirmBtn': 'Delete',
+  'mcp.tools.title': 'Tools',
+  'mcp.tools.refresh': 'Refresh tools',
+  'mcp.tools.refreshing': 'Refreshing tools...',
+  'mcp.tools.refreshed': 'Found {count} tool(s).',
+  'mcp.tools.empty': 'Refresh tools after saving this server, then enable only the tools the assistant may use.',
   'mcp.discovery.title': 'Import from other tools',
   'mcp.discovery.desc': 'Scan known local MCP config paths only after this request. Found servers are reviewed before import.',
   'mcp.discovery.scan': 'Discover',
@@ -1129,6 +1139,11 @@ export const ru: Translations = {
   'mcp.deleteConfirmTitle': 'Удалить MCP-сервер?',
   'mcp.deleteConfirmMessage': 'Этот MCP-сервер будет удалён из mcp.json.',
   'mcp.deleteConfirmBtn': 'Удалить',
+  'mcp.tools.title': 'Инструменты',
+  'mcp.tools.refresh': 'Обновить инструменты',
+  'mcp.tools.refreshing': 'Обновляем инструменты...',
+  'mcp.tools.refreshed': 'Найдено инструментов: {count}.',
+  'mcp.tools.empty': 'Сохраните сервер, обновите инструменты и включите только те, которые ассистенту можно использовать.',
   'mcp.discovery.title': 'Импорт из других инструментов',
   'mcp.discovery.desc': 'Поиск читает известные локальные пути MCP-конфигов только после этого запроса. Найденные серверы можно проверить перед импортом.',
   'mcp.discovery.scan': 'Найти',
@@ -1618,6 +1633,11 @@ export const cn: Translations = {
   'mcp.deleteConfirmTitle': '删除 MCP 服务器？',
   'mcp.deleteConfirmMessage': '此 MCP 服务器将从 mcp.json 中移除。',
   'mcp.deleteConfirmBtn': '删除',
+  'mcp.tools.title': '工具',
+  'mcp.tools.refresh': '刷新工具',
+  'mcp.tools.refreshing': '正在刷新工具...',
+  'mcp.tools.refreshed': '找到 {count} 个工具。',
+  'mcp.tools.empty': '保存服务器后刷新工具，然后只启用允许助手使用的工具。',
   'mcp.discovery.title': '从其他工具导入',
   'mcp.discovery.desc': '仅在本次请求后扫描已知的本地 MCP 配置路径。导入前可以先检查找到的服务器。',
   'mcp.discovery.scan': '发现',

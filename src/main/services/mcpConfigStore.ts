@@ -2,7 +2,7 @@ import { app, dialog } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import type { DiscoveredMcpServer, McpDiscoveryResult, McpServerConfig, McpServerSource } from '@shared/types'
+import type { DiscoveredMcpServer, McpDiscoveryResult, McpServerConfig, McpServerSource, McpToolConfig } from '@shared/types'
 
 const MCP_CONFIG_FILE = 'mcp.json'
 const DISCOVERY_SOURCES: Array<{
@@ -51,6 +51,7 @@ type McpServerDefinition = {
   command?: unknown
   args?: unknown
   env?: unknown
+  tools?: unknown
   enabled?: unknown
   disabled?: unknown
   source?: unknown
@@ -96,6 +97,32 @@ export class McpConfigStore {
 
   async delete(id: string): Promise<McpServerConfig[]> {
     return this.update((servers) => servers.filter((server) => server.id !== id))
+  }
+
+  async saveTools(serverId: string, tools: McpToolConfig[]): Promise<McpServerConfig[]> {
+    return this.update((servers) => servers.map((server) => {
+      if (server.id !== serverId) return server
+      const existing = new Map((server.tools ?? []).map((tool) => [tool.name, tool.enabled]))
+      return {
+        ...server,
+        tools: normalizeMcpTools(tools).map((tool) => ({
+          ...tool,
+          enabled: existing.get(tool.name) ?? tool.enabled
+        })),
+        updatedAt: new Date().toISOString()
+      }
+    }))
+  }
+
+  async setToolEnabled(serverId: string, toolName: string, enabled: boolean): Promise<McpServerConfig[]> {
+    return this.update((servers) => servers.map((server) => {
+      if (server.id !== serverId) return server
+      return {
+        ...server,
+        tools: (server.tools ?? []).map((tool) => tool.name === toolName ? { ...tool, enabled } : tool),
+        updatedAt: new Date().toISOString()
+      }
+    }))
   }
 
   async importDiscovered(servers: DiscoveredMcpServer[]): Promise<{ servers: McpServerConfig[]; imported: number; skipped: number }> {
@@ -251,6 +278,7 @@ export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig
         .map(([key, value]) => [key.trim(), value])
     )
     : {}
+  const tools = Array.isArray(server.tools) ? normalizeMcpTools(server.tools) : []
   const id = typeof server.id === 'string' && server.id.trim() ? server.id.trim() : randomUUID()
   const enabled = typeof server.enabled === 'boolean'
     ? server.enabled
@@ -268,12 +296,34 @@ export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig
     command,
     ...(args.length > 0 ? { args } : {}),
     ...(Object.keys(env).length > 0 ? { env } : {}),
+    ...(tools.length > 0 ? { tools } : {}),
     enabled,
     source,
     ...(importedFrom ? { importedFrom } : {}),
     createdAt: typeof server.createdAt === 'string' && server.createdAt.trim() ? server.createdAt : now,
     updatedAt: typeof server.updatedAt === 'string' && server.updatedAt.trim() ? server.updatedAt : now
   }
+}
+
+function normalizeMcpTools(tools: unknown[]): McpToolConfig[] {
+  const seen = new Set<string>()
+  const normalized: McpToolConfig[] = []
+  for (const tool of tools) {
+    if (!isRecord(tool)) continue
+    const name = typeof tool.name === 'string' ? tool.name.trim() : ''
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    const description = typeof tool.description === 'string' && tool.description.trim()
+      ? tool.description.trim()
+      : undefined
+    normalized.push({
+      name,
+      ...(description ? { description } : {}),
+      ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
+      enabled: typeof tool.enabled === 'boolean' ? tool.enabled : true
+    })
+  }
+  return normalized
 }
 
 function normalizeMcpServers(servers: McpServerConfig[]): McpServerConfig[] {
@@ -304,6 +354,7 @@ function toMcpJson(servers: McpServerConfig[]): { mcpServers: Record<string, unk
         command: server.command,
         ...(server.args && server.args.length > 0 ? { args: server.args } : {}),
         ...(server.env && Object.keys(server.env).length > 0 ? { env: server.env } : {}),
+        ...(server.tools && server.tools.length > 0 ? { tools: server.tools } : {}),
         ...(server.enabled ? {} : { disabled: true }),
         source: server.source ?? 'manual',
         ...(server.importedFrom ? { importedFrom: server.importedFrom } : {}),

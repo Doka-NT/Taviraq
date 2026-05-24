@@ -3266,6 +3266,42 @@ textarea:focus {
   margin-top: 8px;
 }
 
+.mcp-tools {
+  margin-top: 12px;
+}
+
+.mcp-tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mcp-tool-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.mcp-tool-item span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mcp-tool-item strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.mcp-tool-item small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .mcp-discovery-note {
   margin: 0;
   color: var(--text-secondary);

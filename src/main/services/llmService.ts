@@ -8,8 +8,10 @@ import type {
   GeneratedPrompt,
   LLMModel,
   LLMProviderConfig,
+  McpServerConfig,
   SummarizeConversationRequest
 } from '@shared/types'
+import { randomUUID } from 'node:crypto'
 import { Agent, ProxyAgent, type Dispatcher } from 'undici'
 import {
   buildAnthropicUrl,
@@ -35,6 +37,7 @@ import {
   type SecretMaskingInput
 } from '@main/utils/secretMasking'
 import { getApiKey, getProxyPassword } from './secretStore'
+import { callMcpTool, getEnabledMcpTools, type McpRuntimeTool } from './mcpRuntime'
 
 const COMMAND_RISK_TIMEOUT_MS = 15_000
 const ANTHROPIC_API_VERSION = '2023-06-01'
@@ -133,7 +136,8 @@ export async function streamChatCompletion(
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  existingSecretContext?: SecretMaskContext
+  existingSecretContext?: SecretMaskContext,
+  mcpServers: McpServerConfig[] = []
 ): Promise<ChatStreamCompletionResult> {
   const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
   const contentRedactor = createStreamingPlaceholderRedactor()
@@ -164,7 +168,7 @@ export async function streamChatCompletion(
       const content = contentRedactor.push(chunk.content)
       if (content) onChunk({ type: 'chunk', content })
     }
-  }, signal)
+  }, signal, mcpServers)
 
   const finalReasoning = reasoningRedactor.flush()
   if (finalReasoning) onChunk({ type: 'reasoning', reasoningContent: finalReasoning })
@@ -182,7 +186,8 @@ export async function streamChatCompletion(
 async function streamChatCompletionUnsafe(
   request: ChatStreamRequest,
   onChunk: (chunk: ChatStreamUpdate) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  mcpServers: McpServerConfig[] = []
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
@@ -190,6 +195,11 @@ async function streamChatCompletionUnsafe(
   }
 
   const providerType = getProviderType(request.provider)
+  const mcpTools = getEnabledMcpTools(mcpServers)
+
+  if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic')) {
+    return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal)
+  }
 
   if (providerType === 'lmstudio') {
     return streamLmStudioNativeChatCompletion(request, model, onChunk, signal)
@@ -267,6 +277,137 @@ async function streamChatCompletionUnsafe(
       onChunk({ type: chunk.content ? 'chunk' : 'reasoning', ...chunk })
     }
   }
+}
+
+type OpenAIMessage = ChatMessage | {
+  role: 'assistant'
+  content: string | null
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+} | {
+  role: 'tool'
+  tool_call_id: string
+  content: string
+}
+
+async function completeChatWithMcpTools(
+  request: ChatStreamRequest,
+  model: string,
+  mcpTools: McpRuntimeTool[],
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  if (getProviderType(request.provider) === 'anthropic') {
+    return completeAnthropicWithMcpTools(request, model, mcpTools, onChunk, signal)
+  }
+  return completeOpenAIWithMcpTools(request, model, mcpTools, onChunk, signal)
+}
+
+async function completeOpenAIWithMcpTools(
+  request: ChatStreamRequest,
+  model: string,
+  mcpTools: McpRuntimeTool[],
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const toolMap = buildMcpToolNameMap(mcpTools)
+  const messages: OpenAIMessage[] = buildMessages(request.messages, request.context)
+  const tools = [...toolMap.entries()].map(([name, entry]) => ({
+    type: 'function',
+    function: {
+      name,
+      description: entry.tool.description ?? `${entry.server.name}: ${entry.tool.name}`,
+      parameters: normalizeJsonSchema(entry.tool.inputSchema)
+    }
+  }))
+
+  for (let i = 0; i < 5; i += 1) {
+    const response = await fetchProvider(buildProviderUrl(request.provider, 'chat/completions'), await withProviderTransport(request.provider, {
+      method: 'POST',
+      headers: {
+        ...await buildHeaders(request.provider),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, stream: false, messages, tools, tool_choice: 'auto' }),
+      signal
+    }))
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+    }
+    const payload = await response.json() as unknown
+    const message = readOpenAIMessage(payload)
+    if (!message) return
+    const toolCalls = message.tool_calls ?? []
+    if (toolCalls.length === 0) {
+      if (message.content) onChunk({ type: 'chunk', content: message.content })
+      return
+    }
+    messages.push({ role: 'assistant', content: message.content ?? null, tool_calls: toolCalls })
+    for (const call of toolCalls) {
+      const entry = toolMap.get(call.function.name)
+      const args = safeParseToolArgs(call.function.arguments)
+      const content = entry
+        ? await callMcpTool(entry.server, entry.tool.name, args, signal)
+        : `Unknown MCP tool: ${call.function.name}`
+      messages.push({ role: 'tool', tool_call_id: call.id, content })
+    }
+  }
+  onChunk({ type: 'chunk', content: 'MCP tool loop reached the maximum number of tool calls.' })
+}
+
+async function completeAnthropicWithMcpTools(
+  request: ChatStreamRequest,
+  model: string,
+  mcpTools: McpRuntimeTool[],
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const toolMap = buildMcpToolNameMap(mcpTools)
+  const input = buildAnthropicMessageInput(buildMessages(request.messages, request.context))
+  const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> = input.messages
+  const tools = [...toolMap.entries()].map(([name, entry]) => ({
+    name,
+    description: entry.tool.description ?? `${entry.server.name}: ${entry.tool.name}`,
+    input_schema: normalizeJsonSchema(entry.tool.inputSchema)
+  }))
+
+  for (let i = 0; i < 5; i += 1) {
+    const response = await fetchProvider(buildAnthropicUrl(request.provider.baseUrl || PROVIDER_DEFAULTS.anthropic.baseUrl, 'messages'), await withProviderTransport(request.provider, {
+      method: 'POST',
+      headers: {
+        ...await buildHeaders(request.provider),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ model, max_tokens: ANTHROPIC_MAX_TOKENS, stream: false, ...(input.system ? { system: input.system } : {}), messages, tools }),
+      signal
+    }), 'Anthropic chat')
+    if (!response.ok) {
+      const body = await response.text().catch(() => '')
+      throw new Error(`Anthropic chat request failed with ${response.status} ${response.statusText}${body ? `: ${body}` : ''}`)
+    }
+    const payload = await response.json() as unknown
+    const content = readAnthropicContentBlocks(payload)
+    const toolUses = content.filter((part) => isRecord(part) && part.type === 'tool_use') as Array<Record<string, unknown>>
+    if (toolUses.length === 0) {
+      const text = content.map(readAnthropicTextBlock).join('')
+      if (text) onChunk({ type: 'chunk', content: text })
+      return
+    }
+    messages.push({ role: 'assistant', content })
+    const toolResults = []
+    for (const use of toolUses) {
+      const id = typeof use.id === 'string' ? use.id : ''
+      const name = typeof use.name === 'string' ? use.name : ''
+      const entry = toolMap.get(name)
+      const args = isRecord(use.input) ? use.input : {}
+      const text = entry
+        ? await callMcpTool(entry.server, entry.tool.name, args, signal)
+        : `Unknown MCP tool: ${name}`
+      toolResults.push({ type: 'tool_result', tool_use_id: id, content: text })
+    }
+    messages.push({ role: 'user', content: toolResults })
+  }
+  onChunk({ type: 'chunk', content: 'MCP tool loop reached the maximum number of tool calls.' })
 }
 
 async function streamAnthropicChatCompletion(
@@ -1035,6 +1176,82 @@ function extractAnthropicMessageContent(payload: unknown): string {
       return typeof text === 'string' ? text : ''
     })
     .join('')
+}
+
+function buildMcpToolNameMap(mcpTools: McpRuntimeTool[]): Map<string, McpRuntimeTool> {
+  const names = new Map<string, McpRuntimeTool>()
+  for (const entry of mcpTools) {
+    const base = sanitizeToolName(`${entry.server.name}_${entry.tool.name}`) || sanitizeToolName(entry.tool.name)
+    let name = base.slice(0, 64)
+    let index = 2
+    while (names.has(name)) {
+      const suffix = `_${index}`
+      name = `${base.slice(0, Math.max(1, 64 - suffix.length))}${suffix}`
+      index += 1
+    }
+    names.set(name, entry)
+  }
+  return names
+}
+
+function sanitizeToolName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'mcp_tool'
+}
+
+function normalizeJsonSchema(schema: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!schema || Object.keys(schema).length === 0) return { type: 'object', properties: {} }
+  return schema
+}
+
+function safeParseToolArgs(value: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return isRecord(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function readOpenAIMessage(payload: unknown): {
+  content?: string
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>
+} | undefined {
+  if (!isRecord(payload) || !Array.isArray(payload.choices)) return undefined
+  const first: unknown = payload.choices[0]
+  if (!isRecord(first) || !isRecord(first.message)) return undefined
+  const message = first.message
+  const content = typeof message.content === 'string' ? message.content : undefined
+  const toolCalls = Array.isArray(message.tool_calls)
+    ? message.tool_calls.flatMap((call): Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }> => {
+      if (!isRecord(call) || !isRecord(call.function)) return []
+      const id = typeof call.id === 'string' ? call.id : randomUUID()
+      const name = typeof call.function.name === 'string' ? call.function.name : ''
+      if (!name) return []
+      return [{
+        id,
+        type: 'function',
+        function: {
+          name,
+          arguments: typeof call.function.arguments === 'string' ? call.function.arguments : '{}'
+        }
+      }]
+    })
+    : []
+  return { ...(content ? { content } : {}), ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}) }
+}
+
+function readAnthropicContentBlocks(payload: unknown): unknown[] {
+  if (!isRecord(payload) || !Array.isArray(payload.content)) return []
+  return payload.content
+}
+
+function readAnthropicTextBlock(part: unknown): string {
+  if (!isRecord(part) || part.type !== 'text') return ''
+  return typeof part.text === 'string' ? part.text : ''
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 function readProgress(payload: Record<string, unknown> | undefined): number {

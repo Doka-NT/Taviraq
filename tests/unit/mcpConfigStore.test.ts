@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const TMP_DIR = join(__dirname, '__tmp_mcp_store__')
 const HOME_DIR = join(TMP_DIR, 'home')
@@ -24,6 +24,7 @@ async function cleanTmp(): Promise<void> {
 }
 
 describe('McpConfigStore', () => {
+  beforeEach(() => cleanTmp())
   afterEach(() => cleanTmp())
 
   it('extracts MCP servers from object-shaped mcp.json', () => {
@@ -49,6 +50,31 @@ describe('McpConfigStore', () => {
     ])
   })
 
+  it('ignores non-object env values while normalizing servers', () => {
+    expect(extractMcpServers({
+      mcpServers: {
+        badEnv: {
+          command: 'node',
+          env: ['TOKEN=value']
+        }
+      }
+    })).toMatchObject([
+      {
+        name: 'badEnv',
+        command: 'node',
+        enabled: true
+      }
+    ])
+    expect(extractMcpServers({
+      mcpServers: {
+        badEnv: {
+          command: 'node',
+          env: ['TOKEN=value']
+        }
+      }
+    })[0].env).toBeUndefined()
+  })
+
   it('persists configured servers to mcp.json', async () => {
     const store = new McpConfigStore()
     const servers = await store.upsert({
@@ -67,12 +93,45 @@ describe('McpConfigStore', () => {
     expect(raw).toEqual({
       mcpServers: {
         filesystem: {
+          id: 'filesystem',
           command: 'npx',
           args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
-          source: 'manual'
+          source: 'manual',
+          createdAt: '2026-05-24T00:00:00.000Z',
+          updatedAt: '2026-05-24T00:00:00.000Z'
         }
       }
     })
+  })
+
+  it('keeps MCP server names unique because mcp.json is keyed by name', async () => {
+    const store = new McpConfigStore()
+    await store.saveAll([
+      {
+        id: 'first',
+        name: 'github',
+        command: 'npx',
+        args: ['server-a'],
+        enabled: true,
+        source: 'manual',
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      },
+      {
+        id: 'second',
+        name: 'GitHub',
+        command: 'node',
+        args: ['server-b'],
+        enabled: true,
+        source: 'manual',
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }
+    ])
+
+    expect(await store.list()).toMatchObject([
+      { id: 'first', name: 'github', command: 'npx' }
+    ])
   })
 
   it('discovers external MCP configs after approval', async () => {

@@ -328,6 +328,15 @@ function buildImportableProxyRefs(
   return { providers: importableProviders, proxyPasswords: canonicalProxyPasswords }
 }
 
+function withExportableMcpServers(servers: McpServerConfig[], includeSecrets: boolean): McpServerConfig[] {
+  if (includeSecrets) return servers
+  return servers.map((server) => ({ ...server, env: undefined }))
+}
+
+function getMcpImportKey(server: Pick<McpServerConfig, 'name'>): string {
+  return server.name.trim().toLowerCase()
+}
+
 async function openAllowedExternalUrl(url: string): Promise<void> {
   if (!isAllowedExternalUrl(url)) {
     throw new Error('Unsupported external URL')
@@ -1141,7 +1150,7 @@ function registerIpc(): void {
       cancelId: 1,
       defaultId: 0,
       message: 'Export Taviraq data',
-      detail: 'Choose whether this export should include plaintext API keys and proxy passwords.',
+      detail: 'Choose whether this export should include plaintext API keys, proxy passwords, and MCP environment values.',
       checkboxLabel: 'Include secrets in export file',
       checkboxChecked: false
     })
@@ -1170,7 +1179,7 @@ function registerIpc(): void {
       prompts,
       commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
-      mcpServers,
+      mcpServers: withExportableMcpServers(mcpServers, includeKeysResult.checkboxChecked),
       preferences
     }
 
@@ -1218,13 +1227,11 @@ function registerIpc(): void {
       Array.isArray(data.commandSnippets) ? data.commandSnippets : []
     )
     const currentMcpServers = await mcpConfigStore.list()
-    const currentMcpKeys = new Set(currentMcpServers.map((server) =>
-      `${server.name.trim().toLowerCase()}\u0000${server.command.trim()}\u0000${(server.args ?? []).join('\u0001')}`
-    ))
+    const currentMcpKeys = new Set(currentMcpServers.map(getMcpImportKey))
     const importedMcpServers = Array.isArray(data.mcpServers) ? data.mcpServers : []
     const newMcpServers = importedMcpServers.filter((server) => {
       if (!server?.name || !server.command) return false
-      const key = `${server.name.trim().toLowerCase()}\u0000${server.command.trim()}\u0000${(server.args ?? []).join('\u0001')}`
+      const key = getMcpImportKey(server)
       if (currentMcpKeys.has(key)) return false
       currentMcpKeys.add(key)
       return true

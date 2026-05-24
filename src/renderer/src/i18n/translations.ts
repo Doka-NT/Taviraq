@@ -145,6 +145,7 @@ export interface Translations {
   'mcp.status.noneFound': string
   'mcp.status.selectImport': string
   'mcp.status.importing': string
+  'mcp.status.duplicateName': string
 
   // Connections tab
   'connections.title': string
@@ -650,6 +651,7 @@ export const en: Translations = {
   'mcp.status.noneFound': 'No MCP servers found.',
   'mcp.status.selectImport': 'Select at least one server to import.',
   'mcp.status.importing': 'Importing MCP servers...',
+  'mcp.status.duplicateName': 'Use a unique MCP server name.',
 
   'connections.title': 'SSH Connections',
   'connections.addConnection': 'Add connection',
@@ -968,7 +970,7 @@ export const en: Translations = {
   'model.loadFirst': 'Load models to search',
   'model.loadModelsFirst': 'Load models first',
   'model.showing': 'Showing {visible} of {total}',
-  'model.supportsMcp': 'Supports MCP',
+  'model.supportsMcp': 'Likely supports MCP',
 
   'snippetPalette.title': 'Command snippets',
   'snippetPalette.search': 'Search command snippets...',
@@ -1138,6 +1140,7 @@ export const ru: Translations = {
   'mcp.status.noneFound': 'MCP-серверы не найдены.',
   'mcp.status.selectImport': 'Выберите хотя бы один сервер для импорта.',
   'mcp.status.importing': 'Импортируем MCP-серверы...',
+  'mcp.status.duplicateName': 'Используйте уникальное название MCP-сервера.',
 
   'connections.title': 'SSH-подключения',
   'connections.addConnection': 'Добавить подключение',
@@ -1456,7 +1459,7 @@ export const ru: Translations = {
   'model.loadFirst': 'Загрузите модели для поиска',
   'model.loadModelsFirst': 'Сначала загрузите модели',
   'model.showing': 'Показано {visible} из {total}',
-  'model.supportsMcp': 'Поддерживает MCP',
+  'model.supportsMcp': 'Вероятно поддерживает MCP',
 
   'snippetPalette.title': 'Сниппеты команд',
   'snippetPalette.search': 'Поиск сниппетов команд...',
@@ -1626,6 +1629,7 @@ export const cn: Translations = {
   'mcp.status.noneFound': '未找到 MCP 服务器。',
   'mcp.status.selectImport': '请至少选择一个要导入的服务器。',
   'mcp.status.importing': '正在导入 MCP 服务器...',
+  'mcp.status.duplicateName': '请使用唯一的 MCP 服务器名称。',
 
   'connections.title': 'SSH 连接',
   'connections.addConnection': '添加连接',
@@ -1944,7 +1948,7 @@ export const cn: Translations = {
   'model.loadFirst': '加载模型以搜索',
   'model.loadModelsFirst': '请先加载模型',
   'model.showing': '显示 {visible} / {total}',
-  'model.supportsMcp': '支持 MCP',
+  'model.supportsMcp': '可能支持 MCP',
 
   'snippetPalette.title': '命令片段',
   'snippetPalette.search': '搜索命令片段...',

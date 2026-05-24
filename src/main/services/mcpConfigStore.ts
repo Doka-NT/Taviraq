@@ -272,12 +272,15 @@ function toMcpJson(servers: McpServerConfig[]): { mcpServers: Record<string, unk
     mcpServers: Object.fromEntries(servers.map((server) => [
       server.name,
       {
+        id: server.id,
         command: server.command,
         ...(server.args && server.args.length > 0 ? { args: server.args } : {}),
         ...(server.env && Object.keys(server.env).length > 0 ? { env: server.env } : {}),
         ...(server.enabled ? {} : { disabled: true }),
         source: server.source ?? 'manual',
-        ...(server.importedFrom ? { importedFrom: server.importedFrom } : {})
+        ...(server.importedFrom ? { importedFrom: server.importedFrom } : {}),
+        createdAt: server.createdAt,
+        updatedAt: server.updatedAt
       }
     ]))
   }
@@ -292,7 +295,7 @@ function readServerContainer(payload: unknown): unknown {
 }
 
 function getMcpServerKey(server: Pick<McpServerConfig, 'name' | 'command' | 'args'>): string {
-  return `${server.name.trim().toLowerCase()}\u0000${server.command.trim()}\u0000${(server.args ?? []).join('\u0001')}`
+  return server.name.trim().toLowerCase()
 }
 
 function isMcpServerSource(source: unknown): source is McpServerSource {
@@ -309,5 +312,5 @@ async function exists(path: string): Promise<boolean> {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object'
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

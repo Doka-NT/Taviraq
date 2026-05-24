@@ -264,7 +264,42 @@ function createEmptyMcpServer(): McpServerConfig {
 }
 
 function parseMcpArgs(value: string): string[] {
-  return value.split(/\s+/).map((part) => part.trim()).filter(Boolean)
+  const args: string[] = []
+  let current = ''
+  let quote: '"' | "'" | undefined
+  let escaping = false
+
+  for (const char of value) {
+    if (escaping) {
+      current += char
+      escaping = false
+      continue
+    }
+
+    if (char === '\\') {
+      escaping = true
+      continue
+    }
+
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? undefined : char
+      continue
+    }
+
+    if (!quote && /\s/.test(char)) {
+      if (current) {
+        args.push(current)
+        current = ''
+      }
+      continue
+    }
+
+    current += char
+  }
+
+  if (escaping) current += '\\'
+  if (current) args.push(current)
+  return args
 }
 
 function parseMcpEnv(value: string): Record<string, string> {
@@ -2472,6 +2507,10 @@ export function LlmPanel({
       setMcpStatus(t('mcp.status.required'))
       return
     }
+    if (mcpServers.some((server) => server.id !== mcpDraft.id && server.name.trim().toLowerCase() === name.toLowerCase())) {
+      setMcpStatus(t('mcp.status.duplicateName'))
+      return
+    }
 
     setMcpStatus(t('mcp.status.saving'))
     try {
@@ -2491,7 +2530,7 @@ export function LlmPanel({
     } catch (error) {
       setMcpStatus(`Save failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [mcpArgsDraft, mcpDraft, mcpEnvDraft, t])
+  }, [mcpArgsDraft, mcpDraft, mcpEnvDraft, mcpServers, t])
 
   const toggleMcpServer = useCallback(async (server: McpServerConfig) => {
     try {

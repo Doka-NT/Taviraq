@@ -3267,39 +3267,122 @@ textarea:focus {
 }
 
 .mcp-tools {
-  margin-top: 12px;
+  margin-top: 10px;
+}
+
+.mcp-tools .settings-section-heading {
+  padding-top: 2px;
+}
+
+.mcp-tools .settings-section-heading > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mcp-tools-count {
+  color: var(--text-ghost);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.mcp-refresh-button {
+  width: 28px;
+  height: 28px;
 }
 
 .mcp-tool-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .mcp-tool-item {
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 8px 10px;
+  position: relative;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 8px 10px 8px 12px;
   border: 0.5px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
+  background: rgba(var(--surface-rgb), 0.035);
+  cursor: pointer;
 }
 
-.mcp-tool-item span {
+.mcp-tool-item:hover {
+  border-color: var(--border-default);
+  background: rgba(var(--surface-rgb), 0.055);
+}
+
+.mcp-tool-copy {
   display: grid;
   gap: 2px;
   min-width: 0;
+  padding-right: 8px;
 }
 
 .mcp-tool-item strong {
+  overflow: hidden;
   color: var(--text-primary);
   font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mcp-tool-item small {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--text-secondary);
   font-size: 11px;
   line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mcp-tool-item input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mcp-tool-item i {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  border: 0.5px solid var(--border-default);
+  border-radius: 999px;
+  background: rgba(var(--surface-rgb), 0.08);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.mcp-tool-item i::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.mcp-tool-item input:focus-visible + i {
+  outline: 2px solid rgba(var(--accent-cyan-rgb), 0.35);
+  outline-offset: 2px;
+}
+
+.mcp-tool-item input:checked + i {
+  border-color: rgba(var(--accent-cyan-rgb), 0.5);
+  background: rgba(var(--accent-cyan-rgb), 0.22);
+}
+
+.mcp-tool-item input:checked + i::after {
+  transform: translateX(16px);
+  background: rgba(var(--accent-cyan-rgb), 0.95);
 }
 
 .mcp-discovery-note {

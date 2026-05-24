@@ -4226,15 +4226,19 @@ export function LlmPanel({
 
                         <section className="settings-section mcp-tools">
                           <div className="settings-section-heading">
-                            <span><HighlightSearchText text={t('mcp.tools.title')} query={settingsSearch} /></span>
+                            <span>
+                              <HighlightSearchText text={t('mcp.tools.title')} query={settingsSearch} />
+                              {(mcpDraft.tools ?? []).length > 0 ? <small className="mcp-tools-count">{(mcpDraft.tools ?? []).filter((tool) => tool.enabled).length}/{(mcpDraft.tools ?? []).length}</small> : null}
+                            </span>
                             <button
                               type="button"
-                              className="quiet-button"
+                              className="icon-button mcp-refresh-button"
+                              title={mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
+                              aria-label={mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
                               disabled={mcpRefreshingTools || !mcpServers.some((server) => server.id === mcpDraft.id)}
                               onClick={() => void refreshMcpTools(mcpDraft)}
                             >
                               <RefreshCw size={14} aria-hidden />
-                              {mcpRefreshingTools ? t('mcp.tools.refreshing') : t('mcp.tools.refresh')}
                             </button>
                           </div>
                           {(mcpDraft.tools ?? []).length === 0 ? (
@@ -4243,15 +4247,16 @@ export function LlmPanel({
                             <div className="mcp-tool-list">
                               {(mcpDraft.tools ?? []).map((tool) => (
                                 <label key={tool.name} className="mcp-tool-item">
+                                  <span className="mcp-tool-copy">
+                                    <strong>{tool.name}</strong>
+                                    {tool.description ? <small>{tool.description}</small> : null}
+                                  </span>
                                   <input
                                     type="checkbox"
                                     checked={tool.enabled}
                                     onChange={(event) => void toggleMcpTool(mcpDraft.id, tool.name, event.target.checked)}
                                   />
-                                  <span>
-                                    <strong>{tool.name}</strong>
-                                    {tool.description ? <small>{tool.description}</small> : null}
-                                  </span>
+                                  <i aria-hidden />
                                 </label>
                               ))}
                             </div>

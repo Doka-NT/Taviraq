@@ -66,7 +66,7 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'warning'
   },
   {
-    pattern: /\b(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|\b(?:scp|rsync|nc|ncat|netcat)\b/i,
+    pattern: /(?:^|[|;&]\s*)(?:(?:sudo|command)\s+)*(?:(?:curl|wget)\b[\s\S]*(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)\s*@?[^\s|;&]+|(?:scp|rsync|nc|ncat|netcat)\b)/i,
     reason: 'This command can transfer local data or open a raw network stream.',
     riskLevel: 'danger'
   },

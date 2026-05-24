@@ -89,7 +89,12 @@ describe('protected command risk checks', () => {
     'cat .env',
     'cat ~/.ssh/id_rsa',
     'grep -r password /srv/app',
-    'find ~/.ssh -name "*.pem"'
+    'find ~/.ssh -name "*.pem"',
+    'sh -c "cat .env"',
+    'bash -lc "grep password ~/.ssh/id_rsa"',
+    'sudo zsh --command "find ~/.ssh -name \\"*.pem\\""',
+    'echo $(cat .env)',
+    'echo `grep password ~/.ssh/id_rsa`'
   ])('requires warning confirmation for sensitive read command %s', (command) => {
     expect(assessProtectedCommandRisk({
       command,

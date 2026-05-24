@@ -135,12 +135,20 @@ const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/s
 const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|\.curlrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
 const SECRET_SEARCH_RE = /^(?:password|passwd|secret|secrets|token|tokens|api[_-]?key|private[_-]?key|credential|credentials)$/i
 
-function hasSensitiveReadRisk(command: string): boolean {
+function hasSensitiveReadRisk(command: string, depth = 0): boolean {
+  if (depth > 2) return false
+  if (extractCommandSubstitutions(command).some((inner) => hasSensitiveReadRisk(inner, depth + 1))) return true
+
   return splitShellCommands(command).some((segment) => {
     const tokens = executableTokens(tokenizeShellSegment(segment))
     if (tokens.length === 0) return false
 
     const executable = basename(tokens[0] ?? '').toLowerCase()
+    if (SHELL_WRAPPERS.has(executable)) {
+      const commandArg = readShellCommandArgument(tokens.slice(1))
+      return commandArg ? hasSensitiveReadRisk(commandArg, depth + 1) : false
+    }
+
     if (!SENSITIVE_READ_COMMANDS.has(executable)) return false
 
     const args = tokens.slice(1).filter((token) => token !== '--')

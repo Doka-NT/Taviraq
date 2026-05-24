@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
@@ -350,8 +351,20 @@ function getMcpImportKey(server: Pick<McpServerConfig, 'name'>): string {
   return server.name.trim().toLowerCase()
 }
 
-function isMcpServerPayload(value: unknown): value is McpServerConfig {
+function isObjectPayload(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isMcpServerPayload(value: unknown): value is McpServerConfig {
+  return isObjectPayload(value) && typeof value.name === 'string' && typeof value.command === 'string'
+}
+
+function isDiscoveredMcpServerPayload(value: unknown): value is DiscoveredMcpServer {
+  if (!isObjectPayload(value)) return false
+  return typeof value.name === 'string' &&
+    typeof value.command === 'string' &&
+    typeof value.sourcePath === 'string' &&
+    (value.source === 'claude' || value.source === 'copilot' || value.source === 'codex' || value.source === 'opencode')
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {
@@ -958,7 +971,7 @@ function registerIpc(): void {
     if (!Array.isArray(servers)) {
       throw new Error('Invalid MCP import payload')
     }
-    return mcpConfigStore.importDiscovered(servers.filter(isMcpServerPayload) as DiscoveredMcpServer[])
+    return mcpConfigStore.importDiscovered(servers.filter(isDiscoveredMcpServerPayload))
   })
 
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
@@ -1252,13 +1265,22 @@ function registerIpc(): void {
     const currentMcpServers = await mcpConfigStore.list()
     const currentMcpKeys = new Set(currentMcpServers.map(getMcpImportKey))
     const importedMcpServers = Array.isArray(data.mcpServers) ? data.mcpServers : []
-    const newMcpServers = importedMcpServers.filter((server) => {
-      if (!server?.name || !server.command) return false
+    const newMcpServers = importedMcpServers.reduce<McpServerConfig[]>((servers, server) => {
+      if (!isMcpServerPayload(server) || typeof server.name !== 'string' || typeof server.command !== 'string') {
+        return servers
+      }
       const key = getMcpImportKey(server)
-      if (currentMcpKeys.has(key)) return false
+      if (currentMcpKeys.has(key)) return servers
       currentMcpKeys.add(key)
-      return true
-    })
+      const now = new Date().toISOString()
+      servers.push({
+        ...server,
+        id: randomUUID(),
+        createdAt: typeof server.createdAt === 'string' ? server.createdAt : now,
+        updatedAt: now
+      })
+      return servers
+    }, [])
 
     const newProviderRefs = new Set(newProviders.map((provider) => provider.apiKeyRef))
     if (data.apiKeys) {

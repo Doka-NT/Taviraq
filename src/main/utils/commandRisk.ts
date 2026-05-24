@@ -130,7 +130,8 @@ export function assessProtectedCommandRisk(
 const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])
 const SENSITIVE_READ_COMMANDS = new Set(['cat', 'less', 'more', 'head', 'tail', 'sed', 'awk', 'grep', 'rg', 'find'])
 const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
-const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-binary|-raw)?|--form|--upload-file|-T|--post-(?:file|data)|--body-file|--config|--netrc-file|--cookie)(?:=.*)?|-d\S*|-F\S*|-K\S*)$/i
+const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-ascii|-binary|-raw|-urlencode)?|--form|--upload-file|-T|--post-(?:file|data)|--body-file)(?:=.*)?|-d\S*|-F\S*)$/i
+const HTTP_SENSITIVE_INPUT_FLAG_RE = /^(?:(--config|--netrc-file|--cookie)(?:=(.*))?|-K(.*)?)$/i
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/s
 const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|\.curlrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
 const SECRET_SEARCH_RE = /^(?:password|passwd|secret|secrets|token|tokens|api[_-]?key|private[_-]?key|credential|credentials)$/i
@@ -195,12 +196,21 @@ function hasHttpTransferRisk(args: string[]): boolean {
   for (let i = 0; i < args.length; i += 1) {
     const token = args[i] ?? ''
     if (HTTP_UPLOAD_FLAG_RE.test(token)) return true
+    const sensitiveInput = readHttpSensitiveInputFlagValue(args, i)
+    if (sensitiveInput && isSensitivePathToken(sensitiveInput)) return true
     if ((token === '<' || token === '0<') && isSensitivePathToken(args[i + 1] ?? '')) return true
     const inputRedirect = token.match(/^\d*<(.+)$/)
     if (inputRedirect && isSensitivePathToken(inputRedirect[1] ?? '')) return true
   }
 
   return false
+}
+
+function readHttpSensitiveInputFlagValue(args: string[], index: number): string | undefined {
+  const token = args[index] ?? ''
+  const match = token.match(HTTP_SENSITIVE_INPUT_FLAG_RE)
+  if (!match) return undefined
+  return match[2] || match[3] || args[index + 1]
 }
 
 function executableTokens(tokens: string[]): string[] {

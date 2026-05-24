@@ -9,13 +9,13 @@
 - Screenshot: none
 
 Steps:
-1. Configure providers, prompts, snippets, SSH profiles, and preferences.
+1. Configure providers, prompts, snippets, SSH profiles, MCP servers, and preferences.
 2. Run export.
 3. Choose not to include keys.
 4. Inspect exported JSON.
 
 Expected:
-- Export contains config, prompts, snippets, SSH profiles, and preferences.
+- Export contains config, prompts, snippets, SSH profiles, MCP servers, and preferences.
 - Raw API keys and proxy passwords are absent.
 - Export version and timestamp are present.
 
@@ -54,7 +54,7 @@ Automation:
 - Screenshot: none
 
 Steps:
-1. Prepare existing provider, prompt, snippet, and SSH profile.
+1. Prepare existing provider, prompt, snippet, SSH profile, and MCP server.
 2. Import JSON containing one duplicate and one new item for each category.
 
 Expected:
@@ -88,4 +88,3 @@ Expected:
 Automation:
 - Existing: stores have direct clear APIs.
 - Missing: UI confirmation tests.
-

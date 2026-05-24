@@ -10,10 +10,14 @@ import type {
   CommandProposal,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  DiscoveredMcpServer,
   ExportData,
   GeneratedPrompt,
   ImportResult,
   ListModelsResult,
+  McpDiscoveryResult,
+  McpImportResult,
+  McpServerConfig,
   PromptTemplate,
   SaveLLMProviderRequest,
   SavedChat,
@@ -147,6 +151,15 @@ const api = {
       ipcRenderer.invoke('ssh:deleteProfile', id) as Promise<AppConfig>,
     chooseIdentityFile: () =>
       ipcRenderer.invoke('ssh:chooseIdentityFile') as Promise<string | undefined>
+  },
+  mcp: {
+    listServers: () => ipcRenderer.invoke('mcp:listServers') as Promise<McpServerConfig[]>,
+    saveServer: (server: McpServerConfig) =>
+      ipcRenderer.invoke('mcp:saveServer', server) as Promise<McpServerConfig[]>,
+    deleteServer: (id: string) => ipcRenderer.invoke('mcp:deleteServer', id) as Promise<McpServerConfig[]>,
+    discoverExternal: () => ipcRenderer.invoke('mcp:discoverExternal') as Promise<McpDiscoveryResult>,
+    importServers: (servers: DiscoveredMcpServer[]) =>
+      ipcRenderer.invoke('mcp:importServers', servers) as Promise<McpImportResult>
   },
   llm: {
     saveProvider: (request: SaveLLMProviderRequest) =>

@@ -2125,6 +2125,12 @@ textarea:focus {
   gap: 16px;
 }
 
+.mcp-layout {
+  display: grid;
+  grid-template-columns: 192px 1fr;
+  gap: 16px;
+}
+
 .providers-list-header {
   display: flex;
   align-items: center;
@@ -2215,6 +2221,18 @@ textarea:focus {
   color: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mcp-source-label {
+  color: var(--text-ghost);
+  font-size: 10.5px;
+  line-height: 1.1;
+}
+
+.mcp-empty {
+  padding: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .provider-list-item-draft {
@@ -3199,6 +3217,17 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.model-combobox-option-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-mcp-icon {
+  flex: 0 0 auto;
+  color: var(--accent-amber);
+}
+
 .model-combobox-option small {
   flex: 0 0 auto;
   color: var(--text-secondary);
@@ -3224,6 +3253,58 @@ textarea:focus {
 .model-combobox-count {
   border-top: 0.5px solid var(--border-subtle);
   text-align: center;
+}
+
+.mcp-env-input {
+  min-height: 72px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.mcp-discovery {
+  margin-top: 8px;
+}
+
+.mcp-discovery-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcp-discovery-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mcp-discovery-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 0.5px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+
+.mcp-discovery-item span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mcp-discovery-item strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.mcp-discovery-item small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Chat */

@@ -218,3 +218,30 @@ Expected:
 Automation:
 - Existing: none.
 - Missing: UI regression test for provider draft list rendering.
+
+## TC-PROVIDER-011: Configure and import MCP servers
+
+- Priority: P1
+- Type: unit, UI, manual
+- Sources: issue #72, `mcp.json`, `McpConfigStore`
+- Coverage: partial
+- Screenshot: TODO for MCP settings import list
+
+Steps:
+1. Open Settings > MCP.
+2. Add a manual MCP server with name, command, arguments, and optional env values.
+3. Save and inspect the app `mcp.json`.
+4. Run MCP discovery with sample Claude, Copilot, Codex, or OpenCode config files present.
+5. Select one discovered server and import it.
+6. Fetch provider models that include MCP-capable model IDs.
+
+Expected:
+- Manual MCP servers are persisted to `mcp.json`.
+- Discovery asks for permission before reading external tool configs.
+- Found servers show their source and require explicit selection before import.
+- Duplicate imported servers are skipped.
+- MCP-capable models show a hammer indicator in model lists.
+
+Automation:
+- Existing: `tests/unit/mcpConfigStore.test.ts`, `tests/unit/provider.test.ts`.
+- Missing: Electron/UI smoke for Settings > MCP discovery/import and model-list hammer rendering.

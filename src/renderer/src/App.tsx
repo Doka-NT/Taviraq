@@ -48,7 +48,7 @@ const DEFAULT_TERMINAL_CURSOR_STYLE: TerminalCursorStyle = 'block'
 const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
 const DEFAULT_TERMINAL_SCROLLBACK = 5000
 const DEFAULT_WINDOW_OPACITY = 1
-type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
+type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
 interface BlockPromptRequest {
@@ -1169,6 +1169,7 @@ export function App(): JSX.Element {
     const settingsTabs: Array<{ id: SettingsTab; label: string; keywords: string[] }> = [
       { id: 'appearance', label: appT('settings.tab.appearance'), keywords: ['theme', 'language', 'font', 'shortcut'] },
       { id: 'providers', label: appT('settings.tab.providers'), keywords: ['provider', 'model', 'api key', 'llm'] },
+      { id: 'mcp', label: appT('settings.tab.mcp'), keywords: ['mcp', 'tools', 'model context protocol', 'claude', 'codex', 'opencode'] },
       { id: 'connections', label: appT('settings.tab.connections'), keywords: ['ssh', 'connection', 'host', 'key'] },
       { id: 'security', label: appT('settings.tab.security'), keywords: ['security', 'privacy', 'secret', 'masking'] },
       { id: 'prompts', label: appT('settings.tab.prompts'), keywords: ['prompt', 'library', 'template'] },

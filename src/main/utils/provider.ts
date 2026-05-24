@@ -132,7 +132,8 @@ export function parseModelList(payload: unknown): LLMModel[] {
 
     models.push({
       id: entry.id,
-      ownedBy: typeof entry.owned_by === 'string' ? entry.owned_by : undefined
+      ownedBy: typeof entry.owned_by === 'string' ? entry.owned_by : undefined,
+      ...withMcpCapability(entry.id)
     })
   }
 
@@ -162,7 +163,7 @@ export function parseOllamaNativeModelList(payload: unknown): LLMModel[] {
         : undefined
 
     if (!id) continue
-    models.push({ id, ownedBy: 'ollama' })
+    models.push({ id, ownedBy: 'ollama', ...withMcpCapability(id) })
   }
 
   return models.sort((a, b) => a.id.localeCompare(b.id))
@@ -188,7 +189,8 @@ export function parseLmStudioNativeModelList(payload: unknown): LLMModel[] {
 
     models.push({
       id: entry.key,
-      ownedBy: typeof entry.publisher === 'string' ? entry.publisher : undefined
+      ownedBy: typeof entry.publisher === 'string' ? entry.publisher : undefined,
+      ...withMcpCapability(entry.key)
     })
   }
 
@@ -215,11 +217,28 @@ export function parseAnthropicModelList(payload: unknown): LLMModel[] {
 
     models.push({
       id: entry.id,
-      ownedBy: typeof entry.display_name === 'string' ? entry.display_name : undefined
+      ownedBy: typeof entry.display_name === 'string' ? entry.display_name : undefined,
+      ...withMcpCapability(entry.id)
     })
   }
 
   return models.sort((a, b) => a.id.localeCompare(b.id))
+}
+
+export function inferModelSupportsMcp(modelId: string): boolean | undefined {
+  const normalized = modelId.trim().toLowerCase()
+  if (!normalized) return undefined
+
+  if (/^claude-(?:3|4|sonnet|opus|haiku)/.test(normalized)) return true
+  if (/^(?:gpt-4|gpt-4\.|gpt-4o|gpt-4\.1|o1|o3|o4|gpt-5)/.test(normalized)) return true
+  if (normalized.includes('tool') || normalized.includes('function-calling')) return true
+
+  return undefined
+}
+
+function withMcpCapability(modelId: string): Partial<Pick<LLMModel, 'supportsMcp'>> {
+  const supportsMcp = inferModelSupportsMcp(modelId)
+  return supportsMcp === undefined ? {} : { supportsMcp }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

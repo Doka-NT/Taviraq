@@ -9,10 +9,12 @@ import type {
   CommandRiskAssessmentRequest,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  DiscoveredMcpServer,
   ExportData,
   ImportResult,
   ListModelsResult,
   LLMProviderConfig,
+  McpServerConfig,
   PromptTemplate,
   SaveSessionStateRequest,
   SaveLLMProviderRequest,
@@ -42,6 +44,7 @@ import {
   saveApiKey,
   saveProxyPassword
 } from './services/secretStore'
+import { discoverExternalMcpServers, McpConfigStore } from './services/mcpConfigStore'
 import {
   assessCommandRisk,
   invalidateProviderProxyAgents,
@@ -82,6 +85,7 @@ const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
+const mcpConfigStore = new McpConfigStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
@@ -909,6 +913,22 @@ function registerIpc(): void {
     return result.filePaths[0]
   })
 
+  ipcMain.handle('mcp:listServers', () => mcpConfigStore.list())
+
+  ipcMain.handle('mcp:saveServer', (_event, server: McpServerConfig) => {
+    return mcpConfigStore.upsert(server)
+  })
+
+  ipcMain.handle('mcp:deleteServer', (_event, id: string) => {
+    return mcpConfigStore.delete(id)
+  })
+
+  ipcMain.handle('mcp:discoverExternal', () => discoverExternalMcpServers())
+
+  ipcMain.handle('mcp:importServers', (_event, servers: DiscoveredMcpServer[]) => {
+    return mcpConfigStore.importDiscovered(servers)
+  })
+
   ipcMain.handle('llm:saveProvider', async (_event, request: SaveLLMProviderRequest) => {
     if (DEMO_MODE) {
       return demoConfig
@@ -941,7 +961,7 @@ function registerIpc(): void {
     if (DEMO_MODE) {
       return {
         models: [
-          { id: 'demo-agent', ownedBy: 'Taviraq' },
+          { id: 'demo-agent', ownedBy: 'Taviraq', supportsMcp: true },
           { id: 'demo-safety', ownedBy: 'Taviraq' }
         ],
         provider: request.provider
@@ -1114,6 +1134,7 @@ function registerIpc(): void {
     const config = await configStore.load()
     const prompts = await promptStore.list()
     const commandSnippets = await commandSnippetStore.list()
+    const mcpServers = await mcpConfigStore.list()
     const includeKeysResult = await dialog.showMessageBox({
       type: 'question',
       buttons: ['Continue', 'Cancel'],
@@ -1149,6 +1170,7 @@ function registerIpc(): void {
       prompts,
       commandSnippets,
       sshProfiles: config.sshProfiles ?? [],
+      mcpServers,
       preferences
     }
 
@@ -1195,6 +1217,18 @@ function registerIpc(): void {
     const snippetsAdded = await commandSnippetStore.importMany(
       Array.isArray(data.commandSnippets) ? data.commandSnippets : []
     )
+    const currentMcpServers = await mcpConfigStore.list()
+    const currentMcpKeys = new Set(currentMcpServers.map((server) =>
+      `${server.name.trim().toLowerCase()}\u0000${server.command.trim()}\u0000${(server.args ?? []).join('\u0001')}`
+    ))
+    const importedMcpServers = Array.isArray(data.mcpServers) ? data.mcpServers : []
+    const newMcpServers = importedMcpServers.filter((server) => {
+      if (!server?.name || !server.command) return false
+      const key = `${server.name.trim().toLowerCase()}\u0000${server.command.trim()}\u0000${(server.args ?? []).join('\u0001')}`
+      if (currentMcpKeys.has(key)) return false
+      currentMcpKeys.add(key)
+      return true
+    })
 
     const newProviderRefs = new Set(newProviders.map((provider) => provider.apiKeyRef))
     if (data.apiKeys) {
@@ -1230,12 +1264,16 @@ function registerIpc(): void {
     for (const profile of newSshProfiles) {
       await configStore.upsertSshProfile(profile)
     }
+    if (newMcpServers.length > 0) {
+      await mcpConfigStore.saveAll([...currentMcpServers, ...newMcpServers])
+    }
 
     return {
       providersAdded: newProviders.length,
       promptsAdded: newPrompts.length,
       commandSnippetsAdded: snippetsAdded,
       sshProfilesAdded: newSshProfiles.length,
+      mcpServersAdded: newMcpServers.length,
       preferences: data.preferences
     }
   })

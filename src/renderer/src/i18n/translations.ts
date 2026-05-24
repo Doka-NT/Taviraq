@@ -6,6 +6,7 @@ export interface Translations {
   'settings.close': string
   'settings.tab.appearance': string
   'settings.tab.providers': string
+  'settings.tab.mcp': string
   'settings.tab.connections': string
   'settings.tab.security': string
   'settings.tab.prompts': string
@@ -114,6 +115,36 @@ export interface Translations {
   'providers.status.action.test': string
   'providers.status.action.ready': string
   'providers.status.action.checking': string
+
+  // MCP tab
+  'mcp.title': string
+  'mcp.servers': string
+  'mcp.addServer': string
+  'mcp.empty': string
+  'mcp.enabled': string
+  'mcp.enabled.desc': string
+  'mcp.name': string
+  'mcp.command': string
+  'mcp.args': string
+  'mcp.env': string
+  'mcp.save': string
+  'mcp.enable': string
+  'mcp.disable': string
+  'mcp.deleteServer': string
+  'mcp.deleteConfirmTitle': string
+  'mcp.deleteConfirmMessage': string
+  'mcp.deleteConfirmBtn': string
+  'mcp.discovery.title': string
+  'mcp.discovery.desc': string
+  'mcp.discovery.scan': string
+  'mcp.discovery.scanning': string
+  'mcp.importSelected': string
+  'mcp.status.required': string
+  'mcp.status.saving': string
+  'mcp.status.discovering': string
+  'mcp.status.noneFound': string
+  'mcp.status.selectImport': string
+  'mcp.status.importing': string
 
   // Connections tab
   'connections.title': string
@@ -446,6 +477,7 @@ export interface Translations {
   'model.loadFirst': string
   'model.loadModelsFirst': string
   'model.showing': string
+  'model.supportsMcp': string
 
   // Command snippet palette
   'snippetPalette.title': string
@@ -482,6 +514,7 @@ export const en: Translations = {
   'settings.close': 'Close settings',
   'settings.tab.appearance': 'Appearance',
   'settings.tab.providers': 'Providers',
+  'settings.tab.mcp': 'MCP',
   'settings.tab.connections': 'Connections',
   'settings.tab.security': 'Security',
   'settings.tab.prompts': 'Prompts',
@@ -588,6 +621,35 @@ export const en: Translations = {
   'providers.status.action.test': 'Test connection',
   'providers.status.action.ready': 'Retest connection',
   'providers.status.action.checking': 'Connection check in progress',
+
+  'mcp.title': 'MCP servers',
+  'mcp.servers': 'Servers',
+  'mcp.addServer': 'Add MCP server',
+  'mcp.empty': 'No MCP servers yet.',
+  'mcp.enabled': 'Enabled',
+  'mcp.enabled.desc': 'Allow this server to be available for MCP-capable models.',
+  'mcp.name': 'Server name',
+  'mcp.command': 'Command',
+  'mcp.args': 'Arguments',
+  'mcp.env': 'Environment',
+  'mcp.save': 'Save MCP server',
+  'mcp.enable': 'Enable',
+  'mcp.disable': 'Disable',
+  'mcp.deleteServer': 'Delete MCP server',
+  'mcp.deleteConfirmTitle': 'Delete MCP server?',
+  'mcp.deleteConfirmMessage': 'This MCP server will be removed from mcp.json.',
+  'mcp.deleteConfirmBtn': 'Delete',
+  'mcp.discovery.title': 'Import from other tools',
+  'mcp.discovery.desc': 'Scan known local MCP config paths only after this request. Found servers are reviewed before import.',
+  'mcp.discovery.scan': 'Discover',
+  'mcp.discovery.scanning': 'Scanning...',
+  'mcp.importSelected': 'Import selected',
+  'mcp.status.required': 'Enter a server name and command.',
+  'mcp.status.saving': 'Saving MCP server...',
+  'mcp.status.discovering': 'Looking for MCP configs...',
+  'mcp.status.noneFound': 'No MCP servers found.',
+  'mcp.status.selectImport': 'Select at least one server to import.',
+  'mcp.status.importing': 'Importing MCP servers...',
 
   'connections.title': 'SSH Connections',
   'connections.addConnection': 'Add connection',
@@ -906,6 +968,7 @@ export const en: Translations = {
   'model.loadFirst': 'Load models to search',
   'model.loadModelsFirst': 'Load models first',
   'model.showing': 'Showing {visible} of {total}',
+  'model.supportsMcp': 'Supports MCP',
 
   'snippetPalette.title': 'Command snippets',
   'snippetPalette.search': 'Search command snippets...',
@@ -939,6 +1002,7 @@ export const ru: Translations = {
   'settings.close': 'Закрыть настройки',
   'settings.tab.appearance': 'Внешний вид',
   'settings.tab.providers': 'Провайдеры',
+  'settings.tab.mcp': 'MCP',
   'settings.tab.connections': 'Подключения',
   'settings.tab.security': 'Безопасность',
   'settings.tab.prompts': 'Промпты',
@@ -1045,6 +1109,35 @@ export const ru: Translations = {
   'providers.status.action.test': 'Проверить подключение',
   'providers.status.action.ready': 'Проверить ещё раз',
   'providers.status.action.checking': 'Проверка подключения уже идёт',
+
+  'mcp.title': 'MCP-серверы',
+  'mcp.servers': 'Серверы',
+  'mcp.addServer': 'Добавить MCP-сервер',
+  'mcp.empty': 'MCP-серверов пока нет.',
+  'mcp.enabled': 'Включён',
+  'mcp.enabled.desc': 'Сервер будет доступен для моделей с поддержкой MCP.',
+  'mcp.name': 'Название сервера',
+  'mcp.command': 'Команда',
+  'mcp.args': 'Аргументы',
+  'mcp.env': 'Переменные окружения',
+  'mcp.save': 'Сохранить MCP-сервер',
+  'mcp.enable': 'Включить',
+  'mcp.disable': 'Отключить',
+  'mcp.deleteServer': 'Удалить MCP-сервер',
+  'mcp.deleteConfirmTitle': 'Удалить MCP-сервер?',
+  'mcp.deleteConfirmMessage': 'Этот MCP-сервер будет удалён из mcp.json.',
+  'mcp.deleteConfirmBtn': 'Удалить',
+  'mcp.discovery.title': 'Импорт из других инструментов',
+  'mcp.discovery.desc': 'Поиск читает известные локальные пути MCP-конфигов только после этого запроса. Найденные серверы можно проверить перед импортом.',
+  'mcp.discovery.scan': 'Найти',
+  'mcp.discovery.scanning': 'Поиск...',
+  'mcp.importSelected': 'Импортировать выбранные',
+  'mcp.status.required': 'Введите название сервера и команду.',
+  'mcp.status.saving': 'Сохраняем MCP-сервер...',
+  'mcp.status.discovering': 'Ищем MCP-конфиги...',
+  'mcp.status.noneFound': 'MCP-серверы не найдены.',
+  'mcp.status.selectImport': 'Выберите хотя бы один сервер для импорта.',
+  'mcp.status.importing': 'Импортируем MCP-серверы...',
 
   'connections.title': 'SSH-подключения',
   'connections.addConnection': 'Добавить подключение',
@@ -1363,6 +1456,7 @@ export const ru: Translations = {
   'model.loadFirst': 'Загрузите модели для поиска',
   'model.loadModelsFirst': 'Сначала загрузите модели',
   'model.showing': 'Показано {visible} из {total}',
+  'model.supportsMcp': 'Поддерживает MCP',
 
   'snippetPalette.title': 'Сниппеты команд',
   'snippetPalette.search': 'Поиск сниппетов команд...',
@@ -1396,6 +1490,7 @@ export const cn: Translations = {
   'settings.close': '关闭设置',
   'settings.tab.appearance': '外观',
   'settings.tab.providers': '提供商',
+  'settings.tab.mcp': 'MCP',
   'settings.tab.connections': '连接',
   'settings.tab.security': '安全',
   'settings.tab.prompts': '提示词',
@@ -1502,6 +1597,35 @@ export const cn: Translations = {
   'providers.status.action.test': '测试连接',
   'providers.status.action.ready': '重新测试连接',
   'providers.status.action.checking': '连接检查正在进行',
+
+  'mcp.title': 'MCP 服务器',
+  'mcp.servers': '服务器',
+  'mcp.addServer': '添加 MCP 服务器',
+  'mcp.empty': '还没有 MCP 服务器。',
+  'mcp.enabled': '已启用',
+  'mcp.enabled.desc': '让支持 MCP 的模型可以使用此服务器。',
+  'mcp.name': '服务器名称',
+  'mcp.command': '命令',
+  'mcp.args': '参数',
+  'mcp.env': '环境变量',
+  'mcp.save': '保存 MCP 服务器',
+  'mcp.enable': '启用',
+  'mcp.disable': '停用',
+  'mcp.deleteServer': '删除 MCP 服务器',
+  'mcp.deleteConfirmTitle': '删除 MCP 服务器？',
+  'mcp.deleteConfirmMessage': '此 MCP 服务器将从 mcp.json 中移除。',
+  'mcp.deleteConfirmBtn': '删除',
+  'mcp.discovery.title': '从其他工具导入',
+  'mcp.discovery.desc': '仅在本次请求后扫描已知的本地 MCP 配置路径。导入前可以先检查找到的服务器。',
+  'mcp.discovery.scan': '发现',
+  'mcp.discovery.scanning': '扫描中...',
+  'mcp.importSelected': '导入所选',
+  'mcp.status.required': '请输入服务器名称和命令。',
+  'mcp.status.saving': '正在保存 MCP 服务器...',
+  'mcp.status.discovering': '正在查找 MCP 配置...',
+  'mcp.status.noneFound': '未找到 MCP 服务器。',
+  'mcp.status.selectImport': '请至少选择一个要导入的服务器。',
+  'mcp.status.importing': '正在导入 MCP 服务器...',
 
   'connections.title': 'SSH 连接',
   'connections.addConnection': '添加连接',
@@ -1820,6 +1944,7 @@ export const cn: Translations = {
   'model.loadFirst': '加载模型以搜索',
   'model.loadModelsFirst': '请先加载模型',
   'model.showing': '显示 {visible} / {total}',
+  'model.supportsMcp': '支持 MCP',
 
   'snippetPalette.title': '命令片段',
   'snippetPalette.search': '搜索命令片段...',

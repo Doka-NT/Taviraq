@@ -142,6 +142,38 @@ export interface ListModelsResult {
 export interface LLMModel {
   id: string
   ownedBy?: string
+  supportsMcp?: boolean
+}
+
+export type McpServerSource = 'manual' | 'claude' | 'copilot' | 'codex' | 'opencode'
+
+export interface McpServerConfig {
+  id: string
+  name: string
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  enabled: boolean
+  source?: McpServerSource
+  importedFrom?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DiscoveredMcpServer extends McpServerConfig {
+  source: Exclude<McpServerSource, 'manual'>
+  sourcePath: string
+}
+
+export interface McpDiscoveryResult {
+  servers: DiscoveredMcpServer[]
+  warnings: string[]
+}
+
+export interface McpImportResult {
+  servers: McpServerConfig[]
+  imported: number
+  skipped: number
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant'
@@ -321,6 +353,7 @@ export interface ExportData {
   prompts: PromptTemplate[]
   commandSnippets?: CommandSnippet[]
   sshProfiles?: SSHProfileConfig[]
+  mcpServers?: McpServerConfig[]
   preferences: {
     textSize?: number
     sidebarWidth?: number
@@ -340,5 +373,6 @@ export interface ImportResult {
   promptsAdded: number
   commandSnippetsAdded: number
   sshProfilesAdded: number
+  mcpServersAdded: number
   preferences?: ExportData['preferences']
 }

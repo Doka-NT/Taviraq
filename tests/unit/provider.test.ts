@@ -3,6 +3,7 @@ import {
   buildLmStudioNativeUrl,
   buildOllamaNativeUrl,
   buildOpenAICompatibleUrl,
+  inferModelSupportsMcp,
   normalizeBaseUrl,
   parseAnthropicModelList,
   parseLmStudioNativeModelList,
@@ -87,6 +88,13 @@ describe('provider utilities', () => {
       { id: 'claude-a-20260101', ownedBy: 'Claude A' },
       { id: 'claude-z-20260101', ownedBy: 'Claude Z' }
     ])
+  })
+
+  it('marks likely tool-capable models as MCP-capable', () => {
+    expect(inferModelSupportsMcp('claude-3-5-sonnet-latest')).toBe(true)
+    expect(inferModelSupportsMcp('gpt-4o-mini')).toBe(true)
+    expect(inferModelSupportsMcp('o3-mini')).toBe(true)
+    expect(inferModelSupportsMcp('legacy-completion-model')).toBeUndefined()
   })
 
   it('rejects malformed model lists', () => {

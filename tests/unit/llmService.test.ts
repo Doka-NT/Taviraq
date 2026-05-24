@@ -369,8 +369,8 @@ describe('llmService', () => {
     })
 
     expect(models).toEqual([
-      { id: 'claude-haiku-4-20250514', ownedBy: 'Claude Haiku 4' },
-      { id: 'claude-sonnet-4-20250514', ownedBy: 'Claude Sonnet 4' }
+      { id: 'claude-haiku-4-20250514', ownedBy: 'Claude Haiku 4', supportsMcp: true },
+      { id: 'claude-sonnet-4-20250514', ownedBy: 'Claude Sonnet 4', supportsMcp: true }
     ])
     expect(fetchMock.mock.calls[0][0]).toBe('https://api.anthropic.com/v1/models?limit=1000')
     expect(fetchMock.mock.calls[1][0]).toBe('https://api.anthropic.com/v1/models?limit=1000&after_id=claude-sonnet-4-20250514')

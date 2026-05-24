@@ -8,11 +8,16 @@ export function mergePrivacyNotices(
     ? existing.sessionLabel === incoming.sessionLabel ? existing.sessionLabel : undefined
     : incoming.sessionLabel ?? existing.sessionLabel
 
-  return {
+  const merged: PrivacyMaskingNotice = {
     maskedSecretCount: Math.max(existing.maskedSecretCount, incoming.maskedSecretCount),
     categories: [...new Set([...existing.categories, ...incoming.categories])],
     source: incoming.source,
-    scope: incoming.scope,
-    sessionLabel
+    scope: incoming.scope
   }
+
+  if (sessionLabel) {
+    merged.sessionLabel = sessionLabel
+  }
+
+  return merged
 }

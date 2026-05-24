@@ -26,6 +26,7 @@ import {
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
 import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
+import { buildAssistantPromptMessages, LANGUAGE_NAMES, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 import {
@@ -60,11 +61,6 @@ type ProviderRequestInit = RequestInit & {
 export interface ProviderCredentialOverrides {
   apiKey?: string
   proxyPassword?: string
-}
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  ru: 'Russian',
-  cn: 'Chinese'
 }
 
 export async function listModels(provider: LLMProviderConfig, credentialOverrides?: ProviderCredentialOverrides): Promise<LLMModel[]> {
@@ -1355,6 +1351,16 @@ function buildAnthropicMessageInput(messages: ChatMessage[]): {
       content: message.content
     }))
     .filter((message) => message.content.trim())
+    .reduce<Array<{ role: 'user' | 'assistant'; content: string }>>((acc, message) => {
+      const previous = acc.at(-1)
+      if (previous?.role === message.role) {
+        previous.content = `${previous.content}\n\n${message.content}`
+        return acc
+      }
+
+      acc.push(message)
+      return acc
+    }, [])
 
   return {
     ...(system ? { system } : {}),
@@ -1387,7 +1393,9 @@ function buildCommandRiskMessages(request: CommandRiskAssessmentRequest): ChatMe
           ? 'Secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]] represent local secrets. Mark dangerous true for commands that print, upload, echo, log, commit, or otherwise expose those placeholders.'
           : undefined,
         'Mark dangerous true for commands that can delete, overwrite, move, chmod/chown, install/uninstall, change config, expose secrets, modify remote systems, escalate privileges, kill processes, shutdown/reboot, perform destructive git/package operations, or otherwise cause persistent side effects.',
-        'Mark dangerous false for read-only inspection commands such as pwd, ls, cat, grep, find, git status, and help/version commands.'
+        'Mark dangerous true with riskLevel "warning" for read-only commands that inspect likely secret or credential locations such as .env files, .ssh keys, token files, kubeconfig, credentials files, /etc/shadow, or searches for passwords/API keys.',
+        'Mark dangerous true with riskLevel "danger" for commands that upload, post, copy, or stream local files or command output to another host, including curl/wget uploads, scp, rsync, nc, ncat, or netcat.',
+        'Mark dangerous false for clearly harmless inspection commands such as pwd, ls, git status, help/version commands, and cat/grep/find only when the target is not secret-like or sensitive.'
       ].filter(Boolean).join('\n')
     },
     {
@@ -1456,58 +1464,10 @@ function stripAnsi(s: string): string {
 }
 
 function buildMessages(messages: ChatMessage[], context: ChatStreamRequest['context']): ChatMessage[] {
-  const mode = context.assistMode ?? 'off'
-  const languageName = context.language ? LANGUAGE_NAMES[context.language] : undefined
-  const languageInstruction = languageName
-    ? `Always respond in ${languageName}.`
-    : undefined
+  const promptMessages = buildAssistantPromptMessages({
+    ...context,
+    terminalOutput: context.terminalOutput ? stripAnsi(context.terminalOutput) : undefined
+  })
 
-  const contextLines = [
-    'You are an AI assistant embedded in a desktop terminal.',
-    'Prefer concise, actionable terminal help.',
-    languageInstruction,
-    ...buildModeInstructions(mode),
-    context.maskedSecretCount && context.maskedSecretCount > 0
-      ? `Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.`
-      : undefined,
-    context.session ? `Active session: ${context.session.label} (${context.session.kind}).` : undefined,
-    context.session?.cwd ? `Current directory: ${context.session.cwd}.` : undefined,
-    context.selectedText ? `Selected terminal output:\n${context.selectedText}` : undefined,
-    context.terminalOutput ? `Recent terminal output:\n${stripAnsi(context.terminalOutput)}` : undefined
-  ].filter(Boolean).join('\n')
-
-  return [
-    {
-      role: 'system',
-      content: contextLines
-    },
-    ...messages
-  ]
-}
-
-function buildModeInstructions(mode: ChatStreamRequest['context']['assistMode']): string[] {
-  if (mode === 'agent') {
-    return [
-      'Agent mode is enabled. The app can run one command from your response automatically in the active terminal.',
-      'When you need the app to run a command, write a short marker line exactly like "Выполню:" or "I will run:" immediately followed by exactly one fenced shell code block containing only that command.',
-      'Example of an auto-runnable command:\nВыполню:\n```bash\npwd\n```',
-      'You may include other fenced bash/sh examples for the user to read, but do not put the marker line immediately before examples, alternatives, or explanatory snippets.',
-      'If you include examples, clearly introduce them as examples, such as "Например, вручную можно было бы:" before the code block.',
-      'The app will send the command output back to you; do not claim success until you see that output.',
-      'Avoid destructive commands unless the user explicitly asked for them, and finish with a normal answer when no more commands are needed.'
-    ]
-  }
-
-  if (mode === 'read') {
-    return [
-      'Read-only terminal context is enabled.',
-      'When suggesting commands, put each command in a fenced bash code block.',
-      'Never claim a command was executed unless the user confirmed it.'
-    ]
-  }
-
-  return [
-    'When suggesting commands, put each command in a fenced bash code block.',
-    'Never claim a command was executed unless the user confirmed it.'
-  ]
+  return mergeAssistantPromptMessages(promptMessages, messages)
 }

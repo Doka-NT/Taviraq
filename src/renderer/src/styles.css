@@ -1187,7 +1187,7 @@ textarea:focus {
 
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
-  inline-size: min(var(--settings-modal-width), calc(100vw - 32px));
+  inline-size: min(var(--settings-modal-width), 100%, calc(100vw - 32px));
   block-size: min(var(--settings-modal-height), calc(100vh - 32px));
   max-inline-size: calc(100vw - 32px);
   max-block-size: calc(100vh - 32px);

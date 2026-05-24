@@ -15,7 +15,7 @@ describe('settings modal layout', () => {
 
     expect(settingsScreenRule).toContain('--settings-modal-width: 860px')
     expect(settingsScreenRule).toContain('--settings-modal-height: 760px')
-    expect(settingsScreenRule).toContain('inline-size: min(var(--settings-modal-width), calc(100vw - 32px))')
+    expect(settingsScreenRule).toContain('inline-size: min(var(--settings-modal-width), 100%, calc(100vw - 32px))')
     expect(settingsScreenRule).toContain('block-size: min(var(--settings-modal-height), calc(100vh - 32px))')
     expect(settingsScreenRule).not.toMatch(/\b(width|height):\s*(auto|fit-content|max-content|min-content)/)
   })

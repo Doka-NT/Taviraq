@@ -57,14 +57,10 @@ const PROTECTED_PATTERNS: ProtectedPattern[] = [
     riskLevel: 'danger'
   },
   {
-    pattern: /\b(?:cat|less|more|head|tail|sed|awk|grep|rg|find)\b[\s\S]*(?:^|[/\s~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)/i,
+    pattern: /\b(?:cat|less|more|head|tail|sed|awk|grep|rg|find)\b/i,
     reason: 'This command can read files or paths that often contain secrets or credentials.',
-    riskLevel: 'warning'
-  },
-  {
-    pattern: /\bgrep\b[\s\S]*(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|credential)/i,
-    reason: 'This command searches for secret-like values that should be reviewed before being shown or shared.',
-    riskLevel: 'warning'
+    riskLevel: 'warning',
+    matcher: hasSensitiveReadRisk
   },
   {
     pattern: /\b(?:curl|wget|scp|rsync|nc|ncat|netcat)\b/i,
@@ -132,19 +128,41 @@ export function assessProtectedCommandRisk(
 }
 
 const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])
+const SENSITIVE_READ_COMMANDS = new Set(['cat', 'less', 'more', 'head', 'tail', 'sed', 'awk', 'grep', 'rg', 'find'])
 const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
 const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-binary|-raw)?|--form|--upload-file|-T|--post-(?:file|data))(?:=.*)?|-d\S*|-F\S*)$/i
+const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/s
+const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
+const SECRET_SEARCH_RE = /^(?:password|passwd|secret|secrets|token|tokens|api[_-]?key|private[_-]?key|credential|credentials)$/i
+
+function hasSensitiveReadRisk(command: string): boolean {
+  return splitShellCommands(command).some((segment) => {
+    const tokens = executableTokens(tokenizeShellSegment(segment))
+    if (tokens.length === 0) return false
+
+    const executable = basename(tokens[0] ?? '').toLowerCase()
+    if (!SENSITIVE_READ_COMMANDS.has(executable)) return false
+
+    const args = tokens.slice(1).filter((token) => token !== '--')
+    if (args.some(isSensitivePathToken)) return true
+
+    if (executable === 'grep' || executable === 'rg') {
+      return args
+        .filter((token) => !token.startsWith('-'))
+        .some((token) => SECRET_SEARCH_RE.test(token))
+    }
+
+    return false
+  })
+}
 
 function hasTransferRisk(command: string, depth = 0): boolean {
   if (depth > 2) return false
+  if (extractCommandSubstitutions(command).some((inner) => hasTransferRisk(inner, depth + 1))) return true
 
   return splitShellCommands(command).some((segment) => {
-    const tokens = tokenizeShellSegment(segment)
+    const tokens = executableTokens(tokenizeShellSegment(segment))
     if (tokens.length === 0) return false
-
-    while (tokens[0] === 'sudo' || tokens[0] === 'command') {
-      tokens.shift()
-    }
 
     const executable = basename(tokens[0] ?? '').toLowerCase()
     if (!executable) return false
@@ -162,6 +180,26 @@ function hasTransferRisk(command: string, depth = 0): boolean {
 
     return false
   })
+}
+
+function executableTokens(tokens: string[]): string[] {
+  const result = [...tokens]
+  while (result.length > 0) {
+    const token = result[0] ?? ''
+    if (token === 'sudo' || token === 'command' || ENV_ASSIGNMENT_RE.test(token)) {
+      result.shift()
+      continue
+    }
+
+    if (token === 'env') {
+      result.shift()
+      while (ENV_ASSIGNMENT_RE.test(result[0] ?? '')) result.shift()
+      continue
+    }
+
+    break
+  }
+  return result
 }
 
 function splitShellCommands(command: string): string[] {
@@ -250,6 +288,86 @@ function tokenizeShellSegment(segment: string): string[] {
   return tokens
 }
 
+function extractCommandSubstitutions(command: string): string[] {
+  const substitutions: string[] = []
+  let quote: '"' | "'" | undefined
+
+  for (let i = 0; i < command.length; i += 1) {
+    const char = command[i]
+
+    if (quote === "'") {
+      if (char === quote) quote = undefined
+      continue
+    }
+
+    if (quote === '"') {
+      if (char === '\\' && i + 1 < command.length) {
+        i += 1
+        continue
+      }
+      if (char === quote) quote = undefined
+    } else if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (char === '`') {
+      const end = command.indexOf('`', i + 1)
+      if (end !== -1) {
+        substitutions.push(command.slice(i + 1, end))
+        i = end
+      }
+      continue
+    }
+
+    if (char === '$' && command[i + 1] === '(') {
+      const end = findCommandSubstitutionEnd(command, i + 2)
+      if (end !== -1) {
+        substitutions.push(command.slice(i + 2, end))
+        i = end
+      }
+    }
+  }
+
+  return substitutions
+}
+
+function findCommandSubstitutionEnd(command: string, start: number): number {
+  let depth = 1
+  let quote: '"' | "'" | undefined
+
+  for (let i = start; i < command.length; i += 1) {
+    const char = command[i]
+
+    if (quote) {
+      if (char === '\\' && quote === '"' && i + 1 < command.length) {
+        i += 1
+        continue
+      }
+      if (char === quote) quote = undefined
+      continue
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+
+    if (char === '$' && command[i + 1] === '(') {
+      depth += 1
+      i += 1
+      continue
+    }
+
+    if (char === ')') {
+      depth -= 1
+      if (depth === 0) return i
+    }
+  }
+
+  return -1
+}
+
 function readShellCommandArgument(tokens: string[]): string | undefined {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i]
@@ -264,4 +382,8 @@ function readShellCommandArgument(tokens: string[]): string | undefined {
 
 function basename(command: string): string {
   return command.split('/').at(-1) ?? command
+}
+
+function isSensitivePathToken(token: string): boolean {
+  return SENSITIVE_PATH_RE.test(token)
 }

@@ -483,6 +483,78 @@ describe('llmService', () => {
     }
   })
 
+  it('reports malformed MCP tool arguments without executing the tool', async () => {
+    const callMcpTool = vi.fn()
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'calendar_get_days', arguments: '{not-json' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Не смог вызвать инструмент.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const toolEvents: Array<{ status?: string; content?: string }> = []
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-mcp-bad-args',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Use the calendar tool' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    expect(callMcpTool).not.toHaveBeenCalled()
+    expect(toolEvents).toEqual([{ status: 'error', content: 'Invalid MCP tool arguments: malformed JSON.' }])
+    expect(secondBody.messages.at(-1)?.content).toContain('Invalid MCP tool arguments: malformed JSON.')
+    expect(chunks.join('')).toBe('Не смог вызвать инструмент.')
+  })
+
   it('sends terminal context as untrusted user data instead of system instructions', async () => {
     const encoder = new TextEncoder()
     let requestBody = ''

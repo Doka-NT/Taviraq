@@ -62,6 +62,10 @@ type ProviderRequestInit = RequestInit & {
   dispatcher?: Dispatcher
 }
 
+type ParsedMcpToolArgs =
+  | { ok: true; args: Record<string, unknown> }
+  | { ok: false; error: string }
+
 export interface ProviderCredentialOverrides {
   apiKey?: string
   proxyPassword?: string
@@ -367,10 +371,12 @@ async function completeOpenAIWithMcpTools(
     messages.push({ role: 'assistant', content: message.content ?? null, tool_calls: toolCalls })
     for (const call of toolCalls) {
       const entry = toolMap.get(call.function.name)
-      const args = safeParseToolArgs(call.function.arguments)
-      const content = entry
-        ? await callMcpToolWithTrace(entry, args, call.id, onChunk, secretMaskingMode, secretContext, signal)
-        : `Unknown MCP tool: ${call.function.name}`
+      const parsedArgs = parseMcpToolArgs(call.function.arguments)
+      const content = entry && parsedArgs.ok
+        ? await callMcpToolWithTrace(entry, parsedArgs.args, call.id, onChunk, secretMaskingMode, secretContext, signal)
+        : parsedArgs.ok
+          ? `Unknown MCP tool: ${call.function.name}`
+          : reportMcpToolArgumentError(entry, call.function.name, call.id, parsedArgs.error, onChunk)
       messages.push({ role: 'tool', tool_call_id: call.id, content: formatMcpToolResultForModel(content) })
     }
   }
@@ -424,10 +430,12 @@ async function completeAnthropicWithMcpTools(
       const id = typeof use.id === 'string' ? use.id : ''
       const name = typeof use.name === 'string' ? use.name : ''
       const entry = toolMap.get(name)
-      const args = isRecord(use.input) ? use.input : {}
-      const text = entry
-        ? await callMcpToolWithTrace(entry, args, id, onChunk, secretMaskingMode, secretContext, signal)
-        : `Unknown MCP tool: ${name}`
+      const input = use.input
+      const text = entry && isRecord(input)
+        ? await callMcpToolWithTrace(entry, input, id, onChunk, secretMaskingMode, secretContext, signal)
+        : isRecord(input)
+          ? `Unknown MCP tool: ${name}`
+          : reportMcpToolArgumentError(entry, name, id, 'Invalid MCP tool arguments: expected an object.', onChunk)
       toolResults.push({ type: 'tool_result', tool_use_id: id, content: formatMcpToolResultForModel(text) })
     }
     messages.push({ role: 'user', content: toolResults })
@@ -480,6 +488,24 @@ async function maskMcpToolContent(
     })
   }
   return maskText(content, secretContext)
+}
+
+function reportMcpToolArgumentError(
+  entry: McpRuntimeTool | undefined,
+  fallbackName: string,
+  toolCallId: string,
+  error: string,
+  onChunk: (chunk: ChatStreamUpdate) => void
+): string {
+  onChunk({
+    type: 'tool',
+    status: 'error',
+    serverName: entry?.server.name ?? 'MCP',
+    toolName: entry?.tool.name ?? fallbackName,
+    toolCallId,
+    content: error
+  })
+  return error
 }
 
 function formatMcpToolResultForModel(content: string): string {
@@ -1283,12 +1309,14 @@ function normalizeJsonSchema(schema: Record<string, unknown> | undefined): Recor
   return schema
 }
 
-function safeParseToolArgs(value: string): Record<string, unknown> {
+function parseMcpToolArgs(value: string): ParsedMcpToolArgs {
   try {
     const parsed = JSON.parse(value) as unknown
-    return isRecord(parsed) ? parsed : {}
+    return isRecord(parsed)
+      ? { ok: true, args: parsed }
+      : { ok: false, error: 'Invalid MCP tool arguments: expected an object.' }
   } catch {
-    return {}
+    return { ok: false, error: 'Invalid MCP tool arguments: malformed JSON.' }
   }
 }
 

@@ -725,6 +725,12 @@ function toChatMessage(message: ThreadMessage, strictTerminalContext = false): C
   }
 }
 
+function toConversationalChatMessages(messages: ThreadMessage[], strictTerminalContext = false): ChatMessage[] {
+  return messages
+    .filter((message) => message.display !== 'tool-call')
+    .map((message) => toChatMessage(message, strictTerminalContext))
+}
+
 function estimateComposerPayloadChars({
   messages,
   draft,
@@ -1506,9 +1512,7 @@ export function LlmPanel({
       window.api.llm.chatStream({
         requestId,
         provider: providerRef.current,
-        messages: nextMessages
-          .slice(0, -1)
-          .map((message) => toChatMessage(message, strictTerminalContextActive)),
+        messages: toConversationalChatMessages(nextMessages.slice(0, -1), strictTerminalContextActive),
         context: {
           selectedText: selectedTextRef.current,
           assistMode: mode,
@@ -1598,7 +1602,7 @@ export function LlmPanel({
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
-      messages: requestMessages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+      messages: toConversationalChatMessages(requestMessages, strictTerminalContextActive),
       context: {
         selectedText: selectedTextRef.current,
         assistMode: mode,
@@ -1963,7 +1967,7 @@ export function LlmPanel({
       const prompt = await window.api.llm.summarizeConversation({
         requestId,
         provider: providerRef.current,
-        messages: messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+        messages: toConversationalChatMessages(messages, strictTerminalContextActive),
         language: languageRef.current
       })
       if (savePromptGenerationRequestIdRef.current !== requestId) return
@@ -3184,7 +3188,7 @@ export function LlmPanel({
   const composerSelectedText = strictTerminalContextActive ? '' : selectedText
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerChatMessages = useMemo(
-    () => messages.map((message) => toChatMessage(message, strictTerminalContextActive)),
+    () => toConversationalChatMessages(messages, strictTerminalContextActive),
     [messages, strictTerminalContextActive]
   )
   const composerSession = useMemo(

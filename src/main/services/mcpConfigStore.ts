@@ -295,7 +295,7 @@ function readServerContainer(payload: unknown): unknown {
   return undefined
 }
 
-function getMcpServerKey(server: Pick<McpServerConfig, 'name' | 'command' | 'args'>): string {
+function getMcpServerKey(server: Pick<McpServerConfig, 'name'>): string {
   return server.name.trim().toLowerCase()
 }
 

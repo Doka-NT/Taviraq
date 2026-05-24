@@ -2768,7 +2768,7 @@ export function LlmPanel({
       const selected = model.id === provider.selectedModel
       return {
         id: `model:${model.id}`,
-        title: `${model.supportsMcp ? '🔨 ' : ''}${formatModelDisplay(model.id)}`,
+        title: formatModelDisplay(model.id),
         description: selected ? t('model.switch.current') : t('model.switch.choose'),
         category: t('model.switch.category'),
         keywords: ['model', 'switch', 'provider', model.id, model.ownedBy ?? '']

@@ -24,6 +24,7 @@ describe('llmService', () => {
     vi.restoreAllMocks()
     vi.unstubAllEnvs()
     vi.doUnmock('@main/utils/secretMasking')
+    vi.doUnmock('@main/services/mcpRuntime')
     vi.resetModules()
   })
 
@@ -174,6 +175,79 @@ describe('llmService', () => {
     expect(requestBody).toContain(secret)
     expect(result.maskedSecretCount).toBe(0)
     expect(result.secretContext.bindings).toHaveLength(0)
+  })
+
+  it('wraps MCP tool JSON before sending it back to the model', async () => {
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'calendar',
+          command: 'calendar-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'get_days',
+          description: 'Returns calendar days',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockResolvedValue('{"days":[{"date":"2026-05-25","is_day_off":false}]}')
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'calendar_get_days', arguments: '{}' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Нет, 25 мая 2026 года рабочий день.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const chunks: string[] = []
+    await streamChatCompletion({
+      requestId: 'request-mcp-json',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Завтра выходной?' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'chunk' && event.content) chunks.push(event.content)
+    }, undefined, 'off', undefined, [{
+      id: 'server-1',
+      name: 'calendar',
+      command: 'calendar-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+
+    expect(chunks.join('')).toBe('Нет, 25 мая 2026 года рабочий день.')
+    const firstBody = JSON.parse(readStringBody(fetchMock.mock.calls[0][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    expect(firstBody.messages[0]?.role).toBe('system')
+    expect(firstBody.messages[0]?.content).toContain('Do not paste raw JSON')
+    expect(secondBody.messages.at(-1)?.role).toBe('tool')
+    expect(secondBody.messages.at(-1)?.content).toContain('Tool result:')
+    expect(secondBody.messages.at(-1)?.content).toContain('Do not paste raw JSON')
+    expect(secondBody.messages.at(-1)?.content).toContain('"is_day_off":false')
   })
 
   it('keeps an unterminated final OpenAI-compatible SSE chunk', async () => {

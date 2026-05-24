@@ -44,6 +44,12 @@ const ANTHROPIC_API_VERSION = '2023-06-01'
 const ANTHROPIC_MAX_TOKENS = 4096
 const ANTHROPIC_MODEL_PAGE_LIMIT = 1000
 const MAX_PROXY_AGENTS = 16
+const MCP_TOOL_RESULT_INSTRUCTION = [
+  'MCP tools may return raw JSON, arrays, logs, or other machine-oriented payloads.',
+  'Use MCP tool results as evidence to answer the user directly and concisely.',
+  'Do not paste raw JSON, full arrays, or unformatted tool payloads unless the user explicitly asks for raw output.',
+  'When the user asks about a specific date, status, file, command, or fact, extract only the relevant answer.'
+].join(' ')
 const insecureTlsAgent = new Agent({ connect: { rejectUnauthorized: false } })
 const proxyAgents = new Map<string, ProxyAgent>()
 
@@ -157,6 +163,11 @@ export async function streamChatCompletion(
 
   await streamChatCompletionUnsafe(masked.request, (chunk) => {
     if (chunk.type === 'progress') {
+      onChunk(chunk)
+      return
+    }
+
+    if (chunk.type === 'tool') {
       onChunk(chunk)
       return
     }
@@ -314,6 +325,7 @@ async function completeOpenAIWithMcpTools(
 ): Promise<void> {
   const toolMap = buildMcpToolNameMap(mcpTools)
   const messages: OpenAIMessage[] = buildMessages(request.messages, request.context)
+  messages.unshift({ role: 'system', content: MCP_TOOL_RESULT_INSTRUCTION })
   const tools = [...toolMap.entries()].map(([name, entry]) => ({
     type: 'function',
     function: {
@@ -352,7 +364,7 @@ async function completeOpenAIWithMcpTools(
       const content = entry
         ? await callMcpToolWithTrace(entry, args, onChunk, signal)
         : `Unknown MCP tool: ${call.function.name}`
-      messages.push({ role: 'tool', tool_call_id: call.id, content })
+      messages.push({ role: 'tool', tool_call_id: call.id, content: formatMcpToolResultForModel(content) })
     }
   }
   onChunk({ type: 'chunk', content: 'MCP tool loop reached the maximum number of tool calls.' })
@@ -368,6 +380,7 @@ async function completeAnthropicWithMcpTools(
   const toolMap = buildMcpToolNameMap(mcpTools)
   const input = buildAnthropicMessageInput(buildMessages(request.messages, request.context))
   const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> = input.messages
+  const system = [input.system, MCP_TOOL_RESULT_INSTRUCTION].filter(Boolean).join('\n\n')
   const tools = [...toolMap.entries()].map(([name, entry]) => ({
     name,
     description: entry.tool.description ?? `${entry.server.name}: ${entry.tool.name}`,
@@ -381,7 +394,7 @@ async function completeAnthropicWithMcpTools(
         ...await buildHeaders(request.provider),
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ model, max_tokens: ANTHROPIC_MAX_TOKENS, stream: false, ...(input.system ? { system: input.system } : {}), messages, tools }),
+      body: JSON.stringify({ model, max_tokens: ANTHROPIC_MAX_TOKENS, stream: false, ...(system ? { system } : {}), messages, tools }),
       signal
     }), 'Anthropic chat')
     if (!response.ok) {
@@ -406,7 +419,7 @@ async function completeAnthropicWithMcpTools(
       const text = entry
         ? await callMcpToolWithTrace(entry, args, onChunk, signal)
         : `Unknown MCP tool: ${name}`
-      toolResults.push({ type: 'tool_result', tool_use_id: id, content: text })
+      toolResults.push({ type: 'tool_result', tool_use_id: id, content: formatMcpToolResultForModel(text) })
     }
     messages.push({ role: 'user', content: toolResults })
   }
@@ -429,6 +442,14 @@ async function callMcpToolWithTrace(
     onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, content: message })
     throw error
   }
+}
+
+function formatMcpToolResultForModel(content: string): string {
+  return [
+    MCP_TOOL_RESULT_INSTRUCTION,
+    'Tool result:',
+    content
+  ].join('\n\n')
 }
 
 async function streamAnthropicChatCompletion(

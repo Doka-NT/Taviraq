@@ -193,6 +193,18 @@ type ThreadMessage = ChatMessage & {
   privacy?: PrivacyMaskingNotice
   reasoningContent?: string
 }
+
+function formatToolCallOutput(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2)
+  } catch {
+    return trimmed
+  }
+}
+
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
@@ -5100,7 +5112,7 @@ export function LlmPanel({
 
           if (message.display === 'tool-call') {
             const toolName = hideSecretPlaceholders(message.command ?? '', maskedSecretLabel)
-            const output = hideSecretPlaceholders(message.output?.trim() ?? '', maskedSecretLabel)
+            const output = hideSecretPlaceholders(formatToolCallOutput(message.output ?? ''), maskedSecretLabel)
             const failed = /failed$/i.test(message.content)
             return (
               <div className={`tool-call-message ${failed ? 'failed' : ''}`} key={`tool-call-${index}`}>

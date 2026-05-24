@@ -1092,6 +1092,16 @@ function buildAnthropicMessageInput(messages: ChatMessage[]): {
       content: message.content
     }))
     .filter((message) => message.content.trim())
+    .reduce<Array<{ role: 'user' | 'assistant'; content: string }>>((acc, message) => {
+      const previous = acc.at(-1)
+      if (previous?.role === message.role) {
+        previous.content = `${previous.content}\n\n${message.content}`
+        return acc
+      }
+
+      acc.push(message)
+      return acc
+    }, [])
 
   return {
     ...(system ? { system } : {}),

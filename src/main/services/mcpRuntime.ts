@@ -19,6 +19,10 @@ export interface McpRuntimeTool {
   tool: McpToolConfig
 }
 
+export interface McpToolListSession {
+  request(method: string, params: Record<string, unknown>): Promise<unknown>
+}
+
 export function getEnabledMcpTools(servers: McpServerConfig[]): McpRuntimeTool[] {
   return servers.flatMap((server) => {
     if (!server.enabled) return []
@@ -30,18 +34,23 @@ export function getEnabledMcpTools(servers: McpServerConfig[]): McpRuntimeTool[]
 
 export async function listMcpServerTools(server: McpServerConfig, signal?: AbortSignal): Promise<McpToolConfig[]> {
   return withMcpSession(server, signal, async (session) => {
-    const result = await session.request('tools/list', {})
-    if (!isRecord(result) || !Array.isArray(result.tools)) return []
-    return result.tools.flatMap((tool): McpToolConfig[] => {
-      if (!isRecord(tool) || typeof tool.name !== 'string' || !tool.name.trim()) return []
-      return [{
-        name: tool.name.trim(),
-        ...(typeof tool.description === 'string' && tool.description.trim() ? { description: tool.description.trim() } : {}),
-        ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
-        enabled: true
-      }]
-    })
+    return listMcpToolsFromSession(session)
   })
+}
+
+export async function listMcpToolsFromSession(session: McpToolListSession): Promise<McpToolConfig[]> {
+  const tools: McpToolConfig[] = []
+  let cursor: string | undefined
+  for (let page = 0; page < 100; page += 1) {
+    const result = await session.request('tools/list', cursor ? { cursor } : {})
+    if (!isRecord(result)) break
+    tools.push(...readMcpTools(result.tools))
+    cursor = typeof result.nextCursor === 'string' && result.nextCursor.trim()
+      ? result.nextCursor.trim()
+      : undefined
+    if (!cursor) break
+  }
+  return dedupeMcpTools(tools)
 }
 
 export async function callMcpTool(
@@ -55,7 +64,11 @@ export async function callMcpTool(
       name: toolName,
       arguments: args
     })
-    return formatToolResult(result)
+    const content = formatToolResult(result)
+    if (isRecord(result) && result.isError === true) {
+      throw new Error(content || `MCP tool ${toolName} failed.`)
+    }
+    return content
   })
 }
 
@@ -227,7 +240,30 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-function formatToolResult(result: unknown): string {
+function readMcpTools(tools: unknown): McpToolConfig[] {
+  if (!Array.isArray(tools)) return []
+  return tools.flatMap((tool): McpToolConfig[] => {
+    if (!isRecord(tool) || typeof tool.name !== 'string' || !tool.name.trim()) return []
+    return [{
+      name: tool.name.trim(),
+      ...(typeof tool.description === 'string' && tool.description.trim() ? { description: tool.description.trim() } : {}),
+      ...(isRecord(tool.inputSchema) ? { inputSchema: tool.inputSchema } : {}),
+      enabled: true
+    }]
+  })
+}
+
+function dedupeMcpTools(tools: McpToolConfig[]): McpToolConfig[] {
+  const seen = new Set<string>()
+  return tools.filter((tool) => {
+    const key = tool.name.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+export function formatToolResult(result: unknown): string {
   if (!isRecord(result)) return JSON.stringify(result)
   const content = result.content
   if (Array.isArray(content)) {

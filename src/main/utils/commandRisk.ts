@@ -133,7 +133,7 @@ export function assessProtectedCommandRisk(
 
 const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])
 const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
-const CURL_UPLOAD_FLAG_RE = /^(?:--data(?:-binary|-raw)?|-d|--form|-F|--upload-file|-T)(?:=.*)?$/i
+const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-binary|-raw)?|--form|--upload-file|-T|--post-(?:file|data))(?:=.*)?|-d\S*|-F\S*)$/i
 
 function hasTransferRisk(command: string, depth = 0): boolean {
   if (depth > 2) return false
@@ -151,7 +151,7 @@ function hasTransferRisk(command: string, depth = 0): boolean {
 
     if (TRANSFER_COMMANDS.has(executable)) return true
 
-    if ((executable === 'curl' || executable === 'wget') && tokens.slice(1).some((token) => CURL_UPLOAD_FLAG_RE.test(token))) {
+    if ((executable === 'curl' || executable === 'wget') && tokens.slice(1).some((token) => HTTP_UPLOAD_FLAG_RE.test(token))) {
       return true
     }
 
@@ -254,7 +254,8 @@ function readShellCommandArgument(tokens: string[]): string | undefined {
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i]
     if (!token.startsWith('-')) continue
-    if (!token.includes('c')) continue
+    if (token.startsWith('--')) continue
+    if (!/^-[A-Za-z]*c[A-Za-z]*$/.test(token)) continue
     return tokens[i + 1]
   }
 

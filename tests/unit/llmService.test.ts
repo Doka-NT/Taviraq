@@ -250,6 +250,97 @@ describe('llmService', () => {
     expect(secondBody.messages.at(-1)?.content).toContain('"is_day_off":false')
   })
 
+  it('masks MCP tool output before exposing it to the model or trace', async () => {
+    const secret = 'mcp-secret-value-ABC123_mcp-secret-value-ABC123'
+    const placeholder = '[[TAVIRAQ_SECRET_1_GENERIC_API_KEY]]'
+    const tempDir = await mkdtemp(join(tmpdir(), 'taviraq-gitleaks-mcp-test-'))
+    const fakeGitleaks = join(tempDir, 'gitleaks')
+    await writeFile(fakeGitleaks, [
+      '#!/bin/sh',
+      'payload=$(cat)',
+      `case "$payload" in *"${secret}"*) printf '%s' '${JSON.stringify([{ RuleID: 'generic-api-key', Secret: secret, Match: `MCP_TOKEN=${secret}` }])}' ;; *) printf '' ;; esac`
+    ].join('\n'), 'utf8')
+    await chmod(fakeGitleaks, 0o755)
+    vi.stubEnv('TAVIRAQ_GITLEAKS_PATH', fakeGitleaks)
+
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'vault',
+          command: 'vault-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'read_secret',
+          description: 'Reads a secret',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockResolvedValue(`{"MCP_TOKEN":"${secret}"}`)
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'vault_read_secret', arguments: '{}' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Готово.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      const { streamChatCompletion } = await import('@main/services/llmService')
+      const toolEvents: Array<{ status?: string; content?: string }> = []
+      const privacy: number[] = []
+      const result = await streamChatCompletion({
+        requestId: 'request-mcp-secret',
+        provider: {
+          name: 'OpenAI Compatible',
+          baseUrl: 'https://example.test',
+          apiKeyRef: 'openai',
+          selectedModel: 'gpt-4.1'
+        },
+        messages: [{ role: 'user', content: 'Use the vault tool' }],
+        context: {
+          selectedText: '',
+          assistMode: 'read'
+        }
+      }, (event) => {
+        if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+        if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') privacy.push(event.maskedSecrets)
+      }, undefined, 'on', undefined, [{
+        id: 'server-1',
+        name: 'vault',
+        command: 'vault-mcp',
+        enabled: true,
+        createdAt: '2026-05-24T00:00:00.000Z',
+        updatedAt: '2026-05-24T00:00:00.000Z'
+      }])
+
+      const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+      const toolPayload = secondBody.messages.at(-1)?.content ?? ''
+      expect(privacy).toEqual([1])
+      expect(result.secretContext.bindings).toHaveLength(1)
+      expect(toolEvents.at(-1)?.status).toBe('done')
+      expect(toolEvents.at(-1)?.content).not.toContain(secret)
+      expect(toolEvents.at(-1)?.content).toContain(placeholder)
+      expect(toolPayload).not.toContain(secret)
+      expect(toolPayload).toContain(placeholder)
+    } finally {
+      await rm(tempDir, { recursive: true, force: true })
+    }
+  })
+
   it('sends terminal context as untrusted user data instead of system instructions', async () => {
     const encoder = new TextEncoder()
     let requestBody = ''

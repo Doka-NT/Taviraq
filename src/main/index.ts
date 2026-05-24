@@ -98,6 +98,16 @@ const terminalManager = new TerminalManager(() => mainWindow, (sessionId) => {
   secretContextLocksBySession.delete(sessionId)
 })
 const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:'])
+const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
+  'claude',
+  'copilot',
+  'codex',
+  'opencode',
+  'lmstudio',
+  'ollama',
+  'cursor',
+  'windsurf'
+])
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
@@ -366,7 +376,7 @@ function isDiscoveredMcpServerPayload(value: unknown): value is DiscoveredMcpSer
   return typeof value.name === 'string' &&
     typeof value.command === 'string' &&
     typeof value.sourcePath === 'string' &&
-    (value.source === 'claude' || value.source === 'copilot' || value.source === 'codex' || value.source === 'opencode')
+    DISCOVERED_MCP_SOURCES.has(value.source as DiscoveredMcpServer['source'])
 }
 
 async function openAllowedExternalUrl(url: string): Promise<void> {

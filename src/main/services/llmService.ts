@@ -30,10 +30,13 @@ import { buildAssistantPromptMessages, LANGUAGE_NAMES, mergeAssistantPromptMessa
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
 import {
+  addSecretFindingsToContext,
   createStreamingPlaceholderRedactor,
   maskChatStreamRequest,
   maskCommandRiskAssessmentRequest,
   maskSummarizeConversationRequest,
+  maskText,
+  scanTextForSecrets,
   type SecretMaskContext,
   type SecretMaskingInput
 } from '@main/utils/secretMasking'
@@ -158,7 +161,7 @@ export async function streamChatCompletion(
   }
 
   await streamChatCompletionUnsafe(masked.request, (chunk) => {
-    if (chunk.type === 'progress') {
+    if (chunk.type === 'progress' || chunk.type === 'privacy') {
       onChunk(chunk)
       return
     }
@@ -178,7 +181,7 @@ export async function streamChatCompletion(
       const content = contentRedactor.push(chunk.content)
       if (content) onChunk({ type: 'chunk', content })
     }
-  }, signal, mcpServers)
+  }, signal, mcpServers, secretMaskingMode, masked.context)
 
   const finalReasoning = reasoningRedactor.flush()
   if (finalReasoning) onChunk({ type: 'reasoning', reasoningContent: finalReasoning })
@@ -197,7 +200,9 @@ async function streamChatCompletionUnsafe(
   request: ChatStreamRequest,
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
-  mcpServers: McpServerConfig[] = []
+  mcpServers: McpServerConfig[] = [],
+  secretMaskingMode: SecretMaskingInput = 'on',
+  secretContext?: SecretMaskContext
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
@@ -208,7 +213,7 @@ async function streamChatCompletionUnsafe(
   const mcpTools = getEnabledMcpTools(mcpServers)
 
   if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic')) {
-    return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal)
+    return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
   }
 
   if (providerType === 'lmstudio') {
@@ -304,12 +309,14 @@ async function completeChatWithMcpTools(
   model: string,
   mcpTools: McpRuntimeTool[],
   onChunk: (chunk: ChatStreamUpdate) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  secretMaskingMode: SecretMaskingInput = 'on',
+  secretContext?: SecretMaskContext
 ): Promise<void> {
   if (getProviderType(request.provider) === 'anthropic') {
-    return completeAnthropicWithMcpTools(request, model, mcpTools, onChunk, signal)
+    return completeAnthropicWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
   }
-  return completeOpenAIWithMcpTools(request, model, mcpTools, onChunk, signal)
+  return completeOpenAIWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
 }
 
 async function completeOpenAIWithMcpTools(
@@ -317,7 +324,9 @@ async function completeOpenAIWithMcpTools(
   model: string,
   mcpTools: McpRuntimeTool[],
   onChunk: (chunk: ChatStreamUpdate) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  secretMaskingMode: SecretMaskingInput = 'on',
+  secretContext?: SecretMaskContext
 ): Promise<void> {
   const toolMap = buildMcpToolNameMap(mcpTools)
   const messages: OpenAIMessage[] = buildMessages(request.messages, request.context)
@@ -358,7 +367,7 @@ async function completeOpenAIWithMcpTools(
       const entry = toolMap.get(call.function.name)
       const args = safeParseToolArgs(call.function.arguments)
       const content = entry
-        ? await callMcpToolWithTrace(entry, args, onChunk, signal)
+        ? await callMcpToolWithTrace(entry, args, onChunk, secretMaskingMode, secretContext, signal)
         : `Unknown MCP tool: ${call.function.name}`
       messages.push({ role: 'tool', tool_call_id: call.id, content: formatMcpToolResultForModel(content) })
     }
@@ -371,7 +380,9 @@ async function completeAnthropicWithMcpTools(
   model: string,
   mcpTools: McpRuntimeTool[],
   onChunk: (chunk: ChatStreamUpdate) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  secretMaskingMode: SecretMaskingInput = 'on',
+  secretContext?: SecretMaskContext
 ): Promise<void> {
   const toolMap = buildMcpToolNameMap(mcpTools)
   const input = buildAnthropicMessageInput(buildMessages(request.messages, request.context))
@@ -413,7 +424,7 @@ async function completeAnthropicWithMcpTools(
       const entry = toolMap.get(name)
       const args = isRecord(use.input) ? use.input : {}
       const text = entry
-        ? await callMcpToolWithTrace(entry, args, onChunk, signal)
+        ? await callMcpToolWithTrace(entry, args, onChunk, secretMaskingMode, secretContext, signal)
         : `Unknown MCP tool: ${name}`
       toolResults.push({ type: 'tool_result', tool_use_id: id, content: formatMcpToolResultForModel(text) })
     }
@@ -426,18 +437,44 @@ async function callMcpToolWithTrace(
   entry: McpRuntimeTool,
   args: Record<string, unknown>,
   onChunk: (chunk: ChatStreamUpdate) => void,
+  secretMaskingMode: SecretMaskingInput,
+  secretContext?: SecretMaskContext,
   signal?: AbortSignal
 ): Promise<string> {
   onChunk({ type: 'tool', status: 'running', serverName: entry.server.name, toolName: entry.tool.name })
   try {
     const content = await callMcpTool(entry.server, entry.tool.name, args, signal)
-    onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, content })
-    return content
+    const maskedContent = await maskMcpToolContent(content, secretMaskingMode, secretContext, onChunk, signal)
+    onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, content: maskedContent })
+    return maskedContent
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const rawMessage = error instanceof Error ? error.message : String(error)
+    const message = await maskMcpToolContent(rawMessage, secretMaskingMode, secretContext, onChunk, signal)
     onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, content: message })
     throw error
   }
+}
+
+async function maskMcpToolContent(
+  content: string,
+  secretMaskingMode: SecretMaskingInput,
+  secretContext: SecretMaskContext | undefined,
+  onChunk: (chunk: ChatStreamUpdate) => void,
+  signal?: AbortSignal
+): Promise<string> {
+  if (!secretContext) return content
+  const previousCount = secretContext.bindings.length
+  const findings = await scanTextForSecrets(content, secretMaskingMode, signal)
+  addSecretFindingsToContext(secretContext, findings)
+  if (secretContext.bindings.length > previousCount) {
+    const newBindings = secretContext.bindings.slice(previousCount)
+    onChunk({
+      type: 'privacy',
+      maskedSecrets: secretContext.bindings.length,
+      categories: [...new Set(newBindings.map((binding) => binding.kind))]
+    })
+  }
+  return maskText(content, secretContext)
 }
 
 function formatMcpToolResultForModel(content: string): string {

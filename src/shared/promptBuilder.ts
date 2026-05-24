@@ -56,9 +56,7 @@ export function buildAssistantPromptMessages(context: AssistantPromptContext): C
     ...buildModeInstructions(context.assistMode ?? 'off'),
     context.maskedSecretCount && context.maskedSecretCount > 0
       ? 'Some terminal values were replaced with opaque local secret placeholders like [[TAVIRAQ_SECRET_1_TOKEN]]. Treat them as local secrets. Do not ask for their real values. Do not mention placeholder identifiers or say "placeholder" in user-facing prose. If a command needs a local secret, copy the placeholder exactly inside the command so the app can resolve it locally after user approval.'
-      : undefined,
-    context.session ? `Active session: ${context.session.label} (${context.session.kind}).` : undefined,
-    context.session?.cwd ? `Current directory: ${context.session.cwd}.` : undefined
+      : undefined
   ].filter(Boolean).join('\n')
 
   const messages: ChatMessage[] = [{ role: 'system', content: systemLines }]
@@ -88,6 +86,12 @@ export function mergeAssistantPromptMessages(promptMessages: ChatMessage[], mess
 
 function buildTerminalContextMessage(context: AssistantPromptContext): ChatMessage | undefined {
   const sections = [
+    context.session ? [
+      'Active session metadata:',
+      `Label: ${escapeTerminalContext(context.session.label)}`,
+      `Kind: ${escapeTerminalContext(context.session.kind)}`,
+      context.session.cwd ? `Current directory: ${escapeTerminalContext(context.session.cwd)}` : undefined
+    ].filter(Boolean).join('\n') : undefined,
     context.selectedText ? `Selected terminal output:\n${escapeTerminalContext(context.selectedText)}` : undefined,
     context.terminalOutput ? `Recent terminal output:\n${escapeTerminalContext(context.terminalOutput)}` : undefined
   ].filter(Boolean)

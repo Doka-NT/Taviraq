@@ -133,6 +133,10 @@ const SHELL_WRAPPERS = new Set(['sh', 'bash', 'zsh'])
 const HTTP_UPLOAD_FLAG_RE = /^(?:(?:--data(?:-ascii|-binary|-raw|-urlencode)?|--form|--upload-file|-T|--post-(?:file|data)|--body-file)(?:=.*)?|-d\S*|-F\S*)$/i
 const HTTP_SENSITIVE_INPUT_FLAG_RE = /^(?:(--config|--netrc-file|--cookie)(?:=(.*))?|-K(.*)?)$/i
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/s
+const ENV_FLAGS_WITH_VALUE = new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string'])
+const ENV_FLAGS_WITH_OPTIONAL_VALUE_RE = /^(?:--unset|--chdir|--split-string)=/
+const ENV_FLAGS_WITHOUT_VALUE = new Set(['--ignore-environment', '--null', '--debug'])
+const ENV_SHORT_FLAGS_WITHOUT_VALUE_RE = /^-[i0v]+$/
 const SENSITIVE_PATH_RE = /(?:^|[/~])(?:\.env(?:\.[\w-]+)?|\.ssh\b|\.npmrc|\.pypirc|\.netrc|\.curlrc|id_(?:rsa|dsa|ecdsa|ed25519)|credentials|kubeconfig|secrets?\b|tokens?\b|passwd\b|shadow\b)|\.pem\b/i
 const SECRET_SEARCH_RE = /^(?:password|passwd|secret|secrets|token|tokens|api[_-]?key|private[_-]?key|credential|credentials)$/i
 const MAX_SHELL_INSPECTION_DEPTH = 8
@@ -235,7 +239,34 @@ function executableTokens(tokens: string[]): string[] {
 
     if (token === 'env') {
       result.shift()
-      while (ENV_ASSIGNMENT_RE.test(result[0] ?? '')) result.shift()
+      while (result.length > 0) {
+        const envToken = result[0] ?? ''
+        if (ENV_ASSIGNMENT_RE.test(envToken)) {
+          result.shift()
+          continue
+        }
+
+        if (envToken === '--') {
+          result.shift()
+          break
+        }
+
+        if (ENV_FLAGS_WITH_VALUE.has(envToken)) {
+          result.splice(0, 2)
+          continue
+        }
+
+        if (
+          ENV_FLAGS_WITH_OPTIONAL_VALUE_RE.test(envToken) ||
+          ENV_SHORT_FLAGS_WITHOUT_VALUE_RE.test(envToken) ||
+          ENV_FLAGS_WITHOUT_VALUE.has(envToken)
+        ) {
+          result.shift()
+          continue
+        }
+
+        break
+      }
       continue
     }
 
@@ -253,6 +284,12 @@ function splitShellCommands(command: string): string[] {
     const char = command[i]
 
     if (quote) {
+      if (char === '\\' && (command[i + 1] === '\n' || command[i + 1] === '\r')) {
+        if (command[i + 1] === '\r' && command[i + 2] === '\n') i += 2
+        else i += 1
+        continue
+      }
+
       current += char
       if (char === '\\' && quote === '"' && i + 1 < command.length) {
         current += command[i + 1]
@@ -264,6 +301,12 @@ function splitShellCommands(command: string): string[] {
         quote = undefined
       }
 
+      continue
+    }
+
+    if (char === '\\' && (command[i + 1] === '\n' || command[i + 1] === '\r')) {
+      if (command[i + 1] === '\r' && command[i + 2] === '\n') i += 2
+      else i += 1
       continue
     }
 

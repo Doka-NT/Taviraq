@@ -62,6 +62,7 @@ describe('ComposerConfigControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prompt library' }))
 
     expect(props.onAssistModeChange).toHaveBeenCalledWith('read')
+    expect(props.onOpenChange).toHaveBeenCalledWith(false)
     expect(props.onOpenModelSwitcher).toHaveBeenCalledTimes(1)
     expect(props.onOpenPromptLibrary).toHaveBeenCalledTimes(1)
   })

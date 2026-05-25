@@ -3225,6 +3225,7 @@ export function LlmPanel({
   const openComposerPromptLibrary = useCallback(() => {
     setComposerConfigOpen(false)
     setHistoryOpen(false)
+    setPromptPickerQuery('')
     setPromptPickerOpen(true)
   }, [])
   const suggestionChips = useMemo(() => buildSuggestionChips({

@@ -113,7 +113,10 @@ export function ComposerConfigControl({
                     type="button"
                     className={`composer-mode-option ${mode} ${assistMode === mode ? 'active' : ''}`}
                     aria-pressed={assistMode === mode}
-                    onClick={() => onAssistModeChange(mode)}
+                    onClick={() => {
+                      onAssistModeChange(mode)
+                      onOpenChange(false)
+                    }}
                   >
                     <AssistModeIcon mode={mode} />
                     <span>{label}</span>

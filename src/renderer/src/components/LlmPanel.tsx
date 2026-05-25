@@ -3222,6 +3222,17 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
+  const permissionIndicatorLabel = assistMode === 'agent'
+    ? 'R+X'
+    : assistMode === 'read'
+      ? 'R'
+      : '—'
+  const permissionIndicatorTitle = assistMode === 'agent'
+    ? t('panel.permission.readExecute')
+    : assistMode === 'read'
+      ? t('panel.permission.readOnly')
+      : t('panel.permission.none')
+  const shellLabel = activeSession?.label ?? 'zsh'
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -3607,23 +3618,19 @@ export function LlmPanel({
             </button>
           </div>
         </div>
-        <div className="permission-badges" aria-label="Assistant permissions">
-          <span className={`permission-chip shell ${activeSession?.status ?? 'exited'}`}>
-            <span className="permission-dot" />
-            <span>{activeSession?.label ?? 'zsh'}</span>
+        <div className="permission-summary" aria-label={t('panel.permission.summary')}>
+          <span className={`shell-readout ${activeSession?.status ?? 'exited'}`} title={t('panel.shell.label', { shell: shellLabel })}>
+            <span className="shell-state-dot" aria-hidden />
+            <span className="shell-readout-label">{shellLabel}</span>
           </span>
-          <span className={`permission-chip ${assistMode !== 'off' ? 'read' : ''}`}>
-            <span>{t('panel.permission.read')}</span>
+          <span
+            className={`permission-indicator ${assistMode}`}
+            title={permissionIndicatorTitle}
+            aria-label={permissionIndicatorTitle}
+          >
+            {assistMode === 'off' ? <ShieldOff size={12} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
+            <span>{permissionIndicatorLabel}</span>
           </span>
-          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''}`}>
-            <span>{t('panel.permission.execute')}</span>
-          </span>
-          {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) && (
-            <span className={`live-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
-              <span className="live-status-dot" aria-hidden />
-              <span>{t(`panel.status.${liveStatus}`)}</span>
-            </span>
-          )}
         </div>
       </header>
 
@@ -5390,6 +5397,12 @@ export function LlmPanel({
               ) : null}
             </div>
             <div className="chat-form-actions">
+              {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
+                <span className={`composer-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
+                  <span className="composer-status-dot" aria-hidden />
+                  <span>{t(`panel.status.${liveStatus}`)}</span>
+                </span>
+              ) : null}
               <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
                 {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
                 <span>{composerModeLabel}</span>

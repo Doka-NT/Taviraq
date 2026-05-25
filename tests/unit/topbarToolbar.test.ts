@@ -12,9 +12,10 @@ function cssBlock(selector: string): string {
 
 describe('topbar toolbar affordances', () => {
   it('groups primary and utility toolbar actions', () => {
+    expect(appSource).toContain('<div className="topbar-actions" role="toolbar" aria-label="Terminal toolbar">')
     expect(appSource).toContain('className="toolbar-group toolbar-group-primary"')
     expect(appSource).toContain('className="toolbar-group toolbar-group-utility"')
-    expect(cssBlock('.toolbar-group + .toolbar-group')).toContain('border-left')
+    expect(cssBlock('.toolbar-group + .toolbar-group')).toContain('border-left: 1px solid')
   })
 
   it('uses custom tooltips while preserving accessible labels', () => {
@@ -34,6 +35,7 @@ describe('topbar toolbar affordances', () => {
   it('defines hover and keyboard-visible tooltip styles', () => {
     expect(cssBlock('.topbar')).toContain('z-index: 20;')
     expect(cssBlock('.topbar-action[data-tooltip]::after')).toContain('content: attr(data-tooltip);')
+    expect(cssBlock('.topbar-action[data-tooltip]::after')).toContain('white-space: normal;')
     expect(styles).toContain('.topbar-action[data-tooltip]:focus-visible::after')
   })
 })

@@ -235,7 +235,7 @@ button {
 
 .toolbar-group + .toolbar-group {
   padding-left: 9px;
-  border-left: 0.5px solid rgba(var(--surface-rgb), 0.08);
+  border-left: 1px solid rgba(var(--surface-rgb), 0.08);
 }
 
 .topbar-actions .icon-button {
@@ -281,7 +281,8 @@ button {
   text-align: left;
   transform: translateY(-2px);
   transition: opacity var(--transition), transform var(--transition);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .topbar-action[data-tooltip]:hover::after,

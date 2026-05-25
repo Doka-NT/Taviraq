@@ -7,6 +7,7 @@ import {
   getSessionRenderStatus,
   getSessionStatusMeta,
   getSessionTooltip,
+  getSshTabIndicatorTitle,
   getTabLabel,
   isLiveSessionStatus,
   mergeRestoredSessionOutput,
@@ -28,9 +29,29 @@ describe('session tab helpers', () => {
       status: 'disconnected'
     }
 
-    expect(getTabLabel(session)).toBe('production · deploy@example.com')
+    expect(getTabLabel(session)).toBe('production')
     expect(getSessionCommandTarget(session)).toBe('deploy@example.com')
+    expect(getSshTabIndicatorTitle(session)).toBe('SSH: deploy@example.com')
+    expect(getSessionTooltip(session, 121_000)).toContain('Remote: deploy@example.com')
     expect(getSessionTooltip(session, 121_000)).toContain('Reconnect: ssh deploy@example.com')
+  })
+
+  it('keeps transient SSH tab labels concise while tooltip details stay complete', () => {
+    const session: SessionTabInfo = {
+      id: 'ssh-2',
+      kind: 'ssh',
+      label: 'deploy@very-long-hostname.internal.example.com',
+      remoteTarget: 'deploy@very-long-hostname.internal.example.com',
+      remoteHost: 'very-long-hostname.internal.example.com',
+      reconnectCommand: 'ssh deploy@very-long-hostname.internal.example.com',
+      cwd: '/srv/app',
+      command: 'ssh deploy@very-long-hostname.internal.example.com',
+      createdAt: 1_000,
+      status: 'running'
+    }
+
+    expect(getTabLabel(session)).toBe('very-long-hostname.internal.example.com')
+    expect(getSessionTooltip(session, 121_000)).toContain('Remote: deploy@very-long-hostname.internal.example.com')
   })
 
   it('returns compact cwd badges and local command targets', () => {

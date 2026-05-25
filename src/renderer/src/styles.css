@@ -387,9 +387,8 @@ button {
 }
 
 .session-tab.ssh-session {
-  width: max-content;
-  min-width: 0;
-  max-width: min(560px, 72vw);
+  min-width: 132px;
+  max-width: min(320px, 58vw);
 }
 
 .session-tab.status-disconnected {
@@ -491,9 +490,9 @@ button {
 }
 
 .ssh-session .tab-label {
-  flex: 0 1 auto;
-  width: max-content;
-  max-width: min(360px, calc(72vw - 170px));
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
 }
 
 .tab-target {
@@ -520,6 +519,26 @@ button {
   font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tab-remote-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border: 0.5px solid rgba(var(--accent-cyan-rgb), 0.28);
+  border-radius: 4px;
+  color: rgba(var(--accent-cyan-rgb), 0.92);
+  background: rgba(var(--accent-cyan-rgb), 0.10);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.tab-remote-badge svg {
+  flex: 0 0 auto;
 }
 
 .tab-kind {

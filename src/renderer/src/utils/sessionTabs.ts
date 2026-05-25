@@ -26,14 +26,12 @@ export function getTabLabel(session: TerminalSessionInfo): string {
     return session.label
   }
 
+  const label = session.label?.trim()
   const remoteTarget = session.remoteTarget?.trim()
-  if (!remoteTarget) {
-    return session.label
-  }
+  const remoteHost = session.remoteHost?.trim()
 
-  return session.label && session.label !== remoteTarget
-    ? `${session.label} · ${remoteTarget}`
-    : remoteTarget
+  if (label && label !== remoteTarget) return label
+  return remoteHost || remoteTarget || label || 'SSH session'
 }
 
 export function getCwdBasename(cwd: string | undefined): string | undefined {
@@ -63,6 +61,16 @@ export function getSessionCommandTarget(session: TerminalSessionInfo): string {
   }
 
   return getCwdBasename(session.cwd) || session.cwd || session.label || 'local shell'
+}
+
+export function getSshTabIndicatorTitle(session: TerminalSessionInfo): string | undefined {
+  if (session.kind !== 'ssh') return undefined
+
+  const remoteTarget = session.remoteTarget?.trim()
+  const remoteHost = session.remoteHost?.trim()
+  const target = remoteTarget || remoteHost || session.label?.trim()
+
+  return target ? `SSH: ${target}` : 'SSH session'
 }
 
 export function getSessionStatusMeta(status: SessionTabStatus): SessionTabStatusMeta {

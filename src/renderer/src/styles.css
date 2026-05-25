@@ -2127,7 +2127,7 @@ textarea:focus {
 
 .mcp-layout {
   display: grid;
-  grid-template-columns: 192px 1fr;
+  grid-template-columns: minmax(232px, 260px) minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -2223,10 +2223,21 @@ textarea:focus {
   white-space: nowrap;
 }
 
+.mcp-server-list-item {
+  height: auto;
+  min-height: 48px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
 .mcp-source-label {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-ghost);
   font-size: 10.5px;
   line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mcp-empty {

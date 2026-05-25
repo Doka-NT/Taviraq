@@ -1350,7 +1350,7 @@ export const ru: Translations = {
   'panel.permission.none': 'Нет доступа к терминалу',
   'panel.permission.readOnly': 'Читает контекст терминала',
   'panel.permission.readExecute': 'Читает контекст терминала и выполняет команды',
-  'panel.shell.label': 'Shell: {shell}',
+  'panel.shell.label': 'Оболочка: {shell}',
   'panel.status.idle': 'Ожидание',
   'panel.status.running': 'Работает',
   'panel.status.waiting': 'Ждёт подтв.',

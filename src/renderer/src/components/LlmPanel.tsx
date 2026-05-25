@@ -3232,7 +3232,7 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('panel.permission.readOnly')
       : t('panel.permission.none')
-  const shellLabel = activeSession?.label ?? 'zsh'
+  const shellLabel = activeSession?.label || 'zsh'
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,

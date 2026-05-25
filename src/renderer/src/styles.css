@@ -2725,7 +2725,7 @@ textarea:focus {
   letter-spacing: 0.04em;
 }
 
-/* Command snippets */
+/* Command palette */
 
 .command-palette-overlay {
   position: fixed;
@@ -2749,6 +2749,10 @@ textarea:focus {
   border-radius: var(--radius-lg);
   background: var(--bg-combobox-list);
   box-shadow: 0 26px 82px rgba(0, 0, 0, 0.52);
+}
+
+.command-palette.with-filters {
+  grid-template-rows: 46px 30px 38px minmax(0, 1fr);
 }
 
 .command-palette-search {
@@ -2791,6 +2795,36 @@ textarea:focus {
   font-weight: 500;
 }
 
+.command-palette-filters {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 0.5px solid var(--border-subtle);
+}
+
+.command-palette-filter {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0.5px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 11px;
+}
+
+.command-palette-filter:hover,
+.command-palette-filter:focus-visible {
+  color: var(--text-primary);
+  background: rgba(var(--surface-rgb), 0.08);
+}
+
+.command-palette-filter.active {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.24);
+  background: rgba(var(--accent-cyan-rgb), 0.10);
+}
+
 .command-palette-list {
   min-height: 0;
   overflow-y: auto;
@@ -2822,6 +2856,31 @@ textarea:focus {
   background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.command-palette-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 0.5px solid rgba(var(--surface-rgb), 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: rgba(var(--surface-rgb), 0.06);
+}
+
+.command-palette-item-icon.snippets {
+  color: var(--accent-amber);
+  border-color: rgba(var(--accent-amber-rgb), 0.22);
+  background: rgba(var(--accent-amber-rgb), 0.10);
+}
+
+.command-palette-item-icon.prompts {
+  color: var(--accent-emerald);
+  border-color: rgba(var(--accent-emerald-rgb), 0.22);
+  background: rgba(var(--accent-emerald-rgb), 0.10);
 }
 
 .command-palette-item.active {

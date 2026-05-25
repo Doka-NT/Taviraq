@@ -501,8 +501,15 @@ export interface Translations {
   'commandPalette.search': string
   'commandPalette.recent': string
   'commandPalette.all': string
+  'commandPalette.commands': string
+  'commandPalette.snippets': string
+  'commandPalette.prompts': string
   'commandPalette.noMatch': string
-  'commandPalette.enterRuns': string
+  'commandPalette.enterSelects': string
+  'commandPalette.action.open': string
+  'commandPalette.action.run': string
+  'commandPalette.action.insert': string
+  'commandPalette.action.select': string
   'commandPalette.escapeCloses': string
 
   // Prompt palette
@@ -996,8 +1003,15 @@ export const en: Translations = {
   'commandPalette.search': 'Search actions, tabs, prompts, snippets...',
   'commandPalette.recent': 'Recent',
   'commandPalette.all': 'All actions',
+  'commandPalette.commands': 'Commands',
+  'commandPalette.snippets': 'Snippets',
+  'commandPalette.prompts': 'Prompts',
   'commandPalette.noMatch': 'No matching actions.',
-  'commandPalette.enterRuns': 'Enter runs',
+  'commandPalette.enterSelects': 'Enter selects',
+  'commandPalette.action.open': 'Opens',
+  'commandPalette.action.run': 'Runs',
+  'commandPalette.action.insert': 'Inserts',
+  'commandPalette.action.select': 'Selects',
   'commandPalette.escapeCloses': 'Esc closes',
 
   'promptPalette.title': 'Prompts',
@@ -1490,8 +1504,15 @@ export const ru: Translations = {
   'commandPalette.search': 'Поиск действий, вкладок, промптов, сниппетов...',
   'commandPalette.recent': 'Недавние',
   'commandPalette.all': 'Все действия',
+  'commandPalette.commands': 'Команды',
+  'commandPalette.snippets': 'Сниппеты',
+  'commandPalette.prompts': 'Промпты',
   'commandPalette.noMatch': 'Подходящих действий нет.',
-  'commandPalette.enterRuns': 'Enter запускает',
+  'commandPalette.enterSelects': 'Enter выбирает',
+  'commandPalette.action.open': 'Открывает',
+  'commandPalette.action.run': 'Запускает',
+  'commandPalette.action.insert': 'Вставляет',
+  'commandPalette.action.select': 'Выбирает',
   'commandPalette.escapeCloses': 'Esc закрывает',
 
   'promptPalette.title': 'Промпты',
@@ -1984,8 +2005,15 @@ export const cn: Translations = {
   'commandPalette.search': '搜索操作、标签、提示词、片段...',
   'commandPalette.recent': '最近使用',
   'commandPalette.all': '所有操作',
+  'commandPalette.commands': '命令',
+  'commandPalette.snippets': '片段',
+  'commandPalette.prompts': '提示词',
   'commandPalette.noMatch': '没有匹配的操作。',
-  'commandPalette.enterRuns': 'Enter 执行',
+  'commandPalette.enterSelects': 'Enter 选择',
+  'commandPalette.action.open': '打开',
+  'commandPalette.action.run': '运行',
+  'commandPalette.action.insert': '插入',
+  'commandPalette.action.select': '选择',
   'commandPalette.escapeCloses': 'Esc 关闭',
 
   'promptPalette.title': '提示词',

@@ -157,4 +157,22 @@ describe('CommandPalette', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1)
   })
+
+  it('closes only once when Escape is pressed in the search input', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderPalette([
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear output.',
+        category: 'Terminal'
+      }
+    ], vi.fn(), onClose)
+
+    await user.click(screen.getByPlaceholderText('Search actions'))
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
 })

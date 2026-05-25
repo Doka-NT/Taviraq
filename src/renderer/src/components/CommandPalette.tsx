@@ -166,12 +166,6 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
   }, [actions, onRun])
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setActiveIndex((index) => Math.min(index + 1, Math.max(visibleActions.length - 1, 0)))
@@ -188,7 +182,7 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
       event.preventDefault()
       runActive(visibleActions[activeIndex], event.metaKey || event.ctrlKey)
     }
-  }, [activeIndex, onClose, runActive, visibleActions])
+  }, [activeIndex, runActive, visibleActions])
 
   const recentVisible = recentVisibleCount > 0
   const recentBoundary = recentVisible ? recentVisibleCount : 0

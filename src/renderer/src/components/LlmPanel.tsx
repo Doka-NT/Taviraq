@@ -5427,6 +5427,7 @@ export function LlmPanel({
       </>
       )}
 
+      {/* The compact composer control replaces only the old prompt trigger; this portal still renders the full prompt palette. */}
       {promptPickerOpen ? createPortal(
         <div className="prompt-picker-overlay" onClick={(event) => { if (event.target === event.currentTarget) closePromptPicker() }}>
           <section className="prompt-picker-palette" role="dialog" aria-modal="true" aria-label={t('promptPalette.title')}>

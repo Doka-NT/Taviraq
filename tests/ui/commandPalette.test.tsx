@@ -20,11 +20,16 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
 
-function renderPalette(actions: CommandPaletteAction[], onRun = vi.fn(), onClose = vi.fn()) {
+function renderPalette(
+  actions: CommandPaletteAction[],
+  onRun = vi.fn(),
+  onClose = vi.fn(),
+  recentActionIds: string[] = []
+) {
   render(
     <CommandPalette
       actions={actions}
-      recentActionIds={[]}
+      recentActionIds={recentActionIds}
       labels={labels}
       onClose={onClose}
       onRun={onRun}
@@ -97,6 +102,41 @@ describe('CommandPalette', () => {
     await user.type(screen.getByPlaceholderText('Search actions'), '@review')
     expect(screen.getByText('Insert prompt: Review')).toBeInTheDocument()
     expect(screen.queryByText('Insert snippet: Deploy')).not.toBeInTheDocument()
+  })
+
+  it('keeps recent snippets visible when the snippets tab is active', async () => {
+    const user = userEvent.setup()
+    renderPalette([
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear output.',
+        category: 'Terminal',
+        paletteCategory: 'commands'
+      },
+      {
+        id: 'snippet:deploy:insert',
+        title: 'Insert snippet: Deploy',
+        description: 'npm run deploy',
+        category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: 'Inserts'
+      },
+      {
+        id: 'snippet:status:insert',
+        title: 'Insert snippet: Status',
+        description: 'git status',
+        category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: 'Inserts'
+      }
+    ], vi.fn(), vi.fn(), ['snippet:deploy:insert'])
+
+    await user.click(screen.getByRole('tab', { name: 'Snippets' }))
+
+    expect(screen.getByText('Recent')).toBeInTheDocument()
+    expect(screen.getByText('Insert snippet: Deploy')).toBeInTheDocument()
+    expect(screen.getByText('Insert snippet: Status')).toBeInTheDocument()
   })
 
   it('closes with Escape after focus moves to a category tab', async () => {

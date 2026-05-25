@@ -95,6 +95,14 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
   const [activeCategory, setActiveCategory] = useState<CommandPaletteCategoryFilter>(initialCategory)
   const [activeIndex, setActiveIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const rawQuery = query.trim()
+  const prefixCategory = showCategoryFilters && rawQuery.startsWith('/')
+    ? 'snippets'
+    : showCategoryFilters && rawQuery.startsWith('@')
+      ? 'prompts'
+      : undefined
+  const visibleCategory = showCategoryFilters ? (prefixCategory ?? activeCategory) : 'all'
+  const normalizedQuery = prefixCategory ? rawQuery.slice(1).trim() : rawQuery
 
   const recentActions = useMemo(() => {
     const byId = new Map(actions.map((action) => [action.id, action]))
@@ -105,22 +113,17 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
   }, [actions, recentActionIds])
 
   const visibleActions = useMemo(() => {
-    const rawQuery = query.trim()
-    const prefixCategory = showCategoryFilters && rawQuery.startsWith('/')
-      ? 'snippets'
-      : showCategoryFilters && rawQuery.startsWith('@')
-        ? 'prompts'
-        : undefined
-    const category = showCategoryFilters ? (prefixCategory ?? activeCategory) : 'all'
-    const normalizedQuery = prefixCategory ? rawQuery.slice(1).trim() : rawQuery
-    const categoryActions = category === 'all'
+    const categoryActions = visibleCategory === 'all'
       ? actions
-      : actions.filter((action) => getActionPaletteCategory(action) === category)
+      : actions.filter((action) => getActionPaletteCategory(action) === visibleCategory)
 
     if (!normalizedQuery) {
-      const recentIds = new Set(recentActions.map((action) => action.id))
+      const categoryRecentActions = visibleCategory === 'all'
+        ? recentActions
+        : recentActions.filter((action) => getActionPaletteCategory(action) === visibleCategory)
+      const recentIds = new Set(categoryRecentActions.map((action) => action.id))
       return [
-        ...(category === 'all' ? recentActions : []),
+        ...categoryRecentActions,
         ...categoryActions.filter((action) => !recentIds.has(action.id))
       ]
     }
@@ -130,11 +133,20 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.action.title.localeCompare(b.action.title))
       .map((item) => item.action)
-  }, [actions, activeCategory, query, recentActions, showCategoryFilters])
+  }, [actions, normalizedQuery, recentActions, visibleCategory])
+
+  const recentVisibleCount = !normalizedQuery
+    ? recentActions.filter((action) => visibleCategory === 'all' || getActionPaletteCategory(action) === visibleCategory).length
+    : 0
 
   useEffect(() => {
     setActiveIndex(0)
   }, [query])
+
+  useEffect(() => {
+    setActiveCategory(initialCategory)
+    setActiveIndex(0)
+  }, [initialCategory])
 
   useEffect(() => {
     const active = listRef.current?.querySelector('.command-palette-item.active')
@@ -178,8 +190,8 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
     }
   }, [activeIndex, onClose, runActive, visibleActions])
 
-  const recentVisible = (!showCategoryFilters || activeCategory === 'all') && !query.trim() && recentActions.length > 0
-  const recentBoundary = recentVisible ? recentActions.length : 0
+  const recentVisible = recentVisibleCount > 0
+  const recentBoundary = recentVisible ? recentVisibleCount : 0
 
   return (
     <div className="command-palette-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>

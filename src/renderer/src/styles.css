@@ -194,6 +194,7 @@ button {
 
 .topbar {
   position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -222,13 +223,71 @@ button {
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
   -webkit-app-region: no-drag;
+}
+
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.toolbar-group + .toolbar-group {
+  padding-left: 9px;
+  border-left: 0.5px solid rgba(var(--surface-rgb), 0.08);
 }
 
 .topbar-actions .icon-button {
   width: 32px;
   height: 32px;
+}
+
+.topbar-action {
+  position: relative;
+}
+
+.topbar-action-primary {
+  color: rgba(var(--accent-cyan-rgb), 0.96);
+  border-color: rgba(var(--accent-cyan-rgb), 0.32);
+  background: rgba(var(--accent-cyan-rgb), 0.14);
+}
+
+.topbar-action-primary:hover:not(:disabled) {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.48);
+  background: rgba(var(--accent-cyan-rgb), 0.20);
+}
+
+.topbar-action[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 80;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 7px 9px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  background: rgba(18, 18, 20, 0.98);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
+  font-family: "SFMono-Regular", "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateY(-2px);
+  transition: opacity var(--transition), transform var(--transition);
+  white-space: nowrap;
+}
+
+.topbar-action[data-tooltip]:hover::after,
+.topbar-action[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .icon-button,

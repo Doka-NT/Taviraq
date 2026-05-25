@@ -41,8 +41,8 @@
   --color-danger: var(--accent-red-text);
   --color-danger-rgb: var(--accent-red-rgb);
   --color-danger-bg: var(--accent-red);
-  --color-neutral: var(--text-secondary);
   --color-neutral-rgb: var(--surface-rgb);
+  --color-neutral: rgba(var(--color-neutral-rgb), 0.50);
   --bg-hover-4: rgba(var(--surface-rgb), 0.04);
   --bg-hover-6: rgba(var(--surface-rgb), 0.06);
   --bg-hover-7: rgba(var(--surface-rgb), 0.07);

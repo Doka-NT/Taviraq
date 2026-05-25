@@ -608,7 +608,7 @@ button {
 }
 
 .tab-context-menu-item.danger:hover {
-  color: var(--color-danger);
+  color: var(--color-danger-bg);
   background: rgba(var(--color-danger-rgb), 0.11);
 }
 
@@ -4959,7 +4959,7 @@ textarea:focus {
 }
 
 .command-confirmation-card.danger .command-confirmation-head svg {
-  color: var(--color-danger);
+  color: var(--color-danger-bg);
 }
 
 .command-confirmation-card.danger .command-confirmation-head h2 {

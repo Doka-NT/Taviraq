@@ -365,6 +365,10 @@ export interface Translations {
   'chat.composer.mode.agent': string
   'chat.composer.mode.read': string
   'chat.composer.mode.off': string
+  'chat.composer.controls': string
+  'chat.composer.contextLabel': string
+  'chat.composer.maskedLabel': string
+  'chat.composer.modeLabel': string
   'model.switch.title': string
   'model.switch.search': string
   'model.switch.all': string
@@ -868,6 +872,10 @@ export const en: Translations = {
   'chat.composer.mode.agent': 'Agent',
   'chat.composer.mode.read': 'Read',
   'chat.composer.mode.off': 'Off',
+  'chat.composer.controls': 'Assistant controls',
+  'chat.composer.contextLabel': 'Context',
+  'chat.composer.maskedLabel': 'Masked',
+  'chat.composer.modeLabel': 'Mode',
   'model.switch.title': 'Switch model',
   'model.switch.search': 'Search models from current provider...',
   'model.switch.all': 'Available models',
@@ -1362,6 +1370,10 @@ export const ru: Translations = {
   'chat.composer.mode.agent': 'Агент',
   'chat.composer.mode.read': 'Чтение',
   'chat.composer.mode.off': 'Выкл.',
+  'chat.composer.controls': 'Настройки ассистента',
+  'chat.composer.contextLabel': 'Контекст',
+  'chat.composer.maskedLabel': 'Скрыто',
+  'chat.composer.modeLabel': 'Режим',
   'model.switch.title': 'Сменить модель',
   'model.switch.search': 'Поиск моделей текущего провайдера...',
   'model.switch.all': 'Доступные модели',
@@ -1856,6 +1868,10 @@ export const cn: Translations = {
   'chat.composer.mode.agent': '代理',
   'chat.composer.mode.read': '只读',
   'chat.composer.mode.off': '关闭',
+  'chat.composer.controls': '助手控件',
+  'chat.composer.contextLabel': '上下文',
+  'chat.composer.maskedLabel': '已遮蔽',
+  'chat.composer.modeLabel': '模式',
   'model.switch.title': '切换模型',
   'model.switch.search': '搜索当前提供商的模型...',
   'model.switch.all': '可用模型',

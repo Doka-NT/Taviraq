@@ -5061,6 +5061,7 @@ textarea:focus {
 }
 
 .chat-composer-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -5111,113 +5112,193 @@ textarea:focus {
 .chat-composer-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 6px;
   min-height: 28px;
 }
 
-.chat-composer-indicators {
-  flex: 1 1 auto;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: 4px;
+.composer-config-control {
+  position: relative;
   min-width: 0;
-  overflow: hidden;
+  flex: 1 1 auto;
 }
 
-.composer-context-chip,
-.composer-mode-badge,
-.composer-model-chip {
+.composer-config-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  width: min(180px, 100%);
   min-height: 20px;
-  max-width: 100%;
   padding: 0 6px;
   border: 0.5px solid rgba(var(--surface-rgb), 0.12);
   border-radius: 6px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   background: rgba(var(--surface-rgb), 0.07);
   font-size: 10px;
   line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.composer-context-chip span,
-.composer-mode-badge span,
-.composer-model-chip span {
+.composer-config-chip span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.composer-context-chip.off {
-  color: var(--text-ghost);
-}
-
-.composer-context-chip {
-  flex: 0 1 auto;
-}
-
-.composer-context-chip:first-child {
-  flex-shrink: 1;
-}
-
-.composer-mode-badge {
-  color: var(--text-secondary);
-  flex: 0 0 auto;
-}
-
-.composer-mode-badge.agent {
+.composer-config-chip.agent {
   color: var(--accent-cyan);
   border-color: rgba(var(--accent-cyan-rgb), 0.24);
   background: rgba(var(--accent-cyan-rgb), 0.10);
 }
 
-.composer-mode-badge.read {
+.composer-config-chip.read {
   color: var(--accent-emerald);
   border-color: rgba(var(--accent-emerald-rgb), 0.22);
   background: rgba(var(--accent-emerald-rgb), 0.10);
 }
 
-.composer-mode-badge.off {
+.composer-config-chip.off {
   color: var(--text-ghost);
 }
 
-.composer-model-chip {
-  max-width: 150px;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.composer-model-chip:hover,
-.composer-model-chip:focus-visible {
+.composer-config-chip:hover,
+.composer-config-chip:focus-visible {
   color: var(--text-primary);
   border-color: rgba(var(--accent-cyan-rgb), 0.24);
   background: rgba(var(--surface-rgb), 0.10);
 }
 
-.composer-model-chip:focus-visible {
+.composer-config-chip:focus-visible {
   outline: 2px solid rgba(var(--accent-cyan-rgb), 0.32);
   outline-offset: 1px;
 }
 
-.chat-form-actions {
-  flex: 0 0 auto;
+.composer-config-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 15;
+  display: grid;
+  gap: 8px;
+  width: min(280px, calc(100vw - 32px));
+  padding: 10px;
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(var(--bg-elevated-rgb), 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+}
+
+.composer-config-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.composer-config-row span,
+.composer-config-row strong {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+}
+
+.composer-config-row strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-config-section {
+  display: grid;
+  gap: 6px;
+}
+
+.composer-config-section-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.composer-mode-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.composer-mode-option,
+.composer-config-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0.5px solid rgba(var(--surface-rgb), 0.12);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: rgba(var(--surface-rgb), 0.06);
+  font-size: 11px;
+}
+
+.composer-mode-option span,
+.composer-config-actions span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-mode-option:hover,
+.composer-mode-option:focus-visible,
+.composer-config-actions button:hover,
+.composer-config-actions button:focus-visible {
+  color: var(--text-primary);
+  border-color: rgba(var(--accent-cyan-rgb), 0.22);
+  background: rgba(var(--surface-rgb), 0.10);
+}
+
+.composer-mode-option.active.agent {
+  color: var(--accent-cyan);
+  border-color: rgba(var(--accent-cyan-rgb), 0.28);
+  background: rgba(var(--accent-cyan-rgb), 0.12);
+}
+
+.composer-mode-option.active.read {
+  color: var(--accent-emerald);
+  border-color: rgba(var(--accent-emerald-rgb), 0.24);
+  background: rgba(var(--accent-emerald-rgb), 0.12);
+}
+
+.composer-mode-option.active.off {
+  color: var(--text-secondary);
+}
+
+.composer-config-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.chat-form-actions {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 5px;
 }
 
 @media (max-width: 760px) {
-  .chat-composer-footer {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .chat-form-actions {
-    justify-content: flex-end;
+  .composer-config-chip {
+    width: min(150px, 100%);
   }
 }
 

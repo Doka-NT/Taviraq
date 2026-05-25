@@ -2066,7 +2066,7 @@ export function LlmPanel({
         reason: localizeCommandRiskReason(assessment, t),
         command,
         tone: riskLevel === 'danger' ? 'danger' : 'warning',
-        confirmLabel: t('confirm.runCommand'),
+        confirmLabel: t('confirm.runAnyway'),
         riskLevel
       })
 

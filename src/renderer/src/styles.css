@@ -33,13 +33,13 @@
   --accent-cyan-selection: rgba(var(--accent-cyan-rgb), 0.22);
   --color-accent: var(--accent-cyan);
   --color-accent-rgb: var(--accent-cyan-rgb);
-  --color-accent-selection: var(--accent-cyan-selection);
   --color-success: var(--accent-green);
   --color-success-rgb: var(--accent-green-rgb);
   --color-warning: var(--accent-amber);
   --color-warning-rgb: var(--accent-amber-rgb);
   --color-danger: var(--accent-red-text);
   --color-danger-rgb: var(--accent-red-rgb);
+  --color-danger-strong: var(--accent-red);
   --color-danger-bg: var(--accent-red);
   --color-neutral-rgb: var(--surface-rgb);
   --color-neutral: rgba(var(--color-neutral-rgb), 0.50);
@@ -608,7 +608,7 @@ button {
 }
 
 .tab-context-menu-item.danger:hover {
-  color: var(--color-danger-bg);
+  color: var(--color-danger-strong);
   background: rgba(var(--color-danger-rgb), 0.11);
 }
 
@@ -4959,7 +4959,7 @@ textarea:focus {
 }
 
 .command-confirmation-card.danger .command-confirmation-head svg {
-  color: var(--color-danger-bg);
+  color: var(--color-danger-strong);
 }
 
 .command-confirmation-card.danger .command-confirmation-head h2 {

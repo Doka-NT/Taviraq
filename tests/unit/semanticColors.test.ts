@@ -15,6 +15,7 @@ describe('semantic color tokens', () => {
     expect(styles).toContain('--color-success: var(--accent-green);')
     expect(styles).toContain('--color-warning: var(--accent-amber);')
     expect(styles).toContain('--color-danger: var(--accent-red-text);')
+    expect(styles).toContain('--color-danger-strong: var(--accent-red);')
     expect(styles).toContain('--color-danger-bg: var(--accent-red);')
     expect(styles).toContain('--color-neutral-rgb: var(--surface-rgb);')
     expect(styles).toContain('--color-neutral: rgba(var(--color-neutral-rgb), 0.50);')
@@ -26,8 +27,8 @@ describe('semantic color tokens', () => {
     expect(selectorBlock('.provider-status-badge.ready')).toContain('color: var(--color-success);')
     expect(selectorBlock('.danger-button.warning')).toContain('color: rgba(var(--color-warning-rgb), 0.90);')
     expect(selectorBlock('.command-confirmation-card.danger')).toContain('border-color: rgba(var(--color-danger-rgb), 0.30);')
-    expect(selectorBlock('.tab-context-menu-item.danger:hover')).toContain('color: var(--color-danger-bg);')
-    expect(selectorBlock('.command-confirmation-card.danger .command-confirmation-head svg')).toContain('color: var(--color-danger-bg);')
+    expect(selectorBlock('.tab-context-menu-item.danger:hover')).toContain('color: var(--color-danger-strong);')
+    expect(selectorBlock('.command-confirmation-card.danger .command-confirmation-head svg')).toContain('color: var(--color-danger-strong);')
   })
 
   it('keeps the migrated signal selectors off raw palette variables', () => {

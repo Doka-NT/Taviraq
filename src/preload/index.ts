@@ -10,6 +10,7 @@ import type {
   CommandProposal,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  DataUsageStats,
   DiscoveredMcpServer,
   ExportData,
   GeneratedPrompt,
@@ -222,6 +223,8 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('commandSnippet:delete', id) as Promise<void>
   },
   data: {
+    usage: () =>
+      ipcRenderer.invoke('data:usage') as Promise<DataUsageStats>,
     export: (preferences: ExportData['preferences']) =>
       ipcRenderer.invoke('data:export', preferences) as Promise<void>,
     import: () =>

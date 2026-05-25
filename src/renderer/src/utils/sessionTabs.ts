@@ -31,7 +31,7 @@ export function getTabLabel(session: TerminalSessionInfo): string {
   const remoteHost = session.remoteHost?.trim()
 
   if (label && label !== remoteTarget) return label
-  return remoteHost || remoteTarget || label || 'SSH session'
+  return label || remoteTarget || remoteHost || 'SSH session'
 }
 
 export function getCwdBasename(cwd: string | undefined): string | undefined {

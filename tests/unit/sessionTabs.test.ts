@@ -50,8 +50,35 @@ describe('session tab helpers', () => {
       status: 'running'
     }
 
-    expect(getTabLabel(session)).toBe('very-long-hostname.internal.example.com')
+    expect(getTabLabel(session)).toBe('deploy@very-long-hostname.internal.example.com')
     expect(getSessionTooltip(session, 121_000)).toContain('Remote: deploy@very-long-hostname.internal.example.com')
+  })
+
+  it('formats SSH badge titles only for remote sessions', () => {
+    expect(getSshTabIndicatorTitle({
+      id: 'local-1',
+      kind: 'local',
+      label: 'zsh',
+      command: '/bin/zsh',
+      createdAt: 1_000
+    })).toBeUndefined()
+
+    expect(getSshTabIndicatorTitle({
+      id: 'ssh-3',
+      kind: 'ssh',
+      label: 'bastion',
+      remoteHost: 'bastion.internal',
+      command: 'ssh bastion.internal',
+      createdAt: 1_000
+    })).toBe('SSH: bastion.internal')
+
+    expect(getSshTabIndicatorTitle({
+      id: 'ssh-4',
+      kind: 'ssh',
+      label: '',
+      command: 'ssh',
+      createdAt: 1_000
+    })).toBe('SSH session')
   })
 
   it('returns compact cwd badges and local command targets', () => {

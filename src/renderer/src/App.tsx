@@ -1428,7 +1428,7 @@ export function App(): JSX.Element {
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />
           <div className="topbar-title">Taviraq</div>
-          <div className="topbar-actions" role="toolbar" aria-label="Terminal toolbar">
+          <div className="topbar-actions" role="toolbar" aria-label={appT('app.terminalToolbar')}>
             <div className="toolbar-group toolbar-group-primary">
               <div className="tabbar-new-dropdown-wrapper">
                 <button

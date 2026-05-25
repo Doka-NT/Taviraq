@@ -342,6 +342,7 @@ export interface Translations {
   'panel.status.running': string
   'panel.status.waiting': string
   'sidebar.openHandle': string
+  'app.terminalToolbar': string
   'app.newTerminal': string
   'app.closeSession': string
   'app.settings': string
@@ -846,6 +847,7 @@ export const en: Translations = {
   'panel.status.running': 'Running',
   'panel.status.waiting': 'Waiting',
   'sidebar.openHandle': 'Open assistant (⌘\\)',
+  'app.terminalToolbar': 'Terminal toolbar',
   'app.newTerminal': 'New terminal (⌘T)',
   'app.closeSession': 'Close session (⌘W)',
   'app.settings': 'Settings (⌘,)',
@@ -1340,6 +1342,7 @@ export const ru: Translations = {
   'panel.status.running': 'Работает',
   'panel.status.waiting': 'Ждёт подтв.',
   'sidebar.openHandle': 'Открыть ассистента (⌘\\)',
+  'app.terminalToolbar': 'Панель терминала',
   'app.newTerminal': 'Новый терминал (⌘T)',
   'app.closeSession': 'Закрыть сессию (⌘W)',
   'app.settings': 'Настройки (⌘,)',
@@ -1834,6 +1837,7 @@ export const cn: Translations = {
   'panel.status.running': '运行中',
   'panel.status.waiting': '等待确认',
   'sidebar.openHandle': '打开助手 (⌘\\)',
+  'app.terminalToolbar': '终端工具栏',
   'app.newTerminal': '新建终端 (⌘T)',
   'app.closeSession': '关闭会话 (⌘W)',
   'app.settings': '设置 (⌘,)',

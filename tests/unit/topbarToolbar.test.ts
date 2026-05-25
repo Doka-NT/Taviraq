@@ -12,7 +12,7 @@ function cssBlock(selector: string): string {
 
 describe('topbar toolbar affordances', () => {
   it('groups primary and utility toolbar actions', () => {
-    expect(appSource).toContain('<div className="topbar-actions" role="toolbar" aria-label="Terminal toolbar">')
+    expect(appSource).toContain('<div className="topbar-actions" role="toolbar" aria-label={appT(\'app.terminalToolbar\')}>')
     expect(appSource).toContain('className="toolbar-group toolbar-group-primary"')
     expect(appSource).toContain('className="toolbar-group toolbar-group-utility"')
     expect(cssBlock('.toolbar-group + .toolbar-group')).toContain('border-left: 1px solid')

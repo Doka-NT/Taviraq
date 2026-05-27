@@ -5120,16 +5120,16 @@ textarea:focus {
 
 .chat-composer-footer {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 7px;
-  min-height: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 28px;
   padding-top: 7px;
   border-top: 0.5px solid rgba(var(--surface-rgb), 0.06);
 }
 
 .chat-composer-indicators {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -5216,6 +5216,7 @@ textarea:focus {
 }
 
 .chat-form-actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -5225,8 +5226,8 @@ textarea:focus {
 
 @media (max-width: 760px) {
   .chat-composer-footer {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
   .chat-form-actions {

@@ -37,7 +37,7 @@ import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@rende
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
-import { mergePrivacyNotices } from '@renderer/utils/privacyNotices'
+import { findCurrentRequestPrivacyNoticeIndex, mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -1695,25 +1695,35 @@ export function LlmPanel({
             scope: event.scope ?? 'provider-payload',
             sessionLabel: event.sessionLabel
           }
-          const mergedPrivacy = last?.privacy ? mergePrivacyNotices(last.privacy, privacy) : privacy
 
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
+            const mergedPrivacy = last.privacy ? mergePrivacyNotices(last.privacy, privacy) : privacy
             messages[messages.length - 1] = { ...last, privacy: mergedPrivacy }
-          } else if (last?.display === 'privacy-status') {
-            messages[messages.length - 1] = {
-              ...last,
-              content: t('status.privacyMasked', { count: mergedPrivacy.maskedSecretCount }),
-              output: String(mergedPrivacy.maskedSecretCount),
-              privacy: mergedPrivacy
-            }
           } else {
-            messages.push({
-              role: 'assistant',
-              content: t('status.privacyMasked', { count: event.maskedSecrets }),
-              display: 'privacy-status',
-              output: String(event.maskedSecrets),
-              privacy
-            })
+            const privacyMessageIndex = findCurrentRequestPrivacyNoticeIndex(messages)
+
+            if (privacyMessageIndex >= 0) {
+              const existing = messages[privacyMessageIndex]
+              const mergedPrivacy = mergePrivacyNotices(existing.privacy!, privacy)
+              messages[privacyMessageIndex] = {
+                ...existing,
+                content: existing.display === 'privacy-status'
+                  ? t('status.privacyMasked', { count: mergedPrivacy.maskedSecretCount })
+                  : existing.content,
+                output: existing.display === 'privacy-status'
+                  ? String(mergedPrivacy.maskedSecretCount)
+                  : existing.output,
+                privacy: mergedPrivacy
+              }
+            } else {
+              messages.push({
+                role: 'assistant',
+                content: t('status.privacyMasked', { count: event.maskedSecrets }),
+                display: 'privacy-status',
+                output: String(event.maskedSecrets),
+                privacy
+              })
+            }
           }
 
           return {

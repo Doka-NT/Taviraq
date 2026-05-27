@@ -1182,11 +1182,15 @@ textarea:focus {
 }
 
 .settings-screen {
+  --settings-modal-width: 860px;
+  --settings-modal-height: 760px;
+
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
-  width: min(860px, 100%);
-  height: min(760px, calc(100vh - 32px));
-  max-height: calc(100vh - 32px);
+  inline-size: min(var(--settings-modal-width), 100%, calc(100vw - 32px));
+  block-size: min(var(--settings-modal-height), calc(100vh - 32px));
+  max-inline-size: calc(100vw - 32px);
+  max-block-size: calc(100vh - 32px);
   overflow: hidden;
   border: 0.5px solid var(--border-strong);
   border-radius: var(--radius-xl);

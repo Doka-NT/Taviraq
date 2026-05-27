@@ -105,6 +105,13 @@ try {
   assert.equal(await page.locator('.privacy-trust-card').count(), 1)
   const collapsedPrivacyBox = await privacyCard.boundingBox()
   assert.ok(collapsedPrivacyBox && collapsedPrivacyBox.height <= 44, 'privacy badge should stay compact when collapsed')
+  const privacyTitleFontSize = await privacyCard.locator('.privacy-trust-card-title strong').evaluate((node) => (
+    Number.parseFloat(window.getComputedStyle(node).fontSize)
+  ))
+  const messageFontSize = await page.evaluate(() => (
+    Number.parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue('--app-text-size') || '13.5') - 1
+  ))
+  assert.ok(privacyTitleFontSize < messageFontSize, 'privacy badge title should stay smaller than assistant message text')
   await captureLocator(privacyCard, '00-privacy-trust-card-collapsed.png')
   await privacyCard.locator('.privacy-trust-card-header').click()
   await page.getByText('Категории').waitFor({ state: 'visible' })

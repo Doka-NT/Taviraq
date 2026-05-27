@@ -531,13 +531,13 @@ function PrivacyTrustCard({
         onClick={() => setExpanded((value) => !value)}
       >
         <span className="privacy-trust-card-icon" aria-hidden>
-          <ShieldAlert size={14} />
+          <ShieldAlert size={12} />
         </span>
         <span className="privacy-trust-card-title">
           <strong>{t('privacy.trustCard.title')}</strong>
           <small>{content}</small>
         </span>
-        <ChevronDown className="privacy-trust-card-chevron" size={14} aria-hidden />
+        <ChevronDown className="privacy-trust-card-chevron" size={12} aria-hidden />
       </button>
 
       {expanded ? (
@@ -562,7 +562,7 @@ function PrivacyTrustCard({
           </p>
           <div className="privacy-trust-card-actions">
             <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
-              <Settings2 size={13} aria-hidden />
+              <Settings2 size={11} aria-hidden />
               {t('privacy.trustCard.openSettings')}
             </button>
           </div>

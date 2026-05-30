@@ -131,9 +131,14 @@ export function ComposerConfigControl({
               <Brain size={13} aria-hidden />
               <span>{t('model.switch.title')}</span>
             </button>
-            <button type="button" onClick={onOpenPromptLibrary}>
+            <button
+              type="button"
+              onClick={onOpenPromptLibrary}
+              title={t('panel.promptLibrary')}
+              aria-label={t('panel.promptLibrary')}
+            >
               <FileText size={13} aria-hidden />
-              <span>{t('panel.promptLibrary')}</span>
+              <span>{t('commandPalette.prompts')}</span>
             </button>
           </div>
         </section>

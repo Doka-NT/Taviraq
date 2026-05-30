@@ -2,6 +2,7 @@ import { cleanCommandOutput } from '@renderer/utils/commandOutput'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { CHAT_AUTO_SCROLL_BOTTOM_THRESHOLD_PX, isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
+import { formatDataBytes } from '@renderer/utils/dataUsage'
 
 describe('LlmPanel command output cleanup', () => {
   it('strips PTY echo when a secret placeholder was resolved before execution', () => {
@@ -46,6 +47,13 @@ describe('LlmPanel command output cleanup', () => {
     expect(formatComposerContextTokens(1000)).toBe('1k')
     expect(formatComposerContextTokens(12_040)).toBe('12k')
     expect(formatComposerContextTokens(12_560)).toBe('12.6k')
+  })
+
+  it('formats local data usage bytes compactly', () => {
+    expect(formatDataBytes(0, 'en')).toBe('0 B')
+    expect(formatDataBytes(512, 'en')).toBe('512 B')
+    expect(formatDataBytes(1536, 'en')).toBe('1.5 KB')
+    expect(formatDataBytes(2_097_152, 'en')).toBe('2 MB')
   })
 
   it('keeps assistant autoscroll active near the bottom of the chat', () => {

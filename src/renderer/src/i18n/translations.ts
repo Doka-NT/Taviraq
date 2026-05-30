@@ -282,6 +282,11 @@ export interface Translations {
 
   // Data tab
   'data.title': string
+  'data.usage.title': string
+  'data.usage.desc': string
+  'data.usage.storage': string
+  'data.usage.chats': string
+  'data.usage.sessions': string
   'data.exportImport.label': string
   'data.exportImport.desc': string
   'data.export': string
@@ -790,6 +795,11 @@ export const en: Translations = {
   'snippets.duplicateName': 'A command snippet with this name already exists.',
 
   'data.title': 'Data',
+  'data.usage.title': 'Local usage',
+  'data.usage.desc': 'Stored only on this Mac. Taviraq does not collect telemetry.',
+  'data.usage.storage': 'Storage used',
+  'data.usage.chats': 'Saved chats',
+  'data.usage.sessions': 'Saved sessions',
   'data.exportImport.label': 'Export / Import',
   'data.exportImport.desc': 'JSON backup with providers, prompts, command snippets and preferences',
   'data.export': 'Export',
@@ -1286,6 +1296,11 @@ export const ru: Translations = {
   'snippets.duplicateName': 'Сниппет команды с таким именем уже существует.',
 
   'data.title': 'Данные',
+  'data.usage.title': 'Локальное использование',
+  'data.usage.desc': 'Хранится только на этом Mac. Taviraq не собирает телеметрию.',
+  'data.usage.storage': 'Занято места',
+  'data.usage.chats': 'Сохранённые чаты',
+  'data.usage.sessions': 'Сохранённые сессии',
   'data.exportImport.label': 'Экспорт / Импорт',
   'data.exportImport.desc': 'JSON-бэкап: провайдеры, промпты, сниппеты команд и настройки',
   'data.export': 'Экспорт',
@@ -1782,6 +1797,11 @@ export const cn: Translations = {
   'snippets.duplicateName': '已存在同名命令片段。',
 
   'data.title': '数据',
+  'data.usage.title': '本地使用情况',
+  'data.usage.desc': '仅存储在这台 Mac 上。Taviraq 不收集遥测。',
+  'data.usage.storage': '已用存储',
+  'data.usage.chats': '已保存聊天',
+  'data.usage.sessions': '已保存会话',
   'data.exportImport.label': '导出 / 导入',
   'data.exportImport.desc': 'JSON 备份，包含提供商、提示词、命令片段和偏好设置',
   'data.export': '导出',

@@ -4,13 +4,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Eye, FileText, GitFork, History, KeyRound,
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Database, Eye, FileText, GitFork, History, KeyRound,
   Hammer, ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
-  ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
+  ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  DiscoveredMcpServer, McpServerConfig,
+  DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
@@ -37,6 +37,7 @@ import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@rende
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
+import { formatDataBytes } from '@renderer/utils/dataUsage'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -950,6 +951,7 @@ export function LlmPanel({
   const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
   const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
+  const [dataUsage, setDataUsage] = useState<DataUsageStats | null>(null)
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
@@ -2564,6 +2566,20 @@ export function LlmPanel({
     void loadMcpServers()
   }, [loadMcpServers])
 
+  const loadDataUsage = useCallback(async () => {
+    try {
+      setDataUsage(await window.api.data.usage())
+    } catch {
+      setDataUsage(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settingsOpen && settingsTab === 'data') {
+      void loadDataUsage()
+    }
+  }, [loadDataUsage, settingsOpen, settingsTab])
+
   const editMcpServer = useCallback((server: McpServerConfig) => {
     setMcpDraft(server)
     setMcpArgsDraft(formatMcpArgs(server.args))
@@ -3063,6 +3079,7 @@ export function LlmPanel({
 
       await loadConfig()
       await loadMcpServers()
+      await loadDataUsage()
 
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
@@ -3074,7 +3091,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
+  }, [loadConfig, loadDataUsage, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -3085,6 +3102,7 @@ export function LlmPanel({
         setDataStatus('Clearing saved session...')
         try {
           await onClearSavedSessionState()
+          await loadDataUsage()
           setDataStatus('Saved session cleared')
           setTimeout(() => setDataStatus(''), 3000)
         } catch (error) {
@@ -3092,7 +3110,7 @@ export function LlmPanel({
         }
       }
     })
-  }, [onClearSavedSessionState, t])
+  }, [loadDataUsage, onClearSavedSessionState, t])
 
   const handleClearChatHistory = useCallback(() => {
     setDeleteConfirmation({
@@ -3102,11 +3120,12 @@ export function LlmPanel({
       onConfirm: async () => {
         await window.api.chatHistory.clear()
         setHistoryChats([])
+        await loadDataUsage()
         setDataStatus(t('data.clearChatHistory.done'))
         setTimeout(() => setDataStatus(''), 2000)
       }
     })
-  }, [t])
+  }, [loadDataUsage, t])
 
   const confirmDeleteAction = useCallback(async () => {
     const confirmation = deleteConfirmation
@@ -3458,12 +3477,14 @@ export function LlmPanel({
       id: 'data',
       label: t('settings.tab.data'),
       terms: [
-        t('data.title'), t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
+        t('data.title'), t('data.usage.title'), t('data.usage.desc'), t('data.usage.storage'),
+        t('data.usage.chats'), t('data.usage.sessions'),
+        t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
         t('data.restoreSessions.label'), t('data.restoreSessions.desc'),
         t('data.exportImport.label'), t('data.exportImport.desc'),
         t('data.clearSessions.label'), t('data.clearSessions.desc'),
         t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'),
-        'data export import backup restore session state output context chars chat history clear'
+        'data usage storage local stats export import backup restore session state output context chars chat history clear'
       ]
     }
   ], [t])
@@ -3534,6 +3555,10 @@ export function LlmPanel({
       lastAutoOpenedSettingsQueryRef.current = query
     }
   }, [filteredSettingsNavItems, settingsOpen, settingsSearch])
+
+  const dataUsageStorage = dataUsage ? formatDataBytes(dataUsage.storageBytes, language) : '--'
+  const dataUsageChats = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.chatCount) : '--'
+  const dataUsageSessions = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.sessionCount) : '--'
 
   return (
     <aside className="llm-panel">
@@ -4794,6 +4819,36 @@ export function LlmPanel({
                 {!settingsNoResults && settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
+                    <section className={`data-usage-panel ${settingsMatchClass([
+                      t('data.usage.title'),
+                      t('data.usage.desc'),
+                      t('data.usage.storage'),
+                      t('data.usage.chats'),
+                      t('data.usage.sessions'),
+                      'usage storage local stats saved chats sessions history'
+                    ])}`}>
+                      <div className="settings-section-heading">
+                        <span><HighlightSearchText text={t('data.usage.title')} query={settingsSearch} /></span>
+                      </div>
+                      <p className="data-usage-desc"><HighlightSearchText text={t('data.usage.desc')} query={settingsSearch} /></p>
+                      <div className="data-usage-grid">
+                        <div className="data-usage-card">
+                          <Database size={15} aria-hidden />
+                          <span>{dataUsageStorage}</span>
+                          <small><HighlightSearchText text={t('data.usage.storage')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <History size={15} aria-hidden />
+                          <span>{dataUsageChats}</span>
+                          <small><HighlightSearchText text={t('data.usage.chats')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <SquareTerminal size={15} aria-hidden />
+                          <span>{dataUsageSessions}</span>
+                          <small><HighlightSearchText text={t('data.usage.sessions')} query={settingsSearch} /></small>
+                        </div>
+                      </div>
+                    </section>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.outputContext.label'), t('appearance.outputContext.desc'), 'output context ai max characters chars terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.outputContext.label')} query={settingsSearch} /></span>

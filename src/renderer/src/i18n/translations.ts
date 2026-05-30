@@ -280,6 +280,10 @@ export interface Translations {
 
   // Data tab
   'data.title': string
+  'data.localUsage.title': string
+  'data.localUsage.storageUsed': string
+  'data.localUsage.savedChats': string
+  'data.localUsage.savedSessions': string
   'data.exportImport.label': string
   'data.exportImport.desc': string
   'data.export': string
@@ -786,6 +790,10 @@ export const en: Translations = {
   'snippets.duplicateName': 'A command snippet with this name already exists.',
 
   'data.title': 'Data',
+  'data.localUsage.title': 'Local usage',
+  'data.localUsage.storageUsed': 'Storage used',
+  'data.localUsage.savedChats': 'Saved chats',
+  'data.localUsage.savedSessions': 'Saved sessions',
   'data.exportImport.label': 'Export / Import',
   'data.exportImport.desc': 'JSON backup with providers, prompts, command snippets and preferences',
   'data.export': 'Export',
@@ -1280,6 +1288,10 @@ export const ru: Translations = {
   'snippets.duplicateName': 'Сниппет команды с таким именем уже существует.',
 
   'data.title': 'Данные',
+  'data.localUsage.title': 'Локальное хранилище',
+  'data.localUsage.storageUsed': 'Занято',
+  'data.localUsage.savedChats': 'Сохранённых чатов',
+  'data.localUsage.savedSessions': 'Сохранённых сессий',
   'data.exportImport.label': 'Экспорт / Импорт',
   'data.exportImport.desc': 'JSON-бэкап: провайдеры, промпты, сниппеты команд и настройки',
   'data.export': 'Экспорт',
@@ -1774,6 +1786,10 @@ export const cn: Translations = {
   'snippets.duplicateName': '已存在同名命令片段。',
 
   'data.title': '数据',
+  'data.localUsage.title': '本地用量',
+  'data.localUsage.storageUsed': '已用存储',
+  'data.localUsage.savedChats': '已保存聊天',
+  'data.localUsage.savedSessions': '已保存会话',
   'data.exportImport.label': '导出 / 导入',
   'data.exportImport.desc': 'JSON 备份，包含提供商、提示词、命令片段和偏好设置',
   'data.export': '导出',

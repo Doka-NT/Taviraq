@@ -5297,7 +5297,8 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  width: min(180px, 100%);
+  width: fit-content;
+  max-width: min(180px, 100%);
   min-height: 20px;
   padding: 0 6px;
   border: 0.5px solid rgba(var(--surface-rgb), 0.12);
@@ -5469,7 +5470,7 @@ textarea:focus {
 
 @media (max-width: 760px) {
   .composer-config-chip {
-    width: min(150px, 100%);
+    max-width: min(150px, 100%);
   }
 
   .chat-composer-footer {

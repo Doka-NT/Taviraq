@@ -345,6 +345,11 @@ export interface Translations {
   'panel.permission.read': string
   'panel.permission.execute': string
   'panel.permission.pending': string
+  'panel.permission.summary': string
+  'panel.permission.none': string
+  'panel.permission.readOnly': string
+  'panel.permission.readExecute': string
+  'panel.shell.label': string
   'panel.status.idle': string
   'panel.status.running': string
   'panel.status.waiting': string
@@ -861,8 +866,13 @@ export const en: Translations = {
   'panel.newChat': 'New chat',
   'panel.settings': 'Settings',
   'panel.permission.read': 'Read',
-  'panel.permission.execute': 'Execute',
+  'panel.permission.execute': 'Execute commands',
   'panel.permission.pending': 'Pending',
+  'panel.permission.summary': 'Assistant session and permissions',
+  'panel.permission.none': 'No terminal access',
+  'panel.permission.readOnly': 'Read terminal context',
+  'panel.permission.readExecute': 'Read terminal context and execute commands',
+  'panel.shell.label': 'Shell: {shell}',
   'panel.status.idle': 'Idle',
   'panel.status.running': 'Running',
   'panel.status.waiting': 'Waiting',
@@ -1369,8 +1379,13 @@ export const ru: Translations = {
   'panel.newChat': 'Новый чат',
   'panel.settings': 'Настройки',
   'panel.permission.read': 'Чтение',
-  'panel.permission.execute': 'Выполнение',
+  'panel.permission.execute': 'Выполняет команды',
   'panel.permission.pending': 'Ожидание',
+  'panel.permission.summary': 'Сессия и права ассистента',
+  'panel.permission.none': 'Нет доступа к терминалу',
+  'panel.permission.readOnly': 'Читает контекст терминала',
+  'panel.permission.readExecute': 'Читает контекст терминала и выполняет команды',
+  'panel.shell.label': 'Оболочка: {shell}',
   'panel.status.idle': 'Ожидание',
   'panel.status.running': 'Работает',
   'panel.status.waiting': 'Ждёт подтв.',
@@ -1877,8 +1892,13 @@ export const cn: Translations = {
   'panel.newChat': '新建聊天',
   'panel.settings': '设置',
   'panel.permission.read': '读取',
-  'panel.permission.execute': '执行',
+  'panel.permission.execute': '执行命令',
   'panel.permission.pending': '待处理',
+  'panel.permission.summary': '助手会话和权限',
+  'panel.permission.none': '无终端访问权限',
+  'panel.permission.readOnly': '读取终端上下文',
+  'panel.permission.readExecute': '读取终端上下文并执行命令',
+  'panel.shell.label': 'Shell：{shell}',
   'panel.status.idle': '空闲',
   'panel.status.running': '运行中',
   'panel.status.waiting': '等待确认',

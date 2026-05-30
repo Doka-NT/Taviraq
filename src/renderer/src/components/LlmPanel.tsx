@@ -229,6 +229,27 @@ function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
+type ComposerLiveStatus = 'running' | 'waiting'
+type PermissionIndicatorVisualMode = AssistMode
+type PermissionIndicatorTitleKey =
+  | 'panel.permission.none'
+  | 'panel.permission.readOnly'
+  | 'panel.permission.execute'
+  | 'panel.permission.readExecute'
+
+interface PermissionIndicatorState {
+  label: '—' | 'R' | 'X' | 'R+X'
+  titleKey: PermissionIndicatorTitleKey
+  visualMode: PermissionIndicatorVisualMode
+}
+
+interface ProviderTerminalContextInput {
+  assistMode: AssistMode
+  selectedText: string
+  terminalOutput?: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  strictTerminalContextActive: boolean
+}
 
 interface CommandConfirmation {
   sessionId: string
@@ -249,6 +270,56 @@ interface DeleteConfirmation {
   message: string
   confirmLabel: string
   onConfirm: () => Promise<void> | void
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getComposerLiveStatus({
+  commandConfirmation,
+  streaming,
+  agenticRunning,
+  agenticCommandRunning
+}: {
+  commandConfirmation: unknown
+  streaming: boolean
+  agenticRunning: boolean
+  agenticCommandRunning: boolean
+}): ComposerLiveStatus | null {
+  if (commandConfirmation) return 'waiting'
+  if (streaming || agenticRunning || agenticCommandRunning) return 'running'
+  return null
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getPermissionIndicatorState(
+  assistMode: AssistMode,
+  terminalContextAllowed: boolean
+): PermissionIndicatorState {
+  if (assistMode === 'agent') {
+    return terminalContextAllowed
+      ? { label: 'R+X', titleKey: 'panel.permission.readExecute', visualMode: 'agent' }
+      : { label: 'X', titleKey: 'panel.permission.execute', visualMode: 'agent' }
+  }
+
+  if (assistMode === 'read' && terminalContextAllowed) {
+    return { label: 'R', titleKey: 'panel.permission.readOnly', visualMode: 'read' }
+  }
+
+  return { label: '—', titleKey: 'panel.permission.none', visualMode: 'off' }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getProviderTerminalContext({
+  assistMode,
+  selectedText,
+  terminalOutput,
+  session,
+  strictTerminalContextActive
+}: ProviderTerminalContextInput): Pick<TerminalContext, 'selectedText' | 'terminalOutput' | 'session'> {
+  if (assistMode === 'off' || strictTerminalContextActive) {
+    return { selectedText: '', terminalOutput: undefined, session: undefined }
+  }
+
+  return { selectedText, terminalOutput: terminalOutput || undefined, session }
 }
 
 function withObjectName(title: string, name?: string): string {
@@ -1082,10 +1153,12 @@ export function LlmPanel({
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
 
-  const liveStatus: 'idle' | 'running' | 'waiting' =
-    commandConfirmation ? 'waiting' :
-    (streaming || agenticRunning || agenticCommandRunning) ? 'running' :
-    'idle'
+  const liveStatus = getComposerLiveStatus({
+    commandConfirmation,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning
+  })
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
@@ -1503,17 +1576,22 @@ export function LlmPanel({
 
       const mode = assistModeRef.current
       const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
+      const providerTerminalContext = getProviderTerminalContext({
+        assistMode: mode,
+        selectedText: selectedTextRef.current,
+        terminalOutput,
+        session,
+        strictTerminalContextActive
+      })
 
       window.api.llm.chatStream({
         requestId,
         provider: providerRef.current,
         messages: toConversationalChatMessages(nextMessages.slice(0, -1), strictTerminalContextActive),
         context: {
-          selectedText: selectedTextRef.current,
+          ...providerTerminalContext,
           assistMode: mode,
-          terminalOutput: terminalOutput || undefined,
           language: languageRef.current,
-          session
         }
       })
       autoSaveThreadToHistory(sessionId)
@@ -1593,17 +1671,22 @@ export function LlmPanel({
 
     const mode = assistModeRef.current
     const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
+    const providerTerminalContext = getProviderTerminalContext({
+      assistMode: mode,
+      selectedText: selectedTextRef.current,
+      terminalOutput,
+      session,
+      strictTerminalContextActive
+    })
 
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
       messages: toConversationalChatMessages(requestMessages, strictTerminalContextActive),
       context: {
-        selectedText: selectedTextRef.current,
+        ...providerTerminalContext,
         assistMode: mode,
-        terminalOutput: terminalOutput || undefined,
         language: languageRef.current,
-        session
       }
     })
     autoSaveThreadToHistory(sessionId)
@@ -1977,15 +2060,20 @@ export function LlmPanel({
     const thread = getThread(sessionId)
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
     const terminalOutput = stripAnsi(getOutputForSessionRef.current(sessionId)).slice(-maxOutputContextRef.current)
+    const providerTerminalContext = getProviderTerminalContext({
+      assistMode: 'agent',
+      selectedText: selectedTextRef.current,
+      terminalOutput,
+      session,
+      strictTerminalContextActive
+    })
 
     return {
-      selectedText: selectedTextRef.current,
+      ...providerTerminalContext,
       assistMode: 'agent',
-      terminalOutput: terminalOutput || undefined,
       language: languageRef.current,
-      session
     }
-  }, [getThread, summarizeSession])
+  }, [getThread, strictTerminalContextActive, summarizeSession])
 
   const confirmAgenticCommand = useCallback(async (sessionId: string, command: string): Promise<CommandConfirmationResult> => {
     updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'info', label: t('status.checkingSafety') } }))
@@ -3121,16 +3209,17 @@ export function LlmPanel({
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
-  const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
-  const composerSelectedText = strictTerminalContextActive ? '' : selectedText
+  const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive
+  const composerTerminalOutput = terminalContextAllowed ? terminalOutputForComposer : ''
+  const composerSelectedText = terminalContextAllowed ? selectedText : ''
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerChatMessages = useMemo(
     () => toConversationalChatMessages(messages, strictTerminalContextActive),
     [messages, strictTerminalContextActive]
   )
   const composerSession = useMemo(
-    () => activeSession ? summarizeSession(activeSession) : undefined,
-    [activeSession, summarizeSession]
+    () => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession, terminalContextAllowed]
   )
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
@@ -3159,6 +3248,9 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
+  const permissionIndicator = getPermissionIndicatorState(assistMode, terminalContextAllowed)
+  const permissionIndicatorTitle = t(permissionIndicator.titleKey)
+  const shellLabel = activeSession?.label || 'zsh'
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -3550,23 +3642,19 @@ export function LlmPanel({
             </button>
           </div>
         </div>
-        <div className="permission-badges" aria-label="Assistant permissions">
-          <span className={`permission-chip shell ${activeSession?.status ?? 'exited'}`}>
-            <span className="permission-dot" />
-            <span>{activeSession?.label ?? 'zsh'}</span>
+        <div className="permission-summary" aria-label={t('panel.permission.summary')}>
+          <span className={`shell-readout ${activeSession?.status ?? 'exited'}`} title={t('panel.shell.label', { shell: shellLabel })}>
+            <span className="shell-state-dot" aria-hidden />
+            <span className="shell-readout-label">{shellLabel}</span>
           </span>
-          <span className={`permission-chip ${assistMode !== 'off' ? 'read' : ''}`}>
-            <span>{t('panel.permission.read')}</span>
+          <span
+            className={`permission-indicator ${permissionIndicator.visualMode}`}
+            title={permissionIndicatorTitle}
+            aria-label={permissionIndicatorTitle}
+          >
+            {permissionIndicator.visualMode === 'off' ? <ShieldOff size={12} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
+            <span>{permissionIndicator.label}</span>
           </span>
-          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''}`}>
-            <span>{t('panel.permission.execute')}</span>
-          </span>
-          {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) && (
-            <span className={`live-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
-              <span className="live-status-dot" aria-hidden />
-              <span>{t(`panel.status.${liveStatus}`)}</span>
-            </span>
-          )}
         </div>
       </header>
 
@@ -5369,6 +5457,12 @@ export function LlmPanel({
               ) : null}
             </div>
             <div className="chat-form-actions">
+              {liveStatus && assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
+                <span className={`composer-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
+                  <span className="composer-status-dot" aria-hidden />
+                  <span>{t(`panel.status.${liveStatus}`)}</span>
+                </span>
+              ) : null}
               <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
                 {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
                 <span>{composerModeLabel}</span>

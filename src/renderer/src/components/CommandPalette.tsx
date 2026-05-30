@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Search } from 'lucide-react'
+import { Code2, FileText, Search, Terminal } from 'lucide-react'
+
+export type CommandPaletteCategoryFilter = 'all' | 'commands' | 'snippets' | 'prompts'
 
 export interface CommandPaletteAction {
   id: string
   title: string
   description: string
   category: string
+  paletteCategory?: Exclude<CommandPaletteCategoryFilter, 'all'>
+  actionHint?: string
   keywords?: string[]
   shortcut?: string
   metaEnterActionId?: string
@@ -20,10 +24,15 @@ interface CommandPaletteProps {
     search: string
     recent: string
     all: string
+    commands: string
+    snippets: string
+    prompts: string
     noMatch: string
-    enterRuns: string
+    enterSelects: string
     escapeCloses: string
   }
+  initialCategory?: CommandPaletteCategoryFilter
+  showCategoryFilters?: boolean
   onClose: () => void
   onRun: (action: CommandPaletteAction) => void
 }
@@ -31,6 +40,25 @@ interface CommandPaletteProps {
 interface ScoredAction {
   action: CommandPaletteAction
   score: number
+}
+
+const CATEGORY_FILTERS: CommandPaletteCategoryFilter[] = ['all', 'commands', 'snippets', 'prompts']
+
+function getActionPaletteCategory(action: CommandPaletteAction): Exclude<CommandPaletteCategoryFilter, 'all'> {
+  return action.paletteCategory ?? 'commands'
+}
+
+function getCategoryLabel(labels: CommandPaletteProps['labels'], category: CommandPaletteCategoryFilter): string {
+  if (category === 'all') return labels.all
+  if (category === 'commands') return labels.commands
+  if (category === 'snippets') return labels.snippets
+  return labels.prompts
+}
+
+function getCategoryIcon(category: Exclude<CommandPaletteCategoryFilter, 'all'>): JSX.Element {
+  if (category === 'snippets') return <Code2 size={14} aria-hidden />
+  if (category === 'prompts') return <FileText size={14} aria-hidden />
+  return <Terminal size={14} aria-hidden />
 }
 
 function fuzzyCommandScore(action: CommandPaletteAction, rawQuery: string): number {
@@ -62,10 +90,19 @@ function fuzzyCommandScore(action: CommandPaletteAction, rawQuery: string): numb
   return score / Math.max(1, haystack.length / 80)
 }
 
-export function CommandPalette({ actions, recentActionIds, labels, onClose, onRun }: CommandPaletteProps): JSX.Element {
+export function CommandPalette({ actions, recentActionIds, labels, initialCategory = 'all', showCategoryFilters = true, onClose, onRun }: CommandPaletteProps): JSX.Element {
   const [query, setQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState<CommandPaletteCategoryFilter>(initialCategory)
   const [activeIndex, setActiveIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const rawQuery = query.trim()
+  const prefixCategory = showCategoryFilters && rawQuery.startsWith('/')
+    ? 'snippets'
+    : showCategoryFilters && rawQuery.startsWith('@')
+      ? 'prompts'
+      : undefined
+  const visibleCategory = showCategoryFilters ? (prefixCategory ?? activeCategory) : 'all'
+  const normalizedQuery = prefixCategory ? rawQuery.slice(1).trim() : rawQuery
 
   const recentActions = useMemo(() => {
     const byId = new Map(actions.map((action) => [action.id, action]))
@@ -76,25 +113,56 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
   }, [actions, recentActionIds])
 
   const visibleActions = useMemo(() => {
-    const normalizedQuery = query.trim()
+    const categoryActions = visibleCategory === 'all'
+      ? actions
+      : actions.filter((action) => getActionPaletteCategory(action) === visibleCategory)
+
     if (!normalizedQuery) {
-      const recentIds = new Set(recentActions.map((action) => action.id))
+      const categoryRecentActions = visibleCategory === 'all'
+        ? recentActions
+        : recentActions.filter((action) => getActionPaletteCategory(action) === visibleCategory)
+      const recentIds = new Set(categoryRecentActions.map((action) => action.id))
       return [
-        ...recentActions,
-        ...actions.filter((action) => !recentIds.has(action.id))
+        ...categoryRecentActions,
+        ...categoryActions.filter((action) => !recentIds.has(action.id))
       ]
     }
 
-    return actions
+    return categoryActions
       .map((action): ScoredAction => ({ action, score: fuzzyCommandScore(action, normalizedQuery) }))
       .filter((item) => item.score > 0)
       .sort((a, b) => b.score - a.score || a.action.title.localeCompare(b.action.title))
       .map((item) => item.action)
-  }, [actions, query, recentActions])
+  }, [actions, normalizedQuery, recentActions, visibleCategory])
+
+  const recentVisibleCount = !normalizedQuery
+    ? recentActions.filter((action) => visibleCategory === 'all' || getActionPaletteCategory(action) === visibleCategory).length
+    : 0
+  const actionSectionLabel = visibleCategory === 'all'
+    ? labels.all
+    : getCategoryLabel(labels, visibleCategory)
+
+  const selectCategory = useCallback((category: CommandPaletteCategoryFilter) => {
+    setActiveCategory(category)
+    setActiveIndex(0)
+
+    if (!prefixCategory) return
+
+    setQuery(category === 'snippets'
+      ? `/${normalizedQuery}`
+      : category === 'prompts'
+        ? `@${normalizedQuery}`
+        : normalizedQuery)
+  }, [normalizedQuery, prefixCategory])
 
   useEffect(() => {
     setActiveIndex(0)
   }, [query])
+
+  useEffect(() => {
+    setActiveCategory(initialCategory)
+    setActiveIndex(0)
+  }, [initialCategory])
 
   useEffect(() => {
     const active = listRef.current?.querySelector('.command-palette-item.active')
@@ -114,12 +182,6 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
   }, [actions, onRun])
 
   const handleKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       setActiveIndex((index) => Math.min(index + 1, Math.max(visibleActions.length - 1, 0)))
@@ -136,14 +198,25 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
       event.preventDefault()
       runActive(visibleActions[activeIndex], event.metaKey || event.ctrlKey)
     }
-  }, [activeIndex, onClose, runActive, visibleActions])
+  }, [activeIndex, runActive, visibleActions])
 
-  const recentVisible = !query.trim() && recentActions.length > 0
-  const recentBoundary = recentVisible ? recentActions.length : 0
+  const recentVisible = recentVisibleCount > 0
+  const recentBoundary = recentVisible ? recentVisibleCount : 0
 
   return (
     <div className="command-palette-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="command-palette" role="dialog" aria-modal="true" aria-label={labels.title}>
+      <section
+        className={`command-palette ${showCategoryFilters ? 'with-filters' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={labels.title}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            onClose()
+          }
+        }}
+      >
         <div className="command-palette-search">
           <Search size={16} aria-hidden />
           <input
@@ -155,15 +228,31 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
           />
         </div>
         <div className="command-palette-hint">
-          <span>{labels.enterRuns}</span>
+          <span>{labels.enterSelects}</span>
           <span>{labels.escapeCloses}</span>
         </div>
+        {showCategoryFilters ? (
+          <div className="command-palette-filters" role="tablist" aria-label={labels.all}>
+            {CATEGORY_FILTERS.map((category) => (
+              <button
+                key={category}
+                type="button"
+                role="tab"
+                aria-selected={visibleCategory === category}
+                className={`command-palette-filter ${visibleCategory === category ? 'active' : ''}`}
+                onClick={() => selectCategory(category)}
+              >
+                {getCategoryLabel(labels, category)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="command-palette-list" ref={listRef}>
           {visibleActions.length > 0 ? visibleActions.map((action, index) => (
             <div key={action.id} className="command-palette-row">
               {index === 0 || index === recentBoundary ? (
                 <div className="command-palette-section">
-                  {index === 0 && recentVisible ? labels.recent : labels.all}
+                  {index === 0 && recentVisible ? labels.recent : actionSectionLabel}
                 </div>
               ) : null}
               <button
@@ -173,11 +262,15 @@ export function CommandPalette({ actions, recentActionIds, labels, onClose, onRu
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => runActive(action)}
               >
+                <span className={`command-palette-item-icon ${getActionPaletteCategory(action)}`}>
+                  {getCategoryIcon(getActionPaletteCategory(action))}
+                </span>
                 <span className="command-palette-item-text">
                   <span className="command-palette-item-title">{action.title}</span>
                   <span className="command-palette-item-desc">{action.description}</span>
                 </span>
                 <span className="command-palette-item-meta">
+                  {action.actionHint ? <span>{action.actionHint}</span> : null}
                   <span>{action.category}</span>
                   {action.shortcut ? <kbd>{action.shortcut}</kbd> : null}
                 </span>

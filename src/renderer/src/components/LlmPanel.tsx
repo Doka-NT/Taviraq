@@ -4,13 +4,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Eye, FileText, GitFork, History, KeyRound,
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Database, Eye, GitFork, History, KeyRound,
   Hammer, ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
-  ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
+  ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  DiscoveredMcpServer, McpServerConfig,
+  DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
@@ -37,6 +37,7 @@ import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@rende
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
+import { formatDataBytes } from '@renderer/utils/dataUsage'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -815,7 +816,7 @@ interface LlmPanelProps {
   settingsTabRequest: SettingsTab
   settingsTabRequestVersion: number
   addSnippetRequestVersion: number
-  promptLibraryRequestVersion: number
+  onOpenPromptPalette: () => void
   textSize: number
   onTextSizeChange: (textSize: number) => void
   terminalFontFamily: string
@@ -866,7 +867,7 @@ export function LlmPanel({
   settingsTabRequest,
   settingsTabRequestVersion,
   addSnippetRequestVersion,
-  promptLibraryRequestVersion,
+  onOpenPromptPalette,
   textSize,
   onTextSizeChange,
   terminalFontFamily,
@@ -950,6 +951,7 @@ export function LlmPanel({
   const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
   const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
+  const [dataUsage, setDataUsage] = useState<DataUsageStats | null>(null)
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
@@ -958,12 +960,6 @@ export function LlmPanel({
   const [savePromptDuplicateName, setSavePromptDuplicateName] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
-  const [promptPickerPrompts, setPromptPickerPrompts] = useState<PromptTemplate[]>([])
-  const [promptPickerQuery, setPromptPickerQuery] = useState('')
-  const [promptPickerActiveIndex, setPromptPickerActiveIndex] = useState(0)
-  const promptPickerListRef = useRef<HTMLDivElement>(null)
-  const promptPickerSearchRef = useRef<HTMLInputElement | null>(null)
   const [composerConfigOpen, setComposerConfigOpen] = useState(false)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
@@ -1876,51 +1872,9 @@ export function LlmPanel({
       setHistoryOpen(false)
       setHistorySearch('')
     } else {
-      setPromptPickerOpen(false)
       void loadHistoryChats().then(() => setHistoryOpen(true))
     }
   }, [historyOpen, loadHistoryChats])
-
-  useEffect(() => {
-    if (!promptPickerOpen) return
-    void window.api.prompt.list().then(setPromptPickerPrompts).catch(() => setPromptPickerPrompts([]))
-    requestAnimationFrame(() => promptPickerSearchRef.current?.focus())
-  }, [promptPickerOpen])
-
-  useEffect(() => {
-    setPromptPickerActiveIndex(0)
-  }, [promptPickerQuery])
-
-  useEffect(() => {
-    if (!promptPickerListRef.current) return
-    const active = promptPickerListRef.current.querySelector('.prompt-picker-item.active')
-    if (active) active.scrollIntoView({ block: 'nearest' })
-  }, [promptPickerActiveIndex])
-
-  const promptPickerFiltered = useMemo(() => {
-    const q = promptPickerQuery.trim().toLowerCase()
-    if (!q) return promptPickerPrompts
-    return promptPickerPrompts.filter((p) =>
-      p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
-    )
-  }, [promptPickerPrompts, promptPickerQuery])
-
-  const closePromptPicker = useCallback(() => {
-    setPromptPickerOpen(false)
-    setPromptPickerQuery('')
-  }, [])
-
-  const openAddPrompt = useCallback(() => {
-    closePromptPicker()
-    setSettingsTab('prompts')
-    onOpenSettings()
-  }, [closePromptPicker, onOpenSettings])
-
-  useEffect(() => {
-    if (promptLibraryRequestVersion === 0) return
-    setHistoryOpen(false)
-    setPromptPickerOpen(true)
-  }, [promptLibraryRequestVersion])
 
   const handleDeleteHistoryChat = useCallback((chatId: string) => {
     const chat = historyChats.find((candidate) => candidate.id === chatId)
@@ -2555,6 +2509,20 @@ export function LlmPanel({
     void loadMcpServers()
   }, [loadMcpServers])
 
+  const loadDataUsage = useCallback(async () => {
+    try {
+      setDataUsage(await window.api.data.usage())
+    } catch {
+      setDataUsage(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settingsOpen && settingsTab === 'data') {
+      void loadDataUsage()
+    }
+  }, [loadDataUsage, settingsOpen, settingsTab])
+
   const editMcpServer = useCallback((server: McpServerConfig) => {
     setMcpDraft(server)
     setMcpArgsDraft(formatMcpArgs(server.args))
@@ -3054,6 +3022,7 @@ export function LlmPanel({
 
       await loadConfig()
       await loadMcpServers()
+      await loadDataUsage()
 
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
@@ -3065,7 +3034,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
+  }, [loadConfig, loadDataUsage, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -3076,6 +3045,7 @@ export function LlmPanel({
         setDataStatus('Clearing saved session...')
         try {
           await onClearSavedSessionState()
+          await loadDataUsage()
           setDataStatus('Saved session cleared')
           setTimeout(() => setDataStatus(''), 3000)
         } catch (error) {
@@ -3083,7 +3053,7 @@ export function LlmPanel({
         }
       }
     })
-  }, [onClearSavedSessionState, t])
+  }, [loadDataUsage, onClearSavedSessionState, t])
 
   const handleClearChatHistory = useCallback(() => {
     setDeleteConfirmation({
@@ -3093,11 +3063,12 @@ export function LlmPanel({
       onConfirm: async () => {
         await window.api.chatHistory.clear()
         setHistoryChats([])
+        await loadDataUsage()
         setDataStatus(t('data.clearChatHistory.done'))
         setTimeout(() => setDataStatus(''), 2000)
       }
     })
-  }, [t])
+  }, [loadDataUsage, t])
 
   const confirmDeleteAction = useCallback(async () => {
     const confirmation = deleteConfirmation
@@ -3118,30 +3089,7 @@ export function LlmPanel({
     handledPromptInsertRequestRef.current = promptInsertRequest.id
     setPromptDraft(promptInsertRequest.content)
     setHistoryOpen(false)
-    setPromptPickerOpen(false)
   }, [promptInsertRequest, setPromptDraft])
-
-  const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closePromptPicker()
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, Math.max(promptPickerFiltered.length - 1, 0)))
-      return
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.max(prev - 1, 0))
-      return
-    }
-    if (e.key === 'Enter' && promptPickerFiltered[promptPickerActiveIndex]) {
-      e.preventDefault()
-      setPromptDraft(promptPickerFiltered[promptPickerActiveIndex].content)
-      closePromptPicker()
-    }
-  }, [closePromptPicker, promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
 
   const setComposerAssistMode = useCallback((mode: AssistMode) => {
     setAssistMode((prev) => {
@@ -3225,9 +3173,8 @@ export function LlmPanel({
   const openComposerPromptLibrary = useCallback(() => {
     setComposerConfigOpen(false)
     setHistoryOpen(false)
-    setPromptPickerQuery('')
-    setPromptPickerOpen(true)
-  }, [])
+    onOpenPromptPalette()
+  }, [onOpenPromptPalette])
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -3464,12 +3411,14 @@ export function LlmPanel({
       id: 'data',
       label: t('settings.tab.data'),
       terms: [
-        t('data.title'), t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
+        t('data.title'), t('data.usage.title'), t('data.usage.desc'), t('data.usage.storage'),
+        t('data.usage.chats'), t('data.usage.sessions'),
+        t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
         t('data.restoreSessions.label'), t('data.restoreSessions.desc'),
         t('data.exportImport.label'), t('data.exportImport.desc'),
         t('data.clearSessions.label'), t('data.clearSessions.desc'),
         t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'),
-        'data export import backup restore session state output context chars chat history clear'
+        'data usage storage local stats export import backup restore session state output context chars chat history clear'
       ]
     }
   ], [t])
@@ -3540,6 +3489,10 @@ export function LlmPanel({
       lastAutoOpenedSettingsQueryRef.current = query
     }
   }, [filteredSettingsNavItems, settingsOpen, settingsSearch])
+
+  const dataUsageStorage = dataUsage ? formatDataBytes(dataUsage.storageBytes, language) : '--'
+  const dataUsageChats = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.chatCount) : '--'
+  const dataUsageSessions = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.sessionCount) : '--'
 
   return (
     <aside className="llm-panel">
@@ -4233,13 +4186,19 @@ export function LlmPanel({
                             <div className="mcp-empty">{t('mcp.empty')}</div>
                           ) : mcpServers.map((server) => {
                             const sourceLabel = MCP_SOURCE_LABELS[server.source ?? 'manual']
+                            const statusLabel = server.enabled ? t('mcp.status.enabled') : t('mcp.status.disabled')
+                            const serverTooltip = [
+                              server.name,
+                              `${sourceLabel} · ${statusLabel}`,
+                              server.command
+                            ].filter(Boolean).join('\n')
                             return (
                               <div
                                 key={server.id}
-                                className={`provider-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
+                                className={`provider-list-item mcp-server-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
                                 role="button"
                                 tabIndex={0}
-                                title={server.name}
+                                title={serverTooltip}
                                 onClick={() => editMcpServer(server)}
                                 onKeyDown={(event) => {
                                   if (event.target !== event.currentTarget) return
@@ -4252,7 +4211,7 @@ export function LlmPanel({
                                 <span className={`provider-active-dot ${server.enabled ? 'visible' : ''}`} />
                                 <span className="provider-list-item-main">
                                   <span className="provider-list-item-name">{server.name}</span>
-                                  <span className="mcp-source-label">{sourceLabel}</span>
+                                  <span className="mcp-source-label">{sourceLabel} · {statusLabel}</span>
                                 </span>
                                 <button
                                   type="button"
@@ -4794,6 +4753,36 @@ export function LlmPanel({
                 {!settingsNoResults && settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
+                    <section className={`data-usage-panel ${settingsMatchClass([
+                      t('data.usage.title'),
+                      t('data.usage.desc'),
+                      t('data.usage.storage'),
+                      t('data.usage.chats'),
+                      t('data.usage.sessions'),
+                      'usage storage local stats saved chats sessions history'
+                    ])}`}>
+                      <div className="settings-section-heading">
+                        <span><HighlightSearchText text={t('data.usage.title')} query={settingsSearch} /></span>
+                      </div>
+                      <p className="data-usage-desc"><HighlightSearchText text={t('data.usage.desc')} query={settingsSearch} /></p>
+                      <div className="data-usage-grid">
+                        <div className="data-usage-card">
+                          <Database size={15} aria-hidden />
+                          <span>{dataUsageStorage}</span>
+                          <small><HighlightSearchText text={t('data.usage.storage')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <History size={15} aria-hidden />
+                          <span>{dataUsageChats}</span>
+                          <small><HighlightSearchText text={t('data.usage.chats')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <SquareTerminal size={15} aria-hidden />
+                          <span>{dataUsageSessions}</span>
+                          <small><HighlightSearchText text={t('data.usage.sessions')} query={settingsSearch} /></small>
+                        </div>
+                      </div>
+                    </section>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.outputContext.label'), t('appearance.outputContext.desc'), 'output context ai max characters chars terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.outputContext.label')} query={settingsSearch} /></span>
@@ -5427,60 +5416,6 @@ export function LlmPanel({
       </>
       )}
 
-      {/* The compact composer control replaces only the old prompt trigger; this portal still renders the full prompt palette. */}
-      {promptPickerOpen ? createPortal(
-        <div className="prompt-picker-overlay" onClick={(event) => { if (event.target === event.currentTarget) closePromptPicker() }}>
-          <section className="prompt-picker-palette" role="dialog" aria-modal="true" aria-label={t('promptPalette.title')}>
-            <div className="prompt-picker-search">
-              <Search size={15} aria-hidden />
-              <input
-                ref={promptPickerSearchRef}
-                type="text"
-                placeholder={t('promptPalette.search')}
-                value={promptPickerQuery}
-                onChange={(e) => setPromptPickerQuery(e.target.value)}
-                onKeyDown={handlePromptPickerKeyDown}
-              />
-            </div>
-            <div className="prompt-picker-hint">
-              <div className="prompt-picker-shortcuts">
-                <span>{t('promptPalette.enterInserts')}</span>
-              </div>
-              <button type="button" className="prompt-picker-add" onClick={openAddPrompt}>
-                <Plus size={12} aria-hidden />
-                {t('promptPalette.addPrompt')}
-              </button>
-            </div>
-            <div className="prompt-picker-list" ref={promptPickerListRef}>
-              {promptPickerFiltered.length > 0 ? promptPickerFiltered.map((prompt, i) => (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    setPromptDraft(prompt.content)
-                    closePromptPicker()
-                  }}
-                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
-                >
-                  <FileText size={14} aria-hidden />
-                  <div className="prompt-picker-item-text">
-                    <span className="prompt-picker-item-name">{prompt.name}</span>
-                    <span className="prompt-picker-item-preview">{prompt.content}</span>
-                  </div>
-                </button>
-              )) : (
-                <p className="prompt-picker-empty">
-                  {promptPickerPrompts.length === 0
-                    ? t('promptPalette.empty')
-                    : t('promptPalette.noMatch')}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      , document.body) : null}
-
       {savePromptDialog ? createPortal(
         <div
           className="modal-overlay"
@@ -5572,10 +5507,14 @@ export function LlmPanel({
             search: t('model.switch.search'),
             recent: t('commandPalette.recent'),
             all: t('model.switch.all'),
+            commands: t('commandPalette.commands'),
+            snippets: t('commandPalette.snippets'),
+            prompts: t('commandPalette.prompts'),
             noMatch: t('model.noMatch'),
-            enterRuns: t('commandPalette.enterRuns'),
+            enterSelects: t('commandPalette.enterSelects'),
             escapeCloses: t('commandPalette.escapeCloses')
           }}
+          showCategoryFilters={false}
           onClose={() => setModelSwitcherOpen(false)}
           onRun={(action) => {
             if (action.id.startsWith('model:') && action.id !== 'model:load') {

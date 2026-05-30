@@ -229,6 +229,19 @@ function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
+type ComposerLiveStatus = 'running' | 'waiting'
+type PermissionIndicatorVisualMode = AssistMode
+type PermissionIndicatorTitleKey =
+  | 'panel.permission.none'
+  | 'panel.permission.readOnly'
+  | 'panel.permission.execute'
+  | 'panel.permission.readExecute'
+
+interface PermissionIndicatorState {
+  label: '—' | 'R' | 'X' | 'R+X'
+  titleKey: PermissionIndicatorTitleKey
+  visualMode: PermissionIndicatorVisualMode
+}
 
 interface CommandConfirmation {
   sessionId: string
@@ -249,6 +262,41 @@ interface DeleteConfirmation {
   message: string
   confirmLabel: string
   onConfirm: () => Promise<void> | void
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getComposerLiveStatus({
+  commandConfirmation,
+  streaming,
+  agenticRunning,
+  agenticCommandRunning
+}: {
+  commandConfirmation: unknown
+  streaming: boolean
+  agenticRunning: boolean
+  agenticCommandRunning: boolean
+}): ComposerLiveStatus | null {
+  if (commandConfirmation) return 'waiting'
+  if (streaming || agenticRunning || agenticCommandRunning) return 'running'
+  return null
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getPermissionIndicatorState(
+  assistMode: AssistMode,
+  terminalContextAllowed: boolean
+): PermissionIndicatorState {
+  if (assistMode === 'agent') {
+    return terminalContextAllowed
+      ? { label: 'R+X', titleKey: 'panel.permission.readExecute', visualMode: 'agent' }
+      : { label: 'X', titleKey: 'panel.permission.execute', visualMode: 'agent' }
+  }
+
+  if (assistMode === 'read' && terminalContextAllowed) {
+    return { label: 'R', titleKey: 'panel.permission.readOnly', visualMode: 'read' }
+  }
+
+  return { label: '—', titleKey: 'panel.permission.none', visualMode: 'off' }
 }
 
 function withObjectName(title: string, name?: string): string {
@@ -1087,10 +1135,12 @@ export function LlmPanel({
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
 
-  const liveStatus: 'idle' | 'running' | 'waiting' =
-    commandConfirmation ? 'waiting' :
-    (streaming || agenticRunning || agenticCommandRunning) ? 'running' :
-    'idle'
+  const liveStatus = getComposerLiveStatus({
+    commandConfirmation,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning
+  })
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
@@ -3222,16 +3272,9 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
-  const permissionIndicatorLabel = assistMode === 'agent'
-    ? 'R+X'
-    : assistMode === 'read'
-      ? 'R'
-      : '—'
-  const permissionIndicatorTitle = assistMode === 'agent'
-    ? t('panel.permission.readExecute')
-    : assistMode === 'read'
-      ? t('panel.permission.readOnly')
-      : t('panel.permission.none')
+  const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive
+  const permissionIndicator = getPermissionIndicatorState(assistMode, terminalContextAllowed)
+  const permissionIndicatorTitle = t(permissionIndicator.titleKey)
   const shellLabel = activeSession?.label || 'zsh'
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
@@ -3624,12 +3667,12 @@ export function LlmPanel({
             <span className="shell-readout-label">{shellLabel}</span>
           </span>
           <span
-            className={`permission-indicator ${assistMode}`}
+            className={`permission-indicator ${permissionIndicator.visualMode}`}
             title={permissionIndicatorTitle}
             aria-label={permissionIndicatorTitle}
           >
-            {assistMode === 'off' ? <ShieldOff size={12} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
-            <span>{permissionIndicatorLabel}</span>
+            {permissionIndicator.visualMode === 'off' ? <ShieldOff size={12} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
+            <span>{permissionIndicator.label}</span>
           </span>
         </div>
       </header>
@@ -5397,7 +5440,7 @@ export function LlmPanel({
               ) : null}
             </div>
             <div className="chat-form-actions">
-              {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
+              {liveStatus && assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
                 <span className={`composer-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
                   <span className="composer-status-dot" aria-hidden />
                   <span>{t(`panel.status.${liveStatus}`)}</span>

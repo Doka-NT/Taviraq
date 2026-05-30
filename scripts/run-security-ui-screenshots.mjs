@@ -109,9 +109,8 @@ try {
   await permissionIndicator.getByText('R+X').waitFor({ state: 'visible' })
   assert.match(await permissionIndicator.getAttribute('title') ?? '', /выполняет команды/)
   const composerStatus = page.locator('.composer-status-chip')
-  await composerStatus.getByText('Ожидание').waitFor({ state: 'visible' })
-  assert.equal(await composerStatus.getAttribute('aria-label'), 'Ожидание')
-  await captureLocator(page.locator('.llm-panel'), '00-permission-summary-panel.png')
+  assert.equal(await composerStatus.count(), 0)
+  await captureLocator(page.locator('.llm-panel'), '00-permission-summary-no-idle-panel.png')
 
   const privacyCard = page.locator('.privacy-trust-card').first()
   await privacyCard.waitFor({ state: 'visible' })
@@ -157,6 +156,13 @@ try {
   await page.getByText('Строгий контекст', { exact: true }).waitFor({ state: 'visible' })
   await assertSwitch(secretMaskingSwitch, true)
   await capture(page, '04-strict-context-protected.png')
+
+  await page.getByRole('button', { name: 'Закрыть настройки' }).click()
+  await page.locator('.settings-screen').waitFor({ state: 'hidden' })
+  await permissionIndicator.getByText('X', { exact: true }).waitFor({ state: 'visible' })
+  assert.match(await permissionIndicator.getAttribute('title') ?? '', /Выполняет команды/)
+  assert.equal(await composerStatus.count(), 0)
+  await captureLocator(page.locator('.llm-panel'), '05-strict-context-execute-only-no-idle-panel.png')
 
   const reportPath = join(screenshotDir, 'report.json')
   await writeFile(reportPath, JSON.stringify({ screenshots }, null, 2))

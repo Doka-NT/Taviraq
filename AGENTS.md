@@ -89,6 +89,18 @@ npm run build
 
 Run at least `npm run typecheck` after TypeScript changes. Prefer `npm run lint`, `npm test`, and `npm run build` before handing off larger changes.
 
+## PR QA (AI-Driven)
+
+When asked to QA, test, or verify a specific PR number:
+
+1. Follow `docs/qa/pr-qa-runbook.md` — it defines the full workflow.
+2. Use `scripts/qa-pr-ai.mjs` to launch the Electron app and drive interactions.
+3. Generate `--steps` JSON by reading the PR's `## Manual QA` section and the changed source files.
+4. Read each screenshot with the `Read` tool (multimodal) and verify against the PR's expected results.
+5. Produce a report in the format from `docs/qa/agent-runbook.md`.
+
+Do not mark a Manual QA step as passed unless you have seen a screenshot or assertion confirming the expected behavior.
+
 ## QA Catalog And Test-Case Runs
 
 When asked to run or update Taviraq QA/test cases:

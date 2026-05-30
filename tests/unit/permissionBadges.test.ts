@@ -78,6 +78,7 @@ describe('permission indicator semantics', () => {
 
   it('removes terminal context from provider requests when strict context is active', () => {
     expect(getProviderTerminalContext({
+      assistMode: 'agent',
       selectedText: 'selected secret',
       terminalOutput: 'terminal secret',
       strictTerminalContextActive: true
@@ -86,6 +87,7 @@ describe('permission indicator semantics', () => {
       terminalOutput: undefined
     })
     expect(getProviderTerminalContext({
+      assistMode: 'read',
       selectedText: 'selected text',
       terminalOutput: 'terminal output',
       strictTerminalContextActive: false
@@ -93,6 +95,17 @@ describe('permission indicator semantics', () => {
       selectedText: 'selected text',
       terminalOutput: 'terminal output'
     })
+    expect(getProviderTerminalContext({
+      assistMode: 'off',
+      selectedText: 'selected text',
+      terminalOutput: 'terminal output',
+      strictTerminalContextActive: false
+    })).toEqual({
+      selectedText: '',
+      terminalOutput: undefined
+    })
+    expect(panelSource).toContain("const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive")
+    expect(panelSource).toContain("const composerSelectedText = terminalContextAllowed ? selectedText : ''")
     expect(panelSource.match(/const providerTerminalContext = getProviderTerminalContext/g)?.length).toBe(3)
     expect(panelSource.match(/\.\.\.providerTerminalContext/g)?.length).toBe(3)
   })

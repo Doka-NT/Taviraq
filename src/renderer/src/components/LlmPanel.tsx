@@ -244,6 +244,7 @@ interface PermissionIndicatorState {
 }
 
 interface ProviderTerminalContextInput {
+  assistMode: AssistMode
   selectedText: string
   terminalOutput?: string
   strictTerminalContextActive: boolean
@@ -307,11 +308,12 @@ export function getPermissionIndicatorState(
 
 // eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
 export function getProviderTerminalContext({
+  assistMode,
   selectedText,
   terminalOutput,
   strictTerminalContextActive
 }: ProviderTerminalContextInput): Pick<TerminalContext, 'selectedText' | 'terminalOutput'> {
-  if (strictTerminalContextActive) {
+  if (assistMode === 'off' || strictTerminalContextActive) {
     return { selectedText: '', terminalOutput: undefined }
   }
 
@@ -1573,6 +1575,7 @@ export function LlmPanel({
       const mode = assistModeRef.current
       const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
       const providerTerminalContext = getProviderTerminalContext({
+        assistMode: mode,
         selectedText: selectedTextRef.current,
         terminalOutput,
         strictTerminalContextActive
@@ -1667,6 +1670,7 @@ export function LlmPanel({
     const mode = assistModeRef.current
     const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
     const providerTerminalContext = getProviderTerminalContext({
+      assistMode: mode,
       selectedText: selectedTextRef.current,
       terminalOutput,
       strictTerminalContextActive
@@ -2055,6 +2059,7 @@ export function LlmPanel({
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
     const terminalOutput = stripAnsi(getOutputForSessionRef.current(sessionId)).slice(-maxOutputContextRef.current)
     const providerTerminalContext = getProviderTerminalContext({
+      assistMode: 'agent',
       selectedText: selectedTextRef.current,
       terminalOutput,
       strictTerminalContextActive
@@ -3202,8 +3207,9 @@ export function LlmPanel({
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
-  const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
-  const composerSelectedText = strictTerminalContextActive ? '' : selectedText
+  const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive
+  const composerTerminalOutput = terminalContextAllowed ? terminalOutputForComposer : ''
+  const composerSelectedText = terminalContextAllowed ? selectedText : ''
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerChatMessages = useMemo(
     () => toConversationalChatMessages(messages, strictTerminalContextActive),
@@ -3240,7 +3246,6 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
-  const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive
   const permissionIndicator = getPermissionIndicatorState(assistMode, terminalContextAllowed)
   const permissionIndicatorTitle = t(permissionIndicator.titleKey)
   const shellLabel = activeSession?.label || 'zsh'

@@ -60,6 +60,29 @@ await writeFile(join(userDataDir, 'session-state.json'), JSON.stringify({
     }
   }
 }, null, 2), 'utf8')
+await writeFile(join(userDataDir, 'chat-history.json'), JSON.stringify({
+  version: 1,
+  chats: [
+    {
+      id: 'security-ui-chat-1',
+      title: 'Stored provider payload review',
+      messages: [{ role: 'user', content: 'Review local privacy settings.' }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      providerRef: 'openai-compatible-default',
+      modelId: 'demo-model'
+    },
+    {
+      id: 'security-ui-chat-2',
+      title: 'Stored terminal context review',
+      messages: [{ role: 'assistant', content: 'Local-only data summary.' }],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      providerRef: 'openai-compatible-default',
+      modelId: 'demo-model'
+    }
+  ]
+}, null, 2), 'utf8')
 const app = await electron.launch({
   args: [repoRoot],
   env: {
@@ -144,6 +167,17 @@ try {
   await page.getByText('Строгий контекст', { exact: true }).waitFor({ state: 'visible' })
   await assertSwitch(secretMaskingSwitch, true)
   await capture(page, '04-strict-context-protected.png')
+
+  await page.getByRole('button', { name: 'Данные' }).click()
+  await page.getByRole('heading', { name: 'Данные' }).waitFor({ state: 'visible' })
+  const localUsage = page.locator('.local-usage-panel')
+  await localUsage.getByText('Локальное хранилище').waitFor({ state: 'visible' })
+  await localUsage.getByText('Занято').waitFor({ state: 'visible' })
+  await localUsage.getByText('Сохранённых чатов').waitFor({ state: 'visible' })
+  await localUsage.getByText('Сохранённых сессий').waitFor({ state: 'visible' })
+  await localUsage.getByText('2', { exact: true }).waitFor({ state: 'visible' })
+  await localUsage.getByText('1', { exact: true }).waitFor({ state: 'visible' })
+  await capture(page, '05-data-local-usage.png')
 
   const reportPath = join(screenshotDir, 'report.json')
   await writeFile(reportPath, JSON.stringify({ screenshots }, null, 2))

@@ -124,7 +124,9 @@ function createApiMock() {
   }
 }
 
-function renderDataSettings() {
+function renderDataSettings(options: {
+  onClearSavedSessionState?: () => Promise<void>
+} = {}) {
   return render(
     <LlmPanel
       sessionIds={[]}
@@ -166,7 +168,7 @@ function renderDataSettings() {
       onRestoreSessionsChange={() => undefined}
       restoredThreads={{}}
       onThreadsChange={() => undefined}
-      onClearSavedSessionState={() => Promise.resolve(undefined)}
+      onClearSavedSessionState={options.onClearSavedSessionState ?? (() => Promise.resolve(undefined))}
       onReopenChat={() => undefined}
       onConnectSsh={() => undefined}
     />
@@ -252,6 +254,25 @@ describe('LlmPanel data local usage stats', () => {
     await waitFor(() => expect(apiMock.data.import).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(apiMock.data.localStats).toHaveBeenCalledTimes(2))
     expect(await screen.findByText('12 KB')).toBeInTheDocument()
+  })
+
+  it('refreshes local usage after clearing saved session state', async () => {
+    apiMock.data.localStats
+      .mockResolvedValueOnce({ savedChats: 2, savedSessions: 3, storageUsed: '10 KB' })
+      .mockResolvedValueOnce({ savedChats: 2, savedSessions: 0, storageUsed: '6 KB' })
+    const onClearSavedSessionState = vi.fn(() => Promise.resolve(undefined))
+    const user = userEvent.setup()
+
+    renderDataSettings({ onClearSavedSessionState })
+
+    await waitFor(() => expect(apiMock.data.localStats).toHaveBeenCalledTimes(1))
+    await user.click(screen.getByRole('button', { name: 'Clear saved state' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Clear' }))
+
+    await waitFor(() => expect(onClearSavedSessionState).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(apiMock.data.localStats).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('6 KB')).toBeInTheDocument()
   })
 })
 

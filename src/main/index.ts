@@ -112,16 +112,6 @@ const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
-const LOCAL_USAGE_PATHS = [
-  'chat-history.json',
-  'session-state.json',
-  'config.json',
-  'command-snippets.json',
-  'mcp-config.json',
-  'mcp.json',
-  'prompts'
-] as const
-
 function isFileNotFound(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'ENOENT'
 }
@@ -1248,9 +1238,7 @@ function registerIpc(): void {
     const [savedChats, savedSessions, storageBytes] = await Promise.all([
       chatHistoryStore.list().then((chats) => chats.length).catch(() => 0),
       sessionStateStore.load().then((snapshot) => snapshot?.sessions.length ?? 0).catch(() => 0),
-      Promise.all(LOCAL_USAGE_PATHS.map((relativePath) => getPathSize(join(userDataPath, relativePath))))
-        .then((sizes) => sizes.reduce((total, size) => total + size, 0))
-        .catch(() => 0)
+      getPathSize(userDataPath)
     ])
 
     return {

@@ -3107,6 +3107,59 @@ textarea:focus {
   font-weight: 500;
 }
 
+.local-usage-panel {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.local-usage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.local-usage-loading {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.local-usage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.local-usage-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.local-usage-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.local-usage-item strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .danger-zone {
   display: grid;
   gap: 0;

@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import type {
   AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  DiscoveredMcpServer, McpServerConfig,
+  DiscoveredMcpServer, LocalUsageStats, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
@@ -950,6 +950,8 @@ export function LlmPanel({
   const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
   const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
+  const [localStats, setLocalStats] = useState<LocalUsageStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
@@ -3009,6 +3011,21 @@ export function LlmPanel({
     onMaxOutputContextChange(nextMaxOutputContext)
   }, [maxOutputContext, maxOutputContextDraft, onMaxOutputContextChange])
 
+  const fetchLocalStats = useCallback(async () => {
+    setStatsLoading(true)
+    try {
+      const stats = await window.api.data.localStats()
+      setLocalStats(stats)
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!settingsOpen || settingsTab !== 'data') return
+    void fetchLocalStats()
+  }, [fetchLocalStats, settingsOpen, settingsTab])
+
   const handleExport = useCallback(async () => {
     setDataStatus('Exporting...')
     try {
@@ -3063,6 +3080,7 @@ export function LlmPanel({
 
       await loadConfig()
       await loadMcpServers()
+      await fetchLocalStats()
 
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
@@ -3074,7 +3092,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
+  }, [fetchLocalStats, loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -3085,6 +3103,7 @@ export function LlmPanel({
         setDataStatus('Clearing saved session...')
         try {
           await onClearSavedSessionState()
+          await fetchLocalStats()
           setDataStatus('Saved session cleared')
           setTimeout(() => setDataStatus(''), 3000)
         } catch (error) {
@@ -3092,7 +3111,7 @@ export function LlmPanel({
         }
       }
     })
-  }, [onClearSavedSessionState, t])
+  }, [fetchLocalStats, onClearSavedSessionState, t])
 
   const handleClearChatHistory = useCallback(() => {
     setDeleteConfirmation({
@@ -3102,11 +3121,12 @@ export function LlmPanel({
       onConfirm: async () => {
         await window.api.chatHistory.clear()
         setHistoryChats([])
+        await fetchLocalStats()
         setDataStatus(t('data.clearChatHistory.done'))
         setTimeout(() => setDataStatus(''), 2000)
       }
     })
-  }, [t])
+  }, [fetchLocalStats, t])
 
   const confirmDeleteAction = useCallback(async () => {
     const confirmation = deleteConfirmation
@@ -3459,11 +3479,12 @@ export function LlmPanel({
       label: t('settings.tab.data'),
       terms: [
         t('data.title'), t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
+        t('data.localUsage.title'), t('data.localUsage.storageUsed'), t('data.localUsage.savedChats'), t('data.localUsage.savedSessions'),
         t('data.restoreSessions.label'), t('data.restoreSessions.desc'),
         t('data.exportImport.label'), t('data.exportImport.desc'),
         t('data.clearSessions.label'), t('data.clearSessions.desc'),
         t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'),
-        'data export import backup restore session state output context chars chat history clear'
+        'data local usage storage saved chats sessions export import backup restore session state output context chars chat history clear'
       ]
     }
   ], [t])
@@ -4831,6 +4852,26 @@ export function LlmPanel({
                         </button>
                       </div>
                     </div>
+                    <section className={`local-usage-panel ${settingsMatchClass([t('data.localUsage.title'), t('data.localUsage.storageUsed'), t('data.localUsage.savedChats'), t('data.localUsage.savedSessions'), 'local usage storage saved chats sessions'])}`}>
+                      <div className="local-usage-header">
+                        <span>{t('data.localUsage.title')}</span>
+                        {statsLoading ? <span className="local-usage-loading">...</span> : null}
+                      </div>
+                      <div className="local-usage-grid">
+                        <div className="local-usage-item">
+                          <span className="local-usage-label"><HighlightSearchText text={t('data.localUsage.storageUsed')} query={settingsSearch} /></span>
+                          <strong>{localStats?.storageUsed ?? '—'}</strong>
+                        </div>
+                        <div className="local-usage-item">
+                          <span className="local-usage-label"><HighlightSearchText text={t('data.localUsage.savedChats')} query={settingsSearch} /></span>
+                          <strong>{localStats?.savedChats ?? '—'}</strong>
+                        </div>
+                        <div className="local-usage-item">
+                          <span className="local-usage-label"><HighlightSearchText text={t('data.localUsage.savedSessions')} query={settingsSearch} /></span>
+                          <strong>{localStats?.savedSessions ?? '—'}</strong>
+                        </div>
+                      </div>
+                    </section>
                     <div className={`appearance-row ${settingsMatchClass([t('data.exportImport.label'), t('data.exportImport.desc'), t('data.export'), t('data.import'), 'export import backup json settings'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('data.exportImport.label')} query={settingsSearch} /></span>

@@ -281,11 +281,10 @@ export async function scanTextForSecrets(
   const customFindings = findCustomPatternSecrets(text, settings)
   try {
     const findings = await runGitleaks(text, signal)
-    findings.push(...supplementalFindings, ...customFindings)
-    return findings
+    return [...customFindings, ...findings, ...supplementalFindings]
   } catch (error) {
     if (isGitleaksUnavailableError(error)) {
-      return [...supplementalFindings, ...customFindings]
+      return [...customFindings, ...supplementalFindings]
     }
     throw error
   }

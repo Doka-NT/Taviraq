@@ -2843,9 +2843,9 @@ textarea:focus {
 }
 
 .command-palette-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(128px, max-content);
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
   width: 100%;
   min-height: 54px;
@@ -2920,13 +2920,16 @@ textarea:focus {
 }
 
 .command-palette-item-meta {
-  display: inline-flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex: 0 0 auto;
+  min-width: 0;
   color: var(--text-ghost);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .command-palette-item-meta kbd {
@@ -2946,6 +2949,27 @@ textarea:focus {
   color: var(--text-muted);
   font-size: 13px;
   text-align: center;
+}
+
+@media (max-width: 560px) {
+  .command-palette {
+    width: min(740px, calc(100vw - 24px));
+  }
+
+  .command-palette-filter {
+    padding: 0 7px;
+  }
+
+  .command-palette-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px 12px;
+  }
+
+  .command-palette-item-meta {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
 }
 
 .command-snippet-palette-overlay {

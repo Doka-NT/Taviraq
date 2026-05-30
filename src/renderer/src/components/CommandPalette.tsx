@@ -138,6 +138,22 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
   const recentVisibleCount = !normalizedQuery
     ? recentActions.filter((action) => visibleCategory === 'all' || getActionPaletteCategory(action) === visibleCategory).length
     : 0
+  const actionSectionLabel = visibleCategory === 'all'
+    ? labels.all
+    : getCategoryLabel(labels, visibleCategory)
+
+  const selectCategory = useCallback((category: CommandPaletteCategoryFilter) => {
+    setActiveCategory(category)
+    setActiveIndex(0)
+
+    if (!prefixCategory) return
+
+    setQuery(category === 'snippets'
+      ? `/${normalizedQuery}`
+      : category === 'prompts'
+        ? `@${normalizedQuery}`
+        : normalizedQuery)
+  }, [normalizedQuery, prefixCategory])
 
   useEffect(() => {
     setActiveIndex(0)
@@ -222,12 +238,9 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
                 key={category}
                 type="button"
                 role="tab"
-                aria-selected={activeCategory === category}
-                className={`command-palette-filter ${activeCategory === category ? 'active' : ''}`}
-                onClick={() => {
-                  setActiveCategory(category)
-                  setActiveIndex(0)
-                }}
+                aria-selected={visibleCategory === category}
+                className={`command-palette-filter ${visibleCategory === category ? 'active' : ''}`}
+                onClick={() => selectCategory(category)}
               >
                 {getCategoryLabel(labels, category)}
               </button>
@@ -239,7 +252,7 @@ export function CommandPalette({ actions, recentActionIds, labels, initialCatego
             <div key={action.id} className="command-palette-row">
               {index === 0 || index === recentBoundary ? (
                 <div className="command-palette-section">
-                  {index === 0 && recentVisible ? labels.recent : labels.all}
+                  {index === 0 && recentVisible ? labels.recent : actionSectionLabel}
                 </div>
               ) : null}
               <button

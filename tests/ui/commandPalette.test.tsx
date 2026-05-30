@@ -95,11 +95,16 @@ describe('CommandPalette', () => {
     ])
 
     await user.click(screen.getByRole('tab', { name: 'Snippets' }))
+    expect(screen.getByRole('tab', { name: 'Snippets' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Snippets', { selector: '.command-palette-section' })).toBeInTheDocument()
     expect(screen.getByText('Insert snippet: Deploy')).toBeInTheDocument()
     expect(screen.queryByText('Insert prompt: Review')).not.toBeInTheDocument()
 
     await user.clear(screen.getByPlaceholderText('Search actions'))
     await user.type(screen.getByPlaceholderText('Search actions'), '@review')
+    expect(screen.getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Snippets' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByText('Prompts', { selector: '.command-palette-section' })).toBeInTheDocument()
     expect(screen.getByText('Insert prompt: Review')).toBeInTheDocument()
     expect(screen.queryByText('Insert snippet: Deploy')).not.toBeInTheDocument()
   })

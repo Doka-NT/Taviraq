@@ -247,6 +247,7 @@ interface ProviderTerminalContextInput {
   assistMode: AssistMode
   selectedText: string
   terminalOutput?: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
   strictTerminalContextActive: boolean
 }
 
@@ -311,13 +312,14 @@ export function getProviderTerminalContext({
   assistMode,
   selectedText,
   terminalOutput,
+  session,
   strictTerminalContextActive
-}: ProviderTerminalContextInput): Pick<TerminalContext, 'selectedText' | 'terminalOutput'> {
+}: ProviderTerminalContextInput): Pick<TerminalContext, 'selectedText' | 'terminalOutput' | 'session'> {
   if (assistMode === 'off' || strictTerminalContextActive) {
-    return { selectedText: '', terminalOutput: undefined }
+    return { selectedText: '', terminalOutput: undefined, session: undefined }
   }
 
-  return { selectedText, terminalOutput: terminalOutput || undefined }
+  return { selectedText, terminalOutput: terminalOutput || undefined, session }
 }
 
 function withObjectName(title: string, name?: string): string {
@@ -1578,6 +1580,7 @@ export function LlmPanel({
         assistMode: mode,
         selectedText: selectedTextRef.current,
         terminalOutput,
+        session,
         strictTerminalContextActive
       })
 
@@ -1589,7 +1592,6 @@ export function LlmPanel({
           ...providerTerminalContext,
           assistMode: mode,
           language: languageRef.current,
-          session
         }
       })
       autoSaveThreadToHistory(sessionId)
@@ -1673,6 +1675,7 @@ export function LlmPanel({
       assistMode: mode,
       selectedText: selectedTextRef.current,
       terminalOutput,
+      session,
       strictTerminalContextActive
     })
 
@@ -1684,7 +1687,6 @@ export function LlmPanel({
         ...providerTerminalContext,
         assistMode: mode,
         language: languageRef.current,
-        session
       }
     })
     autoSaveThreadToHistory(sessionId)
@@ -2062,6 +2064,7 @@ export function LlmPanel({
       assistMode: 'agent',
       selectedText: selectedTextRef.current,
       terminalOutput,
+      session,
       strictTerminalContextActive
     })
 
@@ -2069,7 +2072,6 @@ export function LlmPanel({
       ...providerTerminalContext,
       assistMode: 'agent',
       language: languageRef.current,
-      session
     }
   }, [getThread, strictTerminalContextActive, summarizeSession])
 
@@ -3216,8 +3218,8 @@ export function LlmPanel({
     [messages, strictTerminalContextActive]
   )
   const composerSession = useMemo(
-    () => activeSession ? summarizeSession(activeSession) : undefined,
-    [activeSession, summarizeSession]
+    () => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession, terminalContextAllowed]
   )
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,

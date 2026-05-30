@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { getComposerLiveStatus, getPermissionIndicatorState, getProviderTerminalContext } from '@renderer/components/LlmPanel'
 
 const panelSource = readFileSync(new URL('../../src/renderer/src/components/LlmPanel.tsx', import.meta.url), 'utf8')
+const mainSource = readFileSync(new URL('../../src/main/index.ts', import.meta.url), 'utf8')
 const styles = readFileSync(new URL('../../src/renderer/src/styles.css', import.meta.url), 'utf8')
 const translations = readFileSync(new URL('../../src/renderer/src/i18n/translations.ts', import.meta.url), 'utf8')
 
@@ -77,37 +78,55 @@ describe('permission indicator semantics', () => {
   })
 
   it('removes terminal context from provider requests when strict context is active', () => {
+    const session = {
+      id: 'session-1',
+      kind: 'local' as const,
+      label: 'Local',
+      cwd: '/workspace',
+      shell: '/bin/zsh'
+    }
+
     expect(getProviderTerminalContext({
       assistMode: 'agent',
       selectedText: 'selected secret',
       terminalOutput: 'terminal secret',
+      session,
       strictTerminalContextActive: true
     })).toEqual({
       selectedText: '',
-      terminalOutput: undefined
+      terminalOutput: undefined,
+      session: undefined
     })
     expect(getProviderTerminalContext({
       assistMode: 'read',
       selectedText: 'selected text',
       terminalOutput: 'terminal output',
+      session,
       strictTerminalContextActive: false
     })).toEqual({
       selectedText: 'selected text',
-      terminalOutput: 'terminal output'
+      terminalOutput: 'terminal output',
+      session
     })
     expect(getProviderTerminalContext({
       assistMode: 'off',
       selectedText: 'selected text',
       terminalOutput: 'terminal output',
+      session,
       strictTerminalContextActive: false
     })).toEqual({
       selectedText: '',
-      terminalOutput: undefined
+      terminalOutput: undefined,
+      session: undefined
     })
     expect(panelSource).toContain("const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive")
     expect(panelSource).toContain("const composerSelectedText = terminalContextAllowed ? selectedText : ''")
+    expect(panelSource).toContain('() => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined')
     expect(panelSource.match(/const providerTerminalContext = getProviderTerminalContext/g)?.length).toBe(3)
     expect(panelSource.match(/\.\.\.providerTerminalContext/g)?.length).toBe(3)
+    expect(mainSource).toContain('session: undefined')
+    expect(mainSource).toContain('const sessionId = request.context.session?.id')
+    expect(mainSource).toContain('const sessionLabel = request.context.session?.label')
   })
 
   it('styles the shell as plain text and keeps the permission indicator visible', () => {

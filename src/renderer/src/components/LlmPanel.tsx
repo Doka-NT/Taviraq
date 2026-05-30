@@ -22,7 +22,6 @@ import {
   SECRET_MASKING_AUDIT_LIMIT
 } from '@shared/secretMaskingConfig'
 import { MessageContent } from './MessageContent'
-import { PromptPicker } from './PromptPicker'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
@@ -816,7 +815,7 @@ interface LlmPanelProps {
   settingsTabRequest: SettingsTab
   settingsTabRequestVersion: number
   addSnippetRequestVersion: number
-  promptLibraryRequestVersion: number
+  onOpenPromptPalette: () => void
   textSize: number
   onTextSizeChange: (textSize: number) => void
   terminalFontFamily: string
@@ -867,7 +866,7 @@ export function LlmPanel({
   settingsTabRequest,
   settingsTabRequestVersion,
   addSnippetRequestVersion,
-  promptLibraryRequestVersion,
+  onOpenPromptPalette,
   textSize,
   onTextSizeChange,
   terminalFontFamily,
@@ -960,12 +959,6 @@ export function LlmPanel({
   const [savePromptDuplicateName, setSavePromptDuplicateName] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
-  const [promptPickerPrompts, setPromptPickerPrompts] = useState<PromptTemplate[]>([])
-  const [promptPickerQuery, setPromptPickerQuery] = useState('')
-  const [promptPickerActiveIndex, setPromptPickerActiveIndex] = useState(0)
-  const promptPickerListRef = useRef<HTMLDivElement>(null)
-  const promptPickerSearchRef = useRef<HTMLInputElement | null>(null)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
@@ -1877,61 +1870,9 @@ export function LlmPanel({
       setHistoryOpen(false)
       setHistorySearch('')
     } else {
-      setPromptPickerOpen(false)
       void loadHistoryChats().then(() => setHistoryOpen(true))
     }
   }, [historyOpen, loadHistoryChats])
-
-  useEffect(() => {
-    if (!promptPickerOpen) return
-    void window.api.prompt.list().then(setPromptPickerPrompts).catch(() => setPromptPickerPrompts([]))
-    requestAnimationFrame(() => promptPickerSearchRef.current?.focus())
-  }, [promptPickerOpen])
-
-  useEffect(() => {
-    setPromptPickerActiveIndex(0)
-  }, [promptPickerQuery])
-
-  useEffect(() => {
-    if (!promptPickerListRef.current) return
-    const active = promptPickerListRef.current.querySelector('.prompt-picker-item.active')
-    if (active) active.scrollIntoView({ block: 'nearest' })
-  }, [promptPickerActiveIndex])
-
-  const promptPickerFiltered = useMemo(() => {
-    const q = promptPickerQuery.trim().toLowerCase()
-    if (!q) return promptPickerPrompts
-    return promptPickerPrompts.filter((p) =>
-      p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
-    )
-  }, [promptPickerPrompts, promptPickerQuery])
-
-  const togglePromptPicker = useCallback(() => {
-    if (promptPickerOpen) {
-      setPromptPickerOpen(false)
-      setPromptPickerQuery('')
-    } else {
-      setHistoryOpen(false)
-      setPromptPickerOpen(true)
-    }
-  }, [promptPickerOpen])
-
-  const closePromptPicker = useCallback(() => {
-    setPromptPickerOpen(false)
-    setPromptPickerQuery('')
-  }, [])
-
-  const openAddPrompt = useCallback(() => {
-    closePromptPicker()
-    setSettingsTab('prompts')
-    onOpenSettings()
-  }, [closePromptPicker, onOpenSettings])
-
-  useEffect(() => {
-    if (promptLibraryRequestVersion === 0) return
-    setHistoryOpen(false)
-    setPromptPickerOpen(true)
-  }, [promptLibraryRequestVersion])
 
   const handleDeleteHistoryChat = useCallback((chatId: string) => {
     const chat = historyChats.find((candidate) => candidate.id === chatId)
@@ -3146,30 +3087,7 @@ export function LlmPanel({
     handledPromptInsertRequestRef.current = promptInsertRequest.id
     setPromptDraft(promptInsertRequest.content)
     setHistoryOpen(false)
-    setPromptPickerOpen(false)
   }, [promptInsertRequest, setPromptDraft])
-
-  const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closePromptPicker()
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, Math.max(promptPickerFiltered.length - 1, 0)))
-      return
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.max(prev - 1, 0))
-      return
-    }
-    if (e.key === 'Enter' && promptPickerFiltered[promptPickerActiveIndex]) {
-      e.preventDefault()
-      setPromptDraft(promptPickerFiltered[promptPickerActiveIndex].content)
-      closePromptPicker()
-    }
-  }, [closePromptPicker, promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
 
   const toggleAgentMode = useCallback(() => {
     setAssistMode((prev) => {
@@ -5466,7 +5384,15 @@ export function LlmPanel({
                 <span>{modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name}</span>
                 <ChevronDown size={11} aria-hidden />
               </button>
-              <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
+              <button
+                type="button"
+                className="icon-button prompt-picker-trigger"
+                title={t('panel.promptLibrary')}
+                aria-label={t('panel.promptLibrary')}
+                onClick={onOpenPromptPalette}
+              >
+                <FileText size={14} aria-hidden />
+              </button>
               {streaming || agenticRunning ? (
                 <button
                   className="stop-button"
@@ -5495,59 +5421,6 @@ export function LlmPanel({
       </form>
       </>
       )}
-
-      {promptPickerOpen ? createPortal(
-        <div className="prompt-picker-overlay" onClick={(event) => { if (event.target === event.currentTarget) closePromptPicker() }}>
-          <section className="prompt-picker-palette" role="dialog" aria-modal="true" aria-label={t('promptPalette.title')}>
-            <div className="prompt-picker-search">
-              <Search size={15} aria-hidden />
-              <input
-                ref={promptPickerSearchRef}
-                type="text"
-                placeholder={t('promptPalette.search')}
-                value={promptPickerQuery}
-                onChange={(e) => setPromptPickerQuery(e.target.value)}
-                onKeyDown={handlePromptPickerKeyDown}
-              />
-            </div>
-            <div className="prompt-picker-hint">
-              <div className="prompt-picker-shortcuts">
-                <span>{t('promptPalette.enterInserts')}</span>
-              </div>
-              <button type="button" className="prompt-picker-add" onClick={openAddPrompt}>
-                <Plus size={12} aria-hidden />
-                {t('promptPalette.addPrompt')}
-              </button>
-            </div>
-            <div className="prompt-picker-list" ref={promptPickerListRef}>
-              {promptPickerFiltered.length > 0 ? promptPickerFiltered.map((prompt, i) => (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    setPromptDraft(prompt.content)
-                    closePromptPicker()
-                  }}
-                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
-                >
-                  <FileText size={14} aria-hidden />
-                  <div className="prompt-picker-item-text">
-                    <span className="prompt-picker-item-name">{prompt.name}</span>
-                    <span className="prompt-picker-item-preview">{prompt.content}</span>
-                  </div>
-                </button>
-              )) : (
-                <p className="prompt-picker-empty">
-                  {promptPickerPrompts.length === 0
-                    ? t('promptPalette.empty')
-                    : t('promptPalette.noMatch')}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      , document.body) : null}
 
       {savePromptDialog ? createPortal(
         <div
@@ -5640,10 +5513,14 @@ export function LlmPanel({
             search: t('model.switch.search'),
             recent: t('commandPalette.recent'),
             all: t('model.switch.all'),
+            commands: t('commandPalette.commands'),
+            snippets: t('commandPalette.snippets'),
+            prompts: t('commandPalette.prompts'),
             noMatch: t('model.noMatch'),
-            enterRuns: t('commandPalette.enterRuns'),
+            enterSelects: t('commandPalette.enterSelects'),
             escapeCloses: t('commandPalette.escapeCloses')
           }}
+          showCategoryFilters={false}
           onClose={() => setModelSwitcherOpen(false)}
           onRun={(action) => {
             if (action.id.startsWith('model:') && action.id !== 'model:load') {

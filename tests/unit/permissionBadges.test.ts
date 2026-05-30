@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { getComposerLiveStatus, getPermissionIndicatorState } from '@renderer/components/LlmPanel'
+import { getComposerLiveStatus, getPermissionIndicatorState, getProviderTerminalContext } from '@renderer/components/LlmPanel'
 
 const panelSource = readFileSync(new URL('../../src/renderer/src/components/LlmPanel.tsx', import.meta.url), 'utf8')
 const styles = readFileSync(new URL('../../src/renderer/src/styles.css', import.meta.url), 'utf8')
@@ -74,6 +74,27 @@ describe('permission indicator semantics', () => {
       titleKey: 'panel.permission.none',
       visualMode: 'off'
     })
+  })
+
+  it('removes terminal context from provider requests when strict context is active', () => {
+    expect(getProviderTerminalContext({
+      selectedText: 'selected secret',
+      terminalOutput: 'terminal secret',
+      strictTerminalContextActive: true
+    })).toEqual({
+      selectedText: '',
+      terminalOutput: undefined
+    })
+    expect(getProviderTerminalContext({
+      selectedText: 'selected text',
+      terminalOutput: 'terminal output',
+      strictTerminalContextActive: false
+    })).toEqual({
+      selectedText: 'selected text',
+      terminalOutput: 'terminal output'
+    })
+    expect(panelSource.match(/const providerTerminalContext = getProviderTerminalContext/g)?.length).toBe(3)
+    expect(panelSource.match(/\.\.\.providerTerminalContext/g)?.length).toBe(3)
   })
 
   it('styles the shell as plain text and keeps the permission indicator visible', () => {

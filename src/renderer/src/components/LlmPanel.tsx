@@ -4227,13 +4227,19 @@ export function LlmPanel({
                             <div className="mcp-empty">{t('mcp.empty')}</div>
                           ) : mcpServers.map((server) => {
                             const sourceLabel = MCP_SOURCE_LABELS[server.source ?? 'manual']
+                            const statusLabel = server.enabled ? t('mcp.status.enabled') : t('mcp.status.disabled')
+                            const serverTooltip = [
+                              server.name,
+                              `${sourceLabel} · ${statusLabel}`,
+                              server.command
+                            ].filter(Boolean).join('\n')
                             return (
                               <div
                                 key={server.id}
-                                className={`provider-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
+                                className={`provider-list-item mcp-server-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
                                 role="button"
                                 tabIndex={0}
-                                title={server.name}
+                                title={serverTooltip}
                                 onClick={() => editMcpServer(server)}
                                 onKeyDown={(event) => {
                                   if (event.target !== event.currentTarget) return
@@ -4246,7 +4252,7 @@ export function LlmPanel({
                                 <span className={`provider-active-dot ${server.enabled ? 'visible' : ''}`} />
                                 <span className="provider-list-item-main">
                                   <span className="provider-list-item-name">{server.name}</span>
-                                  <span className="mcp-source-label">{sourceLabel}</span>
+                                  <span className="mcp-source-label">{sourceLabel} · {statusLabel}</span>
                                 </span>
                                 <button
                                   type="button"

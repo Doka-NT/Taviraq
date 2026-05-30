@@ -123,6 +123,8 @@ export interface Translations {
   'mcp.empty': string
   'mcp.enabled': string
   'mcp.enabled.desc': string
+  'mcp.status.enabled': string
+  'mcp.status.disabled': string
   'mcp.name': string
   'mcp.command': string
   'mcp.args': string
@@ -634,6 +636,8 @@ export const en: Translations = {
   'mcp.empty': 'No MCP servers yet.',
   'mcp.enabled': 'Enabled',
   'mcp.enabled.desc': 'Allow this server to be available for MCP-capable models.',
+  'mcp.status.enabled': 'Enabled',
+  'mcp.status.disabled': 'Disabled',
   'mcp.name': 'Server name',
   'mcp.command': 'Command',
   'mcp.args': 'Arguments',
@@ -1128,6 +1132,8 @@ export const ru: Translations = {
   'mcp.empty': 'MCP-серверов пока нет.',
   'mcp.enabled': 'Включён',
   'mcp.enabled.desc': 'Сервер будет доступен для моделей с поддержкой MCP.',
+  'mcp.status.enabled': 'Включён',
+  'mcp.status.disabled': 'Выключен',
   'mcp.name': 'Название сервера',
   'mcp.command': 'Команда',
   'mcp.args': 'Аргументы',
@@ -1622,6 +1628,8 @@ export const cn: Translations = {
   'mcp.empty': '还没有 MCP 服务器。',
   'mcp.enabled': '已启用',
   'mcp.enabled.desc': '让支持 MCP 的模型可以使用此服务器。',
+  'mcp.status.enabled': '已启用',
+  'mcp.status.disabled': '已停用',
   'mcp.name': '服务器名称',
   'mcp.command': '命令',
   'mcp.args': '参数',

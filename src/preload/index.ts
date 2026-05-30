@@ -15,6 +15,7 @@ import type {
   GeneratedPrompt,
   ImportResult,
   ListModelsResult,
+  LocalUsageStats,
   McpDiscoveryResult,
   McpImportResult,
   McpServerConfig,
@@ -225,7 +226,9 @@ const api = {
     export: (preferences: ExportData['preferences']) =>
       ipcRenderer.invoke('data:export', preferences) as Promise<void>,
     import: () =>
-      ipcRenderer.invoke('data:import') as Promise<ImportResult | undefined>
+      ipcRenderer.invoke('data:import') as Promise<ImportResult | undefined>,
+    localStats: () =>
+      ipcRenderer.invoke('data:localStats') as Promise<LocalUsageStats>
   }
 }
 

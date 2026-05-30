@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   AppConfig,
@@ -14,6 +14,7 @@ import type {
   ExportData,
   ImportResult,
   ListModelsResult,
+  LocalUsageStats,
   LLMProviderConfig,
   McpServerConfig,
   PromptTemplate,
@@ -111,6 +112,50 @@ const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
+const LOCAL_USAGE_PATHS = [
+  'chat-history.json',
+  'session-state.json',
+  'config.json',
+  'command-snippets.json',
+  'mcp-config.json',
+  'mcp.json',
+  'prompts'
+] as const
+
+function isFileNotFound(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 'ENOENT'
+}
+
+async function getPathSize(path: string): Promise<number> {
+  try {
+    const entry = await stat(path)
+    if (entry.isFile()) return entry.size
+    if (!entry.isDirectory()) return 0
+
+    const children = await readdir(path)
+    const sizes = await Promise.all(children.map((child) => getPathSize(join(path, child))))
+    return sizes.reduce((total, size) => total + size, 0)
+  } catch (error) {
+    if (isFileNotFound(error)) return 0
+    return 0
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unitIndex = 0
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+
+  const precision = unitIndex === 0 || value >= 10 ? 0 : 1
+  return `${value.toFixed(precision)} ${units[unitIndex]}`
+}
+
 const demoProvider = {
   name: 'Taviraq Demo',
   providerType: 'openai' as const,
@@ -1196,6 +1241,23 @@ function registerIpc(): void {
 
   ipcMain.handle('commandSnippet:delete', (_event, id: string) => {
     return commandSnippetStore.delete(id)
+  })
+
+  ipcMain.handle('data:localStats', async (): Promise<LocalUsageStats> => {
+    const userDataPath = app.getPath('userData')
+    const [savedChats, savedSessions, storageBytes] = await Promise.all([
+      chatHistoryStore.list().then((chats) => chats.length).catch(() => 0),
+      sessionStateStore.load().then((snapshot) => snapshot?.sessions.length ?? 0).catch(() => 0),
+      Promise.all(LOCAL_USAGE_PATHS.map((relativePath) => getPathSize(join(userDataPath, relativePath))))
+        .then((sizes) => sizes.reduce((total, size) => total + size, 0))
+        .catch(() => 0)
+    ])
+
+    return {
+      savedChats,
+      savedSessions,
+      storageUsed: formatBytes(storageBytes)
+    }
   })
 
   ipcMain.handle('data:export', async (_event, preferences: ExportData['preferences']) => {

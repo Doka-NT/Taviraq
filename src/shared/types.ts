@@ -394,3 +394,9 @@ export interface ImportResult {
   mcpServersAdded: number
   preferences?: ExportData['preferences']
 }
+
+export interface LocalUsageStats {
+  savedChats: number
+  savedSessions: number
+  storageUsed: string
+}

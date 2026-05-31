@@ -22,14 +22,16 @@ describe('semantic color tokens', () => {
   })
 
   it('maps key UI signals to semantic colors', () => {
-    expect(selectorBlock('.agent-toggle.on')).toContain('background: var(--color-accent);')
+    expect(selectorBlock('.agent-toggle.on')).toContain('background: rgba(var(--color-success-rgb), 0.22);')
+    expect(selectorBlock('.security-switch.on')).toContain('background: rgba(var(--color-success-rgb), 0.22);')
     expect(selectorBlock('.privacy-status-message')).toContain('color: var(--color-neutral);')
     expect(selectorBlock('.provider-status-badge.ready')).toContain('color: var(--color-success);')
     expect(selectorBlock('.permission-indicator.read')).toContain('color: var(--color-success);')
-    expect(selectorBlock('.permission-indicator.agent')).toContain('color: var(--color-accent);')
+    expect(selectorBlock('.permission-indicator.agent')).toContain('color: var(--color-success);')
     expect(selectorBlock('.composer-status-chip.waiting')).toContain('color: var(--color-warning);')
-    expect(selectorBlock('.composer-config-chip.agent')).toContain('color: var(--color-accent);')
+    expect(selectorBlock('.composer-config-chip.agent')).toContain('color: var(--color-success);')
     expect(selectorBlock('.composer-config-chip.read')).toContain('color: var(--color-success);')
+    expect(selectorBlock('.composer-mode-option.active.agent')).toContain('color: var(--color-success);')
     expect(selectorBlock('.danger-button.warning')).toContain('color: rgba(var(--color-warning-rgb), 0.90);')
     expect(selectorBlock('.command-confirmation-card.danger')).toContain('border-color: rgba(var(--color-danger-rgb), 0.30);')
     expect(selectorBlock('.topbar-action-primary')).toContain('color: rgba(var(--color-accent-rgb), 0.96);')
@@ -41,6 +43,7 @@ describe('semantic color tokens', () => {
   it('keeps the migrated signal selectors off raw palette variables', () => {
     const migratedBlocks = [
       '.agent-toggle.on',
+      '.security-switch.on',
       '.privacy-status-message',
       '.provider-status-badge.ready',
       '.permission-indicator.read',
@@ -48,6 +51,7 @@ describe('semantic color tokens', () => {
       '.composer-status-chip.waiting',
       '.composer-config-chip.agent',
       '.composer-config-chip.read',
+      '.composer-mode-option.active.agent',
       '.danger-button.warning',
       '.command-confirmation-card.danger',
       '.topbar-action-primary',

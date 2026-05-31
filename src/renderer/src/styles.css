@@ -1093,29 +1093,37 @@ button {
 .agent-toggle {
   position: relative;
   width: 34px;
-  height: 20px;
+  height: 18px;
   padding: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.14);
+  border: 0.5px solid var(--border-default);
+  border-radius: 999px;
+  background: rgba(var(--surface-rgb), 0.08);
 }
 
 .agent-toggle span {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform var(--transition);
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.agent-toggle:focus-visible {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.35);
+  outline-offset: 2px;
 }
 
 .agent-toggle.on {
-  background: var(--color-accent);
+  border-color: rgba(var(--color-success-rgb), 0.5);
+  background: rgba(var(--color-success-rgb), 0.22);
 }
 
 .agent-toggle.on span {
-  transform: translateX(14px);
+  transform: translateX(16px);
+  background: rgba(var(--color-success-rgb), 0.95);
 }
 
 .permission-summary {
@@ -1186,9 +1194,9 @@ button {
 }
 
 .permission-indicator.agent {
-  color: var(--color-accent);
-  border-color: rgba(var(--color-accent-rgb), 0.30);
-  background: rgba(var(--color-accent-rgb), 0.12);
+  color: var(--color-success);
+  border-color: rgba(var(--color-success-rgb), 0.25);
+  background: rgba(var(--color-success-rgb), 0.10);
 }
 @keyframes pendingPulse {
   0%, 100% { opacity: 0.65; }
@@ -1969,35 +1977,39 @@ textarea:focus {
 
 .security-switch {
   position: relative;
-  width: 42px;
-  height: 24px;
+  width: 34px;
+  height: 18px;
   padding: 0;
-  border: 0.5px solid rgba(var(--color-warning-rgb), 0.28);
+  border: 0.5px solid var(--border-default);
   border-radius: 999px;
-  background: rgba(var(--color-warning-rgb), 0.16);
+  background: rgba(var(--surface-rgb), 0.08);
   flex-shrink: 0;
 }
 
 .security-switch span {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
-  transition: transform var(--transition), background var(--transition);
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.security-switch:focus-visible {
+  outline: 2px solid rgba(var(--color-accent-rgb), 0.35);
+  outline-offset: 2px;
 }
 
 .security-switch.on {
-  border-color: rgba(var(--color-success-rgb), 0.34);
-  background: var(--color-success);
+  border-color: rgba(var(--color-success-rgb), 0.5);
+  background: rgba(var(--color-success-rgb), 0.22);
 }
 
 .security-switch.on span {
-  transform: translateX(18px);
-  background: #fff;
+  transform: translateX(16px);
+  background: rgba(var(--color-success-rgb), 0.95);
 }
 
 .security-panel {
@@ -5434,9 +5446,9 @@ textarea:focus {
 }
 
 .composer-config-chip.agent {
-  color: var(--color-accent);
-  border-color: rgba(var(--color-accent-rgb), 0.24);
-  background: rgba(var(--color-accent-rgb), 0.10);
+  color: var(--color-success);
+  border-color: rgba(var(--color-success-rgb), 0.22);
+  background: rgba(var(--color-success-rgb), 0.10);
 }
 
 .composer-config-chip.read {
@@ -5553,9 +5565,9 @@ textarea:focus {
 }
 
 .composer-mode-option.active.agent {
-  color: var(--color-accent);
-  border-color: rgba(var(--color-accent-rgb), 0.28);
-  background: rgba(var(--color-accent-rgb), 0.12);
+  color: var(--color-success);
+  border-color: rgba(var(--color-success-rgb), 0.24);
+  background: rgba(var(--color-success-rgb), 0.12);
 }
 
 .composer-mode-option.active.read {

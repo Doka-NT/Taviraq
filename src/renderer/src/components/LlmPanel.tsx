@@ -4,13 +4,13 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Eye, FileText, GitFork, History, KeyRound,
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Database, Eye, GitFork, History, KeyRound,
   Hammer, ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
-  ShieldCheck, ShieldOff, Square, Trash2, User, X, Zap
+  ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
-  DiscoveredMcpServer, McpServerConfig,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
@@ -22,9 +22,10 @@ import {
   SECRET_MASKING_AUDIT_LIMIT
 } from '@shared/secretMaskingConfig'
 import { MessageContent } from './MessageContent'
-import { PromptPicker } from './PromptPicker'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
+import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
+import { ComposerConfigControl } from './ComposerConfigControl'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -37,6 +38,8 @@ import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@rende
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
+import { formatDataBytes } from '@renderer/utils/dataUsage'
+import { findCurrentRequestPrivacyNoticeIndex, mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -229,18 +232,28 @@ function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
+type ComposerLiveStatus = 'running' | 'waiting'
+type PermissionIndicatorVisualMode = AssistMode
+type PermissionIndicatorTitleKey =
+  | 'panel.permission.none'
+  | 'panel.permission.readOnly'
+  | 'panel.permission.execute'
+  | 'panel.permission.readExecute'
 
-interface CommandConfirmation {
-  sessionId: string
-  title: string
-  reason: string
-  command: string
-  tone: 'danger' | 'warning'
-  confirmLabel: string
-  riskLevel?: CommandRiskLevel
-  /** Unique id for each confirmation request — used to key the countdown timer. Generated automatically. */
-  commandId?: string
+interface PermissionIndicatorState {
+  label: '—' | 'R' | 'X' | 'R+X'
+  titleKey: PermissionIndicatorTitleKey
+  visualMode: PermissionIndicatorVisualMode
 }
+
+interface ProviderTerminalContextInput {
+  assistMode: AssistMode
+  selectedText: string
+  terminalOutput?: string
+  session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
+  strictTerminalContextActive: boolean
+}
+
 type CommandConfirmationResult = string | false
 type CommandConfirmationRequest = Omit<CommandConfirmation, 'sessionId'>
 
@@ -249,6 +262,56 @@ interface DeleteConfirmation {
   message: string
   confirmLabel: string
   onConfirm: () => Promise<void> | void
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getComposerLiveStatus({
+  commandConfirmation,
+  streaming,
+  agenticRunning,
+  agenticCommandRunning
+}: {
+  commandConfirmation: unknown
+  streaming: boolean
+  agenticRunning: boolean
+  agenticCommandRunning: boolean
+}): ComposerLiveStatus | null {
+  if (commandConfirmation) return 'waiting'
+  if (streaming || agenticRunning || agenticCommandRunning) return 'running'
+  return null
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getPermissionIndicatorState(
+  assistMode: AssistMode,
+  terminalContextAllowed: boolean
+): PermissionIndicatorState {
+  if (assistMode === 'agent') {
+    return terminalContextAllowed
+      ? { label: 'R+X', titleKey: 'panel.permission.readExecute', visualMode: 'agent' }
+      : { label: 'X', titleKey: 'panel.permission.execute', visualMode: 'agent' }
+  }
+
+  if (assistMode === 'read' && terminalContextAllowed) {
+    return { label: 'R', titleKey: 'panel.permission.readOnly', visualMode: 'read' }
+  }
+
+  return { label: '—', titleKey: 'panel.permission.none', visualMode: 'off' }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- scoped unit tests cover this pure UI state helper in this owned file.
+export function getProviderTerminalContext({
+  assistMode,
+  selectedText,
+  terminalOutput,
+  session,
+  strictTerminalContextActive
+}: ProviderTerminalContextInput): Pick<TerminalContext, 'selectedText' | 'terminalOutput' | 'session'> {
+  if (assistMode === 'off' || strictTerminalContextActive) {
+    return { selectedText: '', terminalOutput: undefined, session: undefined }
+  }
+
+  return { selectedText, terminalOutput: terminalOutput || undefined, session }
 }
 
 function withObjectName(title: string, name?: string): string {
@@ -530,13 +593,13 @@ function PrivacyTrustCard({
         onClick={() => setExpanded((value) => !value)}
       >
         <span className="privacy-trust-card-icon" aria-hidden>
-          <ShieldAlert size={14} />
+          <ShieldAlert size={12} />
         </span>
         <span className="privacy-trust-card-title">
           <strong>{t('privacy.trustCard.title')}</strong>
           <small>{content}</small>
         </span>
-        <ChevronDown className="privacy-trust-card-chevron" size={14} aria-hidden />
+        <ChevronDown className="privacy-trust-card-chevron" size={12} aria-hidden />
       </button>
 
       {expanded ? (
@@ -561,7 +624,7 @@ function PrivacyTrustCard({
           </p>
           <div className="privacy-trust-card-actions">
             <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
-              <Settings2 size={13} aria-hidden />
+              <Settings2 size={11} aria-hidden />
               {t('privacy.trustCard.openSettings')}
             </button>
           </div>
@@ -815,7 +878,7 @@ interface LlmPanelProps {
   settingsTabRequest: SettingsTab
   settingsTabRequestVersion: number
   addSnippetRequestVersion: number
-  promptLibraryRequestVersion: number
+  onOpenPromptPalette: () => void
   textSize: number
   onTextSizeChange: (textSize: number) => void
   terminalFontFamily: string
@@ -866,7 +929,7 @@ export function LlmPanel({
   settingsTabRequest,
   settingsTabRequestVersion,
   addSnippetRequestVersion,
-  promptLibraryRequestVersion,
+  onOpenPromptPalette,
   textSize,
   onTextSizeChange,
   terminalFontFamily,
@@ -950,6 +1013,7 @@ export function LlmPanel({
   const [discoveredMcpServers, setDiscoveredMcpServers] = useState<DiscoveredMcpServer[]>([])
   const [selectedDiscoveredMcpIds, setSelectedDiscoveredMcpIds] = useState<string[]>([])
   const [dataStatus, setDataStatus] = useState('')
+  const [dataUsage, setDataUsage] = useState<DataUsageStats | null>(null)
   const [recordingShortcut, setRecordingShortcut] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [savePromptDialog, setSavePromptDialog] = useState<{ content: string; name?: string } | null>(null)
@@ -958,12 +1022,7 @@ export function LlmPanel({
   const [savePromptDuplicateName, setSavePromptDuplicateName] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [promptPickerOpen, setPromptPickerOpen] = useState(false)
-  const [promptPickerPrompts, setPromptPickerPrompts] = useState<PromptTemplate[]>([])
-  const [promptPickerQuery, setPromptPickerQuery] = useState('')
-  const [promptPickerActiveIndex, setPromptPickerActiveIndex] = useState(0)
-  const promptPickerListRef = useRef<HTMLDivElement>(null)
-  const promptPickerSearchRef = useRef<HTMLInputElement | null>(null)
+  const [composerConfigOpen, setComposerConfigOpen] = useState(false)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
@@ -1087,10 +1146,12 @@ export function LlmPanel({
   const secretMaskingMode = secretMaskingSettings.mode
   const strictTerminalContextActive = isStrictTerminalContextActive(secretMaskingSettings)
 
-  const liveStatus: 'idle' | 'running' | 'waiting' =
-    commandConfirmation ? 'waiting' :
-    (streaming || agenticRunning || agenticCommandRunning) ? 'running' :
-    'idle'
+  const liveStatus = getComposerLiveStatus({
+    commandConfirmation,
+    streaming,
+    agenticRunning,
+    agenticCommandRunning
+  })
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
@@ -1508,17 +1569,22 @@ export function LlmPanel({
 
       const mode = assistModeRef.current
       const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
+      const providerTerminalContext = getProviderTerminalContext({
+        assistMode: mode,
+        selectedText: selectedTextRef.current,
+        terminalOutput,
+        session,
+        strictTerminalContextActive
+      })
 
       window.api.llm.chatStream({
         requestId,
         provider: providerRef.current,
         messages: toConversationalChatMessages(nextMessages.slice(0, -1), strictTerminalContextActive),
         context: {
-          selectedText: selectedTextRef.current,
+          ...providerTerminalContext,
           assistMode: mode,
-          terminalOutput: terminalOutput || undefined,
           language: languageRef.current,
-          session
         }
       })
       autoSaveThreadToHistory(sessionId)
@@ -1598,17 +1664,22 @@ export function LlmPanel({
 
     const mode = assistModeRef.current
     const terminalOutput = getBoundedTerminalOutputForRequest(sessionId, mode)
+    const providerTerminalContext = getProviderTerminalContext({
+      assistMode: mode,
+      selectedText: selectedTextRef.current,
+      terminalOutput,
+      session,
+      strictTerminalContextActive
+    })
 
     window.api.llm.chatStream({
       requestId,
       provider: providerRef.current,
       messages: toConversationalChatMessages(requestMessages, strictTerminalContextActive),
       context: {
-        selectedText: selectedTextRef.current,
+        ...providerTerminalContext,
         assistMode: mode,
-        terminalOutput: terminalOutput || undefined,
         language: languageRef.current,
-        session
       }
     })
     autoSaveThreadToHistory(sessionId)
@@ -1696,15 +1767,33 @@ export function LlmPanel({
           }
 
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages[messages.length - 1] = { ...last, privacy }
+            const mergedPrivacy = last.privacy ? mergePrivacyNotices(last.privacy, privacy) : privacy
+            messages[messages.length - 1] = { ...last, privacy: mergedPrivacy }
           } else {
-            messages.push({
-              role: 'assistant',
-              content: t('status.privacyMasked', { count: event.maskedSecrets }),
-              display: 'privacy-status',
-              output: String(event.maskedSecrets),
-              privacy
-            })
+            const privacyMessageIndex = findCurrentRequestPrivacyNoticeIndex(messages)
+
+            if (privacyMessageIndex >= 0) {
+              const existing = messages[privacyMessageIndex]
+              const mergedPrivacy = mergePrivacyNotices(existing.privacy!, privacy)
+              messages[privacyMessageIndex] = {
+                ...existing,
+                content: existing.display === 'privacy-status'
+                  ? t('status.privacyMasked', { count: mergedPrivacy.maskedSecretCount })
+                  : existing.content,
+                output: existing.display === 'privacy-status'
+                  ? String(mergedPrivacy.maskedSecretCount)
+                  : existing.output,
+                privacy: mergedPrivacy
+              }
+            } else {
+              messages.push({
+                role: 'assistant',
+                content: t('status.privacyMasked', { count: event.maskedSecrets }),
+                display: 'privacy-status',
+                output: String(event.maskedSecrets),
+                privacy
+              })
+            }
           }
 
           return {
@@ -1875,61 +1964,9 @@ export function LlmPanel({
       setHistoryOpen(false)
       setHistorySearch('')
     } else {
-      setPromptPickerOpen(false)
       void loadHistoryChats().then(() => setHistoryOpen(true))
     }
   }, [historyOpen, loadHistoryChats])
-
-  useEffect(() => {
-    if (!promptPickerOpen) return
-    void window.api.prompt.list().then(setPromptPickerPrompts).catch(() => setPromptPickerPrompts([]))
-    requestAnimationFrame(() => promptPickerSearchRef.current?.focus())
-  }, [promptPickerOpen])
-
-  useEffect(() => {
-    setPromptPickerActiveIndex(0)
-  }, [promptPickerQuery])
-
-  useEffect(() => {
-    if (!promptPickerListRef.current) return
-    const active = promptPickerListRef.current.querySelector('.prompt-picker-item.active')
-    if (active) active.scrollIntoView({ block: 'nearest' })
-  }, [promptPickerActiveIndex])
-
-  const promptPickerFiltered = useMemo(() => {
-    const q = promptPickerQuery.trim().toLowerCase()
-    if (!q) return promptPickerPrompts
-    return promptPickerPrompts.filter((p) =>
-      p.name.toLowerCase().includes(q) || p.content.toLowerCase().includes(q)
-    )
-  }, [promptPickerPrompts, promptPickerQuery])
-
-  const togglePromptPicker = useCallback(() => {
-    if (promptPickerOpen) {
-      setPromptPickerOpen(false)
-      setPromptPickerQuery('')
-    } else {
-      setHistoryOpen(false)
-      setPromptPickerOpen(true)
-    }
-  }, [promptPickerOpen])
-
-  const closePromptPicker = useCallback(() => {
-    setPromptPickerOpen(false)
-    setPromptPickerQuery('')
-  }, [])
-
-  const openAddPrompt = useCallback(() => {
-    closePromptPicker()
-    setSettingsTab('prompts')
-    onOpenSettings()
-  }, [closePromptPicker, onOpenSettings])
-
-  useEffect(() => {
-    if (promptLibraryRequestVersion === 0) return
-    setHistoryOpen(false)
-    setPromptPickerOpen(true)
-  }, [promptLibraryRequestVersion])
 
   const handleDeleteHistoryChat = useCallback((chatId: string) => {
     const chat = historyChats.find((candidate) => candidate.id === chatId)
@@ -2034,15 +2071,20 @@ export function LlmPanel({
     const thread = getThread(sessionId)
     const session = thread.session ?? (activeSessionRef.current?.id === sessionId ? summarizeSession(activeSessionRef.current) : undefined)
     const terminalOutput = stripAnsi(getOutputForSessionRef.current(sessionId)).slice(-maxOutputContextRef.current)
+    const providerTerminalContext = getProviderTerminalContext({
+      assistMode: 'agent',
+      selectedText: selectedTextRef.current,
+      terminalOutput,
+      session,
+      strictTerminalContextActive
+    })
 
     return {
-      selectedText: selectedTextRef.current,
+      ...providerTerminalContext,
       assistMode: 'agent',
-      terminalOutput: terminalOutput || undefined,
       language: languageRef.current,
-      session
     }
-  }, [getThread, summarizeSession])
+  }, [getThread, strictTerminalContextActive, summarizeSession])
 
   const confirmAgenticCommand = useCallback(async (sessionId: string, command: string): Promise<CommandConfirmationResult> => {
     updateThread(sessionId, (thread) => ({ ...thread, status: { tone: 'info', label: t('status.checkingSafety') } }))
@@ -2066,7 +2108,7 @@ export function LlmPanel({
         reason: localizeCommandRiskReason(assessment, t),
         command,
         tone: riskLevel === 'danger' ? 'danger' : 'warning',
-        confirmLabel: t('confirm.runCommand'),
+        confirmLabel: t('confirm.runAnyway'),
         riskLevel
       })
 
@@ -2563,6 +2605,20 @@ export function LlmPanel({
   useEffect(() => {
     void loadMcpServers()
   }, [loadMcpServers])
+
+  const loadDataUsage = useCallback(async () => {
+    try {
+      setDataUsage(await window.api.data.usage())
+    } catch {
+      setDataUsage(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (settingsOpen && settingsTab === 'data') {
+      void loadDataUsage()
+    }
+  }, [loadDataUsage, settingsOpen, settingsTab])
 
   const editMcpServer = useCallback((server: McpServerConfig) => {
     setMcpDraft(server)
@@ -3063,6 +3119,7 @@ export function LlmPanel({
 
       await loadConfig()
       await loadMcpServers()
+      await loadDataUsage()
 
       const parts: string[] = []
       if (result.providersAdded) parts.push(`${result.providersAdded} provider(s)`)
@@ -3074,7 +3131,7 @@ export function LlmPanel({
     } catch (error) {
       setDataStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }, [loadConfig, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
+  }, [loadConfig, loadDataUsage, loadMcpServers, onSidebarWidthChange, onTerminalCursorBlinkChange, onTerminalCursorStyleChange, onTerminalFontFamilyChange, onTerminalLineHeightChange, onTerminalScrollbackChange, onTextSizeChange, onLanguageChange, onThemeChange, onWindowOpacityChange, terminalLineHeight, terminalScrollback, windowOpacity])
 
   const handleClearSavedSessionState = useCallback(() => {
     setDeleteConfirmation({
@@ -3085,6 +3142,7 @@ export function LlmPanel({
         setDataStatus('Clearing saved session...')
         try {
           await onClearSavedSessionState()
+          await loadDataUsage()
           setDataStatus('Saved session cleared')
           setTimeout(() => setDataStatus(''), 3000)
         } catch (error) {
@@ -3092,7 +3150,7 @@ export function LlmPanel({
         }
       }
     })
-  }, [onClearSavedSessionState, t])
+  }, [loadDataUsage, onClearSavedSessionState, t])
 
   const handleClearChatHistory = useCallback(() => {
     setDeleteConfirmation({
@@ -3102,11 +3160,12 @@ export function LlmPanel({
       onConfirm: async () => {
         await window.api.chatHistory.clear()
         setHistoryChats([])
+        await loadDataUsage()
         setDataStatus(t('data.clearChatHistory.done'))
         setTimeout(() => setDataStatus(''), 2000)
       }
     })
-  }, [t])
+  }, [loadDataUsage, t])
 
   const confirmDeleteAction = useCallback(async () => {
     const confirmation = deleteConfirmation
@@ -3127,42 +3186,23 @@ export function LlmPanel({
     handledPromptInsertRequestRef.current = promptInsertRequest.id
     setPromptDraft(promptInsertRequest.content)
     setHistoryOpen(false)
-    setPromptPickerOpen(false)
   }, [promptInsertRequest, setPromptDraft])
 
-  const handlePromptPickerKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closePromptPicker()
-      return
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.min(prev + 1, Math.max(promptPickerFiltered.length - 1, 0)))
-      return
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setPromptPickerActiveIndex((prev) => Math.max(prev - 1, 0))
-      return
-    }
-    if (e.key === 'Enter' && promptPickerFiltered[promptPickerActiveIndex]) {
-      e.preventDefault()
-      setPromptDraft(promptPickerFiltered[promptPickerActiveIndex].content)
-      closePromptPicker()
-    }
-  }, [closePromptPicker, promptPickerFiltered, promptPickerActiveIndex, setPromptDraft])
-
-  const toggleAgentMode = useCallback(() => {
+  const setComposerAssistMode = useCallback((mode: AssistMode) => {
     setAssistMode((prev) => {
-      const next: AssistMode = prev === 'agent' ? 'read' : 'agent'
-      if (next !== 'agent') {
+      if (prev === mode) return prev
+      if (mode !== 'agent') {
         for (const [sessionId, thread] of Object.entries(threadsRef.current)) {
           if (thread.agenticRunning) stopAgentic(sessionId)
         }
       }
-      return next
+      return mode
     })
   }, [stopAgentic])
+
+  const toggleAgentMode = useCallback(() => {
+    setComposerAssistMode(assistModeRef.current === 'agent' ? 'read' : 'agent')
+  }, [setComposerAssistMode])
 
   useEffect(() => {
     if (!assistModeRequest || handledAssistModeRequestRef.current === assistModeRequest.id) return
@@ -3184,16 +3224,17 @@ export function LlmPanel({
   const modelLabel = useMemo(() => formatModelLabel(provider.selectedModel), [provider.selectedModel])
   const terminalOutputForComposer = stripAnsi(getOutput()).slice(-maxOutputContext)
   const strippedTerminalOutput = terminalOutputForComposer.slice(-2000)
-  const composerTerminalOutput = assistMode !== 'off' && !strictTerminalContextActive ? terminalOutputForComposer : ''
-  const composerSelectedText = strictTerminalContextActive ? '' : selectedText
+  const terminalContextAllowed = assistMode !== 'off' && !strictTerminalContextActive
+  const composerTerminalOutput = terminalContextAllowed ? terminalOutputForComposer : ''
+  const composerSelectedText = terminalContextAllowed ? selectedText : ''
   const composerMaskedSecretCount = lastMaskedSecretCount
   const composerChatMessages = useMemo(
     () => toConversationalChatMessages(messages, strictTerminalContextActive),
     [messages, strictTerminalContextActive]
   )
   const composerSession = useMemo(
-    () => activeSession ? summarizeSession(activeSession) : undefined,
-    [activeSession, summarizeSession]
+    () => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined,
+    [activeSession, summarizeSession, terminalContextAllowed]
   )
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
@@ -3222,6 +3263,19 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
+  const composerModelDisplay = modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name
+  const openComposerModelSwitcher = useCallback(() => {
+    setComposerConfigOpen(false)
+    openModelSwitcher()
+  }, [openModelSwitcher])
+  const openComposerPromptLibrary = useCallback(() => {
+    setComposerConfigOpen(false)
+    setHistoryOpen(false)
+    onOpenPromptPalette()
+  }, [onOpenPromptPalette])
+  const permissionIndicator = getPermissionIndicatorState(assistMode, terminalContextAllowed)
+  const permissionIndicatorTitle = t(permissionIndicator.titleKey)
+  const shellLabel = activeSession?.label || 'zsh'
   const suggestionChips = useMemo(() => buildSuggestionChips({
     terminalOutput: strippedTerminalOutput,
     cwd: activeSession?.cwd,
@@ -3458,12 +3512,14 @@ export function LlmPanel({
       id: 'data',
       label: t('settings.tab.data'),
       terms: [
-        t('data.title'), t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
+        t('data.title'), t('data.usage.title'), t('data.usage.desc'), t('data.usage.storage'),
+        t('data.usage.chats'), t('data.usage.sessions'),
+        t('appearance.outputContext.label'), t('appearance.outputContext.desc'),
         t('data.restoreSessions.label'), t('data.restoreSessions.desc'),
         t('data.exportImport.label'), t('data.exportImport.desc'),
         t('data.clearSessions.label'), t('data.clearSessions.desc'),
         t('data.clearChatHistory.label'), t('data.clearChatHistory.desc'),
-        'data export import backup restore session state output context chars chat history clear'
+        'data usage storage local stats export import backup restore session state output context chars chat history clear'
       ]
     }
   ], [t])
@@ -3534,6 +3590,10 @@ export function LlmPanel({
       lastAutoOpenedSettingsQueryRef.current = query
     }
   }, [filteredSettingsNavItems, settingsOpen, settingsSearch])
+
+  const dataUsageStorage = dataUsage ? formatDataBytes(dataUsage.storageBytes, language) : '--'
+  const dataUsageChats = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.chatCount) : '--'
+  const dataUsageSessions = dataUsage ? new Intl.NumberFormat(language).format(dataUsage.sessionCount) : '--'
 
   return (
     <aside className="llm-panel">
@@ -3607,23 +3667,19 @@ export function LlmPanel({
             </button>
           </div>
         </div>
-        <div className="permission-badges" aria-label="Assistant permissions">
-          <span className={`permission-chip shell ${activeSession?.status ?? 'exited'}`}>
-            <span className="permission-dot" />
-            <span>{activeSession?.label ?? 'zsh'}</span>
+        <div className="permission-summary" aria-label={t('panel.permission.summary')}>
+          <span className={`shell-readout ${activeSession?.status ?? 'exited'}`} title={t('panel.shell.label', { shell: shellLabel })}>
+            <span className="shell-state-dot" aria-hidden />
+            <span className="shell-readout-label">{shellLabel}</span>
           </span>
-          <span className={`permission-chip ${assistMode !== 'off' ? 'read' : ''}`}>
-            <span>{t('panel.permission.read')}</span>
+          <span
+            className={`permission-indicator ${permissionIndicator.visualMode}`}
+            title={permissionIndicatorTitle}
+            aria-label={permissionIndicatorTitle}
+          >
+            {permissionIndicator.visualMode === 'off' ? <ShieldOff size={12} aria-hidden /> : <ShieldCheck size={12} aria-hidden />}
+            <span>{permissionIndicator.label}</span>
           </span>
-          <span className={`permission-chip ${assistMode === 'agent' ? 'execute' : ''}`}>
-            <span>{t('panel.permission.execute')}</span>
-          </span>
-          {assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) && (
-            <span className={`live-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
-              <span className="live-status-dot" aria-hidden />
-              <span>{t(`panel.status.${liveStatus}`)}</span>
-            </span>
-          )}
         </div>
       </header>
 
@@ -4227,13 +4283,19 @@ export function LlmPanel({
                             <div className="mcp-empty">{t('mcp.empty')}</div>
                           ) : mcpServers.map((server) => {
                             const sourceLabel = MCP_SOURCE_LABELS[server.source ?? 'manual']
+                            const statusLabel = server.enabled ? t('mcp.status.enabled') : t('mcp.status.disabled')
+                            const serverTooltip = [
+                              server.name,
+                              `${sourceLabel} · ${statusLabel}`,
+                              server.command
+                            ].filter(Boolean).join('\n')
                             return (
                               <div
                                 key={server.id}
-                                className={`provider-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
+                                className={`provider-list-item mcp-server-list-item ${mcpDraft.id === server.id ? 'active' : ''}`}
                                 role="button"
                                 tabIndex={0}
-                                title={server.name}
+                                title={serverTooltip}
                                 onClick={() => editMcpServer(server)}
                                 onKeyDown={(event) => {
                                   if (event.target !== event.currentTarget) return
@@ -4246,7 +4308,7 @@ export function LlmPanel({
                                 <span className={`provider-active-dot ${server.enabled ? 'visible' : ''}`} />
                                 <span className="provider-list-item-main">
                                   <span className="provider-list-item-name">{server.name}</span>
-                                  <span className="mcp-source-label">{sourceLabel}</span>
+                                  <span className="mcp-source-label">{sourceLabel} · {statusLabel}</span>
                                 </span>
                                 <button
                                   type="button"
@@ -4788,6 +4850,36 @@ export function LlmPanel({
                 {!settingsNoResults && settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
+                    <section className={`data-usage-panel ${settingsMatchClass([
+                      t('data.usage.title'),
+                      t('data.usage.desc'),
+                      t('data.usage.storage'),
+                      t('data.usage.chats'),
+                      t('data.usage.sessions'),
+                      'usage storage local stats saved chats sessions history'
+                    ])}`}>
+                      <div className="settings-section-heading">
+                        <span><HighlightSearchText text={t('data.usage.title')} query={settingsSearch} /></span>
+                      </div>
+                      <p className="data-usage-desc"><HighlightSearchText text={t('data.usage.desc')} query={settingsSearch} /></p>
+                      <div className="data-usage-grid">
+                        <div className="data-usage-card">
+                          <Database size={15} aria-hidden />
+                          <span>{dataUsageStorage}</span>
+                          <small><HighlightSearchText text={t('data.usage.storage')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <History size={15} aria-hidden />
+                          <span>{dataUsageChats}</span>
+                          <small><HighlightSearchText text={t('data.usage.chats')} query={settingsSearch} /></small>
+                        </div>
+                        <div className="data-usage-card">
+                          <SquareTerminal size={15} aria-hidden />
+                          <span>{dataUsageSessions}</span>
+                          <small><HighlightSearchText text={t('data.usage.sessions')} query={settingsSearch} /></small>
+                        </div>
+                      </div>
+                    </section>
                     <div className={`appearance-row ${settingsMatchClass([t('appearance.outputContext.label'), t('appearance.outputContext.desc'), 'output context ai max characters chars terminal'])}`}>
                       <div className="appearance-row-left">
                         <span className="appearance-row-label"><HighlightSearchText text={t('appearance.outputContext.label')} query={settingsSearch} /></span>
@@ -5289,62 +5381,16 @@ export function LlmPanel({
       </section>
 
       {commandConfirmation ? (
-        <section
-          className={`command-confirmation-card ${commandConfirmation.tone}`}
-          role="dialog"
-          aria-labelledby="command-confirmation-title"
-        >
-          <div className="command-confirmation-head">
-            <div>
-              {commandConfirmation.tone === 'danger' ? <ShieldAlert size={14} aria-hidden /> : <AlertTriangle size={12} aria-hidden />}
-              <h2 id="command-confirmation-title">{commandConfirmation.title}</h2>
-            </div>
-            <span>{commandConfirmation.tone === 'danger' ? t('confirm.review') : t('confirm.warning')}</span>
-          </div>
-          <div className="command-confirmation-body">
-            {commandConfirmation.tone === 'danger' && (
-              <div className="command-confirmation-destructive-warning">
-                <ShieldAlert size={14} aria-hidden />
-                <span>{t('confirm.destructiveWarning')}</span>
-              </div>
-            )}
-            <label className="command-confirmation-command">
-              <span>{t('confirm.command')}</span>
-              <textarea
-                value={visibleCommandConfirmationCommand}
-                onChange={(event) => {
-                  if (!commandConfirmationUsesLocalSecret) {
-                    updateCommandConfirmationCommand(commandConfirmation.sessionId, event.target.value)
-                  }
-                }}
-                readOnly={commandConfirmationUsesLocalSecret}
-                aria-readonly={commandConfirmationUsesLocalSecret}
-                spellCheck={false}
-                rows={Math.min(5, Math.max(2, visibleCommandConfirmationCommand.split('\n').length))}
-              />
-            </label>
-            <div className="command-confirmation-reason">
-              <span>{t('confirm.reason')}</span>
-              <p>{commandConfirmation.reason}</p>
-            </div>
-            <p className="command-confirmation-note">{t('confirm.agentPaused')}</p>
-          </div>
-          <footer>
-            <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, false)}>
-              {t('confirm.cancel')}
-            </button>
-            <button
-              type="button"
-              className={`danger-button ${commandConfirmation.tone}`}
-              disabled={!commandConfirmation.command.trim() || (commandConfirmation.tone === 'danger' && confirmCountdown > 0)}
-              onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, true, commandConfirmation.command)}
-            >
-              {commandConfirmation.tone === 'danger' && confirmCountdown > 0
-                ? t('confirm.confirmCountdown', { seconds: confirmCountdown })
-                : commandConfirmation.confirmLabel}
-            </button>
-          </footer>
-        </section>
+        <CommandConfirmationDialog
+          commandConfirmation={commandConfirmation}
+          confirmCountdown={confirmCountdown}
+          commandUsesLocalSecret={commandConfirmationUsesLocalSecret}
+          visibleCommand={visibleCommandConfirmationCommand}
+          t={t}
+          onCancel={(sessionId) => resolveCommandConfirmation(sessionId, false)}
+          onConfirm={(sessionId, command) => resolveCommandConfirmation(sessionId, true, command)}
+          onCommandChange={updateCommandConfirmationCommand}
+        />
       ) : null}
 
       <form
@@ -5377,35 +5423,27 @@ export function LlmPanel({
             rows={1}
           />
           <div className="chat-composer-footer">
-            <div className="chat-composer-indicators">
-              <span className={`composer-context-chip ${assistMode === 'off' ? 'off' : ''}`} title={composerContextLabel}>
-                <ScrollText size={12} aria-hidden />
-                <span>{composerContextLabel}</span>
-              </span>
-              {composerMaskedSecretCount > 0 ? (
-                <span className="composer-context-chip" title={composerMaskedSecretLabel}>
-                  <ShieldCheck size={12} aria-hidden />
-                  <span>{composerMaskedSecretLabel}</span>
+            <div className="chat-form-actions">
+              {liveStatus && assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
+                <span className={`composer-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
+                  <span className="composer-status-dot" aria-hidden />
+                  <span>{t(`panel.status.${liveStatus}`)}</span>
                 </span>
               ) : null}
-            </div>
-            <div className="chat-form-actions">
-              <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
-                {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
-                <span>{composerModeLabel}</span>
-              </span>
-              <button
-                type="button"
-                className="composer-model-chip"
-                onClick={openModelSwitcher}
-                title={t('model.switch.title')}
-                aria-label={t('model.switch.title')}
-              >
-                <Brain size={12} aria-hidden />
-                <span>{modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name}</span>
-                <ChevronDown size={11} aria-hidden />
-              </button>
-              <PromptPicker onSelect={setPromptDraft} open={promptPickerOpen} onOpenChange={togglePromptPicker} triggerLabel={t('panel.promptLibrary')} />
+              <ComposerConfigControl
+                open={composerConfigOpen}
+                assistMode={assistMode}
+                modeLabel={composerModeLabel}
+                modelLabel={composerModelDisplay}
+                contextLabel={composerContextLabel}
+                maskedSecretLabel={composerMaskedSecretLabel}
+                maskedSecretCount={composerMaskedSecretCount}
+                t={t}
+                onOpenChange={setComposerConfigOpen}
+                onAssistModeChange={setComposerAssistMode}
+                onOpenModelSwitcher={openComposerModelSwitcher}
+                onOpenPromptLibrary={openComposerPromptLibrary}
+              />
               {streaming || agenticRunning ? (
                 <button
                   className="stop-button"
@@ -5434,59 +5472,6 @@ export function LlmPanel({
       </form>
       </>
       )}
-
-      {promptPickerOpen ? createPortal(
-        <div className="prompt-picker-overlay" onClick={(event) => { if (event.target === event.currentTarget) closePromptPicker() }}>
-          <section className="prompt-picker-palette" role="dialog" aria-modal="true" aria-label={t('promptPalette.title')}>
-            <div className="prompt-picker-search">
-              <Search size={15} aria-hidden />
-              <input
-                ref={promptPickerSearchRef}
-                type="text"
-                placeholder={t('promptPalette.search')}
-                value={promptPickerQuery}
-                onChange={(e) => setPromptPickerQuery(e.target.value)}
-                onKeyDown={handlePromptPickerKeyDown}
-              />
-            </div>
-            <div className="prompt-picker-hint">
-              <div className="prompt-picker-shortcuts">
-                <span>{t('promptPalette.enterInserts')}</span>
-              </div>
-              <button type="button" className="prompt-picker-add" onClick={openAddPrompt}>
-                <Plus size={12} aria-hidden />
-                {t('promptPalette.addPrompt')}
-              </button>
-            </div>
-            <div className="prompt-picker-list" ref={promptPickerListRef}>
-              {promptPickerFiltered.length > 0 ? promptPickerFiltered.map((prompt, i) => (
-                <button
-                  key={prompt.id}
-                  type="button"
-                  className={`prompt-picker-item ${i === promptPickerActiveIndex ? 'active' : ''}`}
-                  onClick={() => {
-                    setPromptDraft(prompt.content)
-                    closePromptPicker()
-                  }}
-                  onMouseEnter={() => setPromptPickerActiveIndex(i)}
-                >
-                  <FileText size={14} aria-hidden />
-                  <div className="prompt-picker-item-text">
-                    <span className="prompt-picker-item-name">{prompt.name}</span>
-                    <span className="prompt-picker-item-preview">{prompt.content}</span>
-                  </div>
-                </button>
-              )) : (
-                <p className="prompt-picker-empty">
-                  {promptPickerPrompts.length === 0
-                    ? t('promptPalette.empty')
-                    : t('promptPalette.noMatch')}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      , document.body) : null}
 
       {savePromptDialog ? createPortal(
         <div
@@ -5579,10 +5564,14 @@ export function LlmPanel({
             search: t('model.switch.search'),
             recent: t('commandPalette.recent'),
             all: t('model.switch.all'),
+            commands: t('commandPalette.commands'),
+            snippets: t('commandPalette.snippets'),
+            prompts: t('commandPalette.prompts'),
             noMatch: t('model.noMatch'),
-            enterRuns: t('commandPalette.enterRuns'),
+            enterSelects: t('commandPalette.enterSelects'),
             escapeCloses: t('commandPalette.escapeCloses')
           }}
+          showCategoryFilters={false}
           onClose={() => setModelSwitcherOpen(false)}
           onRun={(action) => {
             if (action.id.startsWith('model:') && action.id !== 'model:load') {

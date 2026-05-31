@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Play, Plus, Search, Settings2, ShieldAlert } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
-import { CommandPalette, type CommandPaletteAction } from './components/CommandPalette'
+import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
 import { LanguageProvider } from './i18n/LanguageContext'
-import { useT } from './i18n/language'
 import { TRANSLATIONS, type Language, type Translations } from './i18n/translations'
 import { themeMap, themes, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { compactPath, getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
+import { compactPath, getCwdBasename, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -48,6 +47,7 @@ const DEFAULT_TERMINAL_CURSOR_STYLE: TerminalCursorStyle = 'block'
 const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
 const DEFAULT_TERMINAL_SCROLLBACK = 5000
 const DEFAULT_WINDOW_OPACITY = 1
+const SIDEBAR_TRANSITION_MS = 260
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
@@ -281,6 +281,8 @@ export function App(): JSX.Element {
   const [sidebarVisible, setSidebarVisible] = useState(() =>
     window.localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== 'false'
   )
+  const [sidebarTransitioning, setSidebarTransitioning] = useState(false)
+  const [sidebarResizing, setSidebarResizing] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     storedSidebarWidth()
   )
@@ -318,15 +320,14 @@ export function App(): JSX.Element {
     storedPositiveNumber(MAX_OUTPUT_CONTEXT_KEY, DEFAULT_MAX_OUTPUT_CONTEXT)
   )
   const [newTabDropdownOpen, setNewTabDropdownOpen] = useState(false)
-  const [snippetPaletteOpen, setSnippetPaletteOpen] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [commandPaletteInitialCategory, setCommandPaletteInitialCategory] = useState<CommandPaletteCategoryFilter>('all')
   const [commandPaletteSnippets, setCommandPaletteSnippets] = useState<CommandSnippet[]>([])
   const [commandPalettePrompts, setCommandPalettePrompts] = useState<PromptTemplate[]>([])
   const [recentCommandActionIds, setRecentCommandActionIds] = useState(storedRecentCommandActions)
   const [settingsTabRequest, setSettingsTabRequest] = useState<SettingsTab>('providers')
   const [settingsTabRequestVersion, setSettingsTabRequestVersion] = useState(0)
   const [addSnippetRequestVersion, setAddSnippetRequestVersion] = useState(0)
-  const [promptLibraryRequestVersion, setPromptLibraryRequestVersion] = useState(0)
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
   const maxOutputContextRef = useRef(maxOutputContext)
   const windowOpacityRef = useRef(windowOpacity)
@@ -334,6 +335,8 @@ export function App(): JSX.Element {
   const terminalBlocksRef = useRef(new Map<string, TerminalBlock[]>())
   const activeBlockIdsRef = useRef(new Map<string, string>())
   const appShellRef = useRef<HTMLElement>(null)
+  const sidebarVisibleRef = useRef(sidebarVisible)
+  const sidebarTransitionTimerRef = useRef<number>()
   const terminalPaneRef = useRef<TerminalPaneHandle | null>(null)
   const restoreInitializedRef = useRef(false)
   const restoreSessionsOnLaunchRef = useRef(restoreSessions)
@@ -360,6 +363,22 @@ export function App(): JSX.Element {
     () => sessions.find((session) => session.id === activeSessionId),
     [activeSessionId, sessions]
   )
+
+  const beginSidebarVisibilityTransition = useCallback((): void => {
+    if (sidebarTransitionTimerRef.current !== undefined) {
+      window.clearTimeout(sidebarTransitionTimerRef.current)
+    }
+    setSidebarTransitioning(true)
+    sidebarTransitionTimerRef.current = window.setTimeout(() => {
+      setSidebarTransitioning(false)
+      sidebarTransitionTimerRef.current = undefined
+    }, SIDEBAR_TRANSITION_MS)
+  }, [])
+
+  const showSidebar = useCallback((): void => {
+    if (!sidebarVisibleRef.current) beginSidebarVisibilityTransition()
+    setSidebarVisible(true)
+  }, [beginSidebarVisibilityTransition])
   const activeCwd = activeSession?.cwd ?? activeSession?.command ?? ''
   const activeCwdDisplay = compactPath(activeCwd, 36)
   const activeTerminalBlocks = activeSessionId && terminalBlocksRevision >= 0
@@ -509,9 +528,9 @@ export function App(): JSX.Element {
       sessionId: pendingBlockPrompt.sessionId,
       prompt: pendingBlockPrompt.prompt
     })
-    setSidebarVisible(true)
+    showSidebar()
     setPendingBlockPrompt(null)
-  }, [pendingBlockPrompt])
+  }, [pendingBlockPrompt, showSidebar])
 
   const requestBlockRerun = useCallback((block: TerminalBlock): void => {
     setPendingBlockRerun({
@@ -583,8 +602,17 @@ export function App(): JSX.Element {
   }, [scheduleSessionStateSave, touchTerminalBlocks, updateActiveBlockEnd])
 
   useEffect(() => {
+    sidebarVisibleRef.current = sidebarVisible
     window.localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(sidebarVisible))
   }, [sidebarVisible])
+
+  useEffect(() => {
+    return () => {
+      if (sidebarTransitionTimerRef.current !== undefined) {
+        window.clearTimeout(sidebarTransitionTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth))
@@ -710,6 +738,7 @@ export function App(): JSX.Element {
     event.preventDefault()
     const handle = event.currentTarget
     handle.setPointerCapture(event.pointerId)
+    setSidebarResizing(true)
 
     const applyWidth = (clientX: number): void => {
       setSidebarWidth(clampSidebarWidth(window.innerWidth - clientX))
@@ -719,8 +748,11 @@ export function App(): JSX.Element {
       applyWidth(moveEvent.clientX)
     }
 
-    const onPointerUp = (): void => {
+    const finishResize = (): void => {
+      setSidebarResizing(false)
       window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finishResize)
+      window.removeEventListener('pointercancel', finishResize)
       try {
         handle.releasePointerCapture(event.pointerId)
       } catch {
@@ -730,7 +762,8 @@ export function App(): JSX.Element {
 
     applyWidth(event.clientX)
     window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp, { once: true })
+    window.addEventListener('pointerup', finishResize, { once: true })
+    window.addEventListener('pointercancel', finishResize, { once: true })
   }, [])
 
   const updateTextSize = useCallback((value: number) => {
@@ -744,10 +777,13 @@ export function App(): JSX.Element {
     setSidebarWidth(clampSidebarWidth(value))
   }, [])
 
-  const toggleSidebar = useCallback(() => setSidebarVisible((v) => !v), [])
+  const toggleSidebar = useCallback(() => {
+    beginSidebarVisibilityTransition()
+    setSidebarVisible((v) => !v)
+  }, [beginSidebarVisibilityTransition])
 
-  const openCommandPalette = useCallback(() => {
-    setSnippetPaletteOpen(false)
+  const openCommandPalette = useCallback((category: CommandPaletteCategoryFilter = 'all') => {
+    setCommandPaletteInitialCategory(category)
     setNewTabDropdownOpen(false)
     setCommandPaletteOpen(true)
   }, [])
@@ -756,8 +792,8 @@ export function App(): JSX.Element {
     setSettingsTabRequest(tab)
     setSettingsTabRequestVersion((version) => version + 1)
     setSettingsOpen(true)
-    setSidebarVisible(true)
-  }, [])
+    showSidebar()
+  }, [showSidebar])
 
   const handleHideShortcutChange = useCallback((shortcut: string) => {
     setHideShortcut(shortcut)
@@ -1117,23 +1153,13 @@ export function App(): JSX.Element {
   const insertCommandSnippet = useCallback((command: string, run: boolean) => {
     if (!activeSessionId || !isLiveSessionStatus(activeSession?.status)) return
     void window.api.terminal.write(activeSessionId, run ? `${command}\r` : command)
-    setSnippetPaletteOpen(false)
     requestAnimationFrame(() => {
       terminalPaneRef.current?.focus()
     })
   }, [activeSession?.status, activeSessionId])
 
-  const openAddCommandSnippet = useCallback(() => {
-    setSnippetPaletteOpen(false)
-    setSettingsTabRequest('snippets')
-    setSettingsTabRequestVersion((version) => version + 1)
-    setAddSnippetRequestVersion((version) => version + 1)
-    setSettingsOpen(true)
-  }, [])
-
   const openSnippetForm = useCallback((command?: string) => {
     const normalizedCommand = command?.trim() ?? ''
-    setSnippetPaletteOpen(false)
     setSettingsTabRequest('snippets')
     setSettingsTabRequestVersion((version) => version + 1)
     setAddSnippetRequestVersion(0)
@@ -1183,6 +1209,7 @@ export function App(): JSX.Element {
         title: appT('connections.tab.newLocal'),
         description: 'Open a fresh local shell tab.',
         category: 'Tabs',
+        actionHint: appT('commandPalette.action.open'),
         shortcut: '⌘T',
         keywords: ['terminal', 'shell', 'tab']
       },
@@ -1191,6 +1218,7 @@ export function App(): JSX.Element {
         title: 'Clear terminal',
         description: 'Clear the active terminal output and command blocks.',
         category: 'Terminal',
+        actionHint: appT('commandPalette.action.run'),
         disabled: !activeSessionId,
         keywords: ['clear', 'terminal', 'output', 'screen', 'blocks']
       },
@@ -1199,6 +1227,7 @@ export function App(): JSX.Element {
         title: `Switch to ${getTabLabel(session)}`,
         description: getSessionTooltip(session),
         category: 'Tabs',
+        actionHint: appT('commandPalette.action.open'),
         shortcut: index < 9 ? `⌘${index + 1}` : undefined,
         keywords: [session.cwd ?? '', session.label ?? '', session.kind, session.status]
       })),
@@ -1207,6 +1236,7 @@ export function App(): JSX.Element {
         title: `Connect to ${profile.name || profile.host || 'SSH host'}`,
         description: [profile.user, profile.host].filter(Boolean).join('@') || 'Open a saved SSH profile.',
         category: 'SSH',
+        actionHint: appT('commandPalette.action.open'),
         keywords: ['ssh', 'remote', profile.host, profile.user, profile.name].filter(Boolean) as string[]
       })),
       ...settingsTabs.map((tab) => ({
@@ -1214,6 +1244,7 @@ export function App(): JSX.Element {
         title: `Open ${tab.label}`,
         description: 'Jump to this settings section.',
         category: 'Settings',
+        actionHint: appT('commandPalette.action.open'),
         keywords: tab.keywords
       })),
       ...commandPaletteSnippets.map((snippet) => ({
@@ -1221,6 +1252,8 @@ export function App(): JSX.Element {
         title: `Insert snippet: ${snippet.name}`,
         description: snippet.command,
         category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: appT('commandPalette.action.insert'),
         shortcut: 'Enter',
         metaEnterActionId: `snippet:${snippet.id}:run`,
         disabled: !activeSessionId || !isLiveSessionStatus(activeSession?.status),
@@ -1231,6 +1264,8 @@ export function App(): JSX.Element {
         title: `Run snippet: ${snippet.name}`,
         description: snippet.command,
         category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: appT('commandPalette.action.run'),
         shortcut: '⌘↵',
         disabled: !activeSessionId || !isLiveSessionStatus(activeSession?.status),
         keywords: ['snippet', 'command', 'run', snippet.name, snippet.command]
@@ -1240,17 +1275,20 @@ export function App(): JSX.Element {
         title: `Insert prompt: ${prompt.name}`,
         description: prompt.content,
         category: 'Prompts',
+        paletteCategory: 'prompts',
+        actionHint: appT('commandPalette.action.insert'),
         keywords: ['prompt', 'template', 'assistant', prompt.name, prompt.content]
       })),
-      { id: 'assistant:agent', title: 'Enable agent mode', description: 'Allow the assistant to propose and run approved commands.', category: 'Agent Mode', keywords: ['assistant', 'agent', 'execute', 'mode'] },
-      { id: 'assistant:read', title: 'Use read-only assistant mode', description: 'Let the assistant read terminal context without executing commands.', category: 'Agent Mode', keywords: ['assistant', 'read only', 'mode'] },
-      { id: 'assistant:off', title: 'Turn assistant context off', description: 'Stop sharing terminal context with the assistant.', category: 'Agent Mode', keywords: ['assistant', 'off', 'mode', 'privacy'] },
-      { id: 'assistant:switch-model', title: 'Switch model', description: 'Choose a chat model for the current provider.', category: 'Assistant', keywords: ['assistant', 'model', 'provider', 'llm', 'switch'] },
+      { id: 'assistant:agent', title: 'Enable agent mode', description: 'Allow the assistant to propose and run approved commands.', category: 'Agent Mode', actionHint: appT('commandPalette.action.select'), keywords: ['assistant', 'agent', 'execute', 'mode'] },
+      { id: 'assistant:read', title: 'Use read-only assistant mode', description: 'Let the assistant read terminal context without executing commands.', category: 'Agent Mode', actionHint: appT('commandPalette.action.select'), keywords: ['assistant', 'read only', 'mode'] },
+      { id: 'assistant:off', title: 'Turn assistant context off', description: 'Stop sharing terminal context with the assistant.', category: 'Agent Mode', actionHint: appT('commandPalette.action.select'), keywords: ['assistant', 'off', 'mode', 'privacy'] },
+      { id: 'assistant:switch-model', title: 'Switch model', description: 'Choose a chat model for the current provider.', category: 'Assistant', actionHint: appT('commandPalette.action.open'), keywords: ['assistant', 'model', 'provider', 'llm', 'switch'] },
       ...themes.map((theme) => ({
         id: `theme:${theme.id}`,
         title: `Switch theme: ${theme.name}`,
         description: theme.id === themeId ? 'Current theme.' : 'Apply this app and terminal color scheme.',
         category: 'Theme',
+        actionHint: appT('commandPalette.action.select'),
         keywords: ['theme', 'appearance', 'color', theme.name]
       }))
     ]
@@ -1309,7 +1347,7 @@ export function App(): JSX.Element {
     if (action.id.startsWith('prompt:')) {
       const prompt = commandPalettePrompts.find((candidate) => candidate.id === action.id.slice('prompt:'.length))
       if (prompt) {
-        setSidebarVisible(true)
+        showSidebar()
         setPromptInsertRequest({ id: crypto.randomUUID(), content: prompt.content })
       }
       return
@@ -1317,13 +1355,13 @@ export function App(): JSX.Element {
 
     if (action.id.startsWith('assistant:')) {
       if (action.id === 'assistant:switch-model') {
-        setSidebarVisible(true)
+        showSidebar()
         setModelSwitchRequest({ id: crypto.randomUUID() })
         return
       }
 
       const mode = action.id.slice('assistant:'.length) as AssistMode
-      setSidebarVisible(true)
+      showSidebar()
       setAssistModeRequest({ id: crypto.randomUUID(), mode })
       return
     }
@@ -1339,6 +1377,7 @@ export function App(): JSX.Element {
     createLocalSession,
     insertCommandSnippet,
     openSettingsTab,
+    showSidebar,
     sshProfiles
   ])
 
@@ -1356,9 +1395,9 @@ export function App(): JSX.Element {
       } else if (shortcut === 'open-command-palette') {
         openCommandPalette()
       } else if (shortcut === 'open-prompt-library') {
-        setPromptLibraryRequestVersion((version) => version + 1)
+        openCommandPalette('prompts')
       } else if (shortcut === 'open-command-snippets') {
-        setSnippetPaletteOpen(true)
+        openCommandPalette('snippets')
       } else if (shortcut === 'open-settings') {
         setSettingsOpen(true)
       } else if (shortcut === 'new-tab') {
@@ -1406,16 +1445,16 @@ export function App(): JSX.Element {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
-        setSnippetPaletteOpen(true)
+        openCommandPalette('snippets')
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'j') {
         e.preventDefault()
-        setPromptLibraryRequestVersion((version) => version + 1)
+        openCommandPalette('prompts')
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [openCommandPalette])
 
   const contextMenuSession = tabContextMenu
     ? sessions.find((session) => session.id === tabContextMenu.sessionId)
@@ -1423,61 +1462,88 @@ export function App(): JSX.Element {
 
   return (
     <LanguageProvider language={language}>
-    <main ref={appShellRef} className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}`} style={shellStyle}>
+    <main
+      ref={appShellRef}
+      className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}${sidebarTransitioning ? ' sidebar-transitioning' : ''}${sidebarResizing ? ' sidebar-resizing' : ''}`}
+      style={shellStyle}
+    >
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />
           <div className="topbar-title">Taviraq</div>
-          <div className="topbar-actions">
-            <div className="tabbar-new-dropdown-wrapper">
-              <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title={appT('app.newTerminal')}>
-                <Plus size={16} aria-hidden />
-              </button>
-              {newTabDropdownOpen ? (
-                <div className="tabbar-new-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="tabbar-new-dropdown-item"
-                    onClick={() => { setNewTabDropdownOpen(false); void createLocalSession() }}
-                  >
-                    <Terminal size={14} aria-hidden />
-                    New Local Terminal
-                  </button>
-                  {sshProfiles.length > 0 ? (
-                    <>
-                      <div className="tabbar-new-dropdown-sep" />
-                      <div className="tabbar-new-dropdown-label">SSH</div>
-                      {sshProfiles.map((profile) => (
-                        <button
-                          key={profile.id}
-                          type="button"
-                          className="tabbar-new-dropdown-item"
-                          onClick={() => { void connectSshProfile(profile) }}
-                        >
-                          <Server size={14} aria-hidden />
-                          {profile.name || profile.host || 'Unnamed'}
-                        </button>
-                      ))}
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
+          <div className="topbar-actions" role="toolbar" aria-label={appT('app.terminalToolbar')}>
+            <div className="toolbar-group toolbar-group-primary">
+              <div className="tabbar-new-dropdown-wrapper">
+                <button
+                  className="icon-button topbar-action topbar-action-primary"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }}
+                  aria-label={appT('app.newTerminal')}
+                  aria-expanded={newTabDropdownOpen}
+                  data-tooltip={newTabDropdownOpen ? undefined : appT('app.newTerminal')}
+                >
+                  <Plus size={16} aria-hidden />
+                </button>
+                {newTabDropdownOpen ? (
+                  <div className="tabbar-new-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="tabbar-new-dropdown-item"
+                      onClick={() => { setNewTabDropdownOpen(false); void createLocalSession() }}
+                    >
+                      <Terminal size={14} aria-hidden />
+                      New Local Terminal
+                    </button>
+                    {sshProfiles.length > 0 ? (
+                      <>
+                        <div className="tabbar-new-dropdown-sep" />
+                        <div className="tabbar-new-dropdown-label">SSH</div>
+                        {sshProfiles.map((profile) => (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            className="tabbar-new-dropdown-item"
+                            onClick={() => { void connectSshProfile(profile) }}
+                          >
+                            <Server size={14} aria-hidden />
+                            {profile.name || profile.host || 'Unnamed'}
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={openCommandPalette}
-              title={`${appT('commandPalette.title')} (⌘⇧P)`}
-              aria-label={`${appT('commandPalette.title')} (⌘⇧P)`}
-            >
-              <Command size={16} aria-hidden />
-            </button>
-            <button className="icon-button" type="button" onClick={toggleSidebar} title={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')} aria-label={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}>
-              {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
-            </button>
-            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title={appT('app.settings')} aria-label={appT('app.settings')}>
-              <Settings2 size={16} aria-hidden />
-            </button>
+            <div className="toolbar-group toolbar-group-utility">
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={() => openCommandPalette()}
+                data-tooltip={`${appT('commandPalette.title')} (⌘⇧P)`}
+                aria-label={`${appT('commandPalette.title')} (⌘⇧P)`}
+              >
+                <Command size={16} aria-hidden />
+              </button>
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={toggleSidebar}
+                data-tooltip={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}
+                aria-label={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}
+              >
+                {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
+              </button>
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                data-tooltip={appT('app.settings')}
+                aria-label={appT('app.settings')}
+              >
+                <Settings2 size={16} aria-hidden />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -1486,9 +1552,8 @@ export function App(): JSX.Element {
             {sessions.map((session) => {
               const tabLabel = getTabLabel(session)
               const statusMeta = getSessionStatusMeta(session.status)
-              const cwdBadge = getCwdBasename(session.cwd)
-              const commandTarget = session.kind === 'ssh' ? getSessionCommandTarget(session) : undefined
-              const visibleCommandTarget = commandTarget && !tabLabel.includes(commandTarget) ? commandTarget : undefined
+              const cwdBadge = session.kind === 'ssh' ? undefined : getCwdBasename(session.cwd)
+              const sshIndicatorTitle = getSshTabIndicatorTitle(session)
               const tabClassName = [
                 'session-tab',
                 session.kind === 'ssh' ? 'ssh-session' : '',
@@ -1526,7 +1591,12 @@ export function App(): JSX.Element {
                       : <SquareTerminal size={10} aria-hidden />}
                   </span>
                   <span className="tab-label">{tabLabel}</span>
-                  {visibleCommandTarget ? <span className="tab-target">{visibleCommandTarget}</span> : null}
+                  {sshIndicatorTitle ? (
+                    <span className="tab-remote-badge" title={sshIndicatorTitle}>
+                      <Server size={10} aria-hidden />
+                      SSH
+                    </span>
+                  ) : null}
                   {cwdBadge ? <span className="tab-cwd-badge" title={session.cwd}>{cwdBadge}</span> : null}
                   <span
                     className="tab-close"
@@ -1670,7 +1740,7 @@ export function App(): JSX.Element {
         settingsTabRequest={settingsTabRequest}
         settingsTabRequestVersion={settingsTabRequestVersion}
         addSnippetRequestVersion={addSnippetRequestVersion}
-        promptLibraryRequestVersion={promptLibraryRequestVersion}
+        onOpenPromptPalette={() => openCommandPalette('prompts')}
         textSize={textSize}
         onTextSizeChange={updateTextSize}
         terminalFontFamily={terminalFontFamily}
@@ -1852,25 +1922,21 @@ export function App(): JSX.Element {
         </div>
       ) : null}
 
-      {snippetPaletteOpen ? (
-        <CommandSnippetPalette
-          activeSession={activeSession}
-          onClose={() => setSnippetPaletteOpen(false)}
-          onUse={insertCommandSnippet}
-          onAddSnippet={openAddCommandSnippet}
-        />
-      ) : null}
       {commandPaletteOpen ? (
         <CommandPalette
           actions={commandPaletteActions}
           recentActionIds={recentCommandActionIds}
+          initialCategory={commandPaletteInitialCategory}
           labels={{
             title: appT('commandPalette.title'),
             search: appT('commandPalette.search'),
             recent: appT('commandPalette.recent'),
             all: appT('commandPalette.all'),
+            commands: appT('commandPalette.commands'),
+            snippets: appT('commandPalette.snippets'),
+            prompts: appT('commandPalette.prompts'),
             noMatch: appT('commandPalette.noMatch'),
-            enterRuns: appT('commandPalette.enterRuns'),
+            enterSelects: appT('commandPalette.enterSelects'),
             escapeCloses: appT('commandPalette.escapeCloses')
           }}
           onClose={() => setCommandPaletteOpen(false)}
@@ -1879,140 +1945,6 @@ export function App(): JSX.Element {
       ) : null}
     </main>
     </LanguageProvider>
-  )
-}
-
-interface CommandSnippetPaletteProps {
-  activeSession?: SessionTabInfo
-  onClose: () => void
-  onUse: (command: string, run: boolean) => void
-  onAddSnippet: () => void
-}
-
-function CommandSnippetPalette({ activeSession, onClose, onUse, onAddSnippet }: CommandSnippetPaletteProps): JSX.Element {
-  const { t } = useT()
-  const [snippets, setSnippets] = useState<CommandSnippet[]>([])
-  const [query, setQuery] = useState('')
-  const [activeIndex, setActiveIndex] = useState(0)
-  const listRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    void window.api.commandSnippet.list().then(setSnippets).catch(() => setSnippets([]))
-  }, [])
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return snippets
-    return snippets.filter((snippet) =>
-      snippet.name.toLowerCase().includes(q) ||
-      snippet.command.toLowerCase().includes(q)
-    )
-  }, [query, snippets])
-
-  useEffect(() => {
-    setActiveIndex(0)
-  }, [query])
-
-  useEffect(() => {
-    const active = listRef.current?.querySelector('.command-snippet-palette-item.active')
-    active?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
-
-  const canUse = isLiveSessionStatus(activeSession?.status)
-
-  const handleKeyDown = useCallback((event: ReactKeyboardEvent) => {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      onClose()
-      return
-    }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setActiveIndex((index) => Math.min(index + 1, filtered.length - 1))
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setActiveIndex((index) => Math.max(index - 1, 0))
-      return
-    }
-
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      const snippet = filtered[activeIndex]
-      if (snippet && canUse) {
-        onUse(snippet.command, event.metaKey || event.ctrlKey)
-      }
-    }
-  }, [activeIndex, canUse, filtered, onClose, onUse])
-
-  return (
-    <div className="command-snippet-palette-overlay" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <section className="command-snippet-palette" role="dialog" aria-modal="true" aria-label={t('snippetPalette.title')}>
-        <div className="command-snippet-palette-search">
-          <Search size={15} aria-hidden />
-          <input
-            autoFocus
-            value={query}
-            placeholder={t('snippetPalette.search')}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
-        <div className="command-snippet-palette-hint">
-          <div className="command-snippet-palette-shortcuts">
-            <span>{t('snippetPalette.enterInserts')}</span>
-            <span>{t('snippetPalette.metaEnterRuns')}</span>
-          </div>
-          <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
-            <Plus size={12} aria-hidden />
-            {t('snippetPalette.addSnippet')}
-          </button>
-        </div>
-        <div className="command-snippet-palette-list" ref={listRef}>
-          {filtered.length > 0 ? filtered.map((snippet, index) => (
-            <button
-              key={snippet.id}
-              type="button"
-              className={`command-snippet-palette-item ${index === activeIndex ? 'active' : ''}`}
-              disabled={!canUse}
-              onMouseEnter={() => setActiveIndex(index)}
-              onClick={() => onUse(snippet.command, false)}
-            >
-              <div className="command-snippet-palette-item-text">
-                <span className="command-snippet-palette-item-name">{snippet.name}</span>
-                <code>{snippet.command}</code>
-              </div>
-              <span
-                className="command-snippet-run-action"
-                role="button"
-                tabIndex={-1}
-                title={t('snippetPalette.runNow')}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onUse(snippet.command, true)
-                }}
-              >
-                <Play size={13} aria-hidden />
-                <kbd>⌘↵</kbd>
-              </span>
-            </button>
-          )) : (
-            <div className="command-snippet-palette-empty">
-              <p>{snippets.length === 0 ? t('snippetPalette.empty') : t('snippetPalette.noMatch')}</p>
-              {snippets.length === 0 ? (
-                <button type="button" className="command-snippet-palette-add" onClick={onAddSnippet}>
-                  <Plus size={12} aria-hidden />
-                  {t('snippetPalette.emptyCta')}
-                </button>
-              ) : null}
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
   )
 }
 

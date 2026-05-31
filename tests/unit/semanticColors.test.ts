@@ -25,8 +25,15 @@ describe('semantic color tokens', () => {
     expect(selectorBlock('.agent-toggle.on')).toContain('background: var(--color-accent);')
     expect(selectorBlock('.privacy-status-message')).toContain('color: var(--color-neutral);')
     expect(selectorBlock('.provider-status-badge.ready')).toContain('color: var(--color-success);')
+    expect(selectorBlock('.permission-indicator.read')).toContain('color: var(--color-success);')
+    expect(selectorBlock('.permission-indicator.agent')).toContain('color: var(--color-accent);')
+    expect(selectorBlock('.composer-status-chip.waiting')).toContain('color: var(--color-warning);')
+    expect(selectorBlock('.composer-config-chip.agent')).toContain('color: var(--color-accent);')
+    expect(selectorBlock('.composer-config-chip.read')).toContain('color: var(--color-success);')
     expect(selectorBlock('.danger-button.warning')).toContain('color: rgba(var(--color-warning-rgb), 0.90);')
     expect(selectorBlock('.command-confirmation-card.danger')).toContain('border-color: rgba(var(--color-danger-rgb), 0.30);')
+    expect(selectorBlock('.topbar-action-primary')).toContain('color: rgba(var(--color-accent-rgb), 0.96);')
+    expect(selectorBlock('.tab-remote-badge')).toContain('color: rgba(var(--color-accent-rgb), 0.92);')
     expect(selectorBlock('.tab-context-menu-item.danger:hover')).toContain('color: var(--color-danger-strong);')
     expect(selectorBlock('.command-confirmation-card.danger .command-confirmation-head svg')).toContain('color: var(--color-danger-strong);')
   })
@@ -36,8 +43,15 @@ describe('semantic color tokens', () => {
       '.agent-toggle.on',
       '.privacy-status-message',
       '.provider-status-badge.ready',
+      '.permission-indicator.read',
+      '.permission-indicator.agent',
+      '.composer-status-chip.waiting',
+      '.composer-config-chip.agent',
+      '.composer-config-chip.read',
       '.danger-button.warning',
       '.command-confirmation-card.danger',
+      '.topbar-action-primary',
+      '.tab-remote-badge',
       '.tab-context-menu-item.danger:hover',
       '.command-confirmation-card.danger .command-confirmation-head svg'
     ].map(selectorBlock).join('\n')

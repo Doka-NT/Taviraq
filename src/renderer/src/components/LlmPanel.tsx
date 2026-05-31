@@ -39,6 +39,7 @@ import { estimateComposerContextTokens, formatComposerContextTokens } from '@ren
 import { isChatScrolledToBottom } from '@renderer/utils/chatAutoscroll'
 import { cleanCommandOutput, stripAnsi } from '@renderer/utils/commandOutput'
 import { formatDataBytes } from '@renderer/utils/dataUsage'
+import { findCurrentRequestPrivacyNoticeIndex, mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 import {
   activateSecretProtectionDefaults,
   hasActiveSecretProtection,
@@ -592,13 +593,13 @@ function PrivacyTrustCard({
         onClick={() => setExpanded((value) => !value)}
       >
         <span className="privacy-trust-card-icon" aria-hidden>
-          <ShieldAlert size={14} />
+          <ShieldAlert size={12} />
         </span>
         <span className="privacy-trust-card-title">
           <strong>{t('privacy.trustCard.title')}</strong>
           <small>{content}</small>
         </span>
-        <ChevronDown className="privacy-trust-card-chevron" size={14} aria-hidden />
+        <ChevronDown className="privacy-trust-card-chevron" size={12} aria-hidden />
       </button>
 
       {expanded ? (
@@ -623,7 +624,7 @@ function PrivacyTrustCard({
           </p>
           <div className="privacy-trust-card-actions">
             <button type="button" className="quiet-button" onClick={onOpenSecuritySettings}>
-              <Settings2 size={13} aria-hidden />
+              <Settings2 size={11} aria-hidden />
               {t('privacy.trustCard.openSettings')}
             </button>
           </div>
@@ -1766,15 +1767,33 @@ export function LlmPanel({
           }
 
           if (last?.role === 'assistant' && !last.content && !last.reasoningContent && !last.display) {
-            messages[messages.length - 1] = { ...last, privacy }
+            const mergedPrivacy = last.privacy ? mergePrivacyNotices(last.privacy, privacy) : privacy
+            messages[messages.length - 1] = { ...last, privacy: mergedPrivacy }
           } else {
-            messages.push({
-              role: 'assistant',
-              content: t('status.privacyMasked', { count: event.maskedSecrets }),
-              display: 'privacy-status',
-              output: String(event.maskedSecrets),
-              privacy
-            })
+            const privacyMessageIndex = findCurrentRequestPrivacyNoticeIndex(messages)
+
+            if (privacyMessageIndex >= 0) {
+              const existing = messages[privacyMessageIndex]
+              const mergedPrivacy = mergePrivacyNotices(existing.privacy!, privacy)
+              messages[privacyMessageIndex] = {
+                ...existing,
+                content: existing.display === 'privacy-status'
+                  ? t('status.privacyMasked', { count: mergedPrivacy.maskedSecretCount })
+                  : existing.content,
+                output: existing.display === 'privacy-status'
+                  ? String(mergedPrivacy.maskedSecretCount)
+                  : existing.output,
+                privacy: mergedPrivacy
+              }
+            } else {
+              messages.push({
+                role: 'assistant',
+                content: t('status.privacyMasked', { count: event.maskedSecrets }),
+                display: 'privacy-status',
+                output: String(event.maskedSecrets),
+                privacy
+              })
+            }
           }
 
           return {

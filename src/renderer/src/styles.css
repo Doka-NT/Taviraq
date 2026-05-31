@@ -4466,11 +4466,11 @@ textarea:focus {
 .privacy-trust-card-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 7px;
+  gap: 6px;
   align-items: center;
   width: 100%;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 5px 7px;
   border: 0;
   color: var(--text-primary);
   background: transparent;
@@ -4485,8 +4485,8 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border: 0.5px solid rgba(var(--surface-rgb), 0.10);
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
@@ -4502,8 +4502,9 @@ textarea:focus {
 .privacy-trust-card-title strong {
   overflow: hidden;
   color: var(--text-primary);
-  font-size: 11.5px;
-  font-weight: 550;
+  font-size: 10.5px;
+  font-weight: 520;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4511,7 +4512,8 @@ textarea:focus {
 .privacy-trust-card-title small {
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: 10.5px;
+  font-size: 9.5px;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4527,8 +4529,8 @@ textarea:focus {
 
 .privacy-trust-card-details {
   display: grid;
-  gap: 8px;
-  padding: 0 8px 8px 35px;
+  gap: 7px;
+  padding: 0 7px 7px 31px;
 }
 
 .privacy-trust-card-row {
@@ -4539,7 +4541,7 @@ textarea:focus {
 
 .privacy-trust-card-row > span {
   color: var(--text-muted);
-  font-size: 10.5px;
+  font-size: 9.5px;
   text-transform: uppercase;
 }
 
@@ -4547,7 +4549,7 @@ textarea:focus {
 .privacy-trust-card-note {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.4;
 }
 
@@ -4564,7 +4566,7 @@ textarea:focus {
   border-radius: var(--radius-xs);
   color: var(--text-secondary);
   background: rgba(var(--surface-rgb), 0.045);
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.2;
 }
 
@@ -4575,9 +4577,9 @@ textarea:focus {
 }
 
 .privacy-trust-card-actions .quiet-button {
-  min-height: 30px;
-  padding: 0 9px;
-  font-size: 11.5px;
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 10.5px;
 }
 
 .privacy-trust-card-actions .quiet-button:disabled {

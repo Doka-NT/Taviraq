@@ -386,6 +386,12 @@ export interface ExportData {
   }
 }
 
+export interface DataUsageStats {
+  chatCount: number
+  sessionCount: number
+  storageBytes: number
+}
+
 export interface ImportResult {
   providersAdded: number
   promptsAdded: number

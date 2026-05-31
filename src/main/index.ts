@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, nativeImage, screen, shell } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   AppConfig,
@@ -10,6 +10,7 @@ import type {
   CommandRiskAssessmentRequest,
   CreateSshCommandRequest,
   CreateTerminalRequest,
+  DataUsageStats,
   DiscoveredMcpServer,
   ExportData,
   ImportResult,
@@ -111,6 +112,14 @@ const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
+const DATA_USAGE_PATHS = [
+  'config.json',
+  'chat-history.json',
+  'session-state.json',
+  'command-snippets.json',
+  'mcp.json',
+  'prompts'
+]
 const demoProvider = {
   name: 'Taviraq Demo',
   providerType: 'openai' as const,
@@ -173,7 +182,8 @@ function applyTerminalContextPolicy<T extends { context: TerminalContext }>(requ
     context: {
       ...request.context,
       selectedText: '',
-      terminalOutput: undefined
+      terminalOutput: undefined,
+      session: undefined
     }
   }
 }
@@ -249,6 +259,19 @@ function isAllowedExternalUrl(value: string): boolean {
     return OPEN_EXTERNAL_PROTOCOLS.has(url.protocol)
   } catch {
     return false
+  }
+}
+
+async function getPathSize(path: string): Promise<number> {
+  try {
+    const entry = await stat(path)
+    if (!entry.isDirectory()) return entry.size
+
+    const children = await readdir(path)
+    const childSizes = await Promise.all(children.map((child) => getPathSize(join(path, child))))
+    return childSizes.reduce((total, size) => total + size, 0)
+  } catch {
+    return 0
   }
 }
 
@@ -922,6 +945,23 @@ function registerIpc(): void {
   ipcMain.handle('chatHistory:delete', (_event, id: string) => chatHistoryStore.delete(id))
   ipcMain.handle('chatHistory:clear', () => chatHistoryStore.clear())
 
+  ipcMain.handle('data:usage', async (): Promise<DataUsageStats> => {
+    const userDataPath = app.getPath('userData')
+    const storageBytes = (await Promise.all(
+      DATA_USAGE_PATHS.map((dataPath) => getPathSize(join(userDataPath, dataPath)))
+    )).reduce((total, size) => total + size, 0)
+    const [chats, sessionState] = await Promise.all([
+      chatHistoryStore.list(),
+      sessionStateStore.load()
+    ])
+
+    return {
+      chatCount: chats.length,
+      sessionCount: sessionState?.sessions.length ?? 0,
+      storageBytes
+    }
+  })
+
   ipcMain.handle('terminal:write', (_event, sessionId: string, data: string) => {
     terminalManager.write(sessionId, data)
   })
@@ -1060,8 +1100,9 @@ function registerIpc(): void {
       }
     }
 
+    const sessionId = request.context.session?.id
+    const sessionLabel = request.context.session?.label
     const policyRequest = applyTerminalContextPolicy(request)
-    const sessionId = policyRequest.context.session?.id
     const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
     return assessCommandRisk(
       policyRequest,
@@ -1069,7 +1110,7 @@ function registerIpc(): void {
       previousContext,
       async (context) => {
         if (!sessionId) {
-          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, sessionLabel)
           return
         }
 
@@ -1079,7 +1120,7 @@ function registerIpc(): void {
           if (newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, mergeNewSecretContext(latestContext, context, newContext))
           }
-          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, sessionLabel)
         })
       }
     )
@@ -1384,6 +1425,7 @@ function registerIpc(): void {
       try {
         await ensureSecretMaskingSettingsCache()
         const sessionId = request.context.session?.id
+        const sessionLabel = request.context.session?.label
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)
           const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
@@ -1397,7 +1439,7 @@ function registerIpc(): void {
                 categories: chunk.categories ?? [],
                 source: 'chat-stream',
                 scope: 'provider-payload',
-                sessionLabel: policyRequest.context.session?.label
+                sessionLabel
               })
             }
 
@@ -1445,7 +1487,7 @@ function registerIpc(): void {
           if (sessionId && newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, result.secretContext)
           }
-          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, sessionLabel)
           event.sender.send('llm:chatStream:event', {
             requestId: request.requestId,
             type: 'done',

@@ -4,7 +4,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Database, Eye, FileText, GitFork, History, KeyRound,
+  Activity, AlertTriangle, BookmarkPlus, Bot, Brain, Check, ChevronDown, Command, Copy, Database, Eye, GitFork, History, KeyRound,
   Hammer, ListChecks, Pencil, MessageSquarePlus, Plus, RefreshCw, ScrollText, Search, Send, Server, Settings2, ShieldAlert,
   ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
@@ -24,6 +24,7 @@ import {
 import { MessageContent } from './MessageContent'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
+import { ComposerConfigControl } from './ComposerConfigControl'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -1030,6 +1031,7 @@ export function LlmPanel({
   const [savePromptDuplicateName, setSavePromptDuplicateName] = useState(false)
   const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [composerConfigOpen, setComposerConfigOpen] = useState(false)
   const [historyChats, setHistoryChats] = useState<SavedChatSummary[]>([])
   const [historySearch, setHistorySearch] = useState('')
   const [sshProfiles, setSshProfiles] = useState<SSHProfileConfig[]>([])
@@ -3177,17 +3179,21 @@ export function LlmPanel({
     setHistoryOpen(false)
   }, [promptInsertRequest, setPromptDraft])
 
-  const toggleAgentMode = useCallback(() => {
+  const setComposerAssistMode = useCallback((mode: AssistMode) => {
     setAssistMode((prev) => {
-      const next: AssistMode = prev === 'agent' ? 'read' : 'agent'
-      if (next !== 'agent') {
+      if (prev === mode) return prev
+      if (mode !== 'agent') {
         for (const [sessionId, thread] of Object.entries(threadsRef.current)) {
           if (thread.agenticRunning) stopAgentic(sessionId)
         }
       }
-      return next
+      return mode
     })
   }, [stopAgentic])
+
+  const toggleAgentMode = useCallback(() => {
+    setComposerAssistMode(assistModeRef.current === 'agent' ? 'read' : 'agent')
+  }, [setComposerAssistMode])
 
   useEffect(() => {
     if (!assistModeRequest || handledAssistModeRequestRef.current === assistModeRequest.id) return
@@ -3248,6 +3254,16 @@ export function LlmPanel({
     : assistMode === 'read'
       ? t('chat.composer.mode.read')
       : t('chat.composer.mode.off')
+  const composerModelDisplay = modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name
+  const openComposerModelSwitcher = useCallback(() => {
+    setComposerConfigOpen(false)
+    openModelSwitcher()
+  }, [openModelSwitcher])
+  const openComposerPromptLibrary = useCallback(() => {
+    setComposerConfigOpen(false)
+    setHistoryOpen(false)
+    onOpenPromptPalette()
+  }, [onOpenPromptPalette])
   const permissionIndicator = getPermissionIndicatorState(assistMode, terminalContextAllowed)
   const permissionIndicatorTitle = t(permissionIndicator.titleKey)
   const shellLabel = activeSession?.label || 'zsh'
@@ -5444,18 +5460,6 @@ export function LlmPanel({
             rows={1}
           />
           <div className="chat-composer-footer">
-            <div className="chat-composer-indicators">
-              <span className={`composer-context-chip ${assistMode === 'off' ? 'off' : ''}`} title={composerContextLabel}>
-                <ScrollText size={12} aria-hidden />
-                <span>{composerContextLabel}</span>
-              </span>
-              {composerMaskedSecretCount > 0 ? (
-                <span className="composer-context-chip" title={composerMaskedSecretLabel}>
-                  <ShieldCheck size={12} aria-hidden />
-                  <span>{composerMaskedSecretLabel}</span>
-                </span>
-              ) : null}
-            </div>
             <div className="chat-form-actions">
               {liveStatus && assistMode !== 'off' && isLiveSessionStatus(activeSession?.status) ? (
                 <span className={`composer-status-chip ${liveStatus}`} aria-live="polite" aria-label={t(`panel.status.${liveStatus}`)}>
@@ -5463,30 +5467,20 @@ export function LlmPanel({
                   <span>{t(`panel.status.${liveStatus}`)}</span>
                 </span>
               ) : null}
-              <span className={`composer-mode-badge ${assistMode}`} title={composerModeLabel}>
-                {assistMode === 'agent' ? <Zap size={12} aria-hidden /> : assistMode === 'read' ? <Eye size={12} aria-hidden /> : <ShieldOff size={12} aria-hidden />}
-                <span>{composerModeLabel}</span>
-              </span>
-              <button
-                type="button"
-                className="composer-model-chip"
-                onClick={openModelSwitcher}
-                title={t('model.switch.title')}
-                aria-label={t('model.switch.title')}
-              >
-                <Brain size={12} aria-hidden />
-                <span>{modelLabel.version ? `${modelLabel.name} ${modelLabel.version}` : modelLabel.name}</span>
-                <ChevronDown size={11} aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="icon-button prompt-picker-trigger"
-                title={t('panel.promptLibrary')}
-                aria-label={t('panel.promptLibrary')}
-                onClick={onOpenPromptPalette}
-              >
-                <FileText size={14} aria-hidden />
-              </button>
+              <ComposerConfigControl
+                open={composerConfigOpen}
+                assistMode={assistMode}
+                modeLabel={composerModeLabel}
+                modelLabel={composerModelDisplay}
+                contextLabel={composerContextLabel}
+                maskedSecretLabel={composerMaskedSecretLabel}
+                maskedSecretCount={composerMaskedSecretCount}
+                t={t}
+                onOpenChange={setComposerConfigOpen}
+                onAssistModeChange={setComposerAssistMode}
+                onOpenModelSwitcher={openComposerModelSwitcher}
+                onOpenPromptLibrary={openComposerPromptLibrary}
+              />
               {streaming || agenticRunning ? (
                 <button
                   className="stop-button"

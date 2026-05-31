@@ -8,8 +8,11 @@ const labels = {
   search: 'Search actions',
   recent: 'Recent',
   all: 'All actions',
+  commands: 'Commands',
+  snippets: 'Snippets',
+  prompts: 'Prompts',
   noMatch: 'No matching actions.',
-  enterRuns: 'Enter runs',
+  enterSelects: 'Enter selects',
   escapeCloses: 'Esc closes'
 }
 
@@ -17,17 +20,22 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = vi.fn()
 })
 
-function renderPalette(actions: CommandPaletteAction[], onRun = vi.fn()) {
+function renderPalette(
+  actions: CommandPaletteAction[],
+  onRun = vi.fn(),
+  onClose = vi.fn(),
+  recentActionIds: string[] = []
+) {
   render(
     <CommandPalette
       actions={actions}
-      recentActionIds={[]}
+      recentActionIds={recentActionIds}
       labels={labels}
-      onClose={vi.fn()}
+      onClose={onClose}
       onRun={onRun}
     />
   )
-  return onRun
+  return { onRun, onClose }
 }
 
 describe('CommandPalette', () => {
@@ -40,7 +48,7 @@ describe('CommandPalette', () => {
       category: 'Assistant',
       keywords: ['assistant', 'model', 'provider', 'llm', 'switch']
     }
-    const onRun = renderPalette([
+    const { onRun } = renderPalette([
       {
         id: 'terminal:clear',
         title: 'Clear terminal',
@@ -56,5 +64,120 @@ describe('CommandPalette', () => {
 
     await user.keyboard('{Enter}')
     expect(onRun).toHaveBeenCalledWith(switchModelAction)
+  })
+
+  it('filters snippets and prompts with tabs and typed prefixes', async () => {
+    const user = userEvent.setup()
+    renderPalette([
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear output.',
+        category: 'Terminal',
+        paletteCategory: 'commands'
+      },
+      {
+        id: 'snippet:deploy:insert',
+        title: 'Insert snippet: Deploy',
+        description: 'npm run deploy',
+        category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: 'Inserts'
+      },
+      {
+        id: 'prompt:review',
+        title: 'Insert prompt: Review',
+        description: 'Review this diff.',
+        category: 'Prompts',
+        paletteCategory: 'prompts',
+        actionHint: 'Inserts'
+      }
+    ])
+
+    await user.click(screen.getByRole('tab', { name: 'Snippets' }))
+    expect(screen.getByRole('tab', { name: 'Snippets' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Snippets', { selector: '.command-palette-section' })).toBeInTheDocument()
+    expect(screen.getByText('Insert snippet: Deploy')).toBeInTheDocument()
+    expect(screen.queryByText('Insert prompt: Review')).not.toBeInTheDocument()
+
+    await user.clear(screen.getByPlaceholderText('Search actions'))
+    await user.type(screen.getByPlaceholderText('Search actions'), '@review')
+    expect(screen.getByRole('tab', { name: 'Prompts' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Snippets' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByText('Prompts', { selector: '.command-palette-section' })).toBeInTheDocument()
+    expect(screen.getByText('Insert prompt: Review')).toBeInTheDocument()
+    expect(screen.queryByText('Insert snippet: Deploy')).not.toBeInTheDocument()
+  })
+
+  it('keeps recent snippets visible when the snippets tab is active', async () => {
+    const user = userEvent.setup()
+    renderPalette([
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear output.',
+        category: 'Terminal',
+        paletteCategory: 'commands'
+      },
+      {
+        id: 'snippet:deploy:insert',
+        title: 'Insert snippet: Deploy',
+        description: 'npm run deploy',
+        category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: 'Inserts'
+      },
+      {
+        id: 'snippet:status:insert',
+        title: 'Insert snippet: Status',
+        description: 'git status',
+        category: 'Snippets',
+        paletteCategory: 'snippets',
+        actionHint: 'Inserts'
+      }
+    ], vi.fn(), vi.fn(), ['snippet:deploy:insert'])
+
+    await user.click(screen.getByRole('tab', { name: 'Snippets' }))
+
+    expect(screen.getByText('Recent')).toBeInTheDocument()
+    expect(screen.getByText('Insert snippet: Deploy')).toBeInTheDocument()
+    expect(screen.getByText('Insert snippet: Status')).toBeInTheDocument()
+  })
+
+  it('closes with Escape after focus moves to a category tab', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderPalette([
+      {
+        id: 'snippet:deploy:insert',
+        title: 'Insert snippet: Deploy',
+        description: 'npm run deploy',
+        category: 'Snippets',
+        paletteCategory: 'snippets'
+      }
+    ], vi.fn(), onClose)
+
+    await user.click(screen.getByRole('tab', { name: 'Snippets' }))
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes only once when Escape is pressed in the search input', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    renderPalette([
+      {
+        id: 'terminal:clear',
+        title: 'Clear terminal',
+        description: 'Clear output.',
+        category: 'Terminal'
+      }
+    ], vi.fn(), onClose)
+
+    await user.click(screen.getByPlaceholderText('Search actions'))
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

@@ -9,7 +9,7 @@ import {
   ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandRiskLevel, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
   DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
@@ -24,6 +24,7 @@ import {
 import { MessageContent } from './MessageContent'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
+import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
 import { ComposerConfigControl } from './ComposerConfigControl'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
@@ -252,17 +253,6 @@ interface ProviderTerminalContextInput {
   strictTerminalContextActive: boolean
 }
 
-interface CommandConfirmation {
-  sessionId: string
-  title: string
-  reason: string
-  command: string
-  tone: 'danger' | 'warning'
-  confirmLabel: string
-  riskLevel?: CommandRiskLevel
-  /** Unique id for each confirmation request — used to key the countdown timer. Generated automatically. */
-  commandId?: string
-}
 type CommandConfirmationResult = string | false
 type CommandConfirmationRequest = Omit<CommandConfirmation, 'sessionId'>
 
@@ -2099,7 +2089,7 @@ export function LlmPanel({
         reason: localizeCommandRiskReason(assessment, t),
         command,
         tone: riskLevel === 'danger' ? 'danger' : 'warning',
-        confirmLabel: t('confirm.runCommand'),
+        confirmLabel: t('confirm.runAnyway'),
         riskLevel
       })
 
@@ -5372,62 +5362,16 @@ export function LlmPanel({
       </section>
 
       {commandConfirmation ? (
-        <section
-          className={`command-confirmation-card ${commandConfirmation.tone}`}
-          role="dialog"
-          aria-labelledby="command-confirmation-title"
-        >
-          <div className="command-confirmation-head">
-            <div>
-              {commandConfirmation.tone === 'danger' ? <ShieldAlert size={14} aria-hidden /> : <AlertTriangle size={12} aria-hidden />}
-              <h2 id="command-confirmation-title">{commandConfirmation.title}</h2>
-            </div>
-            <span>{commandConfirmation.tone === 'danger' ? t('confirm.review') : t('confirm.warning')}</span>
-          </div>
-          <div className="command-confirmation-body">
-            {commandConfirmation.tone === 'danger' && (
-              <div className="command-confirmation-destructive-warning">
-                <ShieldAlert size={14} aria-hidden />
-                <span>{t('confirm.destructiveWarning')}</span>
-              </div>
-            )}
-            <label className="command-confirmation-command">
-              <span>{t('confirm.command')}</span>
-              <textarea
-                value={visibleCommandConfirmationCommand}
-                onChange={(event) => {
-                  if (!commandConfirmationUsesLocalSecret) {
-                    updateCommandConfirmationCommand(commandConfirmation.sessionId, event.target.value)
-                  }
-                }}
-                readOnly={commandConfirmationUsesLocalSecret}
-                aria-readonly={commandConfirmationUsesLocalSecret}
-                spellCheck={false}
-                rows={Math.min(5, Math.max(2, visibleCommandConfirmationCommand.split('\n').length))}
-              />
-            </label>
-            <div className="command-confirmation-reason">
-              <span>{t('confirm.reason')}</span>
-              <p>{commandConfirmation.reason}</p>
-            </div>
-            <p className="command-confirmation-note">{t('confirm.agentPaused')}</p>
-          </div>
-          <footer>
-            <button type="button" className="quiet-button" onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, false)}>
-              {t('confirm.cancel')}
-            </button>
-            <button
-              type="button"
-              className={`danger-button ${commandConfirmation.tone}`}
-              disabled={!commandConfirmation.command.trim() || (commandConfirmation.tone === 'danger' && confirmCountdown > 0)}
-              onClick={() => resolveCommandConfirmation(commandConfirmation.sessionId, true, commandConfirmation.command)}
-            >
-              {commandConfirmation.tone === 'danger' && confirmCountdown > 0
-                ? t('confirm.confirmCountdown', { seconds: confirmCountdown })
-                : commandConfirmation.confirmLabel}
-            </button>
-          </footer>
-        </section>
+        <CommandConfirmationDialog
+          commandConfirmation={commandConfirmation}
+          confirmCountdown={confirmCountdown}
+          commandUsesLocalSecret={commandConfirmationUsesLocalSecret}
+          visibleCommand={visibleCommandConfirmationCommand}
+          t={t}
+          onCancel={(sessionId) => resolveCommandConfirmation(sessionId, false)}
+          onConfirm={(sessionId, command) => resolveCommandConfirmation(sessionId, true, command)}
+          onCommandChange={updateCommandConfirmationCommand}
+        />
       ) : null}
 
       <form

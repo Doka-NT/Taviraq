@@ -29,7 +29,7 @@ describe('topbar toolbar affordances', () => {
 
   it('makes the new terminal action the prominent toolbar control', () => {
     expect(appSource).toContain('className="icon-button topbar-action topbar-action-primary"')
-    expect(cssBlock('.topbar-action-primary')).toContain('rgba(var(--accent-cyan-rgb), 0.14)')
+    expect(cssBlock('.topbar-action-primary')).toContain('rgba(var(--color-accent-rgb), 0.14)')
   })
 
   it('defines hover and keyboard-visible tooltip styles', () => {

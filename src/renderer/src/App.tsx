@@ -47,6 +47,7 @@ const DEFAULT_TERMINAL_CURSOR_STYLE: TerminalCursorStyle = 'block'
 const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
 const DEFAULT_TERMINAL_SCROLLBACK = 5000
 const DEFAULT_WINDOW_OPACITY = 1
+const SIDEBAR_TRANSITION_MS = 260
 type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
@@ -280,6 +281,8 @@ export function App(): JSX.Element {
   const [sidebarVisible, setSidebarVisible] = useState(() =>
     window.localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== 'false'
   )
+  const [sidebarTransitioning, setSidebarTransitioning] = useState(false)
+  const [sidebarResizing, setSidebarResizing] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     storedSidebarWidth()
   )
@@ -332,6 +335,8 @@ export function App(): JSX.Element {
   const terminalBlocksRef = useRef(new Map<string, TerminalBlock[]>())
   const activeBlockIdsRef = useRef(new Map<string, string>())
   const appShellRef = useRef<HTMLElement>(null)
+  const sidebarVisibleRef = useRef(sidebarVisible)
+  const sidebarTransitionTimerRef = useRef<number>()
   const terminalPaneRef = useRef<TerminalPaneHandle | null>(null)
   const restoreInitializedRef = useRef(false)
   const restoreSessionsOnLaunchRef = useRef(restoreSessions)
@@ -358,6 +363,22 @@ export function App(): JSX.Element {
     () => sessions.find((session) => session.id === activeSessionId),
     [activeSessionId, sessions]
   )
+
+  const beginSidebarVisibilityTransition = useCallback((): void => {
+    if (sidebarTransitionTimerRef.current !== undefined) {
+      window.clearTimeout(sidebarTransitionTimerRef.current)
+    }
+    setSidebarTransitioning(true)
+    sidebarTransitionTimerRef.current = window.setTimeout(() => {
+      setSidebarTransitioning(false)
+      sidebarTransitionTimerRef.current = undefined
+    }, SIDEBAR_TRANSITION_MS)
+  }, [])
+
+  const showSidebar = useCallback((): void => {
+    if (!sidebarVisibleRef.current) beginSidebarVisibilityTransition()
+    setSidebarVisible(true)
+  }, [beginSidebarVisibilityTransition])
   const activeCwd = activeSession?.cwd ?? activeSession?.command ?? ''
   const activeCwdDisplay = compactPath(activeCwd, 36)
   const activeTerminalBlocks = activeSessionId && terminalBlocksRevision >= 0
@@ -507,9 +528,9 @@ export function App(): JSX.Element {
       sessionId: pendingBlockPrompt.sessionId,
       prompt: pendingBlockPrompt.prompt
     })
-    setSidebarVisible(true)
+    showSidebar()
     setPendingBlockPrompt(null)
-  }, [pendingBlockPrompt])
+  }, [pendingBlockPrompt, showSidebar])
 
   const requestBlockRerun = useCallback((block: TerminalBlock): void => {
     setPendingBlockRerun({
@@ -581,8 +602,17 @@ export function App(): JSX.Element {
   }, [scheduleSessionStateSave, touchTerminalBlocks, updateActiveBlockEnd])
 
   useEffect(() => {
+    sidebarVisibleRef.current = sidebarVisible
     window.localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(sidebarVisible))
   }, [sidebarVisible])
+
+  useEffect(() => {
+    return () => {
+      if (sidebarTransitionTimerRef.current !== undefined) {
+        window.clearTimeout(sidebarTransitionTimerRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth))
@@ -708,6 +738,7 @@ export function App(): JSX.Element {
     event.preventDefault()
     const handle = event.currentTarget
     handle.setPointerCapture(event.pointerId)
+    setSidebarResizing(true)
 
     const applyWidth = (clientX: number): void => {
       setSidebarWidth(clampSidebarWidth(window.innerWidth - clientX))
@@ -717,8 +748,11 @@ export function App(): JSX.Element {
       applyWidth(moveEvent.clientX)
     }
 
-    const onPointerUp = (): void => {
+    const finishResize = (): void => {
+      setSidebarResizing(false)
       window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finishResize)
+      window.removeEventListener('pointercancel', finishResize)
       try {
         handle.releasePointerCapture(event.pointerId)
       } catch {
@@ -728,7 +762,8 @@ export function App(): JSX.Element {
 
     applyWidth(event.clientX)
     window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp, { once: true })
+    window.addEventListener('pointerup', finishResize, { once: true })
+    window.addEventListener('pointercancel', finishResize, { once: true })
   }, [])
 
   const updateTextSize = useCallback((value: number) => {
@@ -742,7 +777,10 @@ export function App(): JSX.Element {
     setSidebarWidth(clampSidebarWidth(value))
   }, [])
 
-  const toggleSidebar = useCallback(() => setSidebarVisible((v) => !v), [])
+  const toggleSidebar = useCallback(() => {
+    beginSidebarVisibilityTransition()
+    setSidebarVisible((v) => !v)
+  }, [beginSidebarVisibilityTransition])
 
   const openCommandPalette = useCallback((category: CommandPaletteCategoryFilter = 'all') => {
     setCommandPaletteInitialCategory(category)
@@ -754,8 +792,8 @@ export function App(): JSX.Element {
     setSettingsTabRequest(tab)
     setSettingsTabRequestVersion((version) => version + 1)
     setSettingsOpen(true)
-    setSidebarVisible(true)
-  }, [])
+    showSidebar()
+  }, [showSidebar])
 
   const handleHideShortcutChange = useCallback((shortcut: string) => {
     setHideShortcut(shortcut)
@@ -1309,7 +1347,7 @@ export function App(): JSX.Element {
     if (action.id.startsWith('prompt:')) {
       const prompt = commandPalettePrompts.find((candidate) => candidate.id === action.id.slice('prompt:'.length))
       if (prompt) {
-        setSidebarVisible(true)
+        showSidebar()
         setPromptInsertRequest({ id: crypto.randomUUID(), content: prompt.content })
       }
       return
@@ -1317,13 +1355,13 @@ export function App(): JSX.Element {
 
     if (action.id.startsWith('assistant:')) {
       if (action.id === 'assistant:switch-model') {
-        setSidebarVisible(true)
+        showSidebar()
         setModelSwitchRequest({ id: crypto.randomUUID() })
         return
       }
 
       const mode = action.id.slice('assistant:'.length) as AssistMode
-      setSidebarVisible(true)
+      showSidebar()
       setAssistModeRequest({ id: crypto.randomUUID(), mode })
       return
     }
@@ -1339,6 +1377,7 @@ export function App(): JSX.Element {
     createLocalSession,
     insertCommandSnippet,
     openSettingsTab,
+    showSidebar,
     sshProfiles
   ])
 
@@ -1423,7 +1462,11 @@ export function App(): JSX.Element {
 
   return (
     <LanguageProvider language={language}>
-    <main ref={appShellRef} className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}`} style={shellStyle}>
+    <main
+      ref={appShellRef}
+      className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}${sidebarTransitioning ? ' sidebar-transitioning' : ''}${sidebarResizing ? ' sidebar-resizing' : ''}`}
+      style={shellStyle}
+    >
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />

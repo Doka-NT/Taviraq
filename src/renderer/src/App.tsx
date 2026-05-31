@@ -10,7 +10,7 @@ import { themeMap, themes, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { compactPath, getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabStatus } from './utils/sessionTabs'
+import { compactPath, getCwdBasename, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -1552,9 +1552,8 @@ export function App(): JSX.Element {
             {sessions.map((session) => {
               const tabLabel = getTabLabel(session)
               const statusMeta = getSessionStatusMeta(session.status)
-              const cwdBadge = getCwdBasename(session.cwd)
-              const commandTarget = session.kind === 'ssh' ? getSessionCommandTarget(session) : undefined
-              const visibleCommandTarget = commandTarget && !tabLabel.includes(commandTarget) ? commandTarget : undefined
+              const cwdBadge = session.kind === 'ssh' ? undefined : getCwdBasename(session.cwd)
+              const sshIndicatorTitle = getSshTabIndicatorTitle(session)
               const tabClassName = [
                 'session-tab',
                 session.kind === 'ssh' ? 'ssh-session' : '',
@@ -1592,7 +1591,12 @@ export function App(): JSX.Element {
                       : <SquareTerminal size={10} aria-hidden />}
                   </span>
                   <span className="tab-label">{tabLabel}</span>
-                  {visibleCommandTarget ? <span className="tab-target">{visibleCommandTarget}</span> : null}
+                  {sshIndicatorTitle ? (
+                    <span className="tab-remote-badge" title={sshIndicatorTitle}>
+                      <Server size={10} aria-hidden />
+                      SSH
+                    </span>
+                  ) : null}
                   {cwdBadge ? <span className="tab-cwd-badge" title={session.cwd}>{cwdBadge}</span> : null}
                   <span
                     className="tab-close"

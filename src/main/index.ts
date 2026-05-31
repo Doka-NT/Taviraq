@@ -182,7 +182,8 @@ function applyTerminalContextPolicy<T extends { context: TerminalContext }>(requ
     context: {
       ...request.context,
       selectedText: '',
-      terminalOutput: undefined
+      terminalOutput: undefined,
+      session: undefined
     }
   }
 }
@@ -1099,8 +1100,9 @@ function registerIpc(): void {
       }
     }
 
+    const sessionId = request.context.session?.id
+    const sessionLabel = request.context.session?.label
     const policyRequest = applyTerminalContextPolicy(request)
-    const sessionId = policyRequest.context.session?.id
     const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
     return assessCommandRisk(
       policyRequest,
@@ -1108,7 +1110,7 @@ function registerIpc(): void {
       previousContext,
       async (context) => {
         if (!sessionId) {
-          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', context, sessionLabel)
           return
         }
 
@@ -1118,7 +1120,7 @@ function registerIpc(): void {
           if (newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, mergeNewSecretContext(latestContext, context, newContext))
           }
-          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, sessionLabel)
         })
       }
     )
@@ -1423,6 +1425,7 @@ function registerIpc(): void {
       try {
         await ensureSecretMaskingSettingsCache()
         const sessionId = request.context.session?.id
+        const sessionLabel = request.context.session?.label
         const runStream = async (): Promise<void> => {
           const policyRequest = applyTerminalContextPolicy(request)
           const previousContext = sessionId ? secretContextsBySession.get(sessionId) : undefined
@@ -1436,7 +1439,7 @@ function registerIpc(): void {
                 categories: chunk.categories ?? [],
                 source: 'chat-stream',
                 scope: 'provider-payload',
-                sessionLabel: policyRequest.context.session?.label
+                sessionLabel
               })
             }
 
@@ -1484,7 +1487,7 @@ function registerIpc(): void {
           if (sessionId && newContext.bindings.length > 0) {
             secretContextsBySession.set(sessionId, result.secretContext)
           }
-          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, policyRequest.context.session?.label)
+          recordSecretMaskingAuditEvent('chat-stream', 'provider-payload', newContext, sessionLabel)
           event.sender.send('llm:chatStream:event', {
             requestId: request.requestId,
             type: 'done',

@@ -102,7 +102,7 @@ button {
   min-height: 0;
   background: var(--bg-window);
   color: var(--text-primary);
-  transition: grid-template-columns var(--sidebar-transition);
+  transition: none;
   contain: strict;
 }
 
@@ -121,6 +121,10 @@ button {
 
 .app-shell.sidebar-hidden {
   grid-template-columns: minmax(0, 1fr) 0px 0px;
+}
+
+.app-shell.sidebar-transitioning {
+  transition: grid-template-columns var(--sidebar-transition);
 }
 
 .app-shell.sidebar-resizing {

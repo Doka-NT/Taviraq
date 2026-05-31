@@ -16,7 +16,8 @@ function hasDeclaration(selector: string, declaration: string): boolean {
 describe('assistant sidebar layout animation', () => {
   it('uses one synchronized transition for the sidebar track and panel', () => {
     expect(styles).toContain('--sidebar-transition: 260ms cubic-bezier(0.4, 0, 0.2, 1);')
-    expect(hasDeclaration('.app-shell', 'transition: grid-template-columns var(--sidebar-transition);')).toBe(true)
+    expect(hasDeclaration('.app-shell', 'transition: none;')).toBe(true)
+    expect(hasDeclaration('.app-shell.sidebar-transitioning', 'transition: grid-template-columns var(--sidebar-transition);')).toBe(true)
     expect(hasDeclaration('.sidebar-resizer', 'transition: opacity var(--sidebar-transition);')).toBe(true)
     expect(hasDeclaration('.llm-panel', 'transition: transform var(--sidebar-transition);')).toBe(true)
   })

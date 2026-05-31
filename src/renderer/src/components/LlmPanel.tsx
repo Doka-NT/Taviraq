@@ -4713,7 +4713,9 @@ export function LlmPanel({
                                 }}
                               >
                                 <Server size={13} style={{ flexShrink: 0, color: 'var(--text-muted)' }} aria-hidden />
-                                <span className="provider-list-item-name" title={sshProfileName}>{sshProfileName}</span>
+                                <span className="provider-list-item-main">
+                                  <span className="provider-list-item-name" title={sshProfileName}>{sshProfileName}</span>
+                                </span>
                                 <button
                                   type="button"
                                   className="provider-list-item-delete icon-button"

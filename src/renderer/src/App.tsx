@@ -280,6 +280,7 @@ export function App(): JSX.Element {
   const [sidebarVisible, setSidebarVisible] = useState(() =>
     window.localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== 'false'
   )
+  const [sidebarResizing, setSidebarResizing] = useState(false)
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     storedSidebarWidth()
   )
@@ -708,6 +709,7 @@ export function App(): JSX.Element {
     event.preventDefault()
     const handle = event.currentTarget
     handle.setPointerCapture(event.pointerId)
+    setSidebarResizing(true)
 
     const applyWidth = (clientX: number): void => {
       setSidebarWidth(clampSidebarWidth(window.innerWidth - clientX))
@@ -717,8 +719,11 @@ export function App(): JSX.Element {
       applyWidth(moveEvent.clientX)
     }
 
-    const onPointerUp = (): void => {
+    const finishResize = (): void => {
+      setSidebarResizing(false)
       window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', finishResize)
+      window.removeEventListener('pointercancel', finishResize)
       try {
         handle.releasePointerCapture(event.pointerId)
       } catch {
@@ -728,7 +733,8 @@ export function App(): JSX.Element {
 
     applyWidth(event.clientX)
     window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp, { once: true })
+    window.addEventListener('pointerup', finishResize, { once: true })
+    window.addEventListener('pointercancel', finishResize, { once: true })
   }, [])
 
   const updateTextSize = useCallback((value: number) => {
@@ -1423,7 +1429,7 @@ export function App(): JSX.Element {
 
   return (
     <LanguageProvider language={language}>
-    <main ref={appShellRef} className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}`} style={shellStyle}>
+    <main ref={appShellRef} className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}${sidebarResizing ? ' sidebar-resizing' : ''}`} style={shellStyle}>
       <section className="workspace">
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />

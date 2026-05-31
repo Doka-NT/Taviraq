@@ -52,6 +52,7 @@
   --radius-lg: 10px;
   --radius-xl: 12px;
   --transition: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-transition: 260ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -101,7 +102,7 @@ button {
   min-height: 0;
   background: var(--bg-window);
   color: var(--text-primary);
-  transition: none;
+  transition: grid-template-columns var(--sidebar-transition);
   contain: strict;
 }
 
@@ -122,6 +123,10 @@ button {
   grid-template-columns: minmax(0, 1fr) 0px 0px;
 }
 
+.app-shell.sidebar-resizing {
+  transition: none;
+}
+
 .workspace {
   position: relative;
   display: grid;
@@ -139,7 +144,7 @@ button {
   background: var(--bg-window);
   touch-action: none;
   overflow: hidden;
-  transition: opacity 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--sidebar-transition);
 }
 
 .app-shell.sidebar-hidden .sidebar-resizer {
@@ -893,7 +898,7 @@ button {
   color: var(--text-primary);
   background: var(--bg-sidebar);
   transform: translateX(0);
-  transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--sidebar-transition);
   contain: content;
 }
 

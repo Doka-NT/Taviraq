@@ -10,7 +10,7 @@ import { themeMap, themes, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
 import { findBufferedCommandStartOffset, findCommandStartOffset, lineMatchesCommandStart, stripCommandEcho } from './utils/terminalBlocks'
-import { compactPath, getCwdBasename, getSessionCommandTarget, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabInfo, type SessionTabStatus } from './utils/sessionTabs'
+import { compactPath, getCwdBasename, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus

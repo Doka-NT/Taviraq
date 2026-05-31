@@ -1471,56 +1471,79 @@ export function App(): JSX.Element {
         <header className="topbar">
           <div className="topbar-window-spacer" aria-hidden />
           <div className="topbar-title">Taviraq</div>
-          <div className="topbar-actions">
-            <div className="tabbar-new-dropdown-wrapper">
-              <button className="icon-button" type="button" onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }} title={appT('app.newTerminal')}>
-                <Plus size={16} aria-hidden />
-              </button>
-              {newTabDropdownOpen ? (
-                <div className="tabbar-new-dropdown" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    className="tabbar-new-dropdown-item"
-                    onClick={() => { setNewTabDropdownOpen(false); void createLocalSession() }}
-                  >
-                    <Terminal size={14} aria-hidden />
-                    New Local Terminal
-                  </button>
-                  {sshProfiles.length > 0 ? (
-                    <>
-                      <div className="tabbar-new-dropdown-sep" />
-                      <div className="tabbar-new-dropdown-label">SSH</div>
-                      {sshProfiles.map((profile) => (
-                        <button
-                          key={profile.id}
-                          type="button"
-                          className="tabbar-new-dropdown-item"
-                          onClick={() => { void connectSshProfile(profile) }}
-                        >
-                          <Server size={14} aria-hidden />
-                          {profile.name || profile.host || 'Unnamed'}
-                        </button>
-                      ))}
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
+          <div className="topbar-actions" role="toolbar" aria-label={appT('app.terminalToolbar')}>
+            <div className="toolbar-group toolbar-group-primary">
+              <div className="tabbar-new-dropdown-wrapper">
+                <button
+                  className="icon-button topbar-action topbar-action-primary"
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); void window.api.ssh.listProfiles().then(setSshProfiles); setNewTabDropdownOpen((v) => !v) }}
+                  aria-label={appT('app.newTerminal')}
+                  aria-expanded={newTabDropdownOpen}
+                  data-tooltip={newTabDropdownOpen ? undefined : appT('app.newTerminal')}
+                >
+                  <Plus size={16} aria-hidden />
+                </button>
+                {newTabDropdownOpen ? (
+                  <div className="tabbar-new-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="tabbar-new-dropdown-item"
+                      onClick={() => { setNewTabDropdownOpen(false); void createLocalSession() }}
+                    >
+                      <Terminal size={14} aria-hidden />
+                      New Local Terminal
+                    </button>
+                    {sshProfiles.length > 0 ? (
+                      <>
+                        <div className="tabbar-new-dropdown-sep" />
+                        <div className="tabbar-new-dropdown-label">SSH</div>
+                        {sshProfiles.map((profile) => (
+                          <button
+                            key={profile.id}
+                            type="button"
+                            className="tabbar-new-dropdown-item"
+                            onClick={() => { void connectSshProfile(profile) }}
+                          >
+                            <Server size={14} aria-hidden />
+                            {profile.name || profile.host || 'Unnamed'}
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <button
-              className="icon-button"
-              type="button"
-              onClick={() => openCommandPalette()}
-              title={`${appT('commandPalette.title')} (⌘⇧P)`}
-              aria-label={`${appT('commandPalette.title')} (⌘⇧P)`}
-            >
-              <Command size={16} aria-hidden />
-            </button>
-            <button className="icon-button" type="button" onClick={toggleSidebar} title={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')} aria-label={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}>
-              {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
-            </button>
-            <button className="icon-button" type="button" onClick={() => setSettingsOpen(true)} title={appT('app.settings')} aria-label={appT('app.settings')}>
-              <Settings2 size={16} aria-hidden />
-            </button>
+            <div className="toolbar-group toolbar-group-utility">
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={() => openCommandPalette()}
+                data-tooltip={`${appT('commandPalette.title')} (⌘⇧P)`}
+                aria-label={`${appT('commandPalette.title')} (⌘⇧P)`}
+              >
+                <Command size={16} aria-hidden />
+              </button>
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={toggleSidebar}
+                data-tooltip={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}
+                aria-label={sidebarVisible ? appT('app.hideSidebar') : appT('app.showSidebar')}
+              >
+                {sidebarVisible ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
+              </button>
+              <button
+                className="icon-button topbar-action"
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                data-tooltip={appT('app.settings')}
+                aria-label={appT('app.settings')}
+              >
+                <Settings2 size={16} aria-hidden />
+              </button>
+            </div>
           </div>
         </header>
 

@@ -123,6 +123,8 @@ export interface Translations {
   'mcp.empty': string
   'mcp.enabled': string
   'mcp.enabled.desc': string
+  'mcp.status.enabled': string
+  'mcp.status.disabled': string
   'mcp.name': string
   'mcp.command': string
   'mcp.args': string
@@ -280,6 +282,11 @@ export interface Translations {
 
   // Data tab
   'data.title': string
+  'data.usage.title': string
+  'data.usage.desc': string
+  'data.usage.storage': string
+  'data.usage.chats': string
+  'data.usage.sessions': string
   'data.exportImport.label': string
   'data.exportImport.desc': string
   'data.export': string
@@ -338,6 +345,11 @@ export interface Translations {
   'panel.permission.read': string
   'panel.permission.execute': string
   'panel.permission.pending': string
+  'panel.permission.summary': string
+  'panel.permission.none': string
+  'panel.permission.readOnly': string
+  'panel.permission.readExecute': string
+  'panel.shell.label': string
   'panel.status.idle': string
   'panel.status.running': string
   'panel.status.waiting': string
@@ -366,6 +378,10 @@ export interface Translations {
   'chat.composer.mode.agent': string
   'chat.composer.mode.read': string
   'chat.composer.mode.off': string
+  'chat.composer.controls': string
+  'chat.composer.contextLabel': string
+  'chat.composer.maskedLabel': string
+  'chat.composer.modeLabel': string
   'model.switch.title': string
   'model.switch.search': string
   'model.switch.all': string
@@ -502,8 +518,15 @@ export interface Translations {
   'commandPalette.search': string
   'commandPalette.recent': string
   'commandPalette.all': string
+  'commandPalette.commands': string
+  'commandPalette.snippets': string
+  'commandPalette.prompts': string
   'commandPalette.noMatch': string
-  'commandPalette.enterRuns': string
+  'commandPalette.enterSelects': string
+  'commandPalette.action.open': string
+  'commandPalette.action.run': string
+  'commandPalette.action.insert': string
+  'commandPalette.action.select': string
   'commandPalette.escapeCloses': string
 
   // Prompt palette
@@ -635,6 +658,8 @@ export const en: Translations = {
   'mcp.empty': 'No MCP servers yet.',
   'mcp.enabled': 'Enabled',
   'mcp.enabled.desc': 'Allow this server to be available for MCP-capable models.',
+  'mcp.status.enabled': 'Enabled',
+  'mcp.status.disabled': 'Disabled',
   'mcp.name': 'Server name',
   'mcp.command': 'Command',
   'mcp.args': 'Arguments',
@@ -787,6 +812,11 @@ export const en: Translations = {
   'snippets.duplicateName': 'A command snippet with this name already exists.',
 
   'data.title': 'Data',
+  'data.usage.title': 'Local usage',
+  'data.usage.desc': 'Stored only on this Mac. Taviraq does not collect telemetry.',
+  'data.usage.storage': 'Storage used',
+  'data.usage.chats': 'Saved chats',
+  'data.usage.sessions': 'Saved sessions',
   'data.exportImport.label': 'Export / Import',
   'data.exportImport.desc': 'JSON backup with providers, prompts, command snippets and preferences',
   'data.export': 'Export',
@@ -841,8 +871,13 @@ export const en: Translations = {
   'panel.newChat': 'New chat',
   'panel.settings': 'Settings',
   'panel.permission.read': 'Read',
-  'panel.permission.execute': 'Execute',
+  'panel.permission.execute': 'Execute commands',
   'panel.permission.pending': 'Pending',
+  'panel.permission.summary': 'Assistant session and permissions',
+  'panel.permission.none': 'No terminal access',
+  'panel.permission.readOnly': 'Read terminal context',
+  'panel.permission.readExecute': 'Read terminal context and execute commands',
+  'panel.shell.label': 'Shell: {shell}',
   'panel.status.idle': 'Idle',
   'panel.status.running': 'Running',
   'panel.status.waiting': 'Waiting',
@@ -870,6 +905,10 @@ export const en: Translations = {
   'chat.composer.mode.agent': 'Agent',
   'chat.composer.mode.read': 'Read',
   'chat.composer.mode.off': 'Off',
+  'chat.composer.controls': 'Assistant controls',
+  'chat.composer.contextLabel': 'Context',
+  'chat.composer.maskedLabel': 'Masked',
+  'chat.composer.modeLabel': 'Mode',
   'model.switch.title': 'Switch model',
   'model.switch.search': 'Search models from current provider...',
   'model.switch.all': 'Available models',
@@ -998,8 +1037,15 @@ export const en: Translations = {
   'commandPalette.search': 'Search actions, tabs, prompts, snippets...',
   'commandPalette.recent': 'Recent',
   'commandPalette.all': 'All actions',
+  'commandPalette.commands': 'Commands',
+  'commandPalette.snippets': 'Snippets',
+  'commandPalette.prompts': 'Prompts',
   'commandPalette.noMatch': 'No matching actions.',
-  'commandPalette.enterRuns': 'Enter runs',
+  'commandPalette.enterSelects': 'Enter selects',
+  'commandPalette.action.open': 'Opens',
+  'commandPalette.action.run': 'Runs',
+  'commandPalette.action.insert': 'Inserts',
+  'commandPalette.action.select': 'Selects',
   'commandPalette.escapeCloses': 'Esc closes',
 
   'promptPalette.title': 'Prompts',
@@ -1130,6 +1176,8 @@ export const ru: Translations = {
   'mcp.empty': 'MCP-серверов пока нет.',
   'mcp.enabled': 'Включён',
   'mcp.enabled.desc': 'Сервер будет доступен для моделей с поддержкой MCP.',
+  'mcp.status.enabled': 'Включён',
+  'mcp.status.disabled': 'Выключен',
   'mcp.name': 'Название сервера',
   'mcp.command': 'Команда',
   'mcp.args': 'Аргументы',
@@ -1282,6 +1330,11 @@ export const ru: Translations = {
   'snippets.duplicateName': 'Сниппет команды с таким именем уже существует.',
 
   'data.title': 'Данные',
+  'data.usage.title': 'Локальное использование',
+  'data.usage.desc': 'Хранится только на этом Mac. Taviraq не собирает телеметрию.',
+  'data.usage.storage': 'Занято места',
+  'data.usage.chats': 'Сохранённые чаты',
+  'data.usage.sessions': 'Сохранённые сессии',
   'data.exportImport.label': 'Экспорт / Импорт',
   'data.exportImport.desc': 'JSON-бэкап: провайдеры, промпты, сниппеты команд и настройки',
   'data.export': 'Экспорт',
@@ -1336,8 +1389,13 @@ export const ru: Translations = {
   'panel.newChat': 'Новый чат',
   'panel.settings': 'Настройки',
   'panel.permission.read': 'Чтение',
-  'panel.permission.execute': 'Выполнение',
+  'panel.permission.execute': 'Выполняет команды',
   'panel.permission.pending': 'Ожидание',
+  'panel.permission.summary': 'Сессия и права ассистента',
+  'panel.permission.none': 'Нет доступа к терминалу',
+  'panel.permission.readOnly': 'Читает контекст терминала',
+  'panel.permission.readExecute': 'Читает контекст терминала и выполняет команды',
+  'panel.shell.label': 'Оболочка: {shell}',
   'panel.status.idle': 'Ожидание',
   'panel.status.running': 'Работает',
   'panel.status.waiting': 'Ждёт подтв.',
@@ -1365,6 +1423,10 @@ export const ru: Translations = {
   'chat.composer.mode.agent': 'Агент',
   'chat.composer.mode.read': 'Чтение',
   'chat.composer.mode.off': 'Выкл.',
+  'chat.composer.controls': 'Настройки ассистента',
+  'chat.composer.contextLabel': 'Контекст',
+  'chat.composer.maskedLabel': 'Скрыто',
+  'chat.composer.modeLabel': 'Режим',
   'model.switch.title': 'Сменить модель',
   'model.switch.search': 'Поиск моделей текущего провайдера...',
   'model.switch.all': 'Доступные модели',
@@ -1493,8 +1555,15 @@ export const ru: Translations = {
   'commandPalette.search': 'Поиск действий, вкладок, промптов, сниппетов...',
   'commandPalette.recent': 'Недавние',
   'commandPalette.all': 'Все действия',
+  'commandPalette.commands': 'Команды',
+  'commandPalette.snippets': 'Сниппеты',
+  'commandPalette.prompts': 'Промпты',
   'commandPalette.noMatch': 'Подходящих действий нет.',
-  'commandPalette.enterRuns': 'Enter запускает',
+  'commandPalette.enterSelects': 'Enter выбирает',
+  'commandPalette.action.open': 'Открывает',
+  'commandPalette.action.run': 'Запускает',
+  'commandPalette.action.insert': 'Вставляет',
+  'commandPalette.action.select': 'Выбирает',
   'commandPalette.escapeCloses': 'Esc закрывает',
 
   'promptPalette.title': 'Промпты',
@@ -1625,6 +1694,8 @@ export const cn: Translations = {
   'mcp.empty': '还没有 MCP 服务器。',
   'mcp.enabled': '已启用',
   'mcp.enabled.desc': '让支持 MCP 的模型可以使用此服务器。',
+  'mcp.status.enabled': '已启用',
+  'mcp.status.disabled': '已停用',
   'mcp.name': '服务器名称',
   'mcp.command': '命令',
   'mcp.args': '参数',
@@ -1777,6 +1848,11 @@ export const cn: Translations = {
   'snippets.duplicateName': '已存在同名命令片段。',
 
   'data.title': '数据',
+  'data.usage.title': '本地使用情况',
+  'data.usage.desc': '仅存储在这台 Mac 上。Taviraq 不收集遥测。',
+  'data.usage.storage': '已用存储',
+  'data.usage.chats': '已保存聊天',
+  'data.usage.sessions': '已保存会话',
   'data.exportImport.label': '导出 / 导入',
   'data.exportImport.desc': 'JSON 备份，包含提供商、提示词、命令片段和偏好设置',
   'data.export': '导出',
@@ -1831,8 +1907,13 @@ export const cn: Translations = {
   'panel.newChat': '新建聊天',
   'panel.settings': '设置',
   'panel.permission.read': '读取',
-  'panel.permission.execute': '执行',
+  'panel.permission.execute': '执行命令',
   'panel.permission.pending': '待处理',
+  'panel.permission.summary': '助手会话和权限',
+  'panel.permission.none': '无终端访问权限',
+  'panel.permission.readOnly': '读取终端上下文',
+  'panel.permission.readExecute': '读取终端上下文并执行命令',
+  'panel.shell.label': 'Shell：{shell}',
   'panel.status.idle': '空闲',
   'panel.status.running': '运行中',
   'panel.status.waiting': '等待确认',
@@ -1860,6 +1941,10 @@ export const cn: Translations = {
   'chat.composer.mode.agent': '代理',
   'chat.composer.mode.read': '只读',
   'chat.composer.mode.off': '关闭',
+  'chat.composer.controls': '助手控件',
+  'chat.composer.contextLabel': '上下文',
+  'chat.composer.maskedLabel': '已遮蔽',
+  'chat.composer.modeLabel': '模式',
   'model.switch.title': '切换模型',
   'model.switch.search': '搜索当前提供商的模型...',
   'model.switch.all': '可用模型',
@@ -1988,8 +2073,15 @@ export const cn: Translations = {
   'commandPalette.search': '搜索操作、标签、提示词、片段...',
   'commandPalette.recent': '最近使用',
   'commandPalette.all': '所有操作',
+  'commandPalette.commands': '命令',
+  'commandPalette.snippets': '片段',
+  'commandPalette.prompts': '提示词',
   'commandPalette.noMatch': '没有匹配的操作。',
-  'commandPalette.enterRuns': 'Enter 执行',
+  'commandPalette.enterSelects': 'Enter 选择',
+  'commandPalette.action.open': '打开',
+  'commandPalette.action.run': '运行',
+  'commandPalette.action.insert': '插入',
+  'commandPalette.action.select': '选择',
   'commandPalette.escapeCloses': 'Esc 关闭',
 
   'promptPalette.title': '提示词',

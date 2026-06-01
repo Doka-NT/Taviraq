@@ -183,6 +183,9 @@ export interface Translations {
   'chatTools.taskList.desc': string
   'chatTools.taskList.on': string
   'chatTools.taskList.off': string
+  'taskList.title': string
+  'taskList.progress': string
+  'taskList.revealPlan': string
   'security.title': string
   'security.secretMasking.label': string
   'security.secretMasking.desc': string
@@ -722,6 +725,9 @@ export const en: Translations = {
   'chatTools.taskList.desc': 'When enabled, the assistant drafts a task list for complex multi-step requests and tracks progress as it works through each step. Off by default — agent mode keeps its current behaviour until you turn this on.',
   'chatTools.taskList.on': 'On',
   'chatTools.taskList.off': 'Off',
+  'taskList.title': 'Task list',
+  'taskList.progress': '{done} of {total} done',
+  'taskList.revealPlan': 'Reveal plan in Finder',
   'security.title': 'Security',
   'security.secretMasking.label': 'Secret masking',
   'security.secretMasking.desc': 'Local scan for chat, terminal context, command checks, and summaries',
@@ -1246,6 +1252,9 @@ export const ru: Translations = {
   'chatTools.taskList.desc': 'Когда включено, ассистент составляет список задач для сложных многошаговых запросов и отмечает прогресс по мере выполнения каждого шага. По умолчанию выключено — агент-режим сохраняет текущее поведение, пока вы не включите эту опцию.',
   'chatTools.taskList.on': 'Вкл',
   'chatTools.taskList.off': 'Выкл',
+  'taskList.title': 'Список задач',
+  'taskList.progress': 'Готово {done} из {total}',
+  'taskList.revealPlan': 'Показать план в Finder',
   'security.title': 'Безопасность',
   'security.secretMasking.label': 'Маскирование секретов',
   'security.secretMasking.desc': 'Локальная проверка чата, контекста терминала, команд и саммари',
@@ -1770,6 +1779,9 @@ export const cn: Translations = {
   'chatTools.taskList.desc': '启用后，助手会为复杂的多步骤请求草拟任务列表，并在完成每个步骤时跟踪进度。默认关闭——在你开启之前，智能体模式保持当前行为。',
   'chatTools.taskList.on': '开',
   'chatTools.taskList.off': '关',
+  'taskList.title': '任务列表',
+  'taskList.progress': '已完成 {done} / {total}',
+  'taskList.revealPlan': '在 Finder 中显示计划',
   'security.title': '安全',
   'security.secretMasking.label': '密钥遮蔽',
   'security.secretMasking.desc': '本地扫描聊天、终端上下文、命令检查和摘要',

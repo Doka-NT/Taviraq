@@ -27,6 +27,8 @@ import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
 import { ComposerConfigControl } from './ComposerConfigControl'
+import { TaskListPanel } from './TaskListPanel'
+import { parseTaskListFromMessages, parseTaskPlanFromMessages } from '@shared/taskList'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -983,6 +985,7 @@ export function LlmPanel({
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
   const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
+  const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
   const [customPatternRegex, setCustomPatternRegex] = useState('')
@@ -1058,6 +1061,7 @@ export function LlmPanel({
   const providerSecretCheckVersionRef = useRef(0)
   const optimisticApiKeyRef = useRef<string | undefined>()
   const languageRef = useRef<Language>(language)
+  const chatToolsSettingsRef = useRef<ChatToolsSettings>(chatToolsSettings)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
   const copiedMessageTimerRef = useRef<number>()
@@ -1157,6 +1161,7 @@ export function LlmPanel({
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
+  useEffect(() => { chatToolsSettingsRef.current = chatToolsSettings }, [chatToolsSettings])
   useEffect(() => { maxOutputContextRef.current = maxOutputContext }, [maxOutputContext])
   useEffect(() => { threadsRef.current = threadsBySessionId }, [threadsBySessionId])
   useEffect(() => { onThreadsChange(toRestorableThreads(threadsBySessionId)) }, [threadsBySessionId, onThreadsChange])
@@ -1588,6 +1593,7 @@ export function LlmPanel({
           ...providerTerminalContext,
           assistMode: mode,
           language: languageRef.current,
+          taskListPlanning: chatToolsSettingsRef.current.taskListPlanning
         }
       })
       autoSaveThreadToHistory(sessionId)
@@ -3249,6 +3255,23 @@ export function LlmPanel({
     () => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined,
     [activeSession, summarizeSession, terminalContextAllowed]
   )
+  // Task list / plan (issue #71) are derived from the assistant's messages; only
+  // surfaced when the user opted in via the Chat Tools toggle.
+  const taskList = useMemo(
+    () => chatToolsSettings.taskListPlanning ? parseTaskListFromMessages(messages) : null,
+    [chatToolsSettings.taskListPlanning, messages]
+  )
+  const taskPlan = useMemo(
+    () => chatToolsSettings.taskListPlanning ? parseTaskPlanFromMessages(messages) : null,
+    [chatToolsSettings.taskListPlanning, messages]
+  )
+  const handleRevealPlan = useCallback(() => {
+    if (!taskPlan || !activeSessionId) return
+    setRevealingPlan(true)
+    void window.api.taskPlan.reveal(activeSessionId, taskPlan).finally(() => {
+      setRevealingPlan(false)
+    })
+  }, [activeSessionId, taskPlan])
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
     draft,
@@ -5078,6 +5101,15 @@ export function LlmPanel({
       ) : (
       <>
       <section className="chat-log" aria-live="polite" ref={chatLogRef} onScroll={handleChatLogScroll}>
+        {taskList ? (
+          <TaskListPanel
+            taskList={taskList}
+            hasPlanFile={Boolean(taskPlan)}
+            revealing={revealingPlan}
+            onRevealPlan={handleRevealPlan}
+            t={t}
+          />
+        ) : null}
         {showActivationFlow ? (
           <div className="activation-empty-state">
             <div className="activation-heading">

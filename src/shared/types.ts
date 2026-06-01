@@ -258,6 +258,7 @@ export interface TerminalContext {
   terminalOutput?: string
   language?: string
   maskedSecretCount?: number
+  taskListPlanning?: boolean
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
 }
 

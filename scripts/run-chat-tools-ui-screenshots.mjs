@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +20,56 @@ await mkdir(screenshotDir, { recursive: true })
 
 const userDataDir = await mkdtemp(join(tmpdir(), 'taviraq-chat-tools-ui-'))
 
+// Seed a session whose assistant turn carries a task list + detailed plan, so
+// the derived checklist panel renders with real content.
+const taskListMessage = [
+  'Понял задачу, вот план:',
+  '',
+  '```tasklist',
+  '- [x] Прочитать конфигурацию',
+  '- [-] Проверить подключение к серверу',
+  '- [ ] Перезапустить сервис',
+  '- [ ] Проверить логи',
+  '```',
+  '',
+  'Начинаю со второго шага.',
+  '',
+  '```taskplan',
+  '# План',
+  '1. Прочитать ~/.app/config.yml и убедиться, что хост задан.',
+  '2. Выполнить health-check эндпоинта.',
+  '3. systemctl restart app.',
+  '4. journalctl -u app -n 50 для проверки.',
+  '```'
+].join('\n')
+
+await writeFile(join(userDataDir, 'session-state.json'), JSON.stringify({
+  version: 1,
+  savedAt: new Date().toISOString(),
+  activeSessionId: 'chat-tools-session',
+  sessions: [{
+    id: 'chat-tools-session',
+    kind: 'local',
+    label: 'Local',
+    cwd: repoRoot,
+    shell: '/bin/zsh',
+    command: '/bin/zsh',
+    createdAt: Date.now(),
+    status: 'running',
+    output: ''
+  }],
+  assistantThreads: {
+    'chat-tools-session': {
+      messages: [
+        { role: 'user', content: 'Перезапусти сервис и проверь, что он поднялся.' },
+        { role: 'assistant', content: taskListMessage }
+      ],
+      draft: '',
+      session: { id: 'chat-tools-session', kind: 'local', label: 'Local', cwd: repoRoot, shell: '/bin/zsh' }
+    }
+  }
+}), 'utf8')
+
 const app = await electron.launch({
   args: [repoRoot],
   env: {
@@ -31,9 +81,15 @@ const app = await electron.launch({
 
 const screenshots = []
 
-async function capture(page, name) {
+async function captureSettings(page, name) {
   const path = join(screenshotDir, name)
   await page.locator('.settings-screen').screenshot({ path })
+  screenshots.push(path)
+}
+
+async function captureLocator(locator, name) {
+  const path = join(screenshotDir, name)
+  await locator.screenshot({ path })
   screenshots.push(path)
 }
 
@@ -41,38 +97,43 @@ try {
   const page = await app.firstWindow()
   await page.setViewportSize({ width: 1320, height: 900 })
   page.on('console', (message) => {
-    if (message.type() === 'error') {
-      console.error(`[renderer] ${message.text()}`)
-    }
+    if (message.type() === 'error') console.error(`[renderer] ${message.text()}`)
   })
 
   await page.evaluate(() => {
     localStorage.setItem('taviraq.language', 'ru')
     localStorage.setItem('taviraq.sidebarVisible', 'true')
-    localStorage.setItem('taviraq.sidebarWidth', '620')
+    localStorage.setItem('taviraq.sidebarWidth', '640')
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('.app-shell').waitFor({ state: 'visible' })
 
+  // 1. Settings → Chat Tools, toggle off by default.
   await page.getByRole('button', { name: 'Настройки (⌘,)' }).click()
   await page.getByRole('button', { name: 'Инструменты чата' }).click()
   await page.getByRole('heading', { name: 'Инструменты чата' }).waitFor({ state: 'visible' })
 
   const taskListSwitch = page.getByRole('switch', { name: 'Список задач и планирование' })
   await taskListSwitch.waitFor({ state: 'visible' })
-
-  // Off by default — agent mode behaviour is unchanged until the user opts in.
   assert.equal(await taskListSwitch.getAttribute('aria-checked'), 'false')
-  await capture(page, '00-task-list-default-off.png')
+  await captureSettings(page, '00-task-list-default-off.png')
 
-  // Toggle on and confirm the switch reflects the enabled state.
+  // 2. Enable it.
   await taskListSwitch.click()
-  await page.waitForFunction(() => {
-    const el = document.querySelector('.settings-screen [role="switch"]')
-    return el?.getAttribute('aria-checked') === 'true'
-  })
-  assert.equal(await taskListSwitch.getAttribute('aria-checked'), 'true')
-  await capture(page, '01-task-list-enabled.png')
+  await page.waitForFunction(() => (
+    document.querySelector('.settings-screen [role="switch"]')?.getAttribute('aria-checked') === 'true'
+  ))
+  await captureSettings(page, '01-task-list-enabled.png')
+
+  // 3. Close settings; the seeded conversation now shows the checklist panel.
+  await page.getByRole('button', { name: 'Закрыть настройки' }).click()
+  await page.locator('.settings-screen').waitFor({ state: 'hidden' })
+  const panel = page.locator('.task-list-panel')
+  await panel.waitFor({ state: 'visible' })
+  await panel.getByText('Перезапустить сервис').waitFor({ state: 'visible' })
+  await panel.getByRole('button', { name: 'Показать план в Finder' }).waitFor({ state: 'visible' })
+  await captureLocator(panel, '02-task-list-panel.png')
+  await captureLocator(page.locator('.llm-panel'), '03-task-list-in-chat.png')
 
   console.log(`Saved ${screenshots.length} screenshot(s):`)
   for (const path of screenshots) console.log(`  ${path}`)

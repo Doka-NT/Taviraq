@@ -78,6 +78,10 @@ const api = {
     setChatToolsSettings: (settings: ChatToolsSettings) =>
       ipcRenderer.invoke('config:setChatToolsSettings', settings) as Promise<AppConfig>
   },
+  taskPlan: {
+    reveal: (sessionId: string, plan: string) =>
+      ipcRenderer.invoke('taskPlan:reveal', sessionId, plan) as Promise<void>
+  },
   terminal: {
     create: (request?: CreateTerminalRequest) =>
       ipcRenderer.invoke('terminal:create', request) as Promise<TerminalSessionInfo>,

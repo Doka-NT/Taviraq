@@ -1,4 +1,5 @@
-import { buildAssistantPromptMessages, buildModeInstructions, mergeAssistantPromptMessages } from '@shared/promptBuilder'
+import { buildAssistantPromptMessages, buildModeInstructions, buildTaskListInstructions, mergeAssistantPromptMessages } from '@shared/promptBuilder'
+import { TASK_LIST_FENCE_LANG } from '@shared/taskList'
 
 describe('promptBuilder', () => {
   it('keeps terminal context outside the system message', () => {
@@ -72,5 +73,22 @@ describe('promptBuilder', () => {
     expect(messages[3].content).toContain('<terminal-context>')
     expect(messages[3].content).toContain('current terminal output')
     expect(messages[3].content).toContain('Current question')
+  })
+
+  it('omits task list instructions unless planning is enabled', () => {
+    const without = buildAssistantPromptMessages({ assistMode: 'agent' })
+    expect(without[0].content).not.toContain('Task list planning is enabled')
+
+    const withPlanning = buildAssistantPromptMessages({ assistMode: 'agent', taskListPlanning: true })
+    expect(withPlanning[0].content).toContain('Task list planning is enabled')
+    expect(withPlanning[0].content).toContain(TASK_LIST_FENCE_LANG)
+  })
+
+  it('keeps the task list block separate from the shell command marker', () => {
+    const instructions = buildTaskListInstructions().join('\n')
+    expect(instructions).toContain(TASK_LIST_FENCE_LANG)
+    expect(instructions).toContain('not a command')
+    // Planning guidance must not redefine the agent-mode auto-run contract.
+    expect(instructions).not.toContain('```bash')
   })
 })

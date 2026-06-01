@@ -1689,6 +1689,7 @@ export function LlmPanel({
         ...providerTerminalContext,
         assistMode: mode,
         language: languageRef.current,
+        taskListPlanning: chatToolsSettingsRef.current.taskListPlanning
       }
     })
     autoSaveThreadToHistory(sessionId)

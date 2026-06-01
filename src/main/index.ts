@@ -1336,6 +1336,9 @@ function registerIpc(): void {
     const mergedConfig: AppConfig = {
       ...currentConfig,
       secretMasking: data.config?.secretMasking ?? currentConfig.secretMasking,
+      chatTools: data.config?.chatTools
+        ? normalizeChatToolsSettings(data.config.chatTools)
+        : currentConfig.chatTools,
       providers: [...currentConfig.providers, ...newProviders]
     }
 

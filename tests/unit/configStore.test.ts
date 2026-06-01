@@ -68,3 +68,27 @@ describe('ConfigStore secret masking settings', () => {
     expect(config.secretMasking?.customPatterns).toEqual([])
   })
 })
+
+describe('ConfigStore chat tools settings', () => {
+  afterEach(() => cleanTmp())
+
+  it('defaults task list planning to off when never set', async () => {
+    const store = new ConfigStore()
+    const config = await store.load()
+    expect(config.chatTools?.taskListPlanning).toBe(false)
+  })
+
+  it('persists the task list planning toggle across loads', async () => {
+    const store = new ConfigStore()
+    await store.updateChatToolsSettings({ taskListPlanning: true })
+
+    const reloaded = await new ConfigStore().load()
+    expect(reloaded.chatTools?.taskListPlanning).toBe(true)
+  })
+
+  it('coerces an untrusted toggle value to a boolean', async () => {
+    const store = new ConfigStore()
+    const config = await store.updateChatToolsSettings({ taskListPlanning: 'on' })
+    expect(config.chatTools?.taskListPlanning).toBe(false)
+  })
+})

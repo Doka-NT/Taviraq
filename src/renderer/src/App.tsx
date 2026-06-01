@@ -48,7 +48,7 @@ const DEFAULT_TERMINAL_LINE_HEIGHT = 1.25
 const DEFAULT_TERMINAL_SCROLLBACK = 5000
 const DEFAULT_WINDOW_OPACITY = 1
 const SIDEBAR_TRANSITION_MS = 260
-type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
+type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'chatTools' | 'prompts' | 'snippets' | 'data'
 let storageMigrationComplete = false
 
 interface BlockPromptRequest {
@@ -1198,6 +1198,7 @@ export function App(): JSX.Element {
       { id: 'mcp', label: appT('settings.tab.mcp'), keywords: ['mcp', 'tools', 'model context protocol', 'claude', 'codex', 'opencode'] },
       { id: 'connections', label: appT('settings.tab.connections'), keywords: ['ssh', 'connection', 'host', 'key'] },
       { id: 'security', label: appT('settings.tab.security'), keywords: ['security', 'privacy', 'secret', 'masking'] },
+      { id: 'chatTools', label: appT('settings.tab.chatTools'), keywords: ['chat tools', 'task list', 'planning', 'checklist', 'steps', 'agent'] },
       { id: 'prompts', label: appT('settings.tab.prompts'), keywords: ['prompt', 'library', 'template'] },
       { id: 'snippets', label: appT('settings.tab.snippets'), keywords: ['snippet', 'command', 'shell'] },
       { id: 'data', label: appT('settings.tab.data'), keywords: ['data', 'import', 'export', 'restore'] }

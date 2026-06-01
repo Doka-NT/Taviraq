@@ -27,6 +27,7 @@ import type {
   SecretMaskingMode,
   SecretMaskingSettings,
   SSHProfile,
+  ChatToolsSettings,
   SSHProfileConfig,
   TerminalContext,
   SummarizeConversationRequest
@@ -34,6 +35,7 @@ import type {
 import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
+import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -133,6 +135,7 @@ const demoConfig: AppConfig = {
   activeProviderRef: demoProvider.apiKeyRef,
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
+  chatTools: createDefaultChatToolsSettings(),
   windowBounds: {
     width: 1440,
     height: 920
@@ -886,6 +889,15 @@ function registerIpc(): void {
     const config = await configStore.updateSecretMaskingSettings(settings)
     updateSecretMaskingSettingsCache(config)
     return config
+  })
+
+  ipcMain.handle('config:setChatToolsSettings', async (_event, settings: ChatToolsSettings) => {
+    if (DEMO_MODE) {
+      demoConfig.chatTools = normalizeChatToolsSettings(settings)
+      return demoConfig
+    }
+
+    return configStore.updateChatToolsSettings(settings)
   })
 
   ipcMain.handle('app:openExternalUrl', (_event, url: string) => {

@@ -9,6 +9,7 @@ export interface Translations {
   'settings.tab.mcp': string
   'settings.tab.connections': string
   'settings.tab.security': string
+  'settings.tab.chatTools': string
   'settings.tab.prompts': string
   'settings.tab.snippets': string
   'settings.tab.data': string
@@ -177,6 +178,14 @@ export interface Translations {
   'connections.tab.newLocal': string
 
   // Security tab
+  'chatTools.title': string
+  'chatTools.taskList.label': string
+  'chatTools.taskList.desc': string
+  'chatTools.taskList.on': string
+  'chatTools.taskList.off': string
+  'taskList.title': string
+  'taskList.progress': string
+  'taskList.revealPlan': string
   'security.title': string
   'security.secretMasking.label': string
   'security.secretMasking.desc': string
@@ -547,6 +556,7 @@ export const en: Translations = {
   'settings.tab.mcp': 'MCP',
   'settings.tab.connections': 'Connections',
   'settings.tab.security': 'Security',
+  'settings.tab.chatTools': 'Chat Tools',
   'settings.tab.prompts': 'Prompts',
   'settings.tab.snippets': 'Snippets',
   'settings.tab.data': 'Data',
@@ -710,6 +720,14 @@ export const en: Translations = {
   'connections.newConnection': 'New Connection',
   'connections.tab.newLocal': 'New Local Terminal',
 
+  'chatTools.title': 'Chat Tools',
+  'chatTools.taskList.label': 'Task list planning',
+  'chatTools.taskList.desc': 'When enabled, the assistant drafts a task list for complex multi-step requests and tracks progress as it works through each step. Off by default — agent mode keeps its current behaviour until you turn this on.',
+  'chatTools.taskList.on': 'On',
+  'chatTools.taskList.off': 'Off',
+  'taskList.title': 'Task list',
+  'taskList.progress': '{done} of {total} done',
+  'taskList.revealPlan': 'Reveal plan in Finder',
   'security.title': 'Security',
   'security.secretMasking.label': 'Secret masking',
   'security.secretMasking.desc': 'Local scan for chat, terminal context, command checks, and summaries',
@@ -1065,6 +1083,7 @@ export const ru: Translations = {
   'settings.tab.mcp': 'MCP',
   'settings.tab.connections': 'Подключения',
   'settings.tab.security': 'Безопасность',
+  'settings.tab.chatTools': 'Инструменты чата',
   'settings.tab.prompts': 'Промпты',
   'settings.tab.snippets': 'Сниппеты',
   'settings.tab.data': 'Данные',
@@ -1228,6 +1247,14 @@ export const ru: Translations = {
   'connections.newConnection': 'Новое подключение',
   'connections.tab.newLocal': 'Новый локальный терминал',
 
+  'chatTools.title': 'Инструменты чата',
+  'chatTools.taskList.label': 'Список задач и планирование',
+  'chatTools.taskList.desc': 'Когда включено, ассистент составляет список задач для сложных многошаговых запросов и отмечает прогресс по мере выполнения каждого шага. По умолчанию выключено — агент-режим сохраняет текущее поведение, пока вы не включите эту опцию.',
+  'chatTools.taskList.on': 'Вкл',
+  'chatTools.taskList.off': 'Выкл',
+  'taskList.title': 'Список задач',
+  'taskList.progress': 'Готово {done} из {total}',
+  'taskList.revealPlan': 'Показать план в Finder',
   'security.title': 'Безопасность',
   'security.secretMasking.label': 'Маскирование секретов',
   'security.secretMasking.desc': 'Локальная проверка чата, контекста терминала, команд и саммари',
@@ -1583,6 +1610,7 @@ export const cn: Translations = {
   'settings.tab.mcp': 'MCP',
   'settings.tab.connections': '连接',
   'settings.tab.security': '安全',
+  'settings.tab.chatTools': '聊天工具',
   'settings.tab.prompts': '提示词',
   'settings.tab.snippets': '片段',
   'settings.tab.data': '数据',
@@ -1746,6 +1774,14 @@ export const cn: Translations = {
   'connections.newConnection': '新连接',
   'connections.tab.newLocal': '新建本地终端',
 
+  'chatTools.title': '聊天工具',
+  'chatTools.taskList.label': '任务列表规划',
+  'chatTools.taskList.desc': '启用后，助手会为复杂的多步骤请求草拟任务列表，并在完成每个步骤时跟踪进度。默认关闭——在你开启之前，智能体模式保持当前行为。',
+  'chatTools.taskList.on': '开',
+  'chatTools.taskList.off': '关',
+  'taskList.title': '任务列表',
+  'taskList.progress': '已完成 {done} / {total}',
+  'taskList.revealPlan': '在 Finder 中显示计划',
   'security.title': '安全',
   'security.secretMasking.label': '密钥遮蔽',
   'security.secretMasking.desc': '本地扫描聊天、终端上下文、命令检查和摘要',

@@ -5921,3 +5921,100 @@ textarea:focus {
   gap: 4px;
   flex: 0 0 auto;
 }
+
+/* Task list panel (issue #71) */
+.task-list-panel {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 0.5px solid rgba(var(--color-neutral-rgb), 0.10);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--color-neutral-rgb), 0.045);
+  animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+.task-list-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.task-list-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-primary);
+}
+
+.task-list-panel-title strong {
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 1.2;
+}
+
+.task-list-panel-progress {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-list-items {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-list-item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  font-size: calc(var(--app-text-size, 13.5px) - 2px);
+  line-height: 1.35;
+}
+
+.task-list-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.task-list-item-text {
+  min-width: 0;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+.task-list-item.active .task-list-item-icon {
+  color: var(--accent-cyan);
+}
+
+.task-list-item.active .task-list-item-text {
+  color: var(--text-primary);
+}
+
+.task-list-item.done .task-list-item-icon {
+  color: var(--accent-green);
+}
+
+.task-list-item.done .task-list-item-text {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.task-list-spin {
+  animation: spin 1s linear infinite;
+}
+
+.task-list-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+}

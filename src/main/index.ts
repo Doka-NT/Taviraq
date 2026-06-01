@@ -27,6 +27,7 @@ import type {
   SecretMaskingMode,
   SecretMaskingSettings,
   SSHProfile,
+  ChatToolsSettings,
   SSHProfileConfig,
   TerminalContext,
   SummarizeConversationRequest
@@ -34,9 +35,11 @@ import type {
 import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
+import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
+import { TaskPlanStore } from './services/taskPlanStore'
 import {
   buildProxyPasswordRef,
   deleteApiKey,
@@ -89,6 +92,7 @@ const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const mcpConfigStore = new McpConfigStore()
+const taskPlanStore = new TaskPlanStore()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
@@ -133,6 +137,7 @@ const demoConfig: AppConfig = {
   activeProviderRef: demoProvider.apiKeyRef,
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
+  chatTools: createDefaultChatToolsSettings(),
   windowBounds: {
     width: 1440,
     height: 920
@@ -888,6 +893,21 @@ function registerIpc(): void {
     return config
   })
 
+  ipcMain.handle('config:setChatToolsSettings', async (_event, settings: ChatToolsSettings) => {
+    if (DEMO_MODE) {
+      demoConfig.chatTools = normalizeChatToolsSettings(settings)
+      return demoConfig
+    }
+
+    return configStore.updateChatToolsSettings(settings)
+  })
+
+  ipcMain.handle('taskPlan:reveal', async (_event, sessionId: unknown, plan: unknown) => {
+    if (typeof sessionId !== 'string' || !sessionId.trim()) return
+    if (typeof plan !== 'string' || !plan.trim()) return
+    await taskPlanStore.revealPlan(sessionId, plan)
+  })
+
   ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
     return openAllowedExternalUrl(url)
   })
@@ -1316,6 +1336,9 @@ function registerIpc(): void {
     const mergedConfig: AppConfig = {
       ...currentConfig,
       secretMasking: data.config?.secretMasking ?? currentConfig.secretMasking,
+      chatTools: data.config?.chatTools
+        ? normalizeChatToolsSettings(data.config.chatTools)
+        : currentConfig.chatTools,
       providers: [...currentConfig.providers, ...newProviders]
     }
 

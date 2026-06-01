@@ -9,7 +9,7 @@ import {
   ShieldCheck, ShieldOff, Square, SquareTerminal, Trash2, User, X, Zap
 } from 'lucide-react'
 import type {
-  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
+  AppConfig, AssistMode, ChatMessage, ChatStreamEvent, ChatToolsSettings, CommandRiskAssessment, CommandSnippet, LLMModel, LLMProviderConfig, LLMProviderType,
   DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
@@ -21,11 +21,14 @@ import {
   isSafeCustomSecretPatternSource,
   SECRET_MASKING_AUDIT_LIMIT
 } from '@shared/secretMaskingConfig'
+import { createDefaultChatToolsSettings } from '@shared/chatToolsConfig'
 import { MessageContent } from './MessageContent'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
 import { ComposerConfigControl } from './ComposerConfigControl'
+import { TaskListPanel } from './TaskListPanel'
+import { parseTaskListFromMessages, parseTaskPlanFromMessages } from '@shared/taskList'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -229,7 +232,7 @@ function findLastAssistantResponseIndex(messages: ThreadMessage[]): number {
   return -1
 }
 
-type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'prompts' | 'snippets' | 'data'
+type SettingsTab = 'appearance' | 'providers' | 'mcp' | 'connections' | 'security' | 'chatTools' | 'prompts' | 'snippets' | 'data'
 type ProviderConnectionState = 'unknown' | 'checking' | 'ready' | 'error'
 type ProviderListStatusTone = 'active' | 'active-ready' | 'active-local' | 'ready' | 'error' | 'no-key' | 'checking' | 'not-tested' | 'local'
 type ComposerLiveStatus = 'running' | 'waiting'
@@ -981,6 +984,8 @@ export function LlmPanel({
   const [scrollbackDraft, setScrollbackDraft] = useState(String(terminalScrollback))
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
+  const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
+  const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
   const [customPatternRegex, setCustomPatternRegex] = useState('')
@@ -1056,6 +1061,7 @@ export function LlmPanel({
   const providerSecretCheckVersionRef = useRef(0)
   const optimisticApiKeyRef = useRef<string | undefined>()
   const languageRef = useRef<Language>(language)
+  const chatToolsSettingsRef = useRef<ChatToolsSettings>(chatToolsSettings)
   const maxOutputContextRef = useRef(maxOutputContext)
   const chatHistorySaveTimerRef = useRef<number>()
   const copiedMessageTimerRef = useRef<number>()
@@ -1155,6 +1161,7 @@ export function LlmPanel({
 
   // Keep refs in sync
   useEffect(() => { languageRef.current = language }, [language])
+  useEffect(() => { chatToolsSettingsRef.current = chatToolsSettings }, [chatToolsSettings])
   useEffect(() => { maxOutputContextRef.current = maxOutputContext }, [maxOutputContext])
   useEffect(() => { threadsRef.current = threadsBySessionId }, [threadsBySessionId])
   useEffect(() => { onThreadsChange(toRestorableThreads(threadsBySessionId)) }, [threadsBySessionId, onThreadsChange])
@@ -1334,6 +1341,7 @@ export function LlmPanel({
     setActiveProviderRef(loadedActiveProviderRef)
     setDraftProviderRef(null)
     setSecretMaskingSettings(config.secretMasking ?? createDefaultSecretMaskingSettings())
+    setChatToolsSettings(config.chatTools ?? createDefaultChatToolsSettings())
   }, [])
 
   // Load config on mount
@@ -1585,6 +1593,7 @@ export function LlmPanel({
           ...providerTerminalContext,
           assistMode: mode,
           language: languageRef.current,
+          taskListPlanning: chatToolsSettingsRef.current.taskListPlanning
         }
       })
       autoSaveThreadToHistory(sessionId)
@@ -1680,6 +1689,7 @@ export function LlmPanel({
         ...providerTerminalContext,
         assistMode: mode,
         language: languageRef.current,
+        taskListPlanning: chatToolsSettingsRef.current.taskListPlanning
       }
     })
     autoSaveThreadToHistory(sessionId)
@@ -2923,6 +2933,16 @@ export function LlmPanel({
     })
   }, [])
 
+  const saveChatToolsSettings = useCallback((settings: ChatToolsSettings) => {
+    // Optimistic update; reconcile with the persisted value the main process returns.
+    setChatToolsSettings(settings)
+    void window.api.config.setChatToolsSettings(settings).then((result) => {
+      setChatToolsSettings(result.chatTools ?? settings)
+    }).catch(() => {
+      // Keep the optimistic value if persistence failed; the next config load reconciles it.
+    })
+  }, [])
+
   const updateSecretMaskingMode = useCallback((mode: SecretMaskingMode) => {
     saveSecretMaskingSettings({
       ...secretMaskingSettings,
@@ -3236,6 +3256,23 @@ export function LlmPanel({
     () => terminalContextAllowed && activeSession ? summarizeSession(activeSession) : undefined,
     [activeSession, summarizeSession, terminalContextAllowed]
   )
+  // Task list / plan (issue #71) are derived from the assistant's messages; only
+  // surfaced when the user opted in via the Chat Tools toggle.
+  const taskList = useMemo(
+    () => chatToolsSettings.taskListPlanning ? parseTaskListFromMessages(messages) : null,
+    [chatToolsSettings.taskListPlanning, messages]
+  )
+  const taskPlan = useMemo(
+    () => chatToolsSettings.taskListPlanning ? parseTaskPlanFromMessages(messages) : null,
+    [chatToolsSettings.taskListPlanning, messages]
+  )
+  const handleRevealPlan = useCallback(() => {
+    if (!taskPlan || !activeSessionId) return
+    setRevealingPlan(true)
+    void window.api.taskPlan.reveal(activeSessionId, taskPlan).finally(() => {
+      setRevealingPlan(false)
+    })
+  }, [activeSessionId, taskPlan])
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
     draft,
@@ -3488,6 +3525,14 @@ export function LlmPanel({
         t('security.secretMasking.onState'), t('security.secretMasking.offState'), t('security.secretMasking.warning'),
         t('security.scopes.title'), t('security.patterns.title'), t('security.customPatterns.title'), t('security.audit.title'),
         'security privacy gitleaks secret masking token password regex audit strict provider display aws ssh'
+      ]
+    },
+    {
+      id: 'chatTools',
+      label: t('settings.tab.chatTools'),
+      terms: [
+        t('chatTools.title'), t('chatTools.taskList.label'), t('chatTools.taskList.desc'),
+        'chat tools task list planning checklist steps plan agent automation'
       ]
     },
     {
@@ -4849,6 +4894,35 @@ export function LlmPanel({
                   </>
                 ) : null}
 
+                {!settingsNoResults && settingsTab === 'chatTools' ? (
+                  <>
+                    <h3 className="settings-content-title">{t('chatTools.title')}</h3>
+                    <div className={`appearance-row ${settingsMatchClass([
+                      t('chatTools.taskList.label'),
+                      t('chatTools.taskList.desc'),
+                      'chat tools task list planning checklist steps plan agent automation'
+                    ])}`}>
+                      <div className="appearance-row-left">
+                        <span className="appearance-row-label"><HighlightSearchText text={t('chatTools.taskList.label')} query={settingsSearch} /></span>
+                        <small className="appearance-row-desc"><HighlightSearchText text={t('chatTools.taskList.desc')} query={settingsSearch} /></small>
+                      </div>
+                      <div className="appearance-row-right">
+                        <button
+                          type="button"
+                          className={`security-switch ${chatToolsSettings.taskListPlanning ? 'on' : ''}`}
+                          role="switch"
+                          aria-checked={chatToolsSettings.taskListPlanning}
+                          aria-label={t('chatTools.taskList.label')}
+                          title={chatToolsSettings.taskListPlanning ? t('chatTools.taskList.on') : t('chatTools.taskList.off')}
+                          onClick={() => saveChatToolsSettings({ ...chatToolsSettings, taskListPlanning: !chatToolsSettings.taskListPlanning })}
+                        >
+                          <span aria-hidden />
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+
                 {!settingsNoResults && settingsTab === 'data' ? (
                   <>
                     <h3 className="settings-content-title">{t('data.title')}</h3>
@@ -5028,6 +5102,15 @@ export function LlmPanel({
       ) : (
       <>
       <section className="chat-log" aria-live="polite" ref={chatLogRef} onScroll={handleChatLogScroll}>
+        {taskList ? (
+          <TaskListPanel
+            taskList={taskList}
+            hasPlanFile={Boolean(taskPlan)}
+            revealing={revealingPlan}
+            onRevealPlan={handleRevealPlan}
+            t={t}
+          />
+        ) : null}
         {showActivationFlow ? (
           <div className="activation-empty-state">
             <div className="activation-heading">

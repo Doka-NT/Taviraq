@@ -4,6 +4,7 @@ import type {
   AppShortcutAction,
   ChatStreamEvent,
   ChatStreamRequest,
+  ChatToolsSettings,
   CommandSnippet,
   CommandRiskAssessment,
   CommandRiskAssessmentRequest,
@@ -73,7 +74,13 @@ const api = {
     setSecretMaskingMode: (mode: SecretMaskingMode) =>
       ipcRenderer.invoke('config:setSecretMaskingMode', mode) as Promise<AppConfig>,
     setSecretMaskingSettings: (settings: SecretMaskingSettings) =>
-      ipcRenderer.invoke('config:setSecretMaskingSettings', settings) as Promise<AppConfig>
+      ipcRenderer.invoke('config:setSecretMaskingSettings', settings) as Promise<AppConfig>,
+    setChatToolsSettings: (settings: ChatToolsSettings) =>
+      ipcRenderer.invoke('config:setChatToolsSettings', settings) as Promise<AppConfig>
+  },
+  taskPlan: {
+    reveal: (sessionId: string, plan: string) =>
+      ipcRenderer.invoke('taskPlan:reveal', sessionId, plan) as Promise<void>
   },
   terminal: {
     create: (request?: CreateTerminalRequest) =>

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import type { AppConfig, LLMProviderConfig, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings, SSHProfileConfig } from '@shared/types'
 import { createDefaultSecretMaskingSettings, isSafeCustomSecretPatternSource } from '@shared/secretMaskingConfig'
+import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
 
 const CONFIG_FILE = 'config.json'
 
@@ -21,6 +22,7 @@ const defaultConfig: AppConfig = {
   activeProviderRef: 'openai-compatible-default',
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
+  chatTools: createDefaultChatToolsSettings(),
   windowBounds: {
     width: 1440,
     height: 920
@@ -130,12 +132,20 @@ export class ConfigStore {
       }
     })
   }
+
+  async updateChatToolsSettings(settings: unknown): Promise<AppConfig> {
+    return this.update((config) => ({
+      ...config,
+      chatTools: normalizeChatToolsSettings(settings)
+    }))
+  }
 }
 
 function normalizeConfig(config: AppConfig): AppConfig {
   return {
     ...config,
-    secretMasking: normalizeSecretMaskingSettings(config.secretMasking)
+    secretMasking: normalizeSecretMaskingSettings(config.secretMasking),
+    chatTools: normalizeChatToolsSettings(config.chatTools)
   }
 }
 

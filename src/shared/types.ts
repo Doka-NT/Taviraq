@@ -107,6 +107,15 @@ export interface SecretMaskingSettings {
   customPatterns: SecretMaskingCustomPattern[]
 }
 
+export interface ChatToolsSettings {
+  /**
+   * When enabled, the assistant first drafts a task list for complex multi-step
+   * requests and tracks progress through it. Off by default so agent mode keeps
+   * its current behaviour until the user opts in.
+   */
+  taskListPlanning: boolean
+}
+
 export interface SecretMaskingAuditEvent {
   id: string
   createdAt: string
@@ -249,6 +258,7 @@ export interface TerminalContext {
   terminalOutput?: string
   language?: string
   maskedSecretCount?: number
+  taskListPlanning?: boolean
   session?: Pick<TerminalSessionInfo, 'id' | 'kind' | 'label' | 'cwd' | 'shell'>
 }
 
@@ -353,6 +363,7 @@ export interface AppConfig {
   hideShortcut?: string
   sshProfiles?: SSHProfileConfig[]
   secretMasking?: SecretMaskingSettings
+  chatTools?: ChatToolsSettings
   windowBounds?: {
     x?: number
     y?: number

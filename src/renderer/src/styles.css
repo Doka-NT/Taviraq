@@ -5484,7 +5484,7 @@ textarea:focus {
   padding: 10px;
   border: 0.5px solid var(--border-subtle);
   border-radius: 8px;
-  background: rgba(var(--bg-elevated-rgb), 0.98);
+  background: var(--bg-combobox-list, var(--bg-window));
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
 }
 

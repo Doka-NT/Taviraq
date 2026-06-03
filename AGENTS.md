@@ -102,6 +102,13 @@ When asked to QA, test, or verify a specific PR number:
 
 Do not mark a Manual QA step as passed unless you have seen a screenshot or assertion confirming the expected behavior.
 
+Visual evidence is always obtainable for this app, so never report that screenshots
+could not be captured: the renderer is a headless-driveable Electron app. Drive it via
+`scripts/qa-pr-ai.mjs`, or for ad-hoc checks launch it under Playwright + `TAVIRAQ_DEMO_MODE=1`
+(see `scripts/record-demo.mjs` for the launch/typing/screenshot pattern). For behavior that
+only manifests against a prior version, build the parent commit the same way and capture a
+before/after pair.
+
 ## QA Catalog And Test-Case Runs
 
 When asked to run or update Taviraq QA/test cases:

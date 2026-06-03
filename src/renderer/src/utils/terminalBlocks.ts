@@ -212,3 +212,32 @@ export function stripCommandEcho(command: string, text: string): string {
 
   return lines.slice(index).join('\n').trim()
 }
+
+/**
+ * Resolve the last visual buffer row a command block occupies.
+ *
+ * Block bounds are stored as logical line counts (newlines in the raw output),
+ * but xterm's buffer is indexed by visual rows: a single long logical line wraps
+ * onto several rows. We walk down from the command row, counting a new logical
+ * line only on rows that are not wrapped continuations, so the returned range
+ * spans every wrapped row of the output instead of stopping after the first few.
+ */
+export function visualEndForLogicalSpan(
+  isWrappedRow: (line: number) => boolean | undefined,
+  bufferLength: number,
+  start: number,
+  logicalSpan: number
+): number {
+  let logicalSeen = 0
+  let end = start
+  for (let line = start + 1; line < bufferLength; line += 1) {
+    const wrapped = isWrappedRow(line)
+    if (wrapped === undefined) break
+    if (!wrapped) {
+      logicalSeen += 1
+      if (logicalSeen > logicalSpan) break
+    }
+    end = line
+  }
+  return end
+}

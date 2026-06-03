@@ -81,12 +81,16 @@ More detail:
 
 Grab the latest `.zip` from [Releases](https://github.com/Doka-NT/taviraq/releases), unzip it, and drag **Taviraq.app** to your Applications folder.
 
-Current release builds are unsigned. macOS will warn that the app is from an unidentified developer.
+Release builds are signed with an Apple Developer ID and notarized, so they open
+with a double-click — no quarantine workaround needed.
 
-> **First launch:** right-click **Taviraq.app** → **Open** → **Open** to proceed.
-> Or run: `xattr -dr com.apple.quarantine "/Applications/Taviraq.app"`
+Release assets include a `checksums.txt` file when built by GitHub Actions. You can
+also confirm the signature yourself:
 
-Release assets include a `checksums.txt` file when built by GitHub Actions.
+```bash
+spctl --assess --type execute --verbose=4 "/Applications/Taviraq.app"
+xcrun stapler validate "/Applications/Taviraq.app"
+```
 
 ### Build from source
 

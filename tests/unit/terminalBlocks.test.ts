@@ -8,8 +8,46 @@ import {
   lineMatchesCommand,
   lineMatchesCommandStart,
   stripCommandEcho,
-  terminalTailStartOffset
+  terminalTailStartOffset,
+  visualEndForLogicalSpan
 } from '../../src/renderer/src/utils/terminalBlocks'
+
+describe('visualEndForLogicalSpan', () => {
+  // Each entry models one xterm buffer row: true means it is a wrapped
+  // continuation of the previous logical line.
+  const buffer = (wrappedRows: boolean[]) => (line: number): boolean | undefined =>
+    line >= 0 && line < wrappedRows.length ? wrappedRows[line] : undefined
+
+  it('counts wrapped continuation rows toward the same logical line', () => {
+    // row0 = command; output logical lines: L1=rows1-2 (row2 wraps), L2=row3,
+    // L3=rows4-5 (row5 wraps), L4=row6.
+    const rows = [false, false, true, false, false, true, false]
+    const isWrapped = buffer(rows)
+
+    // A logical span of 3 covers L1..L3, reaching the last wrapped row of L3
+    // (row 5) rather than stopping three rows down.
+    expect(visualEndForLogicalSpan(isWrapped, rows.length, 0, 3)).toBe(5)
+  })
+
+  it('stops before the row that starts the next logical line', () => {
+    const rows = [false, false, true, false]
+    const isWrapped = buffer(rows)
+    // span of 1: first output logical line is rows 1-2 (row 2 wraps), row 3 begins
+    // the next logical line and must be excluded.
+    expect(visualEndForLogicalSpan(isWrapped, rows.length, 0, 1)).toBe(2)
+  })
+
+  it('returns the start row for an empty span', () => {
+    const rows = [false, false, false]
+    expect(visualEndForLogicalSpan(buffer(rows), rows.length, 0, 0)).toBe(0)
+  })
+
+  it('never reads past the end of the buffer', () => {
+    const rows = [false, true, true]
+    // span larger than the buffer clamps to the last available row.
+    expect(visualEndForLogicalSpan(buffer(rows), rows.length, 0, 10)).toBe(2)
+  })
+})
 
 describe('terminal block command matching', () => {
   it('handles empty and whitespace-only commands', () => {

@@ -12,7 +12,7 @@ import type { TerminalBlock, TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -140,6 +140,10 @@ function lineTextAt(terminal: Terminal, line: number): string {
   return terminal.buffer.active.getLine(line)?.translateToString(true) ?? ''
 }
 
+function isWrappedRowAt(terminal: Terminal, line: number): boolean | undefined {
+  return terminal.buffer.active.getLine(line)?.isWrapped
+}
+
 function parseCssRgb(value: string | undefined): [number, number, number] | undefined {
   const color = value?.trim()
   if (!color) return undefined
@@ -261,11 +265,16 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
       }
     }
 
-    const visualStartOffset = Math.max(0, block.startLine - start)
+    const logicalSpan = Math.max(0, block.endLine - block.startLine)
     const storedEndBoundary = block.complete
       ? Math.min(
         terminal.buffer.active.length,
-        start + visualStartOffset + Math.max(0, block.endLine - block.startLine) + 1
+        visualEndForLogicalSpan(
+          (line) => isWrappedRowAt(terminal, line),
+          terminal.buffer.active.length,
+          start,
+          logicalSpan
+        ) + 1
       )
       : terminal.buffer.active.length
     const endBoundary = Math.min(

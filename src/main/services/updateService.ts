@@ -8,6 +8,12 @@ const { autoUpdater } = electronUpdater
 const UPDATE_STATUS_CHANNEL = 'update:status'
 /** Re-check the feed periodically while the app stays open (6 hours). */
 const PERIODIC_CHECK_MS = 6 * 60 * 60 * 1000
+/**
+ * Placeholder version kept by dev and local/unsigned packages
+ * (`package:mac:unsigned`). Only the release workflow stamps a real version from
+ * the tag, so this doubles as a "is this a real release artifact" marker.
+ */
+const DEV_VERSION = '0.0.0'
 
 let initialized = false
 let lastStatus: UpdateStatus = { state: 'idle' }
@@ -22,9 +28,15 @@ function publishStatus(status: UpdateStatus): void {
   }
 }
 
-/** Auto-update only makes sense for packaged, signed macOS builds with a release feed. */
+/**
+ * Auto-update only makes sense for packaged macOS *release* builds: Squirrel.Mac
+ * can only apply an update to a signed current app. Local/unsigned packages
+ * (`package:mac:unsigned`) are also `app.isPackaged`, but keep the `0.0.0`
+ * placeholder version — gating on a real version excludes them so they never
+ * query the production feed or show a restart prompt.
+ */
 function isUpdateSupported(): boolean {
-  return app.isPackaged && process.platform === 'darwin'
+  return app.isPackaged && process.platform === 'darwin' && app.getVersion() !== DEV_VERSION
 }
 
 function registerListeners(): void {

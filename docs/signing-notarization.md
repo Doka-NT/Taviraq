@@ -76,7 +76,10 @@ Signed, notarized release builds update themselves through
 publishes a `latest-mac.yml` feed alongside the `.zip`, and the app reads it from
 the GitHub Releases of `Doka-NT/Taviraq` (configured via `build.publish`).
 
-- The updater only runs in a packaged macOS build; it is a no-op in `npm run dev`.
+- The updater only runs in a packaged macOS *release* build; it is a no-op in
+  `npm run dev` and in local/unsigned packages (`package:mac:unsigned`), which keep
+  the `0.0.0` placeholder version. Only the release workflow stamps a real version
+  from the tag, so that version doubles as the "real release artifact" gate.
 - On launch (and every six hours) the app checks the feed, downloads a newer signed
   build in the background, and shows an unobtrusive banner.
 - Restarting is the user's choice; a staged update also installs on the next quit.

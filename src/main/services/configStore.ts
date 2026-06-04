@@ -2,9 +2,10 @@ import { app } from 'electron'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
-import type { AppConfig, LLMProviderConfig, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings, SSHProfileConfig } from '@shared/types'
+import type { AppConfig, LLMProviderConfig, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings, SSHProfileConfig, TelemetrySettings } from '@shared/types'
 import { createDefaultSecretMaskingSettings, isSafeCustomSecretPatternSource } from '@shared/secretMaskingConfig'
 import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
+import { createDefaultTelemetrySettings, normalizeTelemetrySettings } from '@shared/telemetryConfig'
 
 const CONFIG_FILE = 'config.json'
 
@@ -23,6 +24,7 @@ const defaultConfig: AppConfig = {
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
   chatTools: createDefaultChatToolsSettings(),
+  telemetry: createDefaultTelemetrySettings(() => randomUUID()),
   windowBounds: {
     width: 1440,
     height: 920
@@ -139,13 +141,54 @@ export class ConfigStore {
       chatTools: normalizeChatToolsSettings(settings)
     }))
   }
+
+  /**
+   * Apply a partial telemetry change (consent decision / enabled flag) while
+   * preserving the anonymous `installId`. Stamps `consentedAt` whenever the
+   * consent decision moves away from `pending`.
+   */
+  async updateTelemetrySettings(patch: unknown): Promise<AppConfig> {
+    return this.update((config) => {
+      const current = normalizeTelemetrySettings(config.telemetry, () => randomUUID())
+      const record = patch && typeof patch === 'object' ? (patch as Partial<TelemetrySettings>) : {}
+      const merged = normalizeTelemetrySettings(
+        {
+          ...current,
+          ...record,
+          installId: current.installId
+        },
+        () => current.installId
+      )
+      if (merged.consentDecision !== 'pending' && merged.consentDecision !== current.consentDecision) {
+        merged.consentedAt = new Date().toISOString()
+      }
+      return { ...config, telemetry: merged }
+    })
+  }
+
+  /**
+   * Load telemetry settings, persisting a stable anonymous `installId` on first
+   * run. Returns `isFirstRun = true` when no config file existed yet, so the
+   * caller can emit a one-time first-run funnel event.
+   */
+  async initTelemetry(): Promise<{ settings: TelemetrySettings; isFirstRun: boolean }> {
+    let isFirstRun = false
+    try {
+      await readFile(this.path, 'utf8')
+    } catch {
+      isFirstRun = true
+    }
+    const config = await this.update((current) => current)
+    return { settings: normalizeTelemetrySettings(config.telemetry, () => randomUUID()), isFirstRun }
+  }
 }
 
 function normalizeConfig(config: AppConfig): AppConfig {
   return {
     ...config,
     secretMasking: normalizeSecretMaskingSettings(config.secretMasking),
-    chatTools: normalizeChatToolsSettings(config.chatTools)
+    chatTools: normalizeChatToolsSettings(config.chatTools),
+    telemetry: normalizeTelemetrySettings(config.telemetry, () => randomUUID())
   }
 }
 

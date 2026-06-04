@@ -5,6 +5,7 @@ import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane
 import { LlmPanel } from './components/LlmPanel'
 import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
 import { UpdateNotice } from './components/UpdateNotice'
+import { TelemetryConsent } from './components/TelemetryConsent'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { TRANSLATIONS, type Language, type Translations } from './i18n/translations'
 import { themeMap, themes, DEFAULT_THEME_ID } from './themes/definitions'
@@ -1465,6 +1466,7 @@ export function App(): JSX.Element {
   return (
     <LanguageProvider language={language}>
     <UpdateNotice />
+    <TelemetryConsent />
     <main
       ref={appShellRef}
       className={`app-shell${sidebarVisible ? '' : ' sidebar-hidden'}${sidebarTransitioning ? ' sidebar-transitioning' : ''}${sidebarResizing ? ' sidebar-resizing' : ''}`}

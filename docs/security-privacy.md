@@ -79,9 +79,36 @@ confirmation message notes the SSH context.
 
 ## Telemetry
 
-The app does not include analytics or telemetry. Network traffic goes only to
-the providers you configure, update checks from your installation method, and
-any links you open manually.
+Taviraq includes **opt-in, privacy-respecting activation telemetry**. It is
+**off by default** — nothing is sent until you explicitly turn it on. A
+first-run prompt asks for consent, and you can change the choice at any time in
+**Settings → Security & Privacy → Anonymous usage telemetry**.
+
+When (and only when) you opt in, the app sends a small set of aggregate
+**funnel events** so we can understand which onboarding steps people complete:
+
+- `app_first_run` — the first launch of a fresh install
+- `app_opened` — the app was launched (retention)
+- `session_started` — a terminal session was opened
+- `ai_request_sent` — an AI request was sent
+
+Each event carries only coarse, non-identifying context: an anonymous,
+locally generated install id (used solely to de-duplicate funnel steps), the
+app version, the OS platform, and the UI locale. **No terminal content, command
+text, prompts, file paths, secrets, account, email, or IP-based identity is
+collected or stored.** Events are de-duplicated to at most once per launch.
+
+Additional guarantees:
+
+- Telemetry runs **only in packaged, signed release builds**. It is a no-op in
+  `npm run dev` and in local/unsigned packages (which keep the `0.0.0`
+  placeholder version), exactly like auto-update.
+- A release build with **no ingest endpoint configured at build time sends
+  nothing**, anywhere.
+- Turning the toggle off immediately stops all sends.
+
+Aside from telemetry, network traffic goes only to the providers you configure,
+update checks from your installation method, and any links you open manually.
 
 ## Reporting Concerns
 

@@ -552,6 +552,16 @@ export interface Translations {
   'update.downloaded': string
   'update.restart': string
   'update.dismiss': string
+  'telemetry.consent.title': string
+  'telemetry.consent.body': string
+  'telemetry.consent.accept': string
+  'telemetry.consent.decline': string
+  'security.telemetry.label': string
+  'security.telemetry.desc': string
+  'security.telemetry.on': string
+  'security.telemetry.off': string
+  'security.telemetry.onState': string
+  'security.telemetry.offState': string
 }
 
 export const en: Translations = {
@@ -1084,6 +1094,16 @@ export const en: Translations = {
   'update.downloaded': 'Update {version} is ready to install.',
   'update.restart': 'Restart',
   'update.dismiss': 'Later',
+  'telemetry.consent.title': 'Help improve Taviraq?',
+  'telemetry.consent.body': 'Share anonymous, aggregate usage events (like first launch and first AI request) so we can improve onboarding. No terminal content, commands, or personal data is ever collected. Off by default — you can change this anytime in Settings → Security & Privacy.',
+  'telemetry.consent.accept': 'Share anonymous usage',
+  'telemetry.consent.decline': 'No thanks',
+  'security.telemetry.label': 'Anonymous usage telemetry',
+  'security.telemetry.desc': 'Opt-in, aggregate activation events only — no terminal content, commands, or personal data. Sent only from signed release builds.',
+  'security.telemetry.on': 'Telemetry on',
+  'security.telemetry.off': 'Telemetry off',
+  'security.telemetry.onState': 'Sharing',
+  'security.telemetry.offState': 'Not sharing',
 }
 
 export const ru: Translations = {
@@ -1616,6 +1636,16 @@ export const ru: Translations = {
   'update.downloaded': 'Обновление {version} готово к установке.',
   'update.restart': 'Перезапустить',
   'update.dismiss': 'Позже',
+  'telemetry.consent.title': 'Помочь улучшить Taviraq?',
+  'telemetry.consent.body': 'Делитесь анонимными агрегированными событиями использования (например, первый запуск и первый AI-запрос), чтобы мы улучшали онбординг. Содержимое терминала, команды и личные данные никогда не собираются. По умолчанию выключено — изменить можно в любой момент в «Настройки → Безопасность и приватность».',
+  'telemetry.consent.accept': 'Делиться анонимно',
+  'telemetry.consent.decline': 'Нет, спасибо',
+  'security.telemetry.label': 'Анонимная телеметрия использования',
+  'security.telemetry.desc': 'Только по согласию: агрегированные события активации — без содержимого терминала, команд и личных данных. Отправляется только из подписанных релизных сборок.',
+  'security.telemetry.on': 'Телеметрия включена',
+  'security.telemetry.off': 'Телеметрия выключена',
+  'security.telemetry.onState': 'Отправляется',
+  'security.telemetry.offState': 'Не отправляется',
 }
 
 export const cn: Translations = {
@@ -2148,6 +2178,16 @@ export const cn: Translations = {
   'update.downloaded': '更新 {version} 已准备好安装。',
   'update.restart': '重启',
   'update.dismiss': '稍后',
+  'telemetry.consent.title': '帮助改进 Taviraq？',
+  'telemetry.consent.body': '分享匿名的聚合使用事件（如首次启动和首次 AI 请求），帮助我们改进新手引导。绝不收集终端内容、命令或个人数据。默认关闭——可随时在「设置 → 安全与隐私」中更改。',
+  'telemetry.consent.accept': '分享匿名数据',
+  'telemetry.consent.decline': '不用了',
+  'security.telemetry.label': '匿名使用遥测',
+  'security.telemetry.desc': '需明确同意：仅聚合的激活事件——不含终端内容、命令或个人数据。仅从已签名的发布版本发送。',
+  'security.telemetry.on': '遥测已开启',
+  'security.telemetry.off': '遥测已关闭',
+  'security.telemetry.onState': '正在分享',
+  'security.telemetry.offState': '未分享',
 }
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ru, cn }

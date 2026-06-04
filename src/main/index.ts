@@ -29,6 +29,7 @@ import type {
   SSHProfile,
   ChatToolsSettings,
   SSHProfileConfig,
+  TelemetrySettings,
   TerminalContext,
   SummarizeConversationRequest
 } from '@shared/types'
@@ -73,6 +74,7 @@ import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
 import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
+import { setTelemetrySettings, trackEvent } from './services/telemetryService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -903,6 +905,16 @@ function registerIpc(): void {
     return configStore.updateChatToolsSettings(settings)
   })
 
+  ipcMain.handle('config:setTelemetrySettings', async (_event, patch: Partial<TelemetrySettings>) => {
+    if (DEMO_MODE) {
+      return demoConfig
+    }
+
+    const config = await configStore.updateTelemetrySettings(patch)
+    setTelemetrySettings(config.telemetry)
+    return config
+  })
+
   ipcMain.handle('taskPlan:reveal', async (_event, sessionId: unknown, plan: unknown) => {
     if (typeof sessionId !== 'string' || !sessionId.trim()) return
     if (typeof plan !== 'string' || !plan.trim()) return
@@ -949,6 +961,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('terminal:create', (_event, request?: CreateTerminalRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.createLocal(request)
   })
 
@@ -1002,10 +1015,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ssh:connectProfile', (_event, profile: SSHProfile, request?: CreateTerminalRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.connectSsh(profile, request)
   })
 
   ipcMain.handle('ssh:connectCommand', (_event, request: CreateSshCommandRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.connectSshCommand(request)
   })
 
@@ -1451,6 +1466,8 @@ function registerIpc(): void {
       return
     }
 
+    trackEvent('ai_request_sent', { oncePerRun: true })
+
     void (async () => {
       try {
         await ensureSecretMaskingSettingsCache()
@@ -1550,6 +1567,16 @@ void app.whenReady().then(async () => {
   registerIpc()
   void createWindow()
   initAutoUpdates(() => mainWindow)
+
+  if (!DEMO_MODE) {
+    void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
+      setTelemetrySettings(settings)
+      if (isFirstRun) {
+        trackEvent('app_first_run', { oncePerRun: true })
+      }
+      trackEvent('app_opened', { oncePerRun: true })
+    })
+  }
 
   app.on('activate', () => {
     if (isQuitting) return

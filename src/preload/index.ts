@@ -33,6 +33,7 @@ import type {
   SSHProfile,
   SSHProfileConfig,
   SummarizeConversationRequest,
+  TelemetrySettings,
   TerminalCommandEvent,
   TerminalSessionInfo,
   UpdateStatus
@@ -89,7 +90,9 @@ const api = {
     setSecretMaskingSettings: (settings: SecretMaskingSettings) =>
       ipcRenderer.invoke('config:setSecretMaskingSettings', settings) as Promise<AppConfig>,
     setChatToolsSettings: (settings: ChatToolsSettings) =>
-      ipcRenderer.invoke('config:setChatToolsSettings', settings) as Promise<AppConfig>
+      ipcRenderer.invoke('config:setChatToolsSettings', settings) as Promise<AppConfig>,
+    setTelemetrySettings: (patch: Partial<TelemetrySettings>) =>
+      ipcRenderer.invoke('config:setTelemetrySettings', patch) as Promise<AppConfig>
   },
   taskPlan: {
     reveal: (sessionId: string, plan: string) =>

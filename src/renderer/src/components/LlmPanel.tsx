@@ -13,6 +13,7 @@ import type {
   DataUsageStats, DiscoveredMcpServer, McpServerConfig,
   PrivacyMaskingNotice, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, SSHProfileConfig, SavedChat, SavedChatSummary,
   SecretMaskingAuditEvent, SecretMaskingAuditSource, SecretMaskingCustomPattern, SecretMaskingMode, SecretMaskingSettings,
+  TelemetrySettings,
   TerminalContext, TerminalCursorStyle, TerminalSessionInfo
 } from '@shared/types'
 import {
@@ -985,6 +986,7 @@ export function LlmPanel({
   const [maxOutputContextDraft, setMaxOutputContextDraft] = useState(String(maxOutputContext))
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
   const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
+  const [telemetrySettings, setTelemetrySettings] = useState<TelemetrySettings | null>(null)
   const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
@@ -1342,6 +1344,7 @@ export function LlmPanel({
     setDraftProviderRef(null)
     setSecretMaskingSettings(config.secretMasking ?? createDefaultSecretMaskingSettings())
     setChatToolsSettings(config.chatTools ?? createDefaultChatToolsSettings())
+    setTelemetrySettings(config.telemetry ?? null)
   }, [])
 
   // Load config on mount
@@ -2932,6 +2935,18 @@ export function LlmPanel({
       setSecurityStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
     })
   }, [])
+
+  const toggleTelemetry = useCallback(() => {
+    const nextEnabled = !(telemetrySettings?.enabled ?? false)
+    void window.api.config.setTelemetrySettings({
+      enabled: nextEnabled,
+      consentDecision: nextEnabled ? 'granted' : 'denied'
+    }).then((result) => {
+      setTelemetrySettings(result.telemetry ?? null)
+    }).catch((err: unknown) => {
+      setSecurityStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+    })
+  }, [telemetrySettings])
 
   const saveChatToolsSettings = useCallback((settings: ChatToolsSettings) => {
     // Optimistic update; reconcile with the persisted value the main process returns.
@@ -4537,6 +4552,40 @@ export function LlmPanel({
                             aria-label={t('security.secretMasking.label')}
                             title={secretProtectionActive ? t('security.secretMasking.on') : t('security.secretMasking.off')}
                             onClick={toggleSecretProtection}
+                          >
+                            <span aria-hidden />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className={`appearance-row security-row ${telemetrySettings?.enabled ? 'security-row--on' : 'security-row--off'} ${settingsMatchClass([
+                        t('security.telemetry.label'),
+                        t('security.telemetry.desc'),
+                        'telemetry analytics activation usage anonymous opt-in privacy'
+                      ])}`}>
+                        <div className="appearance-row-left security-row-left">
+                          <div className="security-row-heading">
+                            <span className="appearance-row-label"><HighlightSearchText text={t('security.telemetry.label')} query={settingsSearch} /></span>
+                            <span className="security-row-state">
+                              <HighlightSearchText
+                                text={telemetrySettings?.enabled ? t('security.telemetry.onState') : t('security.telemetry.offState')}
+                                query={settingsSearch}
+                              />
+                            </span>
+                          </div>
+                          <small className="appearance-row-desc">
+                            <HighlightSearchText text={t('security.telemetry.desc')} query={settingsSearch} />
+                          </small>
+                        </div>
+                        <div className="appearance-row-right">
+                          <button
+                            type="button"
+                            className={`security-switch ${telemetrySettings?.enabled ? 'on' : ''}`}
+                            role="switch"
+                            aria-checked={telemetrySettings?.enabled ?? false}
+                            aria-label={t('security.telemetry.label')}
+                            title={telemetrySettings?.enabled ? t('security.telemetry.on') : t('security.telemetry.off')}
+                            onClick={toggleTelemetry}
                           >
                             <span aria-hidden />
                           </button>

@@ -6084,3 +6084,81 @@ textarea:focus {
   background: var(--bg-hover-10);
   color: var(--text-primary);
 }
+
+.telemetry-consent {
+  position: fixed;
+  bottom: 18px;
+  left: 18px;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 420px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  color: var(--text-primary);
+}
+
+.telemetry-consent__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-accent);
+}
+
+.telemetry-consent__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.telemetry-consent__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.telemetry-consent__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.telemetry-consent__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.telemetry-consent__accept {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.telemetry-consent__accept:hover {
+  filter: brightness(1.08);
+}
+
+.telemetry-consent__decline {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.telemetry-consent__decline:hover {
+  background: var(--bg-hover-10);
+}

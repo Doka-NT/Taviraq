@@ -3,16 +3,19 @@
 Taviraq can be built unsigned for developer preview releases, or signed and
 notarized for a trusted public release.
 
-## Current Developer Preview Builds
+## Release builds (signed + notarized)
 
-The default local packaging commands and GitHub release workflow set:
+The GitHub release workflow (`.github/workflows/release.yml`) signs and notarizes
+the `.zip` artifact using the repository secrets listed under **Signing Prep**.
+The build config enables `hardenedRuntime`, applies `build/entitlements.mac.plist`,
+and the workflow runs `electron-builder` with `-c.mac.notarize=true`, then verifies
+the result with `codesign` / `spctl` / `stapler` before publishing.
 
-```bash
-CSC_IDENTITY_AUTO_DISCOVERY=false
-```
+## Local unsigned builds
 
-This keeps automated preview builds unsigned unless the workflow is intentionally
-changed to use signing credentials.
+Local packaging scripts set `CSC_IDENTITY_AUTO_DISCOVERY=false`, so they stay
+unsigned even though signing config is present. Signing only happens when signing
+credentials (`CSC_LINK`) are available, as in CI.
 
 For local app installation without signing:
 
@@ -40,8 +43,8 @@ Recommended GitHub secrets:
 - `APPLE_APP_SPECIFIC_PASSWORD`: app-specific password
 - `APPLE_TEAM_ID`: Apple Developer Team ID
 
-The default `package.json` build config also sets `mac.identity` to `null` so
-local and preview builds do not enter `codesign`.
+Signing is gated by credentials, not by config: without `CSC_LINK` /
+`CSC_IDENTITY_AUTO_DISCOVERY=false`, builds do not enter `codesign`.
 
 For an explicit local signed package build:
 

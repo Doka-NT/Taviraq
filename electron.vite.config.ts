@@ -5,6 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    // Bake the telemetry ingest endpoint into the bundle at build time. A
+    // packaged app launched from Finder has no shell environment, so this can
+    // never be read from `process.env` at runtime — it must be injected here.
+    // Empty unless the release build sets TAVIRAQ_TELEMETRY_URL.
+    define: {
+      __TELEMETRY_ENDPOINT__: JSON.stringify(process.env.TAVIRAQ_TELEMETRY_URL ?? '')
+    },
     resolve: {
       alias: {
         '@shared': resolve('src/shared'),

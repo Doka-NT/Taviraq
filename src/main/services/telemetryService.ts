@@ -9,11 +9,20 @@ import type { TelemetryEvent, TelemetrySettings } from '@shared/types'
 const DEV_VERSION = '0.0.0'
 
 /**
- * HTTPS ingest endpoint, supplied at build time. When unset (the default), the
+ * HTTPS ingest endpoint baked in at build time via electron-vite `define`
+ * (see `electron.vite.config.ts`). A packaged app launched from Finder has no
+ * shell environment, so the endpoint cannot be read from `process.env` at
+ * runtime — it must be a compile-time constant. When unset (the default), the
  * client is a hard no-op: a build with no endpoint configured never sends
- * anything, anywhere.
+ * anything, anywhere. The `process.env` fallback only applies under tests,
+ * where the `define` constant is not substituted.
  */
-const ENDPOINT = (process.env.TAVIRAQ_TELEMETRY_URL ?? '').trim()
+declare const __TELEMETRY_ENDPOINT__: string
+const ENDPOINT = (
+  typeof __TELEMETRY_ENDPOINT__ !== 'undefined'
+    ? __TELEMETRY_ENDPOINT__
+    : process.env.TAVIRAQ_TELEMETRY_URL ?? ''
+).trim()
 
 /** Network send is best-effort and must never delay or block the app. */
 const SEND_TIMEOUT_MS = 5000

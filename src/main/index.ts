@@ -90,6 +90,8 @@ let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
 let quitWindowBoundsSave: Promise<void> | undefined
 const configStore = new ConfigStore()
+/** True for the launch of a fresh install until the first-run event is replayed post-consent. */
+let telemetryFirstRunPending = false
 const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
@@ -912,6 +914,14 @@ function registerIpc(): void {
 
     const config = await configStore.updateTelemetrySettings(patch)
     setTelemetrySettings(config.telemetry)
+    // Replay the funnel events that were dropped while consent was pending, so a
+    // user who opts in on first run still produces the first-run/opened signals.
+    if (config.telemetry?.enabled) {
+      if (telemetryFirstRunPending) {
+        trackEvent('app_first_run', { oncePerRun: true })
+      }
+      trackEvent('app_opened', { oncePerRun: true })
+    }
     return config
   })
 
@@ -1571,6 +1581,10 @@ void app.whenReady().then(async () => {
   if (!DEMO_MODE) {
     void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
       setTelemetrySettings(settings)
+      // On a fresh install these no-op while consent is still pending; the
+      // first-run/opened events are then replayed once consent is granted in
+      // the config:setTelemetrySettings handler.
+      telemetryFirstRunPending = isFirstRun
       if (isFirstRun) {
         trackEvent('app_first_run', { oncePerRun: true })
       }

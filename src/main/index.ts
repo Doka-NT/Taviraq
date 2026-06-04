@@ -72,6 +72,7 @@ import { buildAccelerator } from '../shared/accelerator'
 import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
+import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -933,6 +934,12 @@ function registerIpc(): void {
     mainWindow?.setOpacity(1)
   })
 
+  ipcMain.handle('update:getStatus', () => getUpdateStatus())
+  ipcMain.handle('update:check', () => checkForUpdates())
+  ipcMain.handle('update:install', () => {
+    quitAndInstall()
+  })
+
   ipcMain.handle('shortcut:startRecording', () => {
     isRecordingShortcut = true
   })
@@ -1542,6 +1549,7 @@ void app.whenReady().then(async () => {
   registerApplicationMenu()
   registerIpc()
   void createWindow()
+  initAutoUpdates(() => mainWindow)
 
   app.on('activate', () => {
     if (isQuitting) return
@@ -1563,4 +1571,5 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  disposeAutoUpdates()
 })

@@ -34,13 +34,26 @@ import type {
   SSHProfileConfig,
   SummarizeConversationRequest,
   TerminalCommandEvent,
-  TerminalSessionInfo
+  TerminalSessionInfo,
+  UpdateStatus
 } from '@shared/types'
 
 const api = {
   app: {
     openExternalUrl: (url: string) => ipcRenderer.invoke('app:openExternalUrl', url) as Promise<void>,
     setWindowOpacity: (opacity: number) => ipcRenderer.invoke('app:setWindowOpacity', opacity) as Promise<void>
+  },
+  update: {
+    getStatus: () => ipcRenderer.invoke('update:getStatus') as Promise<UpdateStatus>,
+    check: () => ipcRenderer.invoke('update:check') as Promise<void>,
+    install: () => ipcRenderer.invoke('update:install') as Promise<void>,
+    onStatus: (callback: (status: UpdateStatus) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status)
+      ipcRenderer.on('update:status', listener)
+      return () => {
+        ipcRenderer.removeListener('update:status', listener)
+      }
+    }
   },
   shortcuts: {
     onShortcut: (callback: (action: AppShortcutAction) => void) => {

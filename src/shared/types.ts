@@ -411,3 +411,22 @@ export interface ImportResult {
   mcpServersAdded: number
   preferences?: ExportData['preferences']
 }
+
+export type UpdateStatusState =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'not-available'
+  | 'error'
+
+export interface UpdateStatus {
+  state: UpdateStatusState
+  /** Version offered by the feed, when known. */
+  version?: string
+  /** Download progress percentage (0-100) while state is 'downloading'. */
+  percent?: number
+  /** Human-readable error message when state is 'error'. */
+  error?: string
+}

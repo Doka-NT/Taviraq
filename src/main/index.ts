@@ -37,6 +37,7 @@ import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
 import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
+import { normalizeTelemetrySettings } from '@shared/telemetryConfig'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -1371,6 +1372,15 @@ function registerIpc(): void {
       chatTools: data.config?.chatTools
         ? normalizeChatToolsSettings(data.config.chatTools)
         : currentConfig.chatTools,
+      // Preserve the imported telemetry consent choice (denied/granted) so a
+      // restored backup keeps the user's opt-out and doesn't re-prompt. Falls
+      // back to this machine's install id when the import lacks one.
+      telemetry: data.config?.telemetry
+        ? normalizeTelemetrySettings(
+            data.config.telemetry,
+            () => currentConfig.telemetry?.installId ?? randomUUID()
+          )
+        : currentConfig.telemetry,
       providers: [...currentConfig.providers, ...newProviders]
     }
 
@@ -1424,6 +1434,7 @@ function registerIpc(): void {
 
     await configStore.save(mergedConfig)
     updateSecretMaskingSettingsCache(mergedConfig)
+    setTelemetrySettings(mergedConfig.telemetry)
     for (const prompt of newPrompts) {
       await promptStore.save(prompt)
     }

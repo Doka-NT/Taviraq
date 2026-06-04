@@ -69,6 +69,26 @@ xcrun stapler validate "dist/mac/Taviraq.app"
 spctl --assess --type execute --verbose "dist/mac/Taviraq.app"
 ```
 
+## Auto-update
+
+Signed, notarized release builds update themselves through
+[`electron-updater`](https://www.electron.build/auto-update). The release workflow
+publishes a `latest-mac.yml` feed alongside the `.zip`, and the app reads it from
+the GitHub Releases of `Doka-NT/Taviraq` (configured via `build.publish`).
+
+- The updater only runs in a packaged macOS *release* build; it is a no-op in
+  `npm run dev` and in local/unsigned packages (`package:mac:unsigned`), which keep
+  the `0.0.0` placeholder version. Only the release workflow stamps a real version
+  from the tag, so that version doubles as the "real release artifact" gate.
+- On launch (and every six hours) the app checks the feed, downloads a newer signed
+  build in the background, and shows an unobtrusive banner.
+- Restarting is the user's choice; a staged update also installs on the next quit.
+- macOS requires the build to be signed for Squirrel.Mac to apply the update, so
+  auto-update depends on the signing setup above.
+
+The release job fails if `latest-mac.yml` is missing from `dist/`, so a release can
+never ship a `.zip` without its matching update feed.
+
 ## Release Rule
 
 Do not describe a build as trusted, signed, or notarized unless these checks pass

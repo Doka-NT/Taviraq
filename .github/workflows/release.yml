@@ -71,6 +71,13 @@ jobs:
           spctl --assess --type execute --verbose=4 "$APP"
           xcrun stapler validate "$APP"
 
+      - name: Verify auto-update feed
+        run: |
+          if [ ! -f dist/latest-mac.yml ]; then
+            echo "latest-mac.yml missing from dist/ — auto-update feed would be incomplete"
+            exit 1
+          fi
+
       - name: Generate checksums
         run: |
           cd dist
@@ -112,10 +119,10 @@ jobs:
           EOF
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" dist/*.zip dist/checksums.txt CHANGELOG.md --clobber
+            gh release upload "$TAG_NAME" dist/*.zip dist/latest-mac.yml dist/checksums.txt CHANGELOG.md --clobber
             gh release edit "$TAG_NAME" --draft=false --notes-file release-notes.md
           else
-            gh release create "$TAG_NAME" dist/*.zip dist/checksums.txt CHANGELOG.md \
+            gh release create "$TAG_NAME" dist/*.zip dist/latest-mac.yml dist/checksums.txt CHANGELOG.md \
               --title "$TAG_NAME" \
               --notes-file release-notes.md
           fi

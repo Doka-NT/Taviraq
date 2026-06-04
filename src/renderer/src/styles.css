@@ -6018,3 +6018,69 @@ textarea:focus {
   display: flex;
   justify-content: flex-end;
 }
+
+.update-notice {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 380px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.update-notice__icon {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.update-notice__spin {
+  animation: spin 1s linear infinite;
+}
+
+.update-notice__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-notice__action {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: none;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.update-notice__action:hover {
+  filter: brightness(1.08);
+}
+
+.update-notice__dismiss {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.update-notice__dismiss:hover {
+  background: var(--bg-hover-10);
+  color: var(--text-primary);
+}

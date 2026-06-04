@@ -546,6 +546,12 @@ export interface Translations {
   'promptPalette.empty': string
   'promptPalette.emptyCta': string
   'promptPalette.noMatch': string
+
+  // Auto-update
+  'update.downloading': string
+  'update.downloaded': string
+  'update.restart': string
+  'update.dismiss': string
 }
 
 export const en: Translations = {
@@ -1073,6 +1079,11 @@ export const en: Translations = {
   'promptPalette.empty': 'No prompts yet.',
   'promptPalette.emptyCta': 'Add prompt',
   'promptPalette.noMatch': 'No matching prompts.',
+
+  'update.downloading': 'Downloading update… {percent}%',
+  'update.downloaded': 'Update {version} is ready to install.',
+  'update.restart': 'Restart',
+  'update.dismiss': 'Later',
 }
 
 export const ru: Translations = {
@@ -1600,6 +1611,11 @@ export const ru: Translations = {
   'promptPalette.empty': 'Промптов пока нет.',
   'promptPalette.emptyCta': 'Добавить промпт',
   'promptPalette.noMatch': 'Подходящих промптов нет.',
+
+  'update.downloading': 'Загрузка обновления… {percent}%',
+  'update.downloaded': 'Обновление {version} готово к установке.',
+  'update.restart': 'Перезапустить',
+  'update.dismiss': 'Позже',
 }
 
 export const cn: Translations = {
@@ -2127,6 +2143,11 @@ export const cn: Translations = {
   'promptPalette.empty': '还没有提示词。',
   'promptPalette.emptyCta': '添加提示词',
   'promptPalette.noMatch': '没有匹配的提示词。',
+
+  'update.downloading': '正在下载更新… {percent}%',
+  'update.downloaded': '更新 {version} 已准备好安装。',
+  'update.restart': '重启',
+  'update.dismiss': '稍后',
 }
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ru, cn }

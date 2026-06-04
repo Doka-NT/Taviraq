@@ -922,6 +922,11 @@ function registerIpc(): void {
         trackEvent('app_first_run', { oncePerRun: true })
       }
       trackEvent('app_opened', { oncePerRun: true })
+      // The initial terminal is auto-created before the consent prompt is
+      // answered, so replay session_started when a session already exists.
+      if (terminalManager.list().length > 0) {
+        trackEvent('session_started', { oncePerRun: true })
+      }
     }
     return config
   })

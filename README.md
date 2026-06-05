@@ -30,7 +30,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo" width="800">
+  <a href="docs/media/taviraq-demo.mp4">
+    <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo: a risky rm -rf is paused by the safety review modal before it can run" width="800">
+  </a>
+  <br>
+  <em><a href="docs/media/taviraq-demo.mp4">▶ Watch the 22-second demo in HD (MP4)</a></em>
 </p>
 
 ## What it is

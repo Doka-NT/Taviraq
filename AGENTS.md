@@ -87,9 +87,11 @@ Privacy is a product value; treat telemetry as opt-in by default and keep these 
 - **Default off.** Nothing is sent until the user explicitly opts in (consent prompt or
   Settings toggle). `enabled` is forced false in `normalizeTelemetrySettings` unless the
   consent decision is `granted`, so a tampered/imported config cannot silently enable it.
-- **Aggregate only.** Events are bare funnel names with no payload content (no terminal
-  text, commands, prompts, paths, secrets, persistent install id). Aptabase appends only
-  coarse context (OS, version, locale, rotating session).
+- **Aggregate only.** Events carry no free-form content (no terminal text, commands,
+  prompts, paths, secrets, persistent install id). The only app-supplied props are
+  documented low-cardinality, non-identifying enums (currently just `error_class` on
+  `ai_request_failed`); everything else is a bare name. Aptabase appends only coarse
+  context (OS, version, locale, rotating session).
 - **Release-only.** Runs solely in packaged signed release builds (no dev, no `0.0.0`
   unsigned packages) and only when an Aptabase key is configured; otherwise a hard no-op.
 - **Consent lifecycle.** When adding/changing events, audit the full lifecycle: events

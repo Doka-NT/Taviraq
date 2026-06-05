@@ -1642,6 +1642,14 @@ void app.whenReady().then(async () => {
   if (!DEMO_MODE) {
     void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
       setTelemetrySettings(settings)
+      // createWindow() runs before this async load resolves, so an early
+      // session_started may already be buffered as "pending". Reconcile it with
+      // the loaded decision: send if opted in, drop if denied, keep if pending.
+      if (settings.enabled) {
+        flushPendingEvents()
+      } else if (settings.consentDecision === 'denied') {
+        clearPendingEvents()
+      }
       // On a fresh install these are held while consent is pending and replayed
       // once the user opts in (telemetryService buffers pre-consent events).
       if (isFirstRun) {

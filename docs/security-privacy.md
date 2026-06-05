@@ -97,14 +97,17 @@ When (and only when) you opt in, the app sends a small set of aggregate
   (`auth`, `rate_limit`, `timeout`, `network`, `server`, `other`) — never the
   error message
 
-Each event is just the bare event name. The analytics provider
-([Aptabase](https://aptabase.com), a privacy-first, GDPR-friendly service)
-appends only coarse, non-identifying context on its own — the app version, OS
-platform, UI locale, and an anonymous session id that rotates and is **not** a
-persistent cross-session identifier. **No terminal content, command text,
-prompts, file paths, secrets, account, email, persistent install id, or
-IP-based identity is collected or stored.** Events are de-duplicated to at most
-once per launch.
+Events carry no free-form content. The only app-supplied structured data is a
+small, documented set of **low-cardinality, non-identifying enum properties** —
+currently just `error_class` on `ai_request_failed` (one of `auth`,
+`rate_limit`, `timeout`, `network`, `server`, `other`). Every other event is a
+bare name. The analytics provider ([Aptabase](https://aptabase.com), a
+privacy-first, GDPR-friendly service) appends only coarse, non-identifying
+context on its own — the app version, OS platform, UI locale, and an anonymous
+session id that rotates and is **not** a persistent cross-session identifier.
+**No terminal content, command text, prompts, file paths, secrets, account,
+email, persistent install id, or IP-based identity is collected or stored.**
+Events are de-duplicated to at most once per launch.
 
 Additional guarantees:
 

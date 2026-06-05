@@ -144,6 +144,13 @@ make build
 # Output: dist/*.pkg and dist/*.zip (unsigned)
 ```
 
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Before
+your first pull request can be merged, you will be asked to sign our
+[Contributor License Agreement](CLA.md) — a one-time, automated step handled by a bot on
+the PR.
+
 ## License
 
 Taviraq source code is licensed under the

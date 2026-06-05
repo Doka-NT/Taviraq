@@ -110,6 +110,43 @@ describe('telemetryService gating', () => {
     expect(h.track).not.toHaveBeenCalled()
   })
 
+  it('holds pre-consent events and replays them on opt-in', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
+    svc.setTelemetrySettings({ enabled: false, consentDecision: 'pending', installId: 'anon' })
+    svc.trackEvent('app_first_run', { oncePerRun: true })
+    svc.trackEvent('ai_request_failed', { oncePerRun: true, props: { error_class: 'auth' } })
+    expect(h.track).not.toHaveBeenCalled()
+
+    svc.setTelemetrySettings(grantedSettings)
+    svc.flushPendingEvents()
+    expect(h.track).toHaveBeenCalledWith('app_first_run', undefined)
+    expect(h.track).toHaveBeenCalledWith('ai_request_failed', { error_class: 'auth' })
+  })
+
+  it('drops held events when the user declines', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
+    svc.setTelemetrySettings({ enabled: false, consentDecision: 'pending', installId: 'anon' })
+    svc.trackEvent('app_first_run', { oncePerRun: true })
+    svc.clearPendingEvents()
+
+    svc.setTelemetrySettings(grantedSettings)
+    svc.flushPendingEvents()
+    expect(h.track).not.toHaveBeenCalled()
+  })
+
+  it('does not hold events after an explicit denial', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
+    svc.setTelemetrySettings({ enabled: false, consentDecision: 'denied', installId: 'anon' })
+    svc.trackEvent('app_opened', { oncePerRun: true })
+
+    svc.setTelemetrySettings(grantedSettings)
+    svc.flushPendingEvents()
+    expect(h.track).not.toHaveBeenCalled()
+  })
+
   it('de-duplicates oncePerRun events within a single run', async () => {
     const svc = await loadService('A-EU-1234567890')
     svc.setupTelemetry()

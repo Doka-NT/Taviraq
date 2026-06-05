@@ -75,7 +75,7 @@ import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
 import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
-import { isTelemetryActive, setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
+import { clearPendingEvents, flushPendingEvents, isTelemetryActive, setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -91,8 +91,6 @@ let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
 let quitWindowBoundsSave: Promise<void> | undefined
 const configStore = new ConfigStore()
-/** True for the launch of a fresh install until the first-run event is replayed post-consent. */
-let telemetryFirstRunPending = false
 
 /**
  * Classify an AI request failure into a low-cardinality, non-identifying enum
@@ -950,18 +948,12 @@ function registerIpc(): void {
     const config = await configStore.updateTelemetrySettings(patch)
     setTelemetrySettings(config.telemetry)
     broadcastTelemetrySettings(config.telemetry)
-    // Replay the funnel events that were dropped while consent was pending, so a
-    // user who opts in on first run still produces the first-run/opened signals.
+    // Replay (or drop) the funnel events held while consent was pending, so a
+    // user who opts in on first run still produces the activation signals.
     if (config.telemetry?.enabled) {
-      if (telemetryFirstRunPending) {
-        trackEvent('app_first_run', { oncePerRun: true })
-      }
-      trackEvent('app_opened', { oncePerRun: true })
-      // The initial terminal is auto-created before the consent prompt is
-      // answered, so replay session_started when a session already exists.
-      if (terminalManager.list().length > 0) {
-        trackEvent('session_started', { oncePerRun: true })
-      }
+      flushPendingEvents()
+    } else {
+      clearPendingEvents()
     }
     return config
   })
@@ -1477,6 +1469,12 @@ function registerIpc(): void {
     await configStore.save(mergedConfig)
     updateSecretMaskingSettingsCache(mergedConfig)
     setTelemetrySettings(mergedConfig.telemetry)
+    broadcastTelemetrySettings(mergedConfig.telemetry)
+    if (mergedConfig.telemetry?.enabled) {
+      flushPendingEvents()
+    } else {
+      clearPendingEvents()
+    }
     for (const prompt of newPrompts) {
       await promptStore.save(prompt)
     }
@@ -1644,10 +1642,8 @@ void app.whenReady().then(async () => {
   if (!DEMO_MODE) {
     void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
       setTelemetrySettings(settings)
-      // On a fresh install these no-op while consent is still pending; the
-      // first-run/opened events are then replayed once consent is granted in
-      // the config:setTelemetrySettings handler.
-      telemetryFirstRunPending = isFirstRun
+      // On a fresh install these are held while consent is pending and replayed
+      // once the user opts in (telemetryService buffers pre-consent events).
       if (isFirstRun) {
         trackEvent('app_first_run', { oncePerRun: true })
       }

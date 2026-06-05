@@ -29,6 +29,12 @@ let currentSettings: TelemetrySettings | undefined
 let initialized = false
 /** Events already sent in this app run, for `oncePerRun` de-duplication. */
 const sentThisRun = new Set<TelemetryEvent>()
+/**
+ * Once-per-run events that fired while consent was still pending. They are held
+ * (not sent) and replayed if and only if the user later opts in, so the
+ * first-run onboarding flow still produces its funnel signals; cleared on denial.
+ */
+const pendingPreConsent = new Map<TelemetryEvent, Record<string, string | number> | undefined>()
 
 /**
  * Telemetry is only ever active in a packaged macOS *release* build that has a
@@ -77,7 +83,15 @@ export function trackEvent(
   options: { oncePerRun?: boolean; props?: Record<string, string | number> } = {}
 ): void {
   if (!isTelemetryPossible() || !initialized) return
-  if (!currentSettings?.enabled) return
+  if (!currentSettings?.enabled) {
+    // While consent is still pending, hold once-per-run events so they can be
+    // replayed on opt-in. After an explicit denial, hold nothing.
+    const pending = !currentSettings || currentSettings.consentDecision === 'pending'
+    if (pending && options.oncePerRun && !sentThisRun.has(event) && !pendingPreConsent.has(event)) {
+      pendingPreConsent.set(event, options.props)
+    }
+    return
+  }
   if (options.oncePerRun) {
     if (sentThisRun.has(event)) return
     sentThisRun.add(event)
@@ -85,4 +99,23 @@ export function trackEvent(
   // Props, when present, are low-cardinality enums only (e.g. an error class) —
   // never content, free text, or identifiers.
   void aptabaseTrackEvent(event, options.props)
+}
+
+/** Replay events that were held while consent was pending. Call after opt-in. */
+export function flushPendingEvents(): void {
+  if (!isTelemetryPossible() || !initialized || !currentSettings?.enabled) {
+    pendingPreConsent.clear()
+    return
+  }
+  for (const [event, props] of pendingPreConsent) {
+    if (sentThisRun.has(event)) continue
+    sentThisRun.add(event)
+    void aptabaseTrackEvent(event, props)
+  }
+  pendingPreConsent.clear()
+}
+
+/** Drop any held pre-consent events (e.g. after the user declines). */
+export function clearPendingEvents(): void {
+  pendingPreConsent.clear()
 }

@@ -987,6 +987,7 @@ export function LlmPanel({
   const [secretMaskingSettings, setSecretMaskingSettings] = useState<SecretMaskingSettings>(createDefaultSecretMaskingSettings)
   const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
   const [telemetrySettings, setTelemetrySettings] = useState<TelemetrySettings | null>(null)
+  const [telemetryActive, setTelemetryActive] = useState(false)
   const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
@@ -1351,6 +1352,18 @@ export function LlmPanel({
   useEffect(() => {
     void loadConfig()
   }, [loadConfig])
+
+  // Keep the telemetry row truthful: reflect whether sends are actually possible
+  // in this build, and stay in sync with the first-run consent prompt.
+  useEffect(() => {
+    void window.api.config.getTelemetryRuntimeState().then((state) => {
+      setTelemetryActive(state.possible)
+    }).catch(() => undefined)
+    const unsubscribe = window.api.config.onTelemetryChanged((settings) => {
+      setTelemetrySettings(settings)
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -4558,7 +4571,7 @@ export function LlmPanel({
                         </div>
                       </div>
 
-                      <div className={`appearance-row security-row ${telemetrySettings?.enabled ? 'security-row--on' : 'security-row--off'} ${settingsMatchClass([
+                      <div className={`appearance-row security-row ${telemetrySettings?.enabled && telemetryActive ? 'security-row--on' : 'security-row--off'} ${settingsMatchClass([
                         t('security.telemetry.label'),
                         t('security.telemetry.desc'),
                         'telemetry analytics activation usage anonymous opt-in privacy'
@@ -4568,7 +4581,13 @@ export function LlmPanel({
                             <span className="appearance-row-label"><HighlightSearchText text={t('security.telemetry.label')} query={settingsSearch} /></span>
                             <span className="security-row-state">
                               <HighlightSearchText
-                                text={telemetrySettings?.enabled ? t('security.telemetry.onState') : t('security.telemetry.offState')}
+                                text={
+                                  telemetrySettings?.enabled
+                                    ? telemetryActive
+                                      ? t('security.telemetry.onState')
+                                      : t('security.telemetry.inactiveState')
+                                    : t('security.telemetry.offState')
+                                }
                                 query={settingsSearch}
                               />
                             </span>

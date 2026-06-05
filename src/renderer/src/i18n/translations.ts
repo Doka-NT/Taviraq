@@ -562,6 +562,7 @@ export interface Translations {
   'security.telemetry.off': string
   'security.telemetry.onState': string
   'security.telemetry.offState': string
+  'security.telemetry.inactiveState': string
 }
 
 export const en: Translations = {
@@ -1104,6 +1105,7 @@ export const en: Translations = {
   'security.telemetry.off': 'Telemetry off',
   'security.telemetry.onState': 'Sharing',
   'security.telemetry.offState': 'Not sharing',
+  'security.telemetry.inactiveState': 'On — inactive in this build',
 }
 
 export const ru: Translations = {
@@ -1646,6 +1648,7 @@ export const ru: Translations = {
   'security.telemetry.off': 'Телеметрия выключена',
   'security.telemetry.onState': 'Отправляется',
   'security.telemetry.offState': 'Не отправляется',
+  'security.telemetry.inactiveState': 'Включено — неактивно в этой сборке',
 }
 
 export const cn: Translations = {
@@ -2188,6 +2191,7 @@ export const cn: Translations = {
   'security.telemetry.off': '遥测已关闭',
   'security.telemetry.onState': '正在分享',
   'security.telemetry.offState': '未分享',
+  'security.telemetry.inactiveState': '已开启 — 此版本中未激活',
 }
 
 export const TRANSLATIONS: Record<Language, Translations> = { en, ru, cn }

@@ -40,6 +40,15 @@ function isTelemetryPossible(): boolean {
 }
 
 /**
+ * Whether opted-in events can actually be sent in this build/runtime. The
+ * renderer uses this so the Settings toggle never shows an active "sharing"
+ * state when telemetry can't really emit (dev, unsigned, or key-less builds).
+ */
+export function isTelemetryActive(): boolean {
+  return isTelemetryPossible()
+}
+
+/**
  * Initialize the Aptabase SDK once. Initialization on its own sends nothing —
  * only `trackEvent` does, and only after the user opts in. Safe to call early;
  * the SDK buffers any events until initialization resolves.

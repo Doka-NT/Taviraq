@@ -92,7 +92,16 @@ const api = {
     setChatToolsSettings: (settings: ChatToolsSettings) =>
       ipcRenderer.invoke('config:setChatToolsSettings', settings) as Promise<AppConfig>,
     setTelemetrySettings: (patch: Partial<TelemetrySettings>) =>
-      ipcRenderer.invoke('config:setTelemetrySettings', patch) as Promise<AppConfig>
+      ipcRenderer.invoke('config:setTelemetrySettings', patch) as Promise<AppConfig>,
+    getTelemetryRuntimeState: () =>
+      ipcRenderer.invoke('telemetry:getRuntimeState') as Promise<{ possible: boolean }>,
+    onTelemetryChanged: (callback: (settings: TelemetrySettings) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, settings: TelemetrySettings) => callback(settings)
+      ipcRenderer.on('config:telemetryChanged', listener)
+      return () => {
+        ipcRenderer.removeListener('config:telemetryChanged', listener)
+      }
+    }
   },
   taskPlan: {
     reveal: (sessionId: string, plan: string) =>

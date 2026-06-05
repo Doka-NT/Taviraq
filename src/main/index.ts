@@ -75,7 +75,7 @@ import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
 import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
-import { setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
+import { isTelemetryActive, setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -93,6 +93,13 @@ let quitWindowBoundsSave: Promise<void> | undefined
 const configStore = new ConfigStore()
 /** True for the launch of a fresh install until the first-run event is replayed post-consent. */
 let telemetryFirstRunPending = false
+
+/** Push the latest telemetry settings to the renderer so all views stay in sync. */
+function broadcastTelemetrySettings(settings: TelemetrySettings | undefined): void {
+  if (settings && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('config:telemetryChanged', settings)
+  }
+}
 const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
@@ -909,6 +916,11 @@ function registerIpc(): void {
     return configStore.updateChatToolsSettings(settings)
   })
 
+  ipcMain.handle('telemetry:getRuntimeState', () => ({
+    // Demo mode showcases the active UI state without ever really sending.
+    possible: DEMO_MODE ? true : isTelemetryActive()
+  }))
+
   ipcMain.handle('config:setTelemetrySettings', async (_event, patch: Partial<TelemetrySettings>) => {
     if (DEMO_MODE) {
       const current = normalizeTelemetrySettings(demoConfig.telemetry, () => 'demo-install-id')
@@ -917,11 +929,13 @@ function registerIpc(): void {
         { ...current, ...record, installId: current.installId },
         () => current.installId
       )
+      broadcastTelemetrySettings(demoConfig.telemetry)
       return demoConfig
     }
 
     const config = await configStore.updateTelemetrySettings(patch)
     setTelemetrySettings(config.telemetry)
+    broadcastTelemetrySettings(config.telemetry)
     // Replay the funnel events that were dropped while consent was pending, so a
     // user who opts in on first run still produces the first-run/opened signals.
     if (config.telemetry?.enabled) {

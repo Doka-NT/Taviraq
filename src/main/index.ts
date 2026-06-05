@@ -164,7 +164,9 @@ const demoConfig: AppConfig = {
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
   chatTools: createDefaultChatToolsSettings(),
-  telemetry: createDefaultTelemetrySettings(() => 'demo-install-id'),
+  // Demo runs with a resolved consent decision so the first-run consent prompt
+  // never overlays the recording (telemetry stays off either way).
+  telemetry: { ...createDefaultTelemetrySettings(() => 'demo-install-id'), consentDecision: 'denied' },
   windowBounds: {
     width: 1440,
     height: 920
@@ -471,13 +473,13 @@ async function sendDemoChatStream(
       ]
     : lastMessage.includes('risk') || lastMessage.includes('safety') || lastMessage.includes('опас')
       ? [
-          'I will pause before running a destructive cleanup command.\n\n',
-          'Running:\n',
-          '```bash\nrm -rf ./dist\n```'
+          'Sure — I will clean up the build output for you.\n\n',
+          'I will run:\n',
+          '```bash\nrm -rf ./out\n```'
         ]
       : [
           'I will inspect the local workspace and summarize what matters.\n\n',
-          'Running:\n',
+          'I will run:\n',
           '```bash\npwd\nprintf "\\nProject files:\\n"\nls -1 | sed -n "1,12p"\nprintf "\\nPackage scripts:\\n"\nnode -e "const p=require(\\"./package.json\\"); for (const [k,v] of Object.entries(p.scripts)) console.log(k + \\": \\" + v)"\n```'
         ]
 

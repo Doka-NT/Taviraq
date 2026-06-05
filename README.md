@@ -16,6 +16,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white">
   <img alt="License" src="https://img.shields.io/github/license/doka-nt/taviraq">
   <img alt="Stars" src="https://img.shields.io/github/stars/doka-nt/taviraq?style=social">
+  <a href="https://www.agentfriendlycode.com"><img alt="Agent Friendly Code" src="https://www.agentfriendlycode.com/api/badge/github/Doka-NT/Taviraq.svg"></a>
 </p>
 
 <p align="center">
@@ -29,7 +30,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo" width="800">
+  <a href="docs/media/taviraq-demo.mp4">
+    <img src="docs/media/taviraq-demo.gif" alt="Taviraq agent mode demo: a risky rm -rf is paused by the safety review modal before it can run" width="800">
+  </a>
+  <br>
+  <em><a href="docs/media/taviraq-demo.mp4">▶ Watch the 22-second demo in HD (MP4)</a></em>
 </p>
 
 ## What it is
@@ -138,6 +143,13 @@ npm test
 make build
 # Output: dist/*.pkg and dist/*.zip (unsigned)
 ```
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. Before
+your first pull request can be merged, you will be asked to sign our
+[Contributor License Agreement](CLA.md) — a one-time, automated step handled by a bot on
+the PR.
 
 ## License
 

@@ -37,7 +37,7 @@ import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
 import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
-import { normalizeTelemetrySettings } from '@shared/telemetryConfig'
+import { createDefaultTelemetrySettings, normalizeTelemetrySettings } from '@shared/telemetryConfig'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -144,6 +144,7 @@ const demoConfig: AppConfig = {
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
   chatTools: createDefaultChatToolsSettings(),
+  telemetry: createDefaultTelemetrySettings(() => 'demo-install-id'),
   windowBounds: {
     width: 1440,
     height: 920
@@ -910,6 +911,12 @@ function registerIpc(): void {
 
   ipcMain.handle('config:setTelemetrySettings', async (_event, patch: Partial<TelemetrySettings>) => {
     if (DEMO_MODE) {
+      const current = normalizeTelemetrySettings(demoConfig.telemetry, () => 'demo-install-id')
+      const record = patch && typeof patch === 'object' ? patch : {}
+      demoConfig.telemetry = normalizeTelemetrySettings(
+        { ...current, ...record, installId: current.installId },
+        () => current.installId
+      )
       return demoConfig
     }
 

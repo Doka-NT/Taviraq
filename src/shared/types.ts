@@ -358,7 +358,14 @@ export interface SavedChatSummary {
 }
 
 /** Aggregate activation-funnel events. They never carry payload content. */
-export type TelemetryEvent = 'app_first_run' | 'app_opened' | 'session_started' | 'ai_request_sent'
+export type TelemetryEvent =
+  | 'app_first_run'
+  | 'app_opened'
+  | 'session_started'
+  | 'ai_request_sent'
+  | 'provider_configured'
+  | 'ai_response_received'
+  | 'ai_request_failed'
 
 /** Whether the user has been asked for telemetry consent and what they chose. */
 export type TelemetryConsentDecision = 'pending' | 'granted' | 'denied'

@@ -5,7 +5,15 @@ const id = (): string => 'fixed-install-id'
 
 describe('telemetryConfig', () => {
   it('exposes the aggregate funnel event taxonomy', () => {
-    expect(TELEMETRY_EVENTS).toEqual(['app_first_run', 'app_opened', 'session_started', 'ai_request_sent'])
+    expect(TELEMETRY_EVENTS).toEqual([
+      'app_first_run',
+      'app_opened',
+      'session_started',
+      'ai_request_sent',
+      'provider_configured',
+      'ai_response_received',
+      'ai_request_failed'
+    ])
   })
 
   it('creates default-off, pending settings', () => {

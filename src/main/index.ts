@@ -94,6 +94,20 @@ const configStore = new ConfigStore()
 /** True for the launch of a fresh install until the first-run event is replayed post-consent. */
 let telemetryFirstRunPending = false
 
+/**
+ * Classify an AI request failure into a low-cardinality, non-identifying enum
+ * for telemetry. Never includes the error message or any content.
+ */
+function classifyAiError(error: unknown): string {
+  const text = (error instanceof Error ? error.message : String(error)).toLowerCase()
+  if (/\b(401|403)\b|unauthorized|forbidden|invalid[_ ]?api[_ ]?key|authentication|api key/.test(text)) return 'auth'
+  if (/\b429\b|rate[_ ]?limit|too many requests/.test(text)) return 'rate_limit'
+  if (/timeout|timed out|etimedout/.test(text)) return 'timeout'
+  if (/enotfound|econnrefused|econnreset|eai_again|network|fetch failed|socket hang up|\bdns\b/.test(text)) return 'network'
+  if (/\b5\d\d\b|server error|bad gateway|service unavailable/.test(text)) return 'server'
+  return 'other'
+}
+
 /** Push the latest telemetry settings to the renderer so all views stay in sync. */
 function broadcastTelemetrySettings(settings: TelemetrySettings | undefined): void {
   if (settings && mainWindow && !mainWindow.isDestroyed()) {
@@ -1123,7 +1137,9 @@ function registerIpc(): void {
 
     const provider = await prepareProviderRequest(request)
     invalidateProviderProxyAgents(provider.apiKeyRef)
-    return configStore.upsertProvider(provider)
+    const config = await configStore.upsertProvider(provider)
+    trackEvent('provider_configured', { oncePerRun: true })
+    return config
   })
 
   ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: unknown): Promise<boolean> => {
@@ -1587,6 +1603,7 @@ function registerIpc(): void {
             type: 'done',
             ...(result.maskedContent ? { maskedContent: result.maskedContent } : {})
           })
+          trackEvent('ai_response_received', { oncePerRun: true })
         }
 
         if (sessionId) {
@@ -1596,6 +1613,7 @@ function registerIpc(): void {
         }
       } catch (error: unknown) {
         if (controller.signal.aborted) return
+        trackEvent('ai_request_failed', { oncePerRun: true, props: { error_class: classifyAiError(error) } })
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
           type: 'error',

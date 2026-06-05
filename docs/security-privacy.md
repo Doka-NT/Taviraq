@@ -90,7 +90,12 @@ When (and only when) you opt in, the app sends a small set of aggregate
 - `app_first_run` — the first launch of a fresh install
 - `app_opened` — the app was launched (retention)
 - `session_started` — a terminal session was opened
+- `provider_configured` — an AI provider was saved
 - `ai_request_sent` — an AI request was sent
+- `ai_response_received` — an AI response completed successfully
+- `ai_request_failed` — an AI request failed, with a coarse `error_class`
+  (`auth`, `rate_limit`, `timeout`, `network`, `server`, `other`) — never the
+  error message
 
 Each event is just the bare event name. The analytics provider
 ([Aptabase](https://aptabase.com), a privacy-first, GDPR-friendly service)

@@ -9,7 +9,10 @@ export const TELEMETRY_EVENTS: readonly TelemetryEvent[] = [
   'app_first_run',
   'app_opened',
   'session_started',
-  'ai_request_sent'
+  'ai_request_sent',
+  'provider_configured',
+  'ai_response_received',
+  'ai_request_failed'
 ]
 
 function normalizeConsentDecision(value: unknown): TelemetryConsentDecision {

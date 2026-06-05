@@ -72,12 +72,17 @@ export function setTelemetrySettings(settings: TelemetrySettings | undefined): v
  * session) on its own; no terminal content, command text, prompts, persistent
  * install id, or personal data is ever sent.
  */
-export function trackEvent(event: TelemetryEvent, options: { oncePerRun?: boolean } = {}): void {
+export function trackEvent(
+  event: TelemetryEvent,
+  options: { oncePerRun?: boolean; props?: Record<string, string | number> } = {}
+): void {
   if (!isTelemetryPossible() || !initialized) return
   if (!currentSettings?.enabled) return
   if (options.oncePerRun) {
     if (sentThisRun.has(event)) return
     sentThisRun.add(event)
   }
-  void aptabaseTrackEvent(event)
+  // Props, when present, are low-cardinality enums only (e.g. an error class) —
+  // never content, free text, or identifiers.
+  void aptabaseTrackEvent(event, options.props)
 }

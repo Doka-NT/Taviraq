@@ -55,8 +55,16 @@ describe('telemetryService gating', () => {
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('app_opened')
     expect(h.track).toHaveBeenCalledTimes(1)
-    // Events carry no properties — Aptabase adds anonymous context itself.
-    expect(h.track).toHaveBeenCalledWith('app_opened')
+    // Funnel events carry no properties — Aptabase adds anonymous context itself.
+    expect(h.track).toHaveBeenCalledWith('app_opened', undefined)
+  })
+
+  it('forwards low-cardinality props (e.g. error_class) when provided', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
+    svc.setTelemetrySettings(grantedSettings)
+    svc.trackEvent('ai_request_failed', { props: { error_class: 'auth' } })
+    expect(h.track).toHaveBeenCalledWith('ai_request_failed', { error_class: 'auth' })
   })
 
   it('does nothing when the user has not opted in', async () => {

@@ -12,8 +12,23 @@ export default defineConfig({
       '**/out/**',
       '**/.claude/**'
     ],
-    environmentMatchGlobs: [
-      ['tests/ui/**', 'jsdom']
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'node',
+          include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+          environment: 'node'
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: 'ui',
+          include: ['tests/ui/**/*.test.tsx'],
+          environment: 'jsdom'
+        }
+      }
     ],
     setupFiles: ['tests/setup.ts']
   },

@@ -13,10 +13,32 @@ const PROXY_PASSWORD_PREFIX = 'proxy-password:'
 // which are already namespaced (proxy refs carry the PROXY_PASSWORD_PREFIX).
 const secretCache = new Map<string, string>()
 
+// Deduplicates concurrent reads for the same ref. Without this, two simultaneous
+// callers (e.g. two React effects both calling hasApiKey for the same provider on
+// mount) each miss the empty cache and independently hit the keychain, producing
+// two password dialogs for a single secret.
+const pendingReads = new Map<string, Promise<string | undefined>>()
+
+// Mutation version per ref. Bumped before AND after every save/delete so that
+// an in-flight resolveSecret that started during a mutation sees a version
+// mismatch and does not overwrite the cache with a stale or deleted value.
+const secretVersions = new Map<string, number>()
+
+function ver(ref: string): number {
+  return secretVersions.get(ref) ?? 0
+}
+
+function bumpVer(ref: string): void {
+  secretVersions.set(ref, ver(ref) + 1)
+}
+
 export async function saveApiKey(apiKeyRef: string, apiKey: string): Promise<void> {
+  bumpVer(apiKeyRef)
   const keytar = await importKeytar()
   await keytar.setPassword(SERVICE_NAME, apiKeyRef, apiKey)
   secretCache.set(apiKeyRef, apiKey)
+  bumpVer(apiKeyRef)
+  pendingReads.delete(apiKeyRef)
 }
 
 export async function getApiKey(apiKeyRef: string): Promise<string | undefined> {
@@ -24,10 +46,13 @@ export async function getApiKey(apiKeyRef: string): Promise<string | undefined> 
 }
 
 export async function deleteApiKey(apiKeyRef: string): Promise<void> {
+  bumpVer(apiKeyRef)
   const keytar = await importKeytar()
   await keytar.deletePassword(SERVICE_NAME, apiKeyRef)
   await keytar.deletePassword(LEGACY_SERVICE_NAME, apiKeyRef)
   secretCache.delete(apiKeyRef)
+  bumpVer(apiKeyRef)
+  pendingReads.delete(apiKeyRef)
 }
 
 export function buildProxyPasswordRef(apiKeyRef: string): string {
@@ -35,9 +60,12 @@ export function buildProxyPasswordRef(apiKeyRef: string): string {
 }
 
 export async function saveProxyPassword(proxyPasswordRef: string, password: string): Promise<void> {
+  bumpVer(proxyPasswordRef)
   const keytar = await importKeytar()
   await keytar.setPassword(SERVICE_NAME, proxyPasswordRef, password)
   secretCache.set(proxyPasswordRef, password)
+  bumpVer(proxyPasswordRef)
+  pendingReads.delete(proxyPasswordRef)
 }
 
 export async function getProxyPassword(proxyPasswordRef: string): Promise<string | undefined> {
@@ -45,10 +73,24 @@ export async function getProxyPassword(proxyPasswordRef: string): Promise<string
 }
 
 export async function deleteProxyPassword(proxyPasswordRef: string): Promise<void> {
+  bumpVer(proxyPasswordRef)
   const keytar = await importKeytar()
   await keytar.deletePassword(SERVICE_NAME, proxyPasswordRef)
   await keytar.deletePassword(LEGACY_SERVICE_NAME, proxyPasswordRef)
   secretCache.delete(proxyPasswordRef)
+  bumpVer(proxyPasswordRef)
+  pendingReads.delete(proxyPasswordRef)
+}
+
+/**
+ * Pre-warm the cache for a set of keychain refs. Call this at app startup with
+ * all configured provider API key refs and proxy password refs so that all
+ * prompts appear at launch rather than scattered across LLM requests. Errors
+ * are swallowed — the cache is best-effort; missing secrets are retried on the
+ * next actual access.
+ */
+export async function warmSecretCache(refs: string[]): Promise<void> {
+  await Promise.all(refs.map((ref) => readSecret(ref).catch(() => undefined)))
 }
 
 /**
@@ -65,19 +107,39 @@ async function readSecret(ref: string): Promise<string | undefined> {
   const cached = secretCache.get(ref)
   if (cached !== undefined) return cached
 
+  const pending = pendingReads.get(ref)
+  if (pending !== undefined) return pending
+
+  const promise = resolveSecret(ref)
+  pendingReads.set(ref, promise)
+  // Use identity check so a mutation that cleared pendingReads and started a
+  // fresh read does not get its entry removed when this older promise settles.
+  // Catch swallows the rejection on the cleanup chain — the caller who awaits
+  // `promise` directly handles errors; without this a rejected promise would
+  // produce an unhandled-rejection warning from the detached finally chain.
+  promise.finally(() => {
+    if (pendingReads.get(ref) === promise) pendingReads.delete(ref)
+  }).catch(() => undefined)
+  return promise
+}
+
+async function resolveSecret(ref: string): Promise<string | undefined> {
+  // Snapshot the mutation version before the first async hop so we can detect
+  // any save/delete that races this read and skip the stale cache write.
+  const v = ver(ref)
   const keytar = await importKeytar()
 
   const current = await keytar.getPassword(SERVICE_NAME, ref)
   if (current) {
-    secretCache.set(ref, current)
-    return current
+    if (ver(ref) === v) secretCache.set(ref, current)
+    return secretCache.get(ref) ?? current
   }
 
   const legacy = await keytar.getPassword(LEGACY_SERVICE_NAME, ref)
   if (legacy) {
     await migrateLegacySecret(keytar, ref, legacy)
-    secretCache.set(ref, legacy)
-    return legacy
+    if (ver(ref) === v) secretCache.set(ref, legacy)
+    return secretCache.get(ref) ?? legacy
   }
 
   return undefined

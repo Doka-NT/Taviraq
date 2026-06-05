@@ -47,7 +47,8 @@ import {
   getApiKey,
   getProxyPassword,
   saveApiKey,
-  saveProxyPassword
+  saveProxyPassword,
+  warmSecretCache
 } from './services/secretStore'
 import { discoverExternalMcpServers, McpConfigStore } from './services/mcpConfigStore'
 import { listMcpServerTools } from './services/mcpRuntime'
@@ -162,6 +163,21 @@ function initializeSecretMaskingModeCache(): Promise<void> {
 
 async function ensureSecretMaskingSettingsCache(): Promise<void> {
   await initializeSecretMaskingModeCache()
+}
+
+async function warmProviderSecrets(): Promise<void> {
+  if (DEMO_MODE) return
+  try {
+    const config = await configStore.load()
+    const refs: string[] = []
+    for (const provider of config.providers) {
+      if (provider.apiKeyRef) refs.push(provider.apiKeyRef)
+      if (provider.proxyPasswordRef) refs.push(provider.proxyPasswordRef)
+    }
+    await warmSecretCache(refs)
+  } catch {
+    // Non-critical: if warming fails, secrets are read on first actual access
+  }
 }
 
 function updateSecretMaskingSettingsCache(config: AppConfig): void {
@@ -1546,6 +1562,7 @@ function registerIpc(): void {
 
 void app.whenReady().then(async () => {
   await initializeSecretMaskingModeCache()
+  void warmProviderSecrets()
   registerApplicationMenu()
   registerIpc()
   void createWindow()

@@ -6109,7 +6109,10 @@ textarea:focus {
   padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid var(--border-default);
-  background: var(--bg-card);
+  /* Floating dialog over the terminal needs a solid surface; --bg-card is a
+     near-transparent (4%) tint meant to sit on an already-opaque panel, which
+     let terminal text bleed through this popup (#137). */
+  background: var(--bg-modal);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   color: var(--text-primary);
 }

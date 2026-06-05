@@ -1008,7 +1008,13 @@ function registerIpc(): void {
   ipcMain.handle('update:getStatus', () => getUpdateStatus())
   ipcMain.handle('update:check', () => checkForUpdates())
   ipcMain.handle('update:install', () => {
-    quitAndInstall()
+    // quitAndInstall() closes the window on the next tick to apply the update.
+    // Flip isQuitting first (only when an install actually starts) so the window
+    // 'close' handler quits instead of taking the hide-on-close branch — otherwise
+    // the window just hides and the update never installs (#136).
+    if (quitAndInstall()) {
+      beginQuit()
+    }
   })
 
   ipcMain.handle('shortcut:startRecording', () => {

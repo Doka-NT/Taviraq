@@ -101,12 +101,17 @@ export function getUpdateStatus(): UpdateStatus {
   return lastStatus
 }
 
-/** Restart now and apply a downloaded update. No-op until an update has finished downloading. */
-export function quitAndInstall(): void {
+/**
+ * Restart now and apply a downloaded update. No-op until an update has finished
+ * downloading. Returns `true` when an install was actually initiated, so the
+ * caller can flip its quit flag before the updater closes the window (#136).
+ */
+export function quitAndInstall(): boolean {
   if (lastStatus.state !== 'downloaded') {
-    return
+    return false
   }
   setImmediate(() => autoUpdater.quitAndInstall())
+  return true
 }
 
 export function disposeAutoUpdates(): void {

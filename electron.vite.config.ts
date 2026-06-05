@@ -5,12 +5,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
-    // Bake the telemetry ingest endpoint into the bundle at build time. A
-    // packaged app launched from Finder has no shell environment, so this can
-    // never be read from `process.env` at runtime — it must be injected here.
-    // Empty unless the release build sets TAVIRAQ_TELEMETRY_URL.
+    // Bake the Aptabase telemetry key into the bundle at build time. A packaged
+    // app launched from Finder has no shell environment, so this can never be
+    // read from `process.env` at runtime — it must be injected here. Empty
+    // unless the release build sets TAVIRAQ_APTABASE_KEY, which keeps opt-in
+    // telemetry a no-op until a key is configured.
     define: {
-      __TELEMETRY_ENDPOINT__: JSON.stringify(process.env.TAVIRAQ_TELEMETRY_URL ?? '')
+      __APTABASE_KEY__: JSON.stringify(process.env.TAVIRAQ_APTABASE_KEY ?? '')
     },
     resolve: {
       alias: {

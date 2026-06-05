@@ -28,6 +28,7 @@
     "record:demo:gif": "node scripts/record-demo.mjs --gif"
   },
   "dependencies": {
+    "@aptabase/electron": "^0.3.1",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/addon-web-links": "^0.11.0",

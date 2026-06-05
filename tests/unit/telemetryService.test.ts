@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TelemetrySettings } from '@shared/types'
 
-const h = vi.hoisted(() => ({ isPackaged: true, version: '1.2.3' }))
+const h = vi.hoisted(() => ({
+  isPackaged: true,
+  version: '1.2.3',
+  initialize: vi.fn(() => Promise.resolve()),
+  track: vi.fn(() => Promise.resolve())
+}))
 
 vi.mock('electron', () => ({
   app: {
@@ -13,7 +18,10 @@ vi.mock('electron', () => ({
   }
 }))
 
-const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })))
+vi.mock('@aptabase/electron/main', () => ({
+  initialize: h.initialize,
+  trackEvent: h.track
+}))
 
 const grantedSettings: TelemetrySettings = {
   enabled: true,
@@ -21,84 +29,85 @@ const grantedSettings: TelemetrySettings = {
   installId: 'anon-123'
 }
 
-async function loadService(endpoint: string | undefined) {
+async function loadService(appKey: string | undefined) {
   vi.resetModules()
-  if (endpoint === undefined) {
-    vi.stubEnv('TAVIRAQ_TELEMETRY_URL', '')
-  } else {
-    vi.stubEnv('TAVIRAQ_TELEMETRY_URL', endpoint)
-  }
+  vi.stubEnv('TAVIRAQ_APTABASE_KEY', appKey ?? '')
   return import('@main/services/telemetryService')
 }
 
 beforeEach(() => {
   h.isPackaged = true
   h.version = '1.2.3'
-  fetchMock.mockClear()
-  vi.stubGlobal('fetch', fetchMock)
+  h.initialize.mockClear()
+  h.track.mockClear()
 })
 
 afterEach(() => {
   vi.unstubAllEnvs()
-  vi.unstubAllGlobals()
 })
 
 describe('telemetryService gating', () => {
-  it('sends an aggregate event with non-identifying context when opted in', async () => {
-    const svc = await loadService('https://telemetry.example/ingest')
+  it('initializes the SDK and sends a bare event when opted in', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
+    expect(h.initialize).toHaveBeenCalledWith('A-EU-1234567890')
+
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('app_opened')
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
-    expect(url).toBe('https://telemetry.example/ingest')
-    const body = JSON.parse(init.body as string) as Record<string, unknown>
-    expect(body).toMatchObject({
-      event: 'app_opened',
-      installId: 'anon-123',
-      appVersion: '1.2.3',
-      os: process.platform,
-      locale: 'en-US'
-    })
-    // No terminal content / personal fields leak into the payload.
-    expect(Object.keys(body).sort()).toEqual(['appVersion', 'event', 'installId', 'locale', 'os', 'ts'])
+    expect(h.track).toHaveBeenCalledTimes(1)
+    // Events carry no properties — Aptabase adds anonymous context itself.
+    expect(h.track).toHaveBeenCalledWith('app_opened')
   })
 
   it('does nothing when the user has not opted in', async () => {
-    const svc = await loadService('https://telemetry.example/ingest')
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
     svc.setTelemetrySettings({ ...grantedSettings, enabled: false })
     svc.trackEvent('app_opened')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(h.track).not.toHaveBeenCalled()
   })
 
-  it('does nothing when no endpoint is configured', async () => {
-    const svc = await loadService(undefined)
+  it('does nothing when the SDK was never initialized', async () => {
+    const svc = await loadService('A-EU-1234567890')
+    // setupTelemetry intentionally not called
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('app_opened')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(h.track).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when no Aptabase key is configured', async () => {
+    const svc = await loadService(undefined)
+    svc.setupTelemetry()
+    svc.setTelemetrySettings(grantedSettings)
+    svc.trackEvent('app_opened')
+    expect(h.initialize).not.toHaveBeenCalled()
+    expect(h.track).not.toHaveBeenCalled()
   })
 
   it('does nothing in an unpackaged (dev) build', async () => {
     h.isPackaged = false
-    const svc = await loadService('https://telemetry.example/ingest')
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('app_opened')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(h.track).not.toHaveBeenCalled()
   })
 
   it('does nothing for the 0.0.0 placeholder (local/unsigned) build', async () => {
     h.version = '0.0.0'
-    const svc = await loadService('https://telemetry.example/ingest')
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('app_opened')
-    expect(fetchMock).not.toHaveBeenCalled()
+    expect(h.track).not.toHaveBeenCalled()
   })
 
   it('de-duplicates oncePerRun events within a single run', async () => {
-    const svc = await loadService('https://telemetry.example/ingest')
+    const svc = await loadService('A-EU-1234567890')
+    svc.setupTelemetry()
     svc.setTelemetrySettings(grantedSettings)
     svc.trackEvent('session_started', { oncePerRun: true })
     svc.trackEvent('session_started', { oncePerRun: true })
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(h.track).toHaveBeenCalledTimes(1)
   })
 })

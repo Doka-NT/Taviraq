@@ -92,19 +92,22 @@ When (and only when) you opt in, the app sends a small set of aggregate
 - `session_started` — a terminal session was opened
 - `ai_request_sent` — an AI request was sent
 
-Each event carries only coarse, non-identifying context: an anonymous,
-locally generated install id (used solely to de-duplicate funnel steps), the
-app version, the OS platform, and the UI locale. **No terminal content, command
-text, prompts, file paths, secrets, account, email, or IP-based identity is
-collected or stored.** Events are de-duplicated to at most once per launch.
+Each event is just the bare event name. The analytics provider
+([Aptabase](https://aptabase.com), a privacy-first, GDPR-friendly service)
+appends only coarse, non-identifying context on its own — the app version, OS
+platform, UI locale, and an anonymous session id that rotates and is **not** a
+persistent cross-session identifier. **No terminal content, command text,
+prompts, file paths, secrets, account, email, persistent install id, or
+IP-based identity is collected or stored.** Events are de-duplicated to at most
+once per launch.
 
 Additional guarantees:
 
 - Telemetry runs **only in packaged, signed release builds**. It is a no-op in
   `npm run dev` and in local/unsigned packages (which keep the `0.0.0`
   placeholder version), exactly like auto-update.
-- A release build with **no ingest endpoint configured at build time sends
-  nothing**, anywhere.
+- A release build with **no Aptabase key configured at build time sends
+  nothing**, anywhere — the SDK is never even initialized.
 - Turning the toggle off immediately stops all sends.
 
 Aside from telemetry, network traffic goes only to the providers you configure,

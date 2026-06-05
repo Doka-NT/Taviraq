@@ -75,7 +75,7 @@ import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
 import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
-import { setTelemetrySettings, trackEvent } from './services/telemetryService'
+import { setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -1595,6 +1595,7 @@ void app.whenReady().then(async () => {
   initAutoUpdates(() => mainWindow)
 
   if (!DEMO_MODE) {
+    setupTelemetry()
     void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
       setTelemetrySettings(settings)
       // On a fresh install these no-op while consent is still pending; the

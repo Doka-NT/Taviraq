@@ -29,7 +29,8 @@ jobs:
         with:
           path-to-signatures: signatures/version1/cla.json
           path-to-document: https://github.com/Doka-NT/Taviraq/blob/main/CLA.md
-          branch: main
+          # Keep bot-maintained CLA signatures out of the protected main branch.
+          branch: cla-signatures
           custom-notsigned-prcomment: 'Thank you for your contribution! Before we can merge it, please sign our [Contributor License Agreement](https://github.com/Doka-NT/Taviraq/blob/main/CLA.md). It only takes one comment and you only do it once.'
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All contributors have signed the CLA. ✅'

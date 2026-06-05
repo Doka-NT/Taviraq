@@ -16,7 +16,7 @@
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white">
   <img alt="License" src="https://img.shields.io/github/license/doka-nt/taviraq">
   <img alt="Stars" src="https://img.shields.io/github/stars/doka-nt/taviraq?style=social">
-  <a href="https://www.agentfriendlycode.com"><img alt="Agent Friendly Code" src="https://www.agentfriendlycode.com/badge.svg"></a>
+  <a href="https://www.agentfriendlycode.com"><img alt="Agent Friendly Code" src="https://www.agentfriendlycode.com/api/badge/github/Doka-NT/Taviraq.svg"></a>
 </p>
 
 <p align="center">

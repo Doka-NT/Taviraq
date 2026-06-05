@@ -101,11 +101,15 @@ describe('secretStore mutation races', () => {
     store.push({ service: SERVICE, account: 'ref-1', password: 'old-key' })
 
     let resolveGet!: (val: string | null) => void
-    getPassword.mockImplementationOnce(
-      () => new Promise<string | null>((res) => { resolveGet = res })
-    )
+    let signalInvoked!: () => void
+    const invoked = new Promise<void>((res) => { signalInvoked = res })
+    getPassword.mockImplementationOnce(() => {
+      signalInvoked()
+      return new Promise<string | null>((res) => { resolveGet = res })
+    })
 
     const readPromise = getApiKey('ref-1')
+    await invoked
     // Save a new key while the read is suspended
     await saveApiKey('ref-1', 'new-key')
     // Let the stale read resolve with the old value

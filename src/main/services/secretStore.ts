@@ -137,8 +137,10 @@ async function resolveSecret(ref: string): Promise<string | undefined> {
 
   const legacy = await keytar.getPassword(LEGACY_SERVICE_NAME, ref)
   if (legacy) {
-    await migrateLegacySecret(keytar, ref, legacy)
-    if (ver(ref) === v) secretCache.set(ref, legacy)
+    if (ver(ref) === v) {
+      await migrateLegacySecret(keytar, ref, legacy)
+      secretCache.set(ref, legacy)
+    }
     return secretCache.get(ref) ?? legacy
   }
 

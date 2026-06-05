@@ -155,12 +155,17 @@ async function migrateLegacySecret(keytar: typeof Keytar, ref: string, value: st
   }
 }
 
-async function importKeytar(): Promise<typeof Keytar> {
-  try {
-    const mod = await import('keytar')
-    return mod.default ?? mod
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`OS keychain is unavailable through keytar: ${message}`)
-  }
+// Cache the import so concurrent callers share one Promise and the mock
+// intercept in tests is not called twice (which can race in Vitest on Linux).
+let _keytarPromise: Promise<typeof Keytar> | undefined
+
+function importKeytar(): Promise<typeof Keytar> {
+  _keytarPromise ??= import('keytar')
+    .then((mod) => mod.default ?? mod)
+    .catch((error) => {
+      _keytarPromise = undefined
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`OS keychain is unavailable through keytar: ${message}`)
+    })
+  return _keytarPromise
 }

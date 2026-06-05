@@ -1587,6 +1587,14 @@ function registerIpc(): void {
   })
 }
 
+// Aptabase's initialize() must run before the app is ready (it registers
+// privileged schemes and bails out if app.isReady() is already true), so set it
+// up here rather than inside whenReady. This only prepares the SDK; events are
+// still gated on consent at emit time.
+if (!DEMO_MODE) {
+  setupTelemetry()
+}
+
 void app.whenReady().then(async () => {
   await initializeSecretMaskingModeCache()
   registerApplicationMenu()
@@ -1595,7 +1603,6 @@ void app.whenReady().then(async () => {
   initAutoUpdates(() => mainWindow)
 
   if (!DEMO_MODE) {
-    setupTelemetry()
     void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
       setTelemetrySettings(settings)
       // On a fresh install these no-op while consent is still pending; the

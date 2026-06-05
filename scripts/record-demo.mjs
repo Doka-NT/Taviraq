@@ -138,34 +138,28 @@ async function main() {
 
     const stopRecording = await startFrameRecorder(page)
 
+    // 1. Establish a real local shell in one beat.
     await typeInTerminal(page, `cd ${JSON.stringify(projectRoot)}`)
-    await sleep(900)
-    await typeInTerminal(page, 'printf "Taviraq demo\\nLocal PTY session is live\\n"')
-    await sleep(1300)
-    await typeInTerminal(page, 'node -v && pwd')
-    await sleep(1400)
+    await sleep(800)
+    await typeInTerminal(page, 'printf "Taviraq — a terminal with a safety-reviewed AI agent\\n"')
+    await sleep(1500)
 
+    // 2. Show agent mode proposing and running a safe, read-only command.
     await sendAssistantMessage(page, 'Inspect this workspace and show the main package scripts.')
     await page.locator('.command-output-message').waitFor({ timeout: 20_000 })
-    await sleep(3500)
+    await sleep(3000)
 
-    await sendAssistantMessage(page, 'Show how safety review works with a risky cleanup command.')
+    // 3. Climax: a destructive command triggers the safety confirmation modal.
+    //    Keep the danger card and its reason on screen — this is the hero moment.
+    await sendAssistantMessage(page, 'Now free up space with a risky cleanup of the build output.')
     await page.locator('.command-confirmation-card').waitFor({ timeout: 15_000 })
-    await sleep(2200)
+    await sleep(4200)
     await page.getByRole('button', { name: 'Cancel' }).click()
-    await sleep(1400)
+    await sleep(1600)
 
-    await page.locator('.panel-action-button[title="Settings"]').click()
-    await page.locator('.settings-screen').waitFor({ timeout: 10_000 })
-    await sleep(1000)
-    await page.getByText('Appearance', { exact: true }).click()
-    await sleep(900)
-    await page.getByText('Providers', { exact: true }).click()
-    await sleep(900)
-    await page.getByText('Prompts', { exact: true }).click()
-    await sleep(900)
-    await page.locator('button[title="Close settings"]').click()
-    await sleep(900)
+    // 4. Prove nothing was deleted — the build output is still intact.
+    await typeInTerminal(page, 'ls -1 out | head -n 4')
+    await sleep(2400)
 
     recordingStats = await stopRecording()
     console.log(

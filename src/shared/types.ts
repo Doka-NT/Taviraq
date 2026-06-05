@@ -357,6 +357,33 @@ export interface SavedChatSummary {
   sessionSnapshot?: Pick<TerminalSessionInfo, 'kind' | 'label' | 'cwd' | 'shell'>
 }
 
+/** Aggregate activation-funnel events. They never carry payload content. */
+export type TelemetryEvent =
+  | 'app_first_run'
+  | 'app_opened'
+  | 'session_started'
+  | 'ai_request_sent'
+  | 'provider_configured'
+  | 'ai_response_received'
+  | 'ai_request_failed'
+
+/** Whether the user has been asked for telemetry consent and what they chose. */
+export type TelemetryConsentDecision = 'pending' | 'granted' | 'denied'
+
+/**
+ * Opt-in, privacy-respecting activation telemetry. Default off: nothing is sent
+ * unless `enabled` is true, which only happens after an explicit `granted`
+ * consent. `installId` is an anonymous, locally generated identifier used only
+ * to de-duplicate funnel steps — never tied to an account, email, IP identity,
+ * or any terminal content.
+ */
+export interface TelemetrySettings {
+  enabled: boolean
+  consentDecision: TelemetryConsentDecision
+  installId: string
+  consentedAt?: string
+}
+
 export interface AppConfig {
   providers: LLMProviderConfig[]
   activeProviderRef?: string
@@ -364,6 +391,7 @@ export interface AppConfig {
   sshProfiles?: SSHProfileConfig[]
   secretMasking?: SecretMaskingSettings
   chatTools?: ChatToolsSettings
+  telemetry?: TelemetrySettings
   windowBounds?: {
     x?: number
     y?: number

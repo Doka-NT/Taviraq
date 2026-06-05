@@ -79,9 +79,47 @@ confirmation message notes the SSH context.
 
 ## Telemetry
 
-The app does not include analytics or telemetry. Network traffic goes only to
-the providers you configure, update checks from your installation method, and
-any links you open manually.
+Taviraq includes **opt-in, privacy-respecting activation telemetry**. It is
+**off by default** — nothing is sent until you explicitly turn it on. A
+first-run prompt asks for consent, and you can change the choice at any time in
+**Settings → Security & Privacy → Anonymous usage telemetry**.
+
+When (and only when) you opt in, the app sends a small set of aggregate
+**funnel events** so we can understand which onboarding steps people complete:
+
+- `app_first_run` — the first launch of a fresh install
+- `app_opened` — the app was launched (retention)
+- `session_started` — a terminal session was opened
+- `provider_configured` — an AI provider was saved
+- `ai_request_sent` — an AI request was sent
+- `ai_response_received` — an AI response completed successfully
+- `ai_request_failed` — an AI request failed, with a coarse `error_class`
+  (`auth`, `rate_limit`, `timeout`, `network`, `server`, `other`) — never the
+  error message
+
+Events carry no free-form content. The only app-supplied structured data is a
+small, documented set of **low-cardinality, non-identifying enum properties** —
+currently just `error_class` on `ai_request_failed` (one of `auth`,
+`rate_limit`, `timeout`, `network`, `server`, `other`). Every other event is a
+bare name. The analytics provider ([Aptabase](https://aptabase.com), a
+privacy-first, GDPR-friendly service) appends only coarse, non-identifying
+context on its own — the app version, OS platform, UI locale, and an anonymous
+session id that rotates and is **not** a persistent cross-session identifier.
+**No terminal content, command text, prompts, file paths, secrets, account,
+email, persistent install id, or IP-based identity is collected or stored.**
+Events are de-duplicated to at most once per launch.
+
+Additional guarantees:
+
+- Telemetry runs **only in packaged, signed release builds**. It is a no-op in
+  `npm run dev` and in local/unsigned packages (which keep the `0.0.0`
+  placeholder version), exactly like auto-update.
+- A release build with **no Aptabase key configured at build time sends
+  nothing**, anywhere — the SDK is never even initialized.
+- Turning the toggle off immediately stops all sends.
+
+Aside from telemetry, network traffic goes only to the providers you configure,
+update checks from your installation method, and any links you open manually.
 
 ## Reporting Concerns
 

@@ -92,3 +92,47 @@ describe('ConfigStore chat tools settings', () => {
     expect(config.chatTools?.taskListPlanning).toBe(false)
   })
 })
+
+describe('ConfigStore telemetry settings', () => {
+  afterEach(() => cleanTmp())
+
+  it('defaults telemetry to off and pending with a generated install id', async () => {
+    const store = new ConfigStore()
+    const config = await store.load()
+    expect(config.telemetry?.enabled).toBe(false)
+    expect(config.telemetry?.consentDecision).toBe('pending')
+    expect(config.telemetry?.installId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('keeps a stable install id across loads and reports first run only once', async () => {
+    const store = new ConfigStore()
+    const first = await store.initTelemetry()
+    expect(first.isFirstRun).toBe(true)
+
+    const second = await new ConfigStore().initTelemetry()
+    expect(second.isFirstRun).toBe(false)
+    expect(second.settings.installId).toBe(first.settings.installId)
+  })
+
+  it('enables telemetry only when consent is granted and stamps consentedAt', async () => {
+    const store = new ConfigStore()
+    const config = await store.updateTelemetrySettings({ enabled: true, consentDecision: 'granted' })
+    expect(config.telemetry?.enabled).toBe(true)
+    expect(config.telemetry?.consentDecision).toBe('granted')
+    expect(config.telemetry?.consentedAt).toBeTruthy()
+  })
+
+  it('never enables telemetry without a granted decision', async () => {
+    const store = new ConfigStore()
+    const config = await store.updateTelemetrySettings({ enabled: true, consentDecision: 'denied' })
+    expect(config.telemetry?.enabled).toBe(false)
+  })
+
+  it('preserves the install id when consent is later revoked', async () => {
+    const store = new ConfigStore()
+    const granted = await store.updateTelemetrySettings({ enabled: true, consentDecision: 'granted' })
+    const revoked = await store.updateTelemetrySettings({ enabled: false, consentDecision: 'denied' })
+    expect(revoked.telemetry?.enabled).toBe(false)
+    expect(revoked.telemetry?.installId).toBe(granted.telemetry?.installId)
+  })
+})

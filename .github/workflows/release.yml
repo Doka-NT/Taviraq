@@ -60,6 +60,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Aptabase Cloud key, baked into the bundle at build time. Empty unless
+          # configured, which keeps opt-in telemetry a no-op until a key exists.
+          TAVIRAQ_APTABASE_KEY: ${{ vars.APTABASE_APP_KEY }}
         run: npm run build && COPYFILE_DISABLE=1 npm exec -- electron-builder --mac zip --publish never -c.mac.notarize=true
 
       - name: Verify signature and notarization

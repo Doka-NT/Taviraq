@@ -28,6 +28,9 @@ Taviraq is a macOS-first Electron desktop terminal with:
 - `src/main/services/TerminalManager.ts`: PTY lifecycle, terminal writes/resizes, local and SSH sessions.
 - `src/main/services/llmService.ts`: model listing, streaming chat, command-risk classification.
 - `src/main/services/configStore.ts`: non-secret app config in Electron user data.
+- `src/main/services/telemetryService.ts`: opt-in Aptabase telemetry; gating and event emission.
+- `src/shared/telemetryConfig.ts`: telemetry settings defaults/normalization (shared main+renderer).
+- `src/renderer/src/components/TelemetryConsent.tsx`: first-run opt-in consent prompt.
 - `src/preload/index.ts`: safe renderer API bridge.
 - `src/shared/types.ts`: IPC/shared domain types.
 - `src/renderer/src/App.tsx`: shell layout, sessions, sidebar resize, persisted UI settings.
@@ -76,6 +79,25 @@ Persistent data types and their storage:
 3. Restore in `data:import` handler (`src/main/index.ts`) — implement merge logic (skip existing by ID/key)
 4. Return new counts/values in `ImportResult` (`src/shared/types.ts`)
 5. Apply in `handleImport()` in `LlmPanel.tsx`
+
+## Telemetry
+
+Privacy is a product value; treat telemetry as opt-in by default and keep these invariants:
+
+- **Default off.** Nothing is sent until the user explicitly opts in (consent prompt or
+  Settings toggle). `enabled` is forced false in `normalizeTelemetrySettings` unless the
+  consent decision is `granted`, so a tampered/imported config cannot silently enable it.
+- **Aggregate only.** Events carry no free-form content (no terminal text, commands,
+  prompts, paths, secrets, persistent install id). The only app-supplied props are
+  documented low-cardinality, non-identifying enums (currently just `error_class` on
+  `ai_request_failed`); everything else is a bare name. Aptabase appends only coarse
+  context (OS, version, locale, rotating session).
+- **Release-only.** Runs solely in packaged signed release builds (no dev, no `0.0.0`
+  unsigned packages) and only when an Aptabase key is configured; otherwise a hard no-op.
+- **Consent lifecycle.** When adding/changing events, audit the full lifecycle: events
+  fired before consent must replay after opt-in (`config:setTelemetrySettings`), the SDK
+  must init before `app.whenReady()`, and telemetry settings must carry through
+  import/export (see below). Emit events only from `main`, gated on consent.
 
 ## Commands
 
@@ -134,3 +156,6 @@ When asked to run or update Taviraq QA/test cases:
 - Do not touch `node_modules/`.
 - Keep IPC types in `src/shared/types.ts` synchronized with `src/preload/index.ts` and `src/main/index.ts`.
 - API keys are secrets and belong in keychain via `keytar`; do not persist them in config files.
+- A packaged app launched from Finder has no shell environment, so build-time config (keys,
+  endpoints) must be injected via electron-vite `define` in `electron.vite.config.ts`, not
+  read from `process.env` at runtime. Keep a `process.env` fallback only for tests.

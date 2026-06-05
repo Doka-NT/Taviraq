@@ -29,6 +29,7 @@ import type {
   SSHProfile,
   ChatToolsSettings,
   SSHProfileConfig,
+  TelemetrySettings,
   TerminalContext,
   SummarizeConversationRequest
 } from '@shared/types'
@@ -36,6 +37,7 @@ import { TerminalManager } from './services/TerminalManager'
 import { ChatHistoryStore } from './services/chatHistoryStore'
 import { ConfigStore, normalizeSecretMaskingMode, normalizeSecretMaskingSettings } from './services/configStore'
 import { createDefaultChatToolsSettings, normalizeChatToolsSettings } from '@shared/chatToolsConfig'
+import { createDefaultTelemetrySettings, normalizeTelemetrySettings } from '@shared/telemetryConfig'
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
@@ -73,6 +75,7 @@ import { normalizeHttpProxyUrl } from './utils/proxy'
 import { SECRET_MASKING_AUDIT_LIMIT, createDefaultSecretMaskingSettings, isStrictTerminalContextActive } from '@shared/secretMaskingConfig'
 import { createAboutWindowHtml } from './utils/aboutWindow'
 import { checkForUpdates, disposeAutoUpdates, getUpdateStatus, initAutoUpdates, quitAndInstall } from './services/updateService'
+import { clearPendingEvents, flushPendingEvents, isTelemetryActive, setTelemetrySettings, setupTelemetry, trackEvent } from './services/telemetryService'
 
 const userDataDir = process.env.TAVIRAQ_USER_DATA_DIR ?? process.env.AI_TERMINAL_USER_DATA_DIR
 
@@ -88,6 +91,27 @@ let isRecordingShortcut = false
 let saveWindowBoundsTimer: NodeJS.Timeout | undefined
 let quitWindowBoundsSave: Promise<void> | undefined
 const configStore = new ConfigStore()
+
+/**
+ * Classify an AI request failure into a low-cardinality, non-identifying enum
+ * for telemetry. Never includes the error message or any content.
+ */
+function classifyAiError(error: unknown): string {
+  const text = (error instanceof Error ? error.message : String(error)).toLowerCase()
+  if (/\b(401|403)\b|unauthorized|forbidden|invalid[_ ]?api[_ ]?key|authentication|api key/.test(text)) return 'auth'
+  if (/\b429\b|rate[_ ]?limit|too many requests/.test(text)) return 'rate_limit'
+  if (/timeout|timed out|etimedout/.test(text)) return 'timeout'
+  if (/enotfound|econnrefused|econnreset|eai_again|network|fetch failed|socket hang up|\bdns\b/.test(text)) return 'network'
+  if (/\b5\d\d\b|server error|bad gateway|service unavailable/.test(text)) return 'server'
+  return 'other'
+}
+
+/** Push the latest telemetry settings to the renderer so all views stay in sync. */
+function broadcastTelemetrySettings(settings: TelemetrySettings | undefined): void {
+  if (settings && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('config:telemetryChanged', settings)
+  }
+}
 const promptStore = new PromptStore()
 const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
@@ -139,6 +163,7 @@ const demoConfig: AppConfig = {
   hideShortcut: 'CommandOrControl+Shift+Space',
   secretMasking: createDefaultSecretMaskingSettings(),
   chatTools: createDefaultChatToolsSettings(),
+  telemetry: createDefaultTelemetrySettings(() => 'demo-install-id'),
   windowBounds: {
     width: 1440,
     height: 920
@@ -903,6 +928,36 @@ function registerIpc(): void {
     return configStore.updateChatToolsSettings(settings)
   })
 
+  ipcMain.handle('telemetry:getRuntimeState', () => ({
+    // Demo mode showcases the active UI state without ever really sending.
+    possible: DEMO_MODE ? true : isTelemetryActive()
+  }))
+
+  ipcMain.handle('config:setTelemetrySettings', async (_event, patch: Partial<TelemetrySettings>) => {
+    if (DEMO_MODE) {
+      const current = normalizeTelemetrySettings(demoConfig.telemetry, () => 'demo-install-id')
+      const record = patch && typeof patch === 'object' ? patch : {}
+      demoConfig.telemetry = normalizeTelemetrySettings(
+        { ...current, ...record, installId: current.installId },
+        () => current.installId
+      )
+      broadcastTelemetrySettings(demoConfig.telemetry)
+      return demoConfig
+    }
+
+    const config = await configStore.updateTelemetrySettings(patch)
+    setTelemetrySettings(config.telemetry)
+    broadcastTelemetrySettings(config.telemetry)
+    // Replay (or drop) the funnel events held while consent was pending, so a
+    // user who opts in on first run still produces the activation signals.
+    if (config.telemetry?.enabled) {
+      flushPendingEvents()
+    } else {
+      clearPendingEvents()
+    }
+    return config
+  })
+
   ipcMain.handle('taskPlan:reveal', async (_event, sessionId: unknown, plan: unknown) => {
     if (typeof sessionId !== 'string' || !sessionId.trim()) return
     if (typeof plan !== 'string' || !plan.trim()) return
@@ -949,6 +1004,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('terminal:create', (_event, request?: CreateTerminalRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.createLocal(request)
   })
 
@@ -1002,10 +1058,12 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('ssh:connectProfile', (_event, profile: SSHProfile, request?: CreateTerminalRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.connectSsh(profile, request)
   })
 
   ipcMain.handle('ssh:connectCommand', (_event, request: CreateSshCommandRequest) => {
+    trackEvent('session_started', { oncePerRun: true })
     return terminalManager.connectSshCommand(request)
   })
 
@@ -1071,7 +1129,9 @@ function registerIpc(): void {
 
     const provider = await prepareProviderRequest(request)
     invalidateProviderProxyAgents(provider.apiKeyRef)
-    return configStore.upsertProvider(provider)
+    const config = await configStore.upsertProvider(provider)
+    trackEvent('provider_configured', { oncePerRun: true })
+    return config
   })
 
   ipcMain.handle('llm:hasApiKey', async (_event, apiKeyRef: unknown): Promise<boolean> => {
@@ -1346,6 +1406,15 @@ function registerIpc(): void {
       chatTools: data.config?.chatTools
         ? normalizeChatToolsSettings(data.config.chatTools)
         : currentConfig.chatTools,
+      // Preserve the imported telemetry consent choice (denied/granted) so a
+      // restored backup keeps the user's opt-out and doesn't re-prompt. Falls
+      // back to this machine's install id when the import lacks one.
+      telemetry: data.config?.telemetry
+        ? normalizeTelemetrySettings(
+            data.config.telemetry,
+            () => currentConfig.telemetry?.installId ?? randomUUID()
+          )
+        : currentConfig.telemetry,
       providers: [...currentConfig.providers, ...newProviders]
     }
 
@@ -1399,6 +1468,13 @@ function registerIpc(): void {
 
     await configStore.save(mergedConfig)
     updateSecretMaskingSettingsCache(mergedConfig)
+    setTelemetrySettings(mergedConfig.telemetry)
+    broadcastTelemetrySettings(mergedConfig.telemetry)
+    if (mergedConfig.telemetry?.enabled) {
+      flushPendingEvents()
+    } else {
+      clearPendingEvents()
+    }
     for (const prompt of newPrompts) {
       await promptStore.save(prompt)
     }
@@ -1450,6 +1526,8 @@ function registerIpc(): void {
         })
       return
     }
+
+    trackEvent('ai_request_sent', { oncePerRun: true })
 
     void (async () => {
       try {
@@ -1523,6 +1601,7 @@ function registerIpc(): void {
             type: 'done',
             ...(result.maskedContent ? { maskedContent: result.maskedContent } : {})
           })
+          trackEvent('ai_response_received', { oncePerRun: true })
         }
 
         if (sessionId) {
@@ -1532,6 +1611,7 @@ function registerIpc(): void {
         }
       } catch (error: unknown) {
         if (controller.signal.aborted) return
+        trackEvent('ai_request_failed', { oncePerRun: true, props: { error_class: classifyAiError(error) } })
         event.sender.send('llm:chatStream:event', {
           requestId: request.requestId,
           type: 'error',
@@ -1544,12 +1624,40 @@ function registerIpc(): void {
   })
 }
 
+// Aptabase's initialize() must run before the app is ready (it registers
+// privileged schemes and bails out if app.isReady() is already true), so set it
+// up here rather than inside whenReady. This only prepares the SDK; events are
+// still gated on consent at emit time.
+if (!DEMO_MODE) {
+  setupTelemetry()
+}
+
 void app.whenReady().then(async () => {
   await initializeSecretMaskingModeCache()
   registerApplicationMenu()
   registerIpc()
   void createWindow()
   initAutoUpdates(() => mainWindow)
+
+  if (!DEMO_MODE) {
+    void configStore.initTelemetry().then(({ settings, isFirstRun }) => {
+      setTelemetrySettings(settings)
+      // createWindow() runs before this async load resolves, so an early
+      // session_started may already be buffered as "pending". Reconcile it with
+      // the loaded decision: send if opted in, drop if denied, keep if pending.
+      if (settings.enabled) {
+        flushPendingEvents()
+      } else if (settings.consentDecision === 'denied') {
+        clearPendingEvents()
+      }
+      // On a fresh install these are held while consent is pending and replayed
+      // once the user opts in (telemetryService buffers pre-consent events).
+      if (isFirstRun) {
+        trackEvent('app_first_run', { oncePerRun: true })
+      }
+      trackEvent('app_opened', { oncePerRun: true })
+    })
+  }
 
   app.on('activate', () => {
     if (isQuitting) return

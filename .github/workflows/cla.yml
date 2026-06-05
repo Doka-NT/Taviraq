@@ -16,6 +16,19 @@ jobs:
   CLAAssistant:
     runs-on: ubuntu-latest
     steps:
+      - name: Print CLA signing instructions
+        run: |
+          cat <<'EOF'
+          If the CLA check says a contributor has not signed yet, add a new
+          comment to this pull request with exactly this text:
+
+          I have read the CLA Document and I hereby sign the CLA
+
+          If the check is stuck after signing, add another comment with:
+
+          recheck
+          EOF
+
       - name: CLA Assistant
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
         # contributor-assistant/github-action v2.6.1

@@ -22,7 +22,8 @@ function stubConfig(decision: TelemetryConsentDecision) {
   vi.stubGlobal('api', {
     config: {
       load: vi.fn().mockResolvedValue(configWith(decision)),
-      setTelemetrySettings
+      setTelemetrySettings,
+      onTelemetryChanged: vi.fn().mockReturnValue(() => undefined)
     }
   })
 }

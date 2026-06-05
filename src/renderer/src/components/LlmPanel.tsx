@@ -4599,7 +4599,7 @@ export function LlmPanel({
                         <div className="appearance-row-right">
                           <button
                             type="button"
-                            className={`security-switch ${telemetrySettings?.enabled ? 'on' : ''}`}
+                            className={`security-switch ${telemetrySettings?.enabled ? (telemetryActive ? 'on' : 'inactive') : ''}`}
                             role="switch"
                             aria-checked={telemetrySettings?.enabled ?? false}
                             aria-label={t('security.telemetry.label')}

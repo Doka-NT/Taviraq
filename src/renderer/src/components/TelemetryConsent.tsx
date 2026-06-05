@@ -19,8 +19,14 @@ export function TelemetryConsent(): JSX.Element | null {
     void window.api.config.load().then((config) => {
       if (active) setDecision(config.telemetry?.consentDecision ?? 'pending')
     })
+    // If the choice is made elsewhere (e.g. the Settings toggle) while this
+    // prompt is still visible, reflect it so a stale prompt can't overwrite it.
+    const unsubscribe = window.api.config.onTelemetryChanged((settings) => {
+      setDecision(settings.consentDecision)
+    })
     return () => {
       active = false
+      unsubscribe()
     }
   }, [])
 

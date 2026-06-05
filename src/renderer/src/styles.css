@@ -2012,6 +2012,18 @@ textarea:focus {
   background: rgba(var(--color-success-rgb), 0.95);
 }
 
+/* Consent granted but telemetry cannot actually send in this build: show the
+   knob in the on position but muted, never the active green state. */
+.security-switch.inactive {
+  border-color: var(--border-default);
+  background: rgba(var(--surface-rgb), 0.18);
+}
+
+.security-switch.inactive span {
+  transform: translateX(16px);
+  background: var(--text-muted);
+}
+
 .security-panel {
   display: grid;
   gap: 10px;

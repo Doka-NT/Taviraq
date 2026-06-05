@@ -848,7 +848,7 @@ export const en: Translations = {
 
   'data.title': 'Data',
   'data.usage.title': 'Local usage',
-  'data.usage.desc': 'Stored only on this Mac. Taviraq does not collect telemetry.',
+  'data.usage.desc': 'Stored only on this Mac. Anonymous usage telemetry is off by default and only sent if you opt in (Security & Privacy).',
   'data.usage.storage': 'Storage used',
   'data.usage.chats': 'Saved chats',
   'data.usage.sessions': 'Saved sessions',
@@ -1391,7 +1391,7 @@ export const ru: Translations = {
 
   'data.title': 'Данные',
   'data.usage.title': 'Локальное использование',
-  'data.usage.desc': 'Хранится только на этом Mac. Taviraq не собирает телеметрию.',
+  'data.usage.desc': 'Хранится только на этом Mac. Анонимная телеметрия по умолчанию выключена и отправляется только с вашего согласия (Безопасность и приватность).',
   'data.usage.storage': 'Занято места',
   'data.usage.chats': 'Сохранённые чаты',
   'data.usage.sessions': 'Сохранённые сессии',
@@ -1934,7 +1934,7 @@ export const cn: Translations = {
 
   'data.title': '数据',
   'data.usage.title': '本地使用情况',
-  'data.usage.desc': '仅存储在这台 Mac 上。Taviraq 不收集遥测。',
+  'data.usage.desc': '仅存储在这台 Mac 上。匿名使用遥测默认关闭，仅在您同意后发送（安全与隐私）。',
   'data.usage.storage': '已用存储',
   'data.usage.chats': '已保存聊天',
   'data.usage.sessions': '已保存会话',

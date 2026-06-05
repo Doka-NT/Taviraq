@@ -138,8 +138,8 @@ async function resolveSecret(ref: string): Promise<string | undefined> {
   const legacy = await keytar.getPassword(LEGACY_SERVICE_NAME, ref)
   if (legacy) {
     if (ver(ref) === v) {
-      await migrateLegacySecret(keytar, ref, legacy)
-      secretCache.set(ref, legacy)
+      await migrateLegacySecret(keytar, ref, legacy, v)
+      if (ver(ref) === v) secretCache.set(ref, legacy)
     }
     return secretCache.get(ref) ?? legacy
   }
@@ -147,9 +147,11 @@ async function resolveSecret(ref: string): Promise<string | undefined> {
   return undefined
 }
 
-async function migrateLegacySecret(keytar: typeof Keytar, ref: string, value: string): Promise<void> {
+async function migrateLegacySecret(keytar: typeof Keytar, ref: string, value: string, v: number): Promise<void> {
   try {
+    if (ver(ref) !== v) return
     await keytar.setPassword(SERVICE_NAME, ref, value)
+    if (ver(ref) !== v) return
     await keytar.deletePassword(LEGACY_SERVICE_NAME, ref)
   } catch {
     // Best-effort migration: if writing the promoted entry or deleting the

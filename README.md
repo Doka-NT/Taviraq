@@ -26,6 +26,8 @@
   ·
   <a href="docs/security-privacy.md">Security & Privacy</a>
   ·
+  <a href="https://boosty.to/taviraq">Support</a>
+  ·
   <a href="https://github.com/Doka-NT/Taviraq/issues">Issues</a>
 </p>
 
@@ -150,6 +152,12 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 your first pull request can be merged, you will be asked to sign our
 [Contributor License Agreement](CLA.md) — a one-time, automated step handled by a bot on
 the PR.
+
+## Support
+
+If Taviraq saves you time, you can support ongoing development through
+[Boosty](https://boosty.to/taviraq). Taviraq is free and open-source; support is
+a donation, not a Pro license or a purchase.
 
 ## License
 

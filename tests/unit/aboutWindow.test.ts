@@ -5,6 +5,7 @@ describe('about window html', () => {
     const html = createAboutWindowHtml({
       version: '0.2.2',
       websiteHref: 'https://taviraq.dev',
+      supportHref: 'https://boosty.to/taviraq',
       iconDataUrl: 'data:image/png;base64,icon'
     })
 
@@ -18,6 +19,7 @@ describe('about window html', () => {
     const html = createAboutWindowHtml({
       version: '0.2.2',
       websiteHref: 'https://taviraq.dev',
+      supportHref: 'https://boosty.to/taviraq',
       iconDataUrl: 'data:image/png;base64,icon'
     })
 
@@ -31,6 +33,7 @@ describe('about window html', () => {
     const html = createAboutWindowHtml({
       version: '0.2.2',
       websiteHref: 'https://taviraq.dev',
+      supportHref: 'https://boosty.to/taviraq',
       iconDataUrl: ''
     })
 
@@ -43,12 +46,25 @@ describe('about window html', () => {
     const html = createAboutWindowHtml({
       version: '0.2.2"><script>',
       websiteHref: 'https://taviraq.dev/?q=<x>',
+      supportHref: 'https://boosty.to/taviraq?q=<x>',
       iconDataUrl: 'data:image/png;base64,&icon'
     })
 
     expect(html).toContain('Version 0.2.2&quot;&gt;&lt;script&gt;')
     expect(html).toContain('https://taviraq.dev/?q=&lt;x&gt;')
+    expect(html).toContain('https://boosty.to/taviraq?q=&lt;x&gt;')
     expect(html).toContain('data:image/png;base64,&amp;icon')
     expect(html).not.toContain('0.2.2"><script>')
+  })
+
+  it('links to project support from the about window', () => {
+    const html = createAboutWindowHtml({
+      version: '0.2.2',
+      websiteHref: 'https://taviraq.dev',
+      supportHref: 'https://boosty.to/taviraq',
+      iconDataUrl: 'data:image/png;base64,icon'
+    })
+
+    expect(html).toContain('<a href="https://boosty.to/taviraq" target="_blank" rel="noreferrer">Support development</a>')
   })
 })

@@ -140,7 +140,7 @@ const DISCOVERED_MCP_SOURCES = new Set<DiscoveredMcpServer['source']>([
   'windsurf'
 ])
 const TAVIRAQ_WEBSITE = 'https://taviraq.dev'
-const TAVIRAQ_SUPPORT_URL = 'https://boosty.to/taviraq'
+const TAVIRAQ_SUPPORT_URL = 'https://github.com/Doka-NT/Taviraq#support'
 const ABOUT_ICON_SIZE = 144
 const DEMO_MODE = process.env.TAVIRAQ_DEMO_MODE === '1' || process.env.AI_TERMINAL_DEMO_MODE === '1'
 const DATA_USAGE_PATHS = [

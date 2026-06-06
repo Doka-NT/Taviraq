@@ -26,7 +26,7 @@
   ·
   <a href="docs/security-privacy.md">Security & Privacy</a>
   ·
-  <a href="https://boosty.to/taviraq">Support</a>
+  <a href="#support">Support</a>
   ·
   <a href="https://github.com/Doka-NT/Taviraq/issues">Issues</a>
 </p>
@@ -155,9 +155,21 @@ the PR.
 
 ## Support
 
-If Taviraq saves you time, you can support ongoing development through
-[Boosty](https://boosty.to/taviraq). Taviraq is free and open-source; support is
-a donation, not a Pro license or a purchase.
+If Taviraq saves you time, you can support ongoing development. Taviraq is free
+and open-source; support is a donation, not a Pro license or a purchase.
+
+- [Boosty](https://boosty.to/taviraq)
+- USDT on TON:
+
+  ```text
+  Network: TON
+  Token: USDT
+  Address: UQARFt0gpB_whMwOn2GzCWr_XER_P2PXit6zWmQpUeJYw5bZ
+  ```
+
+  Send only USDT on the TON network to this address. Using another network can
+  lose funds. New to TON? See the
+  [Wallet guide for USDT on TON](https://help.wallet.tg/article/246-usdt-on-ton).
 
 ## License
 

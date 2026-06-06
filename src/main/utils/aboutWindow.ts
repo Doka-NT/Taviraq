@@ -1,6 +1,7 @@
 export interface AboutWindowHtmlOptions {
   version: string
   websiteHref: string
+  supportHref: string
   iconDataUrl: string
 }
 
@@ -8,9 +9,10 @@ export function escapeHtml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;')
 }
 
-export function createAboutWindowHtml({ version, websiteHref, iconDataUrl }: AboutWindowHtmlOptions): string {
+export function createAboutWindowHtml({ version, websiteHref, supportHref, iconDataUrl }: AboutWindowHtmlOptions): string {
   const applicationVersion = escapeHtml(version)
   const safeWebsiteHref = escapeHtml(websiteHref)
+  const safeSupportHref = escapeHtml(supportHref)
   const safeIconDataUrl = escapeHtml(iconDataUrl)
   const iconMarkup = safeIconDataUrl
     ? `<img class="mark" src="${safeIconDataUrl}" width="72" height="72" alt="Taviraq app icon">`
@@ -81,6 +83,7 @@ export function createAboutWindowHtml({ version, websiteHref, iconDataUrl }: Abo
       <h1>Taviraq</h1>
       <p>Version ${applicationVersion}</p>
       <a href="${safeWebsiteHref}" target="_blank" rel="noreferrer">${safeWebsiteHref}</a>
+      <a href="${safeSupportHref}" target="_blank" rel="noreferrer">Support development</a>
       <p>AI-native macOS terminal</p>
     </main>
     <script>

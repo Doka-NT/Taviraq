@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import type { ChatMessage, ChatStreamRequest, CommandRiskAssessmentRequest } from '@shared/types'
+import type { MaskingRuleProvider } from '@main/capabilities'
+import { CapabilityRegistry } from '@main/capabilities'
 import type * as SecretMaskingModule from '@main/utils/secretMasking'
 import { getApiKey, getProxyPassword } from '@main/services/secretStore'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -340,6 +342,94 @@ describe('llmService', () => {
     } finally {
       await rm(tempDir, { recursive: true, force: true })
     }
+  })
+
+  it('applies masking-rule capabilities to MCP tool output', async () => {
+    const secret = 'provider-only-secret-ABC1234567890'
+    const registry = new CapabilityRegistry()
+    const provider: MaskingRuleProvider = {
+      id: 'test.mcp-output-mask',
+      kind: 'masking-rule',
+      version: '1.0.0',
+      findSecrets: (text) => text.includes(secret)
+        ? [{ ruleId: 'provider-mcp-secret', secret, match: `MCP_PRIVATE=${secret}` }]
+        : []
+    }
+    registry.register(provider)
+
+    vi.doMock('@main/services/mcpRuntime', () => ({
+      getEnabledMcpTools: vi.fn(() => [{
+        server: {
+          id: 'server-1',
+          name: 'vault',
+          command: 'vault-mcp',
+          enabled: true
+        },
+        tool: {
+          name: 'read_secret',
+          description: 'Reads a provider-only secret',
+          inputSchema: { type: 'object', properties: {} }
+        }
+      }]),
+      callMcpTool: vi.fn().mockResolvedValue(`{"MCP_PRIVATE":"${secret}"}`)
+    }))
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{
+              id: 'call-1',
+              type: 'function',
+              function: { name: 'vault_read_secret', arguments: '{}' }
+            }]
+          }
+        }]
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        choices: [{ message: { content: 'Готово.' } }]
+      })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { streamChatCompletion } = await import('@main/services/llmService')
+    const toolEvents: Array<{ status?: string; content?: string }> = []
+    const privacy: Array<{ count: number; categories: string[] }> = []
+    await streamChatCompletion({
+      requestId: 'request-mcp-provider-secret',
+      provider: {
+        name: 'OpenAI Compatible',
+        baseUrl: 'https://example.test',
+        apiKeyRef: 'openai',
+        selectedModel: 'gpt-4.1'
+      },
+      messages: [{ role: 'user', content: 'Use the vault tool' }],
+      context: {
+        selectedText: '',
+        assistMode: 'read'
+      }
+    }, (event) => {
+      if (event.type === 'tool') toolEvents.push({ status: event.status, content: event.content })
+      if (event.type === 'privacy' && typeof event.maskedSecrets === 'number') {
+        privacy.push({ count: event.maskedSecrets, categories: event.categories ?? [] })
+      }
+    }, undefined, 'on', undefined, [{
+      id: 'server-1',
+      name: 'vault',
+      command: 'vault-mcp',
+      enabled: true,
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }], registry)
+
+    const secondBody = JSON.parse(readStringBody(fetchMock.mock.calls[1][1] as RequestInit)) as { messages: Array<{ role: string; content: string }> }
+    const toolPayload = secondBody.messages.at(-1)?.content ?? ''
+    expect(privacy).toEqual([{ count: 1, categories: ['PROVIDER_MCP_SECRET'] }])
+    expect(toolEvents.at(-1)?.status).toBe('done')
+    expect(toolEvents.at(-1)?.content).not.toContain(secret)
+    expect(toolEvents.at(-1)?.content).toContain('[[TAVIRAQ_SECRET_1_PROVIDER_MCP_SECRET]]')
+    expect(toolPayload).not.toContain(secret)
+    expect(toolPayload).toContain('[[TAVIRAQ_SECRET_1_PROVIDER_MCP_SECRET]]')
   })
 
   it('does not send MCP tools to models without inferred tool support', async () => {

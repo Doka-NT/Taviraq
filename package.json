@@ -26,7 +26,8 @@
     "lint": "eslint src tests electron.vite.config.ts vitest.config.ts",
     "changelog": "node scripts/generate-changelog.mjs --changelog /tmp/taviraq-changelog.md && cat /tmp/taviraq-changelog.md",
     "record:demo": "node scripts/record-demo.mjs",
-    "record:demo:gif": "node scripts/record-demo.mjs --gif"
+    "record:demo:gif": "node scripts/record-demo.mjs --gif",
+    "check:spdx": "node scripts/check-spdx-headers.mjs"
   },
   "dependencies": {
     "@aptabase/electron": "^0.3.1",

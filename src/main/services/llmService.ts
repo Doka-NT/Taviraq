@@ -27,7 +27,8 @@ import {
   parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
-import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
+import type { CapabilityRegistry, SafetyPolicyContribution } from '@main/capabilities'
+import { assessProtectedCommandRisk, mergeSafetyAssessments } from '@main/utils/commandRisk'
 import { buildAssistantPromptMessages, LANGUAGE_NAMES, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
@@ -152,9 +153,16 @@ export async function streamChatCompletion(
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext,
-  mcpServers: McpServerConfig[] = []
+  mcpServers: McpServerConfig[] = [],
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<ChatStreamCompletionResult> {
-  const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
+  const masked = await maskChatStreamRequest(
+    request,
+    secretMaskingMode,
+    signal,
+    existingSecretContext,
+    capabilityRegistry?.get('masking-rule') ?? []
+  )
   const contentRedactor = createStreamingPlaceholderRedactor()
   const reasoningRedactor = createStreamingPlaceholderRedactor()
   let maskedContent = ''
@@ -750,15 +758,24 @@ export async function assessCommandRisk(
   request: CommandRiskAssessmentRequest,
   secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext,
-  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>
+  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>,
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<CommandRiskAssessment> {
-  const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
+  const masked = await maskCommandRiskAssessmentRequest(
+    request,
+    secretMaskingMode,
+    undefined,
+    existingSecretContext,
+    capabilityRegistry?.get('masking-rule') ?? []
+  )
   if (masked.context.bindings.length > 0) {
     await onMaskedContext?.(masked.context)
   }
   const safeRequest = masked.request
   const protectedAssessment = assessProtectedCommandRisk(safeRequest)
-  if (protectedAssessment) return protectedAssessment
+  const safetyContributions = collectSafetyPolicyContributions(capabilityRegistry, safeRequest)
+  const mergedAssessment = mergeSafetyAssessments(protectedAssessment, safetyContributions)
+  if (mergedAssessment) return mergedAssessment
 
   const model = safeRequest.provider.commandRiskModel?.trim()
   if (!model) {
@@ -814,13 +831,37 @@ export async function assessCommandRisk(
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
 }
 
+function collectSafetyPolicyContributions(
+  registry: CapabilityRegistry | undefined,
+  request: Pick<CommandRiskAssessmentRequest, 'command' | 'context'>
+): SafetyPolicyContribution[] {
+  if (!registry) return []
+
+  return registry.get('safety-policy').flatMap((provider) => {
+    try {
+      const contribution = provider.evaluate(request)
+      return contribution ? [contribution] : []
+    } catch (error) {
+      console.warn(`[capabilities] safety-policy provider "${provider.id}" failed`, error)
+      return []
+    }
+  })
+}
+
 export async function summarizeConversation(
   request: SummarizeConversationRequest,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  onMaskedContext?: (context: SecretMaskContext) => void
+  onMaskedContext?: (context: SecretMaskContext) => void,
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<GeneratedPrompt> {
-  const masked = await maskSummarizeConversationRequest(request, secretMaskingMode, signal)
+  const masked = await maskSummarizeConversationRequest(
+    request,
+    secretMaskingMode,
+    signal,
+    undefined,
+    capabilityRegistry?.get('masking-rule') ?? []
+  )
   if (masked.context.bindings.length > 0) {
     onMaskedContext?.(masked.context)
   }

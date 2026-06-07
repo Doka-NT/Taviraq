@@ -12,6 +12,7 @@ import type {
   SecretMaskingSettings,
   SummarizeConversationRequest
 } from '@shared/types'
+import type { MaskingRuleProvider } from '@main/capabilities'
 import {
   CUSTOM_SECRET_PATTERN_MAX_MATCHES,
   CUSTOM_SECRET_SCAN_MAX_TEXT_LENGTH,
@@ -131,14 +132,15 @@ export async function maskChatStreamRequest(
   request: ChatStreamRequest,
   mode: SecretMaskingInput,
   signal?: AbortSignal,
-  existingContext?: SecretMaskContext
+  existingContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<MaskedRequest<ChatStreamRequest>> {
   const textParts = [
     ...request.messages.map((message) => message.content),
     request.context.selectedText,
     request.context.terminalOutput ?? ''
   ]
-  const context = await createContextFromTexts(textParts, mode, signal, existingContext)
+  const context = await createContextFromTexts(textParts, mode, signal, existingContext, maskingProviders)
 
   return {
     context,
@@ -161,14 +163,15 @@ export async function maskCommandRiskAssessmentRequest(
   request: CommandRiskAssessmentRequest,
   mode: SecretMaskingInput,
   signal?: AbortSignal,
-  existingContext?: SecretMaskContext
+  existingContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<MaskedRequest<CommandRiskAssessmentRequest>> {
   const textParts = [
     request.command,
     request.context.selectedText,
     request.context.terminalOutput ?? ''
   ]
-  const context = await createContextFromTexts(textParts, mode, signal, existingContext)
+  const context = await createContextFromTexts(textParts, mode, signal, existingContext, maskingProviders)
 
   return {
     context,
@@ -191,9 +194,10 @@ export async function maskSummarizeConversationRequest(
   request: SummarizeConversationRequest,
   mode: SecretMaskingInput,
   signal?: AbortSignal,
-  existingContext?: SecretMaskContext
+  existingContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<MaskedRequest<SummarizeConversationRequest>> {
-  const context = await createContextFromTexts(request.messages.map((message) => message.content), mode, signal, existingContext)
+  const context = await createContextFromTexts(request.messages.map((message) => message.content), mode, signal, existingContext, maskingProviders)
 
   return {
     context,
@@ -208,9 +212,10 @@ export async function maskTextForDisplay(
   text: string,
   mode: SecretMaskingInput,
   existingContext?: SecretMaskContext,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<MaskedTextResult> {
-  const context = await createContextFromTexts([text], mode, signal, existingContext)
+  const context = await createContextFromTexts([text], mode, signal, existingContext, maskingProviders)
   return {
     context,
     text: displaySecretPlaceholders(maskText(text, context))
@@ -220,7 +225,8 @@ export async function maskTextForDisplay(
 export async function sanitizeSavedChatForStorage(
   chat: SavedChat,
   mode: SecretMaskingInput,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<SavedChat> {
   const textParts = [
     chat.title,
@@ -231,7 +237,7 @@ export async function sanitizeSavedChatForStorage(
       message.reasoningContent ?? ''
     ])
   ]
-  const context = await createContextFromTexts(textParts, mode, signal)
+  const context = await createContextFromTexts(textParts, mode, signal, undefined, maskingProviders)
   const redact = (value?: string): string | undefined => (
     value === undefined ? undefined : displaySecretPlaceholders(maskText(value, context))
   )
@@ -253,7 +259,8 @@ export async function createContextFromTexts(
   texts: string[],
   mode: SecretMaskingInput,
   signal?: AbortSignal,
-  existingContext?: SecretMaskContext
+  existingContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<SecretMaskContext> {
   const settings = normalizeSecretMaskingInput(mode)
   if (settings.mode === 'off') return createSecretMaskContext()
@@ -262,7 +269,7 @@ export async function createContextFromTexts(
   const combined = texts.filter(Boolean).join('\n\n--- taviraq-secret-scan-boundary ---\n\n')
   if (!combined.trim()) return context
 
-  const findings = await scanTextForSecrets(combined, settings, signal)
+  const findings = await scanTextForSecrets(combined, settings, signal, maskingProviders)
   for (const finding of findings) {
     registerFinding(context, finding)
   }
@@ -273,22 +280,42 @@ export async function createContextFromTexts(
 export async function scanTextForSecrets(
   text: string,
   mode: SecretMaskingInput,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<SecretFinding[]> {
   const settings = normalizeSecretMaskingInput(mode)
   if (settings.mode === 'off') return []
 
   const supplementalFindings = findSupplementalStrictSecrets(text)
   const customFindings = findCustomPatternSecrets(text, settings)
+  const providerFindings = collectProviderSecretFindings(maskingProviders, text, settings)
   try {
     const gitleaksFindings = await runGitleaks(text, signal)
-    return [...customFindings, ...gitleaksFindings, ...supplementalFindings]
+    return [...customFindings, ...gitleaksFindings, ...supplementalFindings, ...providerFindings]
   } catch (error) {
     if (isGitleaksUnavailableError(error)) {
-      return [...customFindings, ...supplementalFindings]
+      return [...customFindings, ...supplementalFindings, ...providerFindings]
     }
     throw error
   }
+}
+
+export function collectProviderSecretFindings(
+  providers: readonly MaskingRuleProvider[],
+  text: string,
+  mode: SecretMaskingInput
+): SecretFinding[] {
+  if (providers.length === 0) return []
+
+  const findings: SecretFinding[] = []
+  for (const provider of providers) {
+    try {
+      findings.push(...provider.findSecrets(text, mode))
+    } catch (error) {
+      console.warn(`[capabilities] masking-rule provider "${provider.id}" failed`, error)
+    }
+  }
+  return findings
 }
 
 export function parseGitleaksReport(output: string): SecretFinding[] {

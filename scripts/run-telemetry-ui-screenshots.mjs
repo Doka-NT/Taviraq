@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

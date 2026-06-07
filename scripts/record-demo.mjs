@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: MPL-2.0
 import { _electron as playwrightElectron } from 'playwright'
 import electronBinary from 'electron'
 import { spawnSync } from 'node:child_process'

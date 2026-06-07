@@ -281,12 +281,11 @@ export async function scanTextForSecrets(
   const supplementalFindings = findSupplementalStrictSecrets(text)
   const customFindings = findCustomPatternSecrets(text, settings)
   try {
-    const findings = await runGitleaks(text, signal)
-    findings.push(...supplementalFindings, ...customFindings)
-    return findings
+    const gitleaksFindings = await runGitleaks(text, signal)
+    return [...customFindings, ...gitleaksFindings, ...supplementalFindings]
   } catch (error) {
     if (isGitleaksUnavailableError(error)) {
-      return [...supplementalFindings, ...customFindings]
+      return [...customFindings, ...supplementalFindings]
     }
     throw error
   }

@@ -5,7 +5,7 @@
   "description": "AI-native macOS terminal with built-in assistant workflows and safe command execution.",
   "author": "Soshnikov Artem",
   "private": true,
-  "license": "AGPL-3.0-or-later",
+  "license": "MPL-2.0",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {

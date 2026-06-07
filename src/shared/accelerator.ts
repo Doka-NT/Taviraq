@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * Mapping from KeyboardEvent.code (physical key) to Electron Accelerator key name.
  * @see https://www.electronjs.org/docs/latest/api/accelerator

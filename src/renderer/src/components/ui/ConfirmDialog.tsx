@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Trash2 } from 'lucide-react'

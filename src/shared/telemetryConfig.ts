@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { TelemetryConsentDecision, TelemetryEvent, TelemetrySettings } from './types'
 
 /**

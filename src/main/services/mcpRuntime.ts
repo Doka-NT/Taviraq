@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { basename } from 'node:path'

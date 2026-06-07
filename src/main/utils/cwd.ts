@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { existsSync } from 'node:fs'
 
 export function resolveExistingCwd(requested: string | undefined, fallback: string): string {

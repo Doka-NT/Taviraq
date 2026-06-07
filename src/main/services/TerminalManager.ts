@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { BrowserWindow } from 'electron'
 import { execFile } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 function normalizeCommand(command: string): string {
   return command.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
 }

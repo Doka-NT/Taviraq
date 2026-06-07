@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { TerminalSessionInfo } from '@shared/types'
 
 export type SessionTabStatus = 'running' | 'idle' | 'exited' | 'disconnected' | 'reconnecting'

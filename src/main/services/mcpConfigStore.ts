@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { app, dialog, nativeImage } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'

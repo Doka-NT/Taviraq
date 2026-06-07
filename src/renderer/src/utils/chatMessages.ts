@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { ChatMessage } from '@shared/types'
 import {
   DISPLAY_SECRET_LABEL,

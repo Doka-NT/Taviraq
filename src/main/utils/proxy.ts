@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export function normalizeHttpProxyUrl(value: string): string {
   let url: URL
   try {

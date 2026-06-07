@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export type Language = 'en' | 'ru' | 'cn'
 
 export interface Translations {

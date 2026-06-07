@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { app, shell } from 'electron'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'

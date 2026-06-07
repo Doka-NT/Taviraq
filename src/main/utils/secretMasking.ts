@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { access } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { spawn } from 'node:child_process'

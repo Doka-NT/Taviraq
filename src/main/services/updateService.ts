@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { app } from 'electron'
 import type { BrowserWindow } from 'electron'
 import electronUpdater from 'electron-updater'

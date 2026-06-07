@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { AlertTriangle, ShieldAlert } from 'lucide-react'
 import type { CommandRiskLevel } from '@shared/types'
 import type { LanguageContextValue } from '@renderer/i18n/language'

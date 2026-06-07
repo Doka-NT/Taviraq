@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 /**
  * Task list / step-by-step planning support (issue #71).
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { SecretMaskingSettings } from './types'
 
 export const SECRET_MASKING_AUDIT_LIMIT = 80

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export const CHAT_AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 48
 
 export interface ChatScrollMetrics {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import { DISPLAY_SECRET_LABEL } from '@shared/secretPlaceholders'
 import type { ChatMessage } from '@shared/types'

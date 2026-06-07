@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 
 describe('LLM protocol parsing', () => {

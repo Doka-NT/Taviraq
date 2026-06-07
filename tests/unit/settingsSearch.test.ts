@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { findFuzzySettingsSuggestions, matchesSearchQuery, type SettingsSearchItem } from '@renderer/utils/settingsSearch'
 
 type SettingsTab = 'appearance' | 'providers' | 'connections' | 'security'

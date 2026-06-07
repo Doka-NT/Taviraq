@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AppConfig, TelemetryConsentDecision } from '@shared/types'

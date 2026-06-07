@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { buildAssistantPromptMessages, buildModeInstructions, buildTaskListInstructions, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { TASK_LIST_FENCE_LANG } from '@shared/taskList'
 

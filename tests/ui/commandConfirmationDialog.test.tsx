@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { fireEvent, render, screen } from '@testing-library/react'
 import { CommandConfirmationDialog, type CommandConfirmation } from '@renderer/components/CommandConfirmationDialog'
 import type { LanguageContextValue } from '@renderer/i18n/language'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MessageContent } from '@renderer/components/MessageContent'
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => ({

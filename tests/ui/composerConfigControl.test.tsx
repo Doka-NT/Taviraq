@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { ComposerConfigControl } from '@renderer/components/ComposerConfigControl'

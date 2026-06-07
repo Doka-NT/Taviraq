@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { ChatMessage, ChatStreamRequest, CommandRiskAssessmentRequest } from '@shared/types'
 import type * as SecretMaskingModule from '@main/utils/secretMasking'
 import { getApiKey, getProxyPassword } from '@main/services/secretStore'

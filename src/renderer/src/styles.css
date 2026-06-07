@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MPL-2.0 */
 :root {
   color: var(--text-primary, rgba(var(--surface-rgb), 0.88));
   background: var(--bg-window, #111113);

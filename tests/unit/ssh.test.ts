@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 
 describe('SSH command generation', () => {

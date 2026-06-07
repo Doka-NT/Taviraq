@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { extractCommandProposals } from '@main/utils/commandProposals'
 
 describe('command proposal extraction', () => {

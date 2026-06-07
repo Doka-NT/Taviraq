@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { cleanCommandOutput } from '@renderer/utils/commandOutput'
 import { buildAgentContinuation, wasTerminalContextSentToProvider } from '@renderer/utils/agentContinuation'
 import { estimateComposerContextTokens, formatComposerContextTokens } from '@renderer/utils/composerContext'

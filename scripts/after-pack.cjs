@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 const { execFileSync } = require('node:child_process')
 
 function run(command, args) {

@@ -31,6 +31,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: SPDX headers
+        run: npm run check:spdx
+
       - name: Typecheck
         run: npm run typecheck
 

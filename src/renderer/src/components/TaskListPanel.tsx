@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { Check, Circle, FolderOpen, ListChecks, Loader2 } from 'lucide-react'
 import type { TaskList } from '@shared/taskList'
 import { summarizeTaskList } from '@shared/taskList'

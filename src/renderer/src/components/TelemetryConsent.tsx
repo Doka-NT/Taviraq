@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useEffect, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
 import type { TelemetryConsentDecision } from '@shared/types'

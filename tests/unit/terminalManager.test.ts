@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
 import { looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 const APPROX_CHARS_PER_CONTEXT_TOKEN = 4
 
 export function estimateComposerContextTokens(charCount: number): number {

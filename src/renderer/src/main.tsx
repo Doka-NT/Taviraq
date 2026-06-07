@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import ReactDOM from 'react-dom/client'
 import '@xterm/xterm/css/xterm.css'
 import './styles.css'

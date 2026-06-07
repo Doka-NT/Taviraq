@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { join } from 'node:path'
 import { rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'

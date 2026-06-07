@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { SecretMaskingSettings } from '@shared/types'
 
 export function hasSelectedSecretProtectionScope(settings: SecretMaskingSettings): boolean {

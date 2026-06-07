@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { createAboutWindowHtml } from '@main/utils/aboutWindow'
 
 describe('about window html', () => {

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { AppTheme } from './types'
 
 const CAMEL_TO_KEBAB = /[A-Z]/g

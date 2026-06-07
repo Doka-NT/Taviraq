@@ -174,7 +174,7 @@ and open-source; support is a donation, not a Pro license or a purchase.
 ## License
 
 Taviraq source code is licensed under the
-[GNU Affero General Public License v3.0 or later](LICENSE).
+[Mozilla Public License, Version 2.0](LICENSE).
 
 Copyright (C) 2026 Soshnikov Artem.
 

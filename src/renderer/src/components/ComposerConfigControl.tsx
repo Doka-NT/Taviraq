@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useEffect, useRef } from 'react'
 import { Brain, ChevronDown, Eye, FileText, ScrollText, ShieldCheck, ShieldOff, Zap } from 'lucide-react'
 import type { AssistMode } from '@shared/types'

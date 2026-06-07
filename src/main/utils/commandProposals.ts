@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { CommandProposal } from '@shared/types'
 
 const COMMAND_LANGUAGES = new Set(['bash', 'sh', 'shell', 'zsh', 'fish', 'terminal', 'console'])

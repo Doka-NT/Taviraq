@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { access } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import { spawn } from 'node:child_process'
@@ -280,12 +281,11 @@ export async function scanTextForSecrets(
   const supplementalFindings = findSupplementalStrictSecrets(text)
   const customFindings = findCustomPatternSecrets(text, settings)
   try {
-    const findings = await runGitleaks(text, signal)
-    findings.push(...supplementalFindings, ...customFindings)
-    return findings
+    const gitleaksFindings = await runGitleaks(text, signal)
+    return [...customFindings, ...gitleaksFindings, ...supplementalFindings]
   } catch (error) {
     if (isGitleaksUnavailableError(error)) {
-      return [...supplementalFindings, ...customFindings]
+      return [...customFindings, ...supplementalFindings]
     }
     throw error
   }

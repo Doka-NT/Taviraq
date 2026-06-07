@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import {
   forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState,
   type KeyboardEvent, type MouseEvent, type MutableRefObject, type PointerEvent

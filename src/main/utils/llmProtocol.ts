@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export interface ChatCompletionChunk {
   content?: string
   reasoningContent?: string

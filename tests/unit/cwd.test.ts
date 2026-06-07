@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

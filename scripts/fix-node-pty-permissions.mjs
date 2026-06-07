@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { chmod, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 

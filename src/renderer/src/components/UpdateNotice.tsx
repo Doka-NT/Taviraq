@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useEffect, useState } from 'react'
 import { Download, RefreshCw, X } from 'lucide-react'
 import type { UpdateStatus } from '@shared/types'

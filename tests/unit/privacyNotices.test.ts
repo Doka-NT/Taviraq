@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { findCurrentRequestPrivacyNoticeIndex, mergePrivacyNotices } from '@renderer/utils/privacyNotices'
 import type { PrivacyMaskingNotice } from '@shared/types'
 

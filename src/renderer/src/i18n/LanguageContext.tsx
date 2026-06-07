@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { ReactNode } from 'react'
 import { LanguageContext } from './language'
 import { TRANSLATIONS } from './translations'

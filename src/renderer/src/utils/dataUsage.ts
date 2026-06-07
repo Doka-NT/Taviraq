@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { Language } from '@renderer/i18n/translations'
 
 export function formatDataBytes(bytes: number, language: Language): string {

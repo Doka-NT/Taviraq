@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { AssistMode, ChatMessage, TerminalSessionInfo } from './types'
 import { TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG } from './taskList'
 

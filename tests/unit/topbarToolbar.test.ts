@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { readFileSync } from 'node:fs'
 
 const appSource = readFileSync(new URL('../../src/renderer/src/App.tsx', import.meta.url), 'utf8')

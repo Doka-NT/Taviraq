@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { app } from 'electron'
 import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises'
 import { join } from 'node:path'

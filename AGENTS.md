@@ -152,6 +152,9 @@ When asked to run or update Taviraq QA/test cases:
 ## Editing Notes
 
 - Prefer minimal changes over broad refactors.
+- New first-party code files under `src/`, `tests/`, and `scripts/`, plus root
+  TypeScript config files, must include an MPL-2.0 SPDX header in the correct
+  syntax for their file type. Run `npm run check:spdx` before handing off.
 - Do not rewrite generated `out/` files manually.
 - Do not touch `node_modules/`.
 - Keep IPC types in `src/shared/types.ts` synchronized with `src/preload/index.ts` and `src/main/index.ts`.

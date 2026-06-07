@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { readFileSync } from 'node:fs'
 import { getComposerLiveStatus, getPermissionIndicatorState, getProviderTerminalContext } from '@renderer/components/LlmPanel'
 

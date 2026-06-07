@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import {
   SECRET_PLACEHOLDER_GLOBAL_RE,
   SECRET_PLACEHOLDER_RE

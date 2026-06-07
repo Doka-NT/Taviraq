@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { app } from 'electron'
 import { initialize, trackEvent as aptabaseTrackEvent } from '@aptabase/electron/main'
 import type { TelemetryEvent, TelemetrySettings } from '@shared/types'

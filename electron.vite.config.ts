@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'

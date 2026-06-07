@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export type TerminalSessionKind = 'local' | 'ssh'
 export type AssistMode = 'off' | 'read' | 'agent'
 export type SecretMaskingMode = 'off' | 'on'

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import pty from 'node-pty'
 
 describe('local PTY lifecycle', () => {

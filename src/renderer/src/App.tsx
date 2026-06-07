@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalBlock, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'

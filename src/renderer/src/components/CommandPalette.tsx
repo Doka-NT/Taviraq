@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Code2, FileText, Search, Terminal } from 'lucide-react'
 

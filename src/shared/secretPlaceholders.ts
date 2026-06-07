@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export const SECRET_PLACEHOLDER_PREFIX = '[[TAVIRAQ_SECRET_'
 export const SECRET_PLACEHOLDER_PATTERN = String.raw`\[\[TAVIRAQ_SECRET_\d+_[A-Z0-9_]+\]\]`
 export const SECRET_PLACEHOLDER_RE = new RegExp(SECRET_PLACEHOLDER_PATTERN)

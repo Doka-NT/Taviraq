@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

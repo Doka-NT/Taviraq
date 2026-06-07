@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 export interface SettingsSearchItem<T extends string = string> {
   id: T
   label: string

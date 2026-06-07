@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type * as Keytar from 'keytar'
 
 const SERVICE_NAME = 'taviraq'

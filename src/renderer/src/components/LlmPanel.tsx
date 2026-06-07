@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import {
   useCallback, useEffect, useId, useMemo, useRef, useState,
   type FocusEvent, type KeyboardEvent as ReactKeyboardEvent

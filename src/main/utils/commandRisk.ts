@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { CommandRiskAssessment, CommandRiskAssessmentRequest, CommandRiskLevel } from '@shared/types'
 import { SECRET_PLACEHOLDER_RE } from '@shared/secretPlaceholders'
 

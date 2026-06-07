@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 import type { LLMModel, LLMProviderConfig, LLMProviderType } from '@shared/types'
 
 export const PROVIDER_DEFAULTS: Record<LLMProviderType, { name: string; baseUrl: string }> = {

@@ -27,7 +27,8 @@ import {
   parseOllamaNativeModelList,
   PROVIDER_DEFAULTS
 } from '@main/utils/provider'
-import { assessProtectedCommandRisk } from '@main/utils/commandRisk'
+import type { CapabilityRegistry, MaskingRuleProvider, SafetyPolicyContribution } from '@main/capabilities'
+import { assessProtectedCommandRisk, mergeSafetyAssessments } from '@main/utils/commandRisk'
 import { buildAssistantPromptMessages, LANGUAGE_NAMES, mergeAssistantPromptMessages } from '@shared/promptBuilder'
 import { parseAnthropicStreamEvent, parseChatCompletionChunk, parseSseEvents, parseSseLines } from '@main/utils/llmProtocol'
 import { normalizeHttpProxyUrl } from '@main/utils/proxy'
@@ -152,9 +153,17 @@ export async function streamChatCompletion(
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext,
-  mcpServers: McpServerConfig[] = []
+  mcpServers: McpServerConfig[] = [],
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<ChatStreamCompletionResult> {
-  const masked = await maskChatStreamRequest(request, secretMaskingMode, signal, existingSecretContext)
+  const maskingProviders = capabilityRegistry?.get('masking-rule') ?? []
+  const masked = await maskChatStreamRequest(
+    request,
+    secretMaskingMode,
+    signal,
+    existingSecretContext,
+    maskingProviders
+  )
   const contentRedactor = createStreamingPlaceholderRedactor()
   const reasoningRedactor = createStreamingPlaceholderRedactor()
   let maskedContent = ''
@@ -188,7 +197,7 @@ export async function streamChatCompletion(
       const content = contentRedactor.push(chunk.content)
       if (content) onChunk({ type: 'chunk', content })
     }
-  }, signal, mcpServers, secretMaskingMode, masked.context)
+  }, signal, mcpServers, secretMaskingMode, masked.context, maskingProviders)
 
   const finalReasoning = reasoningRedactor.flush()
   if (finalReasoning) onChunk({ type: 'reasoning', reasoningContent: finalReasoning })
@@ -209,7 +218,8 @@ async function streamChatCompletionUnsafe(
   signal?: AbortSignal,
   mcpServers: McpServerConfig[] = [],
   secretMaskingMode: SecretMaskingInput = 'on',
-  secretContext?: SecretMaskContext
+  secretContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<void> {
   const model = request.provider.selectedModel?.trim()
   if (!model) {
@@ -220,7 +230,7 @@ async function streamChatCompletionUnsafe(
   const mcpTools = getEnabledMcpTools(mcpServers)
 
   if (mcpTools.length > 0 && (providerType === 'openai' || providerType === 'anthropic') && inferModelSupportsMcp(model) !== false) {
-    return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
+    return completeChatWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext, maskingProviders)
   }
 
   if (providerType === 'lmstudio') {
@@ -318,12 +328,13 @@ async function completeChatWithMcpTools(
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  secretContext?: SecretMaskContext
+  secretContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<void> {
   if (getProviderType(request.provider) === 'anthropic') {
-    return completeAnthropicWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
+    return completeAnthropicWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext, maskingProviders)
   }
-  return completeOpenAIWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext)
+  return completeOpenAIWithMcpTools(request, model, mcpTools, onChunk, signal, secretMaskingMode, secretContext, maskingProviders)
 }
 
 async function completeOpenAIWithMcpTools(
@@ -333,7 +344,8 @@ async function completeOpenAIWithMcpTools(
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  secretContext?: SecretMaskContext
+  secretContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<void> {
   const toolMap = buildMcpToolNameMap(mcpTools)
   const messages: OpenAIMessage[] = buildMessages(request.messages, request.context)
@@ -374,7 +386,7 @@ async function completeOpenAIWithMcpTools(
       const entry = toolMap.get(call.function.name)
       const parsedArgs = parseMcpToolArgs(call.function.arguments)
       const content = entry && parsedArgs.ok
-        ? await callMcpToolWithTrace(entry, parsedArgs.args, call.id, onChunk, secretMaskingMode, secretContext, signal)
+        ? await callMcpToolWithTrace(entry, parsedArgs.args, call.id, onChunk, secretMaskingMode, secretContext, maskingProviders, signal)
         : parsedArgs.ok
           ? `Unknown MCP tool: ${call.function.name}`
           : reportMcpToolArgumentError(entry, call.function.name, call.id, parsedArgs.error, onChunk)
@@ -391,7 +403,8 @@ async function completeAnthropicWithMcpTools(
   onChunk: (chunk: ChatStreamUpdate) => void,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  secretContext?: SecretMaskContext
+  secretContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<void> {
   const toolMap = buildMcpToolNameMap(mcpTools)
   const input = buildAnthropicMessageInput(buildMessages(request.messages, request.context))
@@ -433,7 +446,7 @@ async function completeAnthropicWithMcpTools(
       const entry = toolMap.get(name)
       const input = use.input
       const text = entry && isRecord(input)
-        ? await callMcpToolWithTrace(entry, input, id, onChunk, secretMaskingMode, secretContext, signal)
+        ? await callMcpToolWithTrace(entry, input, id, onChunk, secretMaskingMode, secretContext, maskingProviders, signal)
         : isRecord(input)
           ? `Unknown MCP tool: ${name}`
           : reportMcpToolArgumentError(entry, name, id, 'Invalid MCP tool arguments: expected an object.', onChunk)
@@ -451,17 +464,18 @@ async function callMcpToolWithTrace(
   onChunk: (chunk: ChatStreamUpdate) => void,
   secretMaskingMode: SecretMaskingInput,
   secretContext?: SecretMaskContext,
+  maskingProviders: readonly MaskingRuleProvider[] = [],
   signal?: AbortSignal
 ): Promise<string> {
   onChunk({ type: 'tool', status: 'running', serverName: entry.server.name, toolName: entry.tool.name, toolCallId })
   try {
     const content = await callMcpTool(entry.server, entry.tool.name, args, signal)
-    const maskedContent = await maskMcpToolContent(content, secretMaskingMode, secretContext, onChunk, signal)
+    const maskedContent = await maskMcpToolContent(content, secretMaskingMode, secretContext, onChunk, signal, maskingProviders)
     onChunk({ type: 'tool', status: 'done', serverName: entry.server.name, toolName: entry.tool.name, toolCallId, content: maskedContent })
     return maskedContent
   } catch (error) {
     const rawMessage = error instanceof Error ? error.message : String(error)
-    const message = await maskMcpToolContent(rawMessage, secretMaskingMode, secretContext, onChunk, signal)
+    const message = await maskMcpToolContent(rawMessage, secretMaskingMode, secretContext, onChunk, signal, maskingProviders)
     onChunk({ type: 'tool', status: 'error', serverName: entry.server.name, toolName: entry.tool.name, toolCallId, content: message })
     const maskedError = new Error(message)
     maskedError.name = error instanceof Error ? error.name : 'Error'
@@ -474,11 +488,12 @@ async function maskMcpToolContent(
   secretMaskingMode: SecretMaskingInput,
   secretContext: SecretMaskContext | undefined,
   onChunk: (chunk: ChatStreamUpdate) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  maskingProviders: readonly MaskingRuleProvider[] = []
 ): Promise<string> {
   if (!secretContext) return content
   const previousCount = secretContext.bindings.length
-  const findings = await scanTextForSecrets(content, secretMaskingMode, signal)
+  const findings = await scanTextForSecrets(content, secretMaskingMode, signal, maskingProviders)
   addSecretFindingsToContext(secretContext, findings)
   if (secretContext.bindings.length > previousCount) {
     const newBindings = secretContext.bindings.slice(previousCount)
@@ -750,15 +765,24 @@ export async function assessCommandRisk(
   request: CommandRiskAssessmentRequest,
   secretMaskingMode: SecretMaskingInput = 'on',
   existingSecretContext?: SecretMaskContext,
-  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>
+  onMaskedContext?: (context: SecretMaskContext) => void | Promise<void>,
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<CommandRiskAssessment> {
-  const masked = await maskCommandRiskAssessmentRequest(request, secretMaskingMode, undefined, existingSecretContext)
+  const masked = await maskCommandRiskAssessmentRequest(
+    request,
+    secretMaskingMode,
+    undefined,
+    existingSecretContext,
+    capabilityRegistry?.get('masking-rule') ?? []
+  )
   if (masked.context.bindings.length > 0) {
     await onMaskedContext?.(masked.context)
   }
   const safeRequest = masked.request
   const protectedAssessment = assessProtectedCommandRisk(safeRequest)
-  if (protectedAssessment) return protectedAssessment
+  const safetyContributions = collectSafetyPolicyContributions(capabilityRegistry, safeRequest)
+  const mergedAssessment = mergeSafetyAssessments(protectedAssessment, safetyContributions)
+  if (mergedAssessment) return mergedAssessment
 
   const model = safeRequest.provider.commandRiskModel?.trim()
   if (!model) {
@@ -814,13 +838,37 @@ export async function assessCommandRisk(
   return parseCommandRiskAssessment(extractMessageContent(await response.json()))
 }
 
+function collectSafetyPolicyContributions(
+  registry: CapabilityRegistry | undefined,
+  request: Pick<CommandRiskAssessmentRequest, 'command' | 'context'>
+): SafetyPolicyContribution[] {
+  if (!registry) return []
+
+  return registry.get('safety-policy').flatMap((provider) => {
+    try {
+      const contribution = provider.evaluate(request)
+      return contribution ? [contribution] : []
+    } catch (error) {
+      console.warn(`[capabilities] safety-policy provider "${provider.id}" failed`, error)
+      return []
+    }
+  })
+}
+
 export async function summarizeConversation(
   request: SummarizeConversationRequest,
   signal?: AbortSignal,
   secretMaskingMode: SecretMaskingInput = 'on',
-  onMaskedContext?: (context: SecretMaskContext) => void
+  onMaskedContext?: (context: SecretMaskContext) => void,
+  capabilityRegistry?: CapabilityRegistry
 ): Promise<GeneratedPrompt> {
-  const masked = await maskSummarizeConversationRequest(request, secretMaskingMode, signal)
+  const masked = await maskSummarizeConversationRequest(
+    request,
+    secretMaskingMode,
+    signal,
+    undefined,
+    capabilityRegistry?.get('masking-rule') ?? []
+  )
   if (masked.context.bindings.length > 0) {
     onMaskedContext?.(masked.context)
   }

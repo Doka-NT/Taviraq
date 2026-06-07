@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import type { CommandRiskAssessment, CommandRiskAssessmentRequest, CommandRiskLevel } from '@shared/types'
+import type { SafetyPolicyContribution } from '@main/capabilities'
 import { SECRET_PLACEHOLDER_RE } from '@shared/secretPlaceholders'
 
 type ProtectedPattern = {
@@ -126,6 +127,35 @@ export function assessProtectedCommandRisk(
     ...(sshLabel ? { reasonArgs: { sshLabel } } : {}),
     ...(bestRisk ? { riskLevel: bestRisk } : {})
   }
+}
+
+export function mergeSafetyAssessments(
+  builtin: CommandRiskAssessment | undefined,
+  contributions: SafetyPolicyContribution[]
+): CommandRiskAssessment | undefined {
+  const providerAssessments = contributions.map((contribution) => ({
+    dangerous: true,
+    reason: `${contribution.reason} Taviraq requires confirmation before running it.`,
+    ...(contribution.reasonCode ? { reasonCode: contribution.reasonCode } : {}),
+    ...(contribution.riskLevel ? { riskLevel: contribution.riskLevel } : {})
+  } satisfies CommandRiskAssessment))
+
+  return [builtin, ...providerAssessments]
+    .filter((assessment): assessment is CommandRiskAssessment => Boolean(assessment))
+    .reduce<CommandRiskAssessment | undefined>((best, assessment) => {
+      if (!best) return assessment
+      return isHigherRiskAssessment(assessment, best) ? assessment : best
+    }, undefined)
+}
+
+function isHigherRiskAssessment(
+  candidate: CommandRiskAssessment,
+  current: CommandRiskAssessment
+): boolean {
+  const candidateRisk = candidate.riskLevel
+  const currentRisk = current.riskLevel
+  if (!candidateRisk || !currentRisk) return Boolean(candidateRisk && !currentRisk)
+  return RISK_PRECEDENCE[candidateRisk] > RISK_PRECEDENCE[currentRisk]
 }
 
 const TRANSFER_COMMANDS = new Set(['scp', 'rsync', 'nc', 'ncat', 'netcat'])

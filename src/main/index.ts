@@ -62,6 +62,8 @@ import {
   streamChatCompletion,
   summarizeConversation
 } from './services/llmService'
+import { CapabilityRegistry, emitCapabilityAuditEvent, loadCapabilities } from './capabilities'
+import { createExampleSafetyPolicy } from './capabilities/reference/exampleSafetyPolicy'
 import { extractCommandProposals } from './utils/commandProposals'
 import {
   addSecretFindingsToContext,
@@ -120,6 +122,7 @@ const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const mcpConfigStore = new McpConfigStore()
 const taskPlanStore = new TaskPlanStore()
+const capabilityRegistry = new CapabilityRegistry()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
 const secretContextsBySession = new Map<string, SecretMaskContext>()
@@ -259,6 +262,41 @@ function recordSecretMaskingAuditEvent(
   secretMaskingAuditEvents.unshift(event)
   secretMaskingAuditEvents.splice(SECRET_MASKING_AUDIT_LIMIT)
   mainWindow?.webContents.send('secret:auditEvent', event)
+  recordCapabilityAuditEvent(event)
+}
+
+function recordCapabilityAuditEvent(event: SecretMaskingAuditEvent): void {
+  emitCapabilityAuditEvent(
+    capabilityRegistry.get('audit-sink'),
+    {
+      type: 'secret-masking',
+      at: Date.now(),
+      payload: {
+        source: event.source,
+        scope: event.scope,
+        sessionLabel: event.sessionLabel,
+        maskedSecretCount: event.maskedSecretCount,
+        categories: event.categories
+      }
+    },
+    (sink, error) => {
+      console.warn(`[capabilities] audit-sink provider "${sink.id}" failed`, error)
+    }
+  )
+}
+
+async function initializeCapabilities(): Promise<void> {
+  if (process.env.TAVIRAQ_ENABLE_REFERENCE_CAPABILITY === '1') {
+    capabilityRegistry.register(createExampleSafetyPolicy())
+  }
+
+  await loadCapabilities(capabilityRegistry, {
+    allowUnsigned: !app.isPackaged,
+    onError: (error, entry) => {
+      const label = entry ? ` "${entry.id}"` : ''
+      console.warn(`[capabilities] failed to load${label}`, error)
+    }
+  })
 }
 
 function randomAuditId(): string {
@@ -1049,7 +1087,12 @@ function registerIpc(): void {
   ipcMain.handle('chatHistory:get', (_event, id: string) => chatHistoryStore.get(id))
   ipcMain.handle('chatHistory:save', async (_event, chat: SavedChat) => {
     await ensureSecretMaskingSettingsCache()
-    const sanitizedChat = await sanitizeSavedChatForStorage(chat, getScopedSecretMaskingSettings('chat-display'))
+    const sanitizedChat = await sanitizeSavedChatForStorage(
+      chat,
+      getScopedSecretMaskingSettings('chat-display'),
+      undefined,
+      capabilityRegistry.get('masking-rule')
+    )
     await chatHistoryStore.save(sanitizedChat)
   })
   ipcMain.handle('chatHistory:delete', (_event, id: string) => chatHistoryStore.delete(id))
@@ -1236,7 +1279,8 @@ function registerIpc(): void {
           }
           recordSecretMaskingAuditEvent('command-risk', 'provider-payload', newContext, sessionLabel)
         })
-      }
+      },
+      capabilityRegistry
     )
   })
 
@@ -1256,7 +1300,8 @@ function registerIpc(): void {
         request,
         undefined,
         secretMaskingSettings,
-        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context)
+        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context),
+        capabilityRegistry
       )
     }
 
@@ -1267,7 +1312,8 @@ function registerIpc(): void {
         request,
         controller.signal,
         secretMaskingSettings,
-        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context)
+        (context) => recordSecretMaskingAuditEvent('summary', 'provider-payload', context),
+        capabilityRegistry
       )
     } finally {
       summarizeControllers.delete(requestId)
@@ -1300,7 +1346,9 @@ function registerIpc(): void {
       const result = await maskTextForDisplay(
         text,
         getScopedSecretMaskingSettings('chat-display'),
-        previousContext
+        previousContext,
+        undefined,
+        capabilityRegistry.get('masking-rule')
       )
       const newContext = diffSecretMaskContext(result.context, previousContext)
       if (newContext.bindings.length > 0) {
@@ -1615,7 +1663,7 @@ function registerIpc(): void {
                 content: chunk.content
               })
             }
-          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext, mcpServers)
+          }, controller.signal, getScopedSecretMaskingSettings('provider-payload'), previousContext, mcpServers, capabilityRegistry)
 
           if (controller.signal.aborted) return
           const newContext = diffSecretMaskContext(result.secretContext, previousContext)
@@ -1661,6 +1709,7 @@ if (!DEMO_MODE) {
 
 void app.whenReady().then(async () => {
   await initializeSecretMaskingModeCache()
+  await initializeCapabilities()
   void warmProviderSecrets()
   registerApplicationMenu()
   registerIpc()

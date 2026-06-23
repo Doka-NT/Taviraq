@@ -143,6 +143,38 @@ describe('PromptStore', () => {
     })
   })
 
+  describe('path traversal prevention', () => {
+    it('save() generates a new id when prompt.id contains a path separator', async () => {
+      const result = await store.save({
+        id: '../../evil',
+        name: 'bad',
+        content: 'payload',
+        createdAt: ''
+      })
+      expect(result.id).not.toBe('../../evil')
+      expect(result.id).not.toContain('/')
+      expect(result.id).not.toContain('\\')
+      // File must be inside the prompts dir (no traversal)
+      const all = await store.list()
+      expect(all.find((p) => p.id === result.id)).toBeDefined()
+    })
+
+    it('save() generates a new id for null-byte in id', async () => {
+      const result = await store.save({
+        id: 'evil\0file',
+        name: 'bad',
+        content: 'payload',
+        createdAt: ''
+      })
+      expect(result.id).not.toContain('\0')
+    })
+
+    it('delete() silently refuses an id with path separators', async () => {
+      // Should not throw, and should not unlink anything outside prompts/
+      await expect(store.delete('../../etc/passwd')).resolves.toBeUndefined()
+    })
+  })
+
   describe('importFromFile()', () => {
     it('imports a plain markdown file', async () => {
       const srcDir = join(TMP_DIR, 'import_src')

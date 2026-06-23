@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
+import { TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG } from '@shared/taskList'
 
 interface MessageContentProps {
   content: string
@@ -27,6 +28,9 @@ type TextBlock =
 
 const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
+// Planning fences are derived state rendered by TaskListPanel, so they must not
+// also surface as raw code blocks inside the message body (issue #163).
+const HIDDEN_FENCE_LANGS = new Set([TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG])
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 
@@ -38,7 +42,9 @@ function parseContent(content: string): Segment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', text: content.slice(lastIndex, match.index) })
     }
-    segments.push({ type: 'code', lang: match[1], code: match[2].trim() })
+    if (!HIDDEN_FENCE_LANGS.has(match[1].toLowerCase())) {
+      segments.push({ type: 'code', lang: match[1], code: match[2].trim() })
+    }
     lastIndex = match.index + match[0].length
   }
 

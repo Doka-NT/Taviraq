@@ -251,7 +251,11 @@ export function buildShellLaunchScript(server: Pick<McpServerConfig, 'command' |
     'LC_ALL="${LC_ALL:-}"', 'LC_CTYPE="${LC_CTYPE:-}"', 'LC_MESSAGES="${LC_MESSAGES:-}"',
     'LC_NUMERIC="${LC_NUMERIC:-}"', 'LC_TIME="${LC_TIME:-}"', 'LC_COLLATE="${LC_COLLATE:-}"',
   ]
-  const serverEnvPairs = Object.entries(server.env ?? {}).map(([k, v]) => `${k}=${shellQuote(v)}`)
+  // Only embed keys that are valid POSIX env var names — prevents command injection
+  // via crafted keys like `A=$(cmd)` being interpolated by the shell.
+  const serverEnvPairs = Object.entries(server.env ?? {})
+    .filter(([k]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(k))
+    .map(([k, v]) => `${k}=${shellQuote(v)}`)
   const execLine = `exec env -i ${[...allowlistExpansions, ...serverEnvPairs, buildShellCommand(server.command, server.args ?? [])].join(' ')}`
   return [
     'exec 3>&1',

@@ -37,6 +37,24 @@ describe('mcpRuntime', () => {
     expect(execLine).toContain('DB_URL=')
   })
 
+  it('drops server env keys with shell metacharacters to prevent command injection', () => {
+    const script = buildShellLaunchScript({
+      command: 'my-server',
+      args: [],
+      env: {
+        SAFE_KEY: 'safe-value',
+        'A=$(touch /tmp/pwn)': 'evil',
+        'KEY WITH SPACE': 'evil',
+        '123STARTS_WITH_DIGIT': 'evil'
+      }
+    })
+
+    expect(script).toContain('SAFE_KEY=')
+    expect(script).not.toContain('$(touch')
+    expect(script).not.toContain('KEY WITH SPACE')
+    expect(script).not.toContain('123STARTS_WITH_DIGIT')
+  })
+
   it('falls back to a POSIX-compatible bootstrap shell for non-POSIX login shells', () => {
     expect(resolveMcpBootstrapShell('/opt/homebrew/bin/fish', (path) => path === '/bin/zsh')).toBe('/bin/zsh')
     expect(resolveMcpBootstrapShell('/usr/bin/zsh', (path) => path === '/usr/bin/zsh')).toBe('/usr/bin/zsh')

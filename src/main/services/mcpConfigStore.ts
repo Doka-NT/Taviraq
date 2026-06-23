@@ -182,9 +182,9 @@ export class McpConfigStore {
       for (const server of servers) {
         const normalized = normalizeMcpServer({
           ...server,
-          // Strip any enabled/disabled flag from the external config — Taviraq
-          // always starts imported servers disabled regardless of the source tool's setting.
-          enabled: undefined,
+          // Always start newly imported servers disabled, regardless of the external
+          // tool's setting. The user must explicitly enable before Taviraq launches them.
+          enabled: false,
           disabled: undefined,
           id: randomUUID(),
           importedFrom: server.sourcePath,
@@ -443,7 +443,7 @@ export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig
     ? server.enabled
     : typeof server.disabled === 'boolean'
       ? !server.disabled
-      : source === 'manual'
+      : true
   const importedFrom = typeof server.importedFrom === 'string' && server.importedFrom.trim()
     ? server.importedFrom.trim()
     : undefined

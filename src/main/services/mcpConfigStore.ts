@@ -182,6 +182,10 @@ export class McpConfigStore {
       for (const server of servers) {
         const normalized = normalizeMcpServer({
           ...server,
+          // Strip any enabled/disabled flag from the external config — Taviraq
+          // always starts imported servers disabled regardless of the source tool's setting.
+          enabled: undefined,
+          disabled: undefined,
           id: randomUUID(),
           importedFrom: server.sourcePath,
           updatedAt: new Date().toISOString()
@@ -509,7 +513,11 @@ function toMcpJson(servers: McpServerConfig[]): { mcpServers: Record<string, unk
         ...(server.args && server.args.length > 0 ? { args: server.args } : {}),
         ...(server.env && Object.keys(server.env).length > 0 ? { env: server.env } : {}),
         ...(server.tools && server.tools.length > 0 ? { tools: server.tools } : {}),
-        ...(server.enabled ? {} : { disabled: true }),
+        // Non-manual (imported) servers always persist an explicit enabled value so the
+        // source-based default in normalizeMcpServer does not flip the user's choice on reload.
+        ...(server.enabled
+          ? (server.source !== 'manual' ? { enabled: true } : {})
+          : { disabled: true }),
         source: server.source ?? 'manual',
         ...(server.importedFrom ? { importedFrom: server.importedFrom } : {}),
         createdAt: server.createdAt,

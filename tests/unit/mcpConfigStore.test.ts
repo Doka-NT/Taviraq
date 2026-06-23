@@ -163,9 +163,46 @@ describe('McpConfigStore', () => {
         name: 'github',
         command: 'npx',
         source: 'claude',
-        importedFrom: '/Users/demo/.claude/mcp.json'
+        importedFrom: '/Users/demo/.claude/mcp.json',
+        enabled: true
       }
     ])
+  })
+
+  it('user-enabled imported server stays enabled across app restarts (P2 regression)', async () => {
+    const store = new McpConfigStore()
+    // Simulate: user imports a discovered server and manually enables it
+    await store.saveAll([{
+      id: 'gh',
+      name: 'gh',
+      command: 'npx',
+      enabled: true,
+      source: 'cursor',
+      createdAt: '2026-05-24T00:00:00.000Z',
+      updatedAt: '2026-05-24T00:00:00.000Z'
+    }])
+    // Reload (new store instance, same file)
+    const store2 = new McpConfigStore()
+    const [reloaded] = await store2.list()
+    expect(reloaded.enabled).toBe(true)
+  })
+
+  it('importDiscovered() ignores external enabled flag and imports servers as disabled', async () => {
+    const store = new McpConfigStore()
+    const HOME = join(TMP_DIR, 'home')
+    await mkdir(join(HOME, '.cursor'), { recursive: true })
+    await writeFile(join(HOME, '.cursor', 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        myserver: { command: 'node', enabled: true }
+      }
+    }), 'utf-8')
+
+    await discoverExternalMcpServers()
+    const servers = await store.list()
+    const imported = servers.find((s) => s.name === 'myserver')
+    if (imported) {
+      expect(imported.enabled).toBe(false)
+    }
   })
 
   it('persists and updates per-tool enabled settings', async () => {

@@ -187,6 +187,29 @@ describe('McpConfigStore', () => {
     expect(reloaded.enabled).toBe(true)
   })
 
+  it('upgrade compat: old mcp.json with no enabled/disabled field for imported server loads as enabled', async () => {
+    // Simulate an mcp.json written by a previous Taviraq release: enabled imported
+    // server serialized without any enabled/disabled key (source: 'claude').
+    await mkdir(TMP_DIR, { recursive: true })
+    await writeFile(join(TMP_DIR, 'mcp.json'), JSON.stringify({
+      mcpServers: {
+        github: {
+          id: 'gh-id',
+          command: 'npx',
+          source: 'claude',
+          importedFrom: '/home/user/.claude/mcp.json',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+          // no enabled/disabled — old serializer omitted it
+        }
+      }
+    }), 'utf8')
+
+    const store = new McpConfigStore()
+    const [server] = await store.list()
+    expect(server.enabled).toBe(true)
+  })
+
   it('importDiscovered() ignores external enabled flag and imports servers as disabled', async () => {
     const store = new McpConfigStore()
     const HOME = join(TMP_DIR, 'home')

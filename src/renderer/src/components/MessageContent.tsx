@@ -9,6 +9,12 @@ interface MessageContentProps {
   onRun?: (command: string) => void | Promise<void>
   onPrompt?: (prompt: string) => void
   redactContent?: (text: string) => string
+  /**
+   * Hide `tasklist`/`taskplan` planning fences from the rendered body. Only set
+   * when TaskListPanel is rendering them; otherwise the plan content would have
+   * no other representation and would vanish from the transcript (issue #163).
+   */
+  hidePlanningFences?: boolean
   disabled?: boolean
   runLabel?: string
   expandCommandLabel?: string
@@ -36,7 +42,7 @@ const HIDDEN_FENCE_LANGS = new Set(
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 
-function parseContent(content: string): Segment[] {
+function parseContent(content: string, hidePlanningFences: boolean): Segment[] {
   const segments: Segment[] = []
   let lastIndex = 0
 
@@ -44,7 +50,7 @@ function parseContent(content: string): Segment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', text: content.slice(lastIndex, match.index) })
     }
-    if (!HIDDEN_FENCE_LANGS.has(match[1].toLowerCase())) {
+    if (!(hidePlanningFences && HIDDEN_FENCE_LANGS.has(match[1].toLowerCase()))) {
       segments.push({ type: 'code', lang: match[1], code: match[2].trim() })
     }
     lastIndex = match.index + match[0].length
@@ -161,6 +167,7 @@ export function MessageContent({
   onRun,
   onPrompt,
   redactContent = (value) => value,
+  hidePlanningFences = false,
   disabled,
   runLabel = 'Run in terminal',
   expandCommandLabel = 'Show full command',
@@ -171,7 +178,7 @@ export function MessageContent({
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(() => new Set())
   const [copiedCodeBlock, setCopiedCodeBlock] = useState<number | null>(null)
   const copiedCodeBlockTimerRef = useRef<number>()
-  const segments = parseContent(content)
+  const segments = parseContent(content, hidePlanningFences)
   const actionChips = onPrompt ? buildActionChips(content) : []
 
   useEffect(() => {

@@ -2,12 +2,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
+import { TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG } from '@shared/taskList'
 
 interface MessageContentProps {
   content: string
   onRun?: (command: string) => void | Promise<void>
   onPrompt?: (prompt: string) => void
   redactContent?: (text: string) => string
+  /**
+   * Hide `tasklist`/`taskplan` planning fences from the rendered body. Only set
+   * when TaskListPanel is rendering them; otherwise the plan content would have
+   * no other representation and would vanish from the transcript (issue #163).
+   */
+  hidePlanningFences?: boolean
   disabled?: boolean
   runLabel?: string
   expandCommandLabel?: string
@@ -27,10 +34,15 @@ type TextBlock =
 
 const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
+// Planning fences are derived state rendered by TaskListPanel, so they must not
+// also surface as raw code blocks inside the message body (issue #163).
+const HIDDEN_FENCE_LANGS = new Set(
+  [TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG].map((lang) => lang.toLowerCase())
+)
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 
-function parseContent(content: string): Segment[] {
+function parseContent(content: string, hidePlanningFences: boolean): Segment[] {
   const segments: Segment[] = []
   let lastIndex = 0
 
@@ -38,7 +50,9 @@ function parseContent(content: string): Segment[] {
     if (match.index > lastIndex) {
       segments.push({ type: 'text', text: content.slice(lastIndex, match.index) })
     }
-    segments.push({ type: 'code', lang: match[1], code: match[2].trim() })
+    if (!(hidePlanningFences && HIDDEN_FENCE_LANGS.has(match[1].toLowerCase()))) {
+      segments.push({ type: 'code', lang: match[1], code: match[2].trim() })
+    }
     lastIndex = match.index + match[0].length
   }
 
@@ -153,6 +167,7 @@ export function MessageContent({
   onRun,
   onPrompt,
   redactContent = (value) => value,
+  hidePlanningFences = false,
   disabled,
   runLabel = 'Run in terminal',
   expandCommandLabel = 'Show full command',
@@ -163,7 +178,7 @@ export function MessageContent({
   const [expandedCodeBlocks, setExpandedCodeBlocks] = useState<Set<number>>(() => new Set())
   const [copiedCodeBlock, setCopiedCodeBlock] = useState<number | null>(null)
   const copiedCodeBlockTimerRef = useRef<number>()
-  const segments = parseContent(content)
+  const segments = parseContent(content, hidePlanningFences)
   const actionChips = onPrompt ? buildActionChips(content) : []
 
   useEffect(() => {

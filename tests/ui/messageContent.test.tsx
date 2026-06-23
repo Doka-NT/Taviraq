@@ -235,4 +235,44 @@ describe('MessageContent', () => {
       expect(writeText).toHaveBeenCalledWith('echo "[secret]"')
     })
   })
+
+  const planningContent = [
+    'Here is the plan.',
+    '',
+    '```tasklist',
+    '- [ ] Read AGENTS.md',
+    '```',
+    '',
+    '```taskplan',
+    'Detailed steps go here.',
+    '```',
+    '',
+    'Starting now.'
+  ].join('\n')
+
+  it('hides tasklist and taskplan planning fences when the panel is active', () => {
+    const { container } = render(
+      <MessageContent content={planningContent} hidePlanningFences />
+    )
+
+    expect(screen.getByText('Here is the plan.')).toBeInTheDocument()
+    expect(screen.getByText('Starting now.')).toBeInTheDocument()
+    expect(container.querySelector('.msg-code-block')).not.toBeInTheDocument()
+    expect(screen.queryByText('tasklist')).not.toBeInTheDocument()
+    expect(screen.queryByText('taskplan')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Read AGENTS\.md/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Detailed steps go here\./)).not.toBeInTheDocument()
+  })
+
+  it('keeps planning fences as code blocks when the task list panel is inactive', () => {
+    const { container } = render(<MessageContent content={planningContent} />)
+
+    expect(screen.getByText('Here is the plan.')).toBeInTheDocument()
+    expect(screen.getByText('Starting now.')).toBeInTheDocument()
+    expect(container.querySelectorAll('.msg-code-block')).toHaveLength(2)
+    expect(screen.getByText('tasklist')).toBeInTheDocument()
+    expect(screen.getByText('taskplan')).toBeInTheDocument()
+    expect(screen.getByText(/Read AGENTS\.md/)).toBeInTheDocument()
+    expect(screen.getByText(/Detailed steps go here\./)).toBeInTheDocument()
+  })
 })

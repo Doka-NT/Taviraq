@@ -5464,6 +5464,7 @@ export function LlmPanel({
                 <MessageContent
                   content={message.displayContent ?? message.maskedContent ?? message.content}
                   redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
+                  hidePlanningFences={Boolean(taskList)}
                   onRun={runCommand}
                   onPrompt={setPromptDraft}
                   disabled={!activeSession || agenticCommandRunning}

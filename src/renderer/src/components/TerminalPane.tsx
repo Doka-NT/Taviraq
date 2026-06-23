@@ -800,7 +800,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     // prompt — and the terminal sits behind the dialog, so focusing it would
     // misdirect the user's typing.
     const focused = document.activeElement
-    if (focused instanceof HTMLElement && focused.closest('[role="dialog"]')) return
+    if (focused instanceof HTMLElement && focused.closest('[role="dialog"], [role="alertdialog"]')) return
     // Move keyboard focus into the terminal when the active session changes so
     // switching tabs doesn't leave focus stuck on the tab button (which would
     // swallow keystrokes and beep on unhandled keys).

@@ -103,9 +103,11 @@ export class PromptStore {
   async save(prompt: PromptTemplate): Promise<PromptTemplate> {
     await this.ensureDir()
 
-    // Reject ids that could escape the prompts directory (path traversal via untrusted backup data)
+    // Reject ids that could escape the prompts directory (path traversal via untrusted backup data).
+    // typeof guard prevents TypeError when backup JSON contains a non-string id (e.g. 1 or {}).
     const candidateId = prompt.id
-    const isSafe = candidateId && !candidateId.includes('/') && !candidateId.includes('\\') && !candidateId.includes('\0')
+    const isSafe = typeof candidateId === 'string' && candidateId.length > 0
+      && !candidateId.includes('/') && !candidateId.includes('\\') && !candidateId.includes('\0')
     const id = isSafe ? candidateId : `${Date.now()}-${slugify(prompt.name)}`
     const createdAt = prompt.createdAt || new Date().toISOString()
 

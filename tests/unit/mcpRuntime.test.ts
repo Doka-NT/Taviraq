@@ -15,29 +15,30 @@ describe('mcpRuntime', () => {
     expect(script).toContain('my-mcp-alias')
     expect(script).toContain('--path')
     expect(script).toContain('Project')
-    // Shell init secrets purged before exec: env -i instead of eval
+    // Command must not use eval — direct invocation only
     expect(script).not.toContain('eval ')
-    expect(script).toContain('exec env -i')
-    // PATH captured post-rc so nvm/rbenv tool resolution still works
-    expect(script).toContain('_mcp_path="${PATH}"')
-    expect(script).toContain('PATH="${_mcp_path}"')
+    // Shell aliases/functions must be resolvable: command runs in the same shell
+    // that sourced the RC files, not via exec env -i (which only finds external binaries)
+    expect(script).not.toContain('exec env -i')
   })
 
-  it('embeds server-specific env vars in the exec env -i line', () => {
+  it('exports server-specific env vars before the command', () => {
     const script = buildShellLaunchScript({
       command: 'my-server',
       args: [],
       env: { MY_TOKEN: 'secret123', DB_URL: 'postgres://localhost/db' }
     })
 
-    const execLine = script.split('\n').find((l) => l.startsWith('exec env -i'))
-    expect(execLine).toBeDefined()
-    expect(execLine).toContain('MY_TOKEN=')
-    expect(execLine).toContain('secret123')
-    expect(execLine).toContain('DB_URL=')
+    expect(script).toContain("export MY_TOKEN='secret123'")
+    expect(script).toContain('export DB_URL=')
+    // Exports must appear before the command line
+    const exportIdx = script.indexOf('export MY_TOKEN=')
+    const cmdIdx = script.indexOf('my-server')
+    expect(exportIdx).toBeGreaterThanOrEqual(0)
+    expect(cmdIdx).toBeGreaterThan(exportIdx)
   })
 
-  it('drops server env keys with shell metacharacters to prevent command injection', () => {
+  it('drops env keys with shell metacharacters to prevent injection', () => {
     const script = buildShellLaunchScript({
       command: 'my-server',
       args: [],
@@ -49,7 +50,7 @@ describe('mcpRuntime', () => {
       }
     })
 
-    expect(script).toContain('SAFE_KEY=')
+    expect(script).toContain('export SAFE_KEY=')
     expect(script).not.toContain('$(touch')
     expect(script).not.toContain('KEY WITH SPACE')
     expect(script).not.toContain('123STARTS_WITH_DIGIT')

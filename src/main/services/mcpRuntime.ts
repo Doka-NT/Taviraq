@@ -237,34 +237,25 @@ class McpStdioSession {
 }
 
 export function buildShellLaunchScript(server: Pick<McpServerConfig, 'command' | 'args' | 'env'>): string {
-  // After sourcing shell init files (to pick up PATH from nvm/rbenv/homebrew etc.),
-  // re-exec the MCP server with env -i to prevent shell startup secrets from leaking
-  // into the child process. PATH captured post-rc so tool resolution still works.
-  const allowlistExpansions = [
-    'PATH="${_mcp_path}"',
-    'HOME="${HOME:-}"', 'USER="${USER:-}"', 'LOGNAME="${LOGNAME:-}"', 'SHELL="${SHELL:-}"',
-    'LANG="${LANG:-}"', 'TMPDIR="${TMPDIR:-}"', 'TEMP="${TEMP:-}"', 'TMP="${TMP:-}"',
-    'TERM="${TERM:-}"', 'TERM_PROGRAM="${TERM_PROGRAM:-}"', 'COLORTERM="${COLORTERM:-}"',
-    'DISPLAY="${DISPLAY:-}"',
-    'XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-}"', 'XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}"',
-    'XDG_DATA_HOME="${XDG_DATA_HOME:-}"', 'XDG_CACHE_HOME="${XDG_CACHE_HOME:-}"',
-    'LC_ALL="${LC_ALL:-}"', 'LC_CTYPE="${LC_CTYPE:-}"', 'LC_MESSAGES="${LC_MESSAGES:-}"',
-    'LC_NUMERIC="${LC_NUMERIC:-}"', 'LC_TIME="${LC_TIME:-}"', 'LC_COLLATE="${LC_COLLATE:-}"',
-  ]
-  // Only embed keys that are valid POSIX env var names — prevents command injection
-  // via crafted keys like `A=$(cmd)` being interpolated by the shell.
-  const serverEnvPairs = Object.entries(server.env ?? {})
+  // spawn() passes buildMcpEnv() as the process env, so the shell starts without any
+  // ambient secrets from the parent process. Sourcing RC files picks up PATH changes
+  // (nvm, rbenv, homebrew) and makes shell aliases/functions available to the command.
+  // RC files that re-export inherited vars (e.g. `export KEY="$KEY"`) see empty values
+  // because the spawn env already filtered them — no re-introduction of secrets.
+  //
+  // Server-specific env keys are validated against /^[A-Za-z_][A-Za-z0-9_]*$/ before
+  // embedding in the script to prevent command injection via crafted key names.
+  const serverExports = Object.entries(server.env ?? {})
     .filter(([k]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(k))
-    .map(([k, v]) => `${k}=${shellQuote(v)}`)
-  const execLine = `exec env -i ${[...allowlistExpansions, ...serverEnvPairs, buildShellCommand(server.command, server.args ?? [])].join(' ')}`
+    .map(([k, v]) => `export ${k}=${shellQuote(v)}`)
   return [
     'exec 3>&1',
     'exec 1>&2',
     'if [ -n "${ZSH_VERSION:-}" ] && [ -r "${HOME}/.zshrc" ]; then . "${HOME}/.zshrc"; fi',
     'if [ -n "${BASH_VERSION:-}" ] && [ -r "${HOME}/.bashrc" ]; then . "${HOME}/.bashrc"; fi',
-    '_mcp_path="${PATH}"',
+    ...serverExports,
     'exec 1>&3',
-    execLine
+    buildShellCommand(server.command, server.args ?? [])
   ].join('\n')
 }
 

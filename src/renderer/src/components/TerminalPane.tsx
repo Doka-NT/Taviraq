@@ -793,6 +793,14 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
+    if (!activeSessionId) return
+    // Move keyboard focus into the terminal when the active session changes so
+    // switching tabs doesn't leave focus stuck on the tab button (which would
+    // swallow keystrokes and beep on unhandled keys).
+    terminalRef.current?.focus()
+  }, [activeSessionId])
+
+  useEffect(() => {
     const liveSessionIds = new Set(sessionIds)
     for (const sessionId of outputBuffers.current.keys()) {
       if (!liveSessionIds.has(sessionId)) {

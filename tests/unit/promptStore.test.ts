@@ -145,8 +145,7 @@ describe('PromptStore', () => {
 
   describe('path traversal prevention', () => {
     it('save() does not throw when prompt.id is a non-string value from backup JSON', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const result = await store.save({ id: 42 as any, name: 'bad', content: 'payload', createdAt: '' })
+      const result = await store.save({ id: 42 as unknown as string, name: 'bad', content: 'payload', createdAt: '' })
       expect(result.id).toBeTruthy()
       expect(typeof result.id).toBe('string')
     })

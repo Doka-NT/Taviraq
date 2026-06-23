@@ -434,12 +434,12 @@ export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig
     : {}
   const tools = Array.isArray(server.tools) ? normalizeMcpTools(server.tools) : []
   const id = typeof server.id === 'string' && server.id.trim() ? server.id.trim() : randomUUID()
+  const source = isMcpServerSource(server.source) ? server.source : 'manual'
   const enabled = typeof server.enabled === 'boolean'
     ? server.enabled
     : typeof server.disabled === 'boolean'
       ? !server.disabled
-      : true
-  const source = isMcpServerSource(server.source) ? server.source : 'manual'
+      : source === 'manual'
   const importedFrom = typeof server.importedFrom === 'string' && server.importedFrom.trim()
     ? server.importedFrom.trim()
     : undefined

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
-import { describe, expect, it } from 'vitest'
-import { buildShellLaunchScript, formatToolResult, listMcpToolsFromSession, resolveMcpBootstrapShell } from '@main/services/mcpRuntime'
+import { describe, expect, it, vi, afterEach } from 'vitest'
+import { buildMcpEnv, buildShellLaunchScript, formatToolResult, listMcpToolsFromSession, resolveMcpBootstrapShell } from '@main/services/mcpRuntime'
 
 describe('mcpRuntime', () => {
   it('launches MCP servers through user shell init while protecting stdout framing', () => {
@@ -57,5 +57,34 @@ describe('mcpRuntime', () => {
       isError: true,
       content: [{ type: 'text', text: 'Tool failed' }]
     })).toBe('Tool failed')
+  })
+
+  describe('buildMcpEnv()', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('passes only allowlisted env vars to MCP child process', () => {
+      vi.stubEnv('PATH', '/usr/bin:/bin')
+      vi.stubEnv('HOME', '/home/user')
+      vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'secret')
+      vi.stubEnv('ANTHROPIC_API_KEY', 'sk-ant-123')
+      vi.stubEnv('DATABASE_URL', 'postgres://...')
+
+      const env = buildMcpEnv()
+      expect(env['PATH']).toBe('/usr/bin:/bin')
+      expect(env['HOME']).toBe('/home/user')
+      expect(env['AWS_SECRET_ACCESS_KEY']).toBeUndefined()
+      expect(env['ANTHROPIC_API_KEY']).toBeUndefined()
+      expect(env['DATABASE_URL']).toBeUndefined()
+    })
+
+    it('merges server-specific env on top of the allowlist', () => {
+      vi.stubEnv('HOME', '/home/user')
+      vi.stubEnv('AWS_SECRET_ACCESS_KEY', 'should-not-leak')
+
+      const env = buildMcpEnv({ MY_SERVER_TOKEN: 'tok', HOME: '/override' })
+      expect(env['MY_SERVER_TOKEN']).toBe('tok')
+      expect(env['HOME']).toBe('/override')
+      expect(env['AWS_SECRET_ACCESS_KEY']).toBeUndefined()
+    })
   })
 })

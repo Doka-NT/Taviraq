@@ -6,8 +6,24 @@ import type { McpServerConfig, McpToolConfig } from '@shared/types'
 
 const MCP_PROTOCOL_VERSION = '2024-11-05'
 const MCP_REQUEST_TIMEOUT_MS = 20_000
+const MCP_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
 const POSIX_COMPATIBLE_SHELLS = new Set(['bash', 'dash', 'ksh', 'sh', 'zsh'])
 const MCP_BOOTSTRAP_SHELL_FALLBACKS = ['/bin/zsh', '/bin/bash', '/bin/sh']
+
+const MCP_ENV_ALLOWLIST = new Set([
+  'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'TMPDIR', 'TEMP', 'TMP',
+  'TERM', 'TERM_PROGRAM', 'COLORTERM', 'DISPLAY',
+  'XDG_RUNTIME_DIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME',
+  'LC_ALL', 'LC_CTYPE', 'LC_MESSAGES', 'LC_NUMERIC', 'LC_TIME', 'LC_COLLATE',
+])
+
+export function buildMcpEnv(serverEnv?: Record<string, string>): NodeJS.ProcessEnv {
+  const filtered: NodeJS.ProcessEnv = {}
+  for (const key of MCP_ENV_ALLOWLIST) {
+    if (process.env[key] !== undefined) filtered[key] = process.env[key]
+  }
+  return { ...filtered, ...serverEnv }
+}
 
 interface JsonRpcResponse {
   id?: unknown
@@ -111,7 +127,7 @@ class McpStdioSession {
   start(): void {
     const shell = resolveMcpBootstrapShell()
     this.child = spawn(shell, ['-lc', buildShellLaunchScript(this.server)], {
-      env: { ...process.env, ...(this.server.env ?? {}) },
+      env: buildMcpEnv(this.server.env),
       stdio: ['pipe', 'pipe', 'pipe']
     })
     this.child.stdout.on('data', (chunk: Buffer) => this.receive(chunk))
@@ -149,6 +165,11 @@ class McpStdioSession {
 
   private receive(chunk: Buffer): void {
     this.buffer = Buffer.concat([this.buffer, chunk])
+    if (this.buffer.length > MCP_MAX_RESPONSE_BYTES) {
+      this.rejectAll(new Error(`MCP server ${this.server.name} exceeded maximum response size (${MCP_MAX_RESPONSE_BYTES} bytes).`))
+      this.close()
+      return
+    }
     while (true) {
       if (this.buffer.toString('utf8', 0, Math.min(this.buffer.length, 32)).startsWith('Content-Length:')) {
         if (!this.receiveContentLengthMessage()) return
@@ -173,6 +194,11 @@ class McpStdioSession {
       return true
     }
     const bodyLength = Number(length)
+    if (bodyLength > MCP_MAX_RESPONSE_BYTES) {
+      this.rejectAll(new Error(`MCP server ${this.server.name} Content-Length ${bodyLength} exceeds limit.`))
+      this.close()
+      return false
+    }
     const bodyStart = headerEnd + 4
     const bodyEnd = bodyStart + bodyLength
     if (this.buffer.length < bodyEnd) return false

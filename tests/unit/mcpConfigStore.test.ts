@@ -50,7 +50,7 @@ describe('McpConfigStore', () => {
         command: 'npx',
         args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
         env: { TOKEN: 'secret' },
-        enabled: true,
+        enabled: false,
         source: 'claude',
         importedFrom: '/tmp/mcp.json'
       }

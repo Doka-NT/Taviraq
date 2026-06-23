@@ -15,6 +15,26 @@ describe('mcpRuntime', () => {
     expect(script).toContain('my-mcp-alias')
     expect(script).toContain('--path')
     expect(script).toContain('Project')
+    // Shell init secrets purged before exec: env -i instead of eval
+    expect(script).not.toContain('eval ')
+    expect(script).toContain('exec env -i')
+    // PATH captured post-rc so nvm/rbenv tool resolution still works
+    expect(script).toContain('_mcp_path="${PATH}"')
+    expect(script).toContain('PATH="${_mcp_path}"')
+  })
+
+  it('embeds server-specific env vars in the exec env -i line', () => {
+    const script = buildShellLaunchScript({
+      command: 'my-server',
+      args: [],
+      env: { MY_TOKEN: 'secret123', DB_URL: 'postgres://localhost/db' }
+    })
+
+    const execLine = script.split('\n').find((l) => l.startsWith('exec env -i'))
+    expect(execLine).toBeDefined()
+    expect(execLine).toContain('MY_TOKEN=')
+    expect(execLine).toContain('secret123')
+    expect(execLine).toContain('DB_URL=')
   })
 
   it('falls back to a POSIX-compatible bootstrap shell for non-POSIX login shells', () => {

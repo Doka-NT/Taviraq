@@ -793,6 +793,21 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
+    if (!activeSessionId) return
+    // Don't steal focus while a modal dialog owns it. The active session can
+    // change with a dialog still open — Settings > Connections connecting an SSH
+    // profile, or a Cmd+1..9 tab switch while renaming a tab / confirming a
+    // prompt — and the terminal sits behind the dialog, so focusing it would
+    // misdirect the user's typing.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && focused.closest('[role="dialog"], [role="alertdialog"]')) return
+    // Move keyboard focus into the terminal when the active session changes so
+    // switching tabs doesn't leave focus stuck on the tab button (which would
+    // swallow keystrokes and beep on unhandled keys).
+    terminalRef.current?.focus()
+  }, [activeSessionId])
+
+  useEffect(() => {
     const liveSessionIds = new Set(sessionIds)
     for (const sessionId of outputBuffers.current.keys()) {
       if (!liveSessionIds.has(sessionId)) {

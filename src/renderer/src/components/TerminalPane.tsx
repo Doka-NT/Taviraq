@@ -39,7 +39,6 @@ interface TerminalPaneProps {
   onRerunBlock: (block: TerminalBlock) => void
   onSaveSnippet: (command: string) => void
   terminalTheme?: TerminalColors
-  overlayOpen?: boolean
 }
 
 export interface TerminalPaneHandle {
@@ -318,8 +317,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   onAskBlocks,
   onRerunBlock,
   onSaveSnippet,
-  terminalTheme,
-  overlayOpen = false
+  terminalTheme
 }: TerminalPaneProps, ref): JSX.Element {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -796,15 +794,18 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   useEffect(() => {
     if (!activeSessionId) return
-    // Don't steal focus while a modal overlay (e.g. Settings) owns it: that
-    // overlay can switch the active session itself (connecting an SSH profile)
-    // and the terminal sits behind it.
-    if (overlayOpen) return
+    // Don't steal focus while a modal dialog owns it. The active session can
+    // change with a dialog still open — Settings > Connections connecting an SSH
+    // profile, or a Cmd+1..9 tab switch while renaming a tab / confirming a
+    // prompt — and the terminal sits behind the dialog, so focusing it would
+    // misdirect the user's typing.
+    const focused = document.activeElement
+    if (focused instanceof HTMLElement && focused.closest('[role="dialog"]')) return
     // Move keyboard focus into the terminal when the active session changes so
     // switching tabs doesn't leave focus stuck on the tab button (which would
     // swallow keystrokes and beep on unhandled keys).
     terminalRef.current?.focus()
-  }, [activeSessionId, overlayOpen])
+  }, [activeSessionId])
 
   useEffect(() => {
     const liveSessionIds = new Set(sessionIds)

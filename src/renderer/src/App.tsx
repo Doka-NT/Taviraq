@@ -1711,7 +1711,6 @@ export function App(): JSX.Element {
           onRerunBlock={requestBlockRerun}
           onSaveSnippet={openSnippetForm}
           terminalTheme={terminalTheme}
-          overlayOpen={settingsOpen}
         />
         {!sidebarVisible && (
           <button

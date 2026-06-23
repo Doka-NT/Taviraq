@@ -30,7 +30,9 @@ const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
 // Planning fences are derived state rendered by TaskListPanel, so they must not
 // also surface as raw code blocks inside the message body (issue #163).
-const HIDDEN_FENCE_LANGS = new Set([TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG])
+const HIDDEN_FENCE_LANGS = new Set(
+  [TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG].map((lang) => lang.toLowerCase())
+)
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 

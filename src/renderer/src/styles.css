@@ -5944,7 +5944,7 @@ textarea:focus {
      Negative margins bleed into .chat-log padding (16px 20px 20px 14px) so the
      panel reads as a full-bleed header and covers content scrolling under it. */
   position: sticky;
-  top: 0;
+  top: -16px;
   z-index: 2;
   margin: -16px -20px 10px -14px;
   padding: 14px 20px 10px 14px;
@@ -6047,18 +6047,17 @@ textarea:focus {
 }
 
 .update-notice {
-  position: fixed;
-  bottom: 18px;
-  right: 18px;
-  z-index: 1000;
+  flex: 0 0 auto;
+  align-self: flex-end;
   display: flex;
   align-items: center;
   gap: 10px;
   max-width: 380px;
+  margin: 0 10px 6px;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-default);
-  background: var(--bg-card);
+  background: var(--bg-modal);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   font-size: 13px;
   color: var(--text-primary);

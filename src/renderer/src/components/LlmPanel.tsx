@@ -30,6 +30,7 @@ import { ConfirmDialog } from './ui/ConfirmDialog'
 import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
 import { ComposerConfigControl } from './ComposerConfigControl'
 import { TaskListPanel } from './TaskListPanel'
+import { UpdateNotice } from './UpdateNotice'
 import { parseTaskListFromMessages, parseTaskPlanFromMessages } from '@shared/taskList'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
@@ -5547,6 +5548,8 @@ export function LlmPanel({
           onCommandChange={updateCommandConfirmationCommand}
         />
       ) : null}
+
+      <UpdateNotice />
 
       <form
         className={`chat-form ${inputDisabled ? 'disabled' : ''}`}

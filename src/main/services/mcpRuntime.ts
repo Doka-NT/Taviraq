@@ -165,17 +165,25 @@ class McpStdioSession {
 
   private receive(chunk: Buffer): void {
     this.buffer = Buffer.concat([this.buffer, chunk])
-    if (this.buffer.length > MCP_MAX_RESPONSE_BYTES) {
-      this.rejectAll(new Error(`MCP server ${this.server.name} exceeded maximum response size (${MCP_MAX_RESPONSE_BYTES} bytes).`))
-      this.close()
-      return
-    }
     while (true) {
       if (this.buffer.toString('utf8', 0, Math.min(this.buffer.length, 32)).startsWith('Content-Length:')) {
-        if (!this.receiveContentLengthMessage()) return
+        // Body size is checked against MCP_MAX_RESPONSE_BYTES inside receiveContentLengthMessage().
+        // Allow a small header overhead so framing bytes don't count against the body cap.
+        if (!this.receiveContentLengthMessage()) {
+          if (this.buffer.length > MCP_MAX_RESPONSE_BYTES + 4096) {
+            this.rejectAll(new Error(`MCP server ${this.server.name} exceeded maximum response size.`))
+            this.close()
+          }
+          return
+        }
         continue
       }
 
+      if (this.buffer.length > MCP_MAX_RESPONSE_BYTES) {
+        this.rejectAll(new Error(`MCP server ${this.server.name} exceeded maximum response size (${MCP_MAX_RESPONSE_BYTES} bytes).`))
+        this.close()
+        return
+      }
       const newline = this.buffer.indexOf('\n')
       if (newline === -1) return
       const line = this.buffer.slice(0, newline).toString('utf8').trim()

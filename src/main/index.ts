@@ -1175,6 +1175,7 @@ function registerIpc(): void {
   ipcMain.handle('mcp:refreshTools', async (_event, serverId: string) => {
     const server = (await mcpConfigStore.list()).find((candidate) => candidate.id === serverId)
     if (!server) throw new Error('MCP server not found.')
+    if (!server.enabled) throw new Error('Cannot refresh tools for a disabled MCP server.')
     const tools = await listMcpServerTools(server)
     return mcpConfigStore.saveTools(serverId, tools)
   })

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { app } from 'electron'
 import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import type { PromptTemplate } from '@shared/types'
 
 const PROMPTS_DIR_NAME = 'prompts'
@@ -64,6 +64,12 @@ function slugify(text: string): string {
     .slice(0, 48) || 'prompt'
 }
 
+function safeResolvePath(dir: string, fileName: string): string | null {
+  const canonicalDir = resolve(dir) + sep
+  const filePath = resolve(dir, fileName)
+  return filePath.startsWith(canonicalDir) ? filePath : null
+}
+
 export class PromptStore {
   private readonly dir: string
 
@@ -97,8 +103,12 @@ export class PromptStore {
   async save(prompt: PromptTemplate): Promise<PromptTemplate> {
     await this.ensureDir()
 
-    const isNew = !prompt.id
-    const id = prompt.id || `${Date.now()}-${slugify(prompt.name)}`
+    // Reject ids that could escape the prompts directory (path traversal via untrusted backup data).
+    // typeof guard prevents TypeError when backup JSON contains a non-string id (e.g. 1 or {}).
+    const candidateId = prompt.id
+    const isSafe = typeof candidateId === 'string' && candidateId.length > 0
+      && !candidateId.includes('/') && !candidateId.includes('\\') && !candidateId.includes('\0')
+    const id = isSafe ? candidateId : `${Date.now()}-${slugify(prompt.name)}`
     const createdAt = prompt.createdAt || new Date().toISOString()
 
     const result: PromptTemplate = {
@@ -109,12 +119,9 @@ export class PromptStore {
     }
 
     const fileName = `${id}${FILE_EXTENSION}`
-    await writeFile(join(this.dir, fileName), serializePromptFile(result), 'utf-8')
-
-    // If renamed (old file exists with different name), clean up old file
-    if (!isNew && prompt.id) {
-      // The file is overwritten in place since id stays the same
-    }
+    const filePath = safeResolvePath(this.dir, fileName)
+    if (!filePath) throw new Error(`Unsafe prompt id: "${id}"`)
+    await writeFile(filePath, serializePromptFile(result), 'utf-8')
 
     return result
   }
@@ -122,8 +129,10 @@ export class PromptStore {
   async delete(id: string): Promise<void> {
     await this.ensureDir()
     const fileName = `${id}${FILE_EXTENSION}`
+    const filePath = safeResolvePath(this.dir, fileName)
+    if (!filePath) return // silently refuse unsafe paths
     try {
-      await unlink(join(this.dir, fileName))
+      await unlink(filePath)
     } catch {
       // File may not exist, ignore
     }

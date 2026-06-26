@@ -182,6 +182,10 @@ export class McpConfigStore {
       for (const server of servers) {
         const normalized = normalizeMcpServer({
           ...server,
+          // Always start newly imported servers disabled, regardless of the external
+          // tool's setting. The user must explicitly enable before Taviraq launches them.
+          enabled: false,
+          disabled: undefined,
           id: randomUUID(),
           importedFrom: server.sourcePath,
           updatedAt: new Date().toISOString()
@@ -434,12 +438,12 @@ export function normalizeMcpServer(server: McpServerDefinition): McpServerConfig
     : {}
   const tools = Array.isArray(server.tools) ? normalizeMcpTools(server.tools) : []
   const id = typeof server.id === 'string' && server.id.trim() ? server.id.trim() : randomUUID()
+  const source = isMcpServerSource(server.source) ? server.source : 'manual'
   const enabled = typeof server.enabled === 'boolean'
     ? server.enabled
     : typeof server.disabled === 'boolean'
       ? !server.disabled
       : true
-  const source = isMcpServerSource(server.source) ? server.source : 'manual'
   const importedFrom = typeof server.importedFrom === 'string' && server.importedFrom.trim()
     ? server.importedFrom.trim()
     : undefined
@@ -509,7 +513,11 @@ function toMcpJson(servers: McpServerConfig[]): { mcpServers: Record<string, unk
         ...(server.args && server.args.length > 0 ? { args: server.args } : {}),
         ...(server.env && Object.keys(server.env).length > 0 ? { env: server.env } : {}),
         ...(server.tools && server.tools.length > 0 ? { tools: server.tools } : {}),
-        ...(server.enabled ? {} : { disabled: true }),
+        // Non-manual (imported) servers always persist an explicit enabled value so the
+        // source-based default in normalizeMcpServer does not flip the user's choice on reload.
+        ...(server.enabled
+          ? (server.source !== 'manual' ? { enabled: true } : {})
+          : { disabled: true }),
         source: server.source ?? 'manual',
         ...(server.importedFrom ? { importedFrom: server.importedFrom } : {}),
         createdAt: server.createdAt,

@@ -8,6 +8,7 @@ import {
   findCommandStartOffset,
   lineMatchesCommand,
   lineMatchesCommandStart,
+  resolveBlockEndBoundary,
   stripCommandEcho,
   terminalTailStartOffset,
   visualEndForLogicalSpan
@@ -184,5 +185,49 @@ describe('terminal block command matching', () => {
     expect(findCommandStartOffset(output, command, { searchStart: commandAwareTailStart })).toBe(0)
     expect(terminalTailStartOffset('one\ntwo\n', 1)).toBe('one\n'.length)
     expect(terminalTailStartOffset('one\ntwo', 1)).toBe('one\n'.length)
+  })
+})
+
+describe('resolveBlockEndBoundary', () => {
+  // Regression for #134: the trailing themed prompt (`Taviraq git:(branch) ✗`)
+  // is not recognized by prompt-only detection, so nextPromptLine is undefined
+  // and the stored boundary reaches the prompt row. The cursor sits on that
+  // prompt row, so it must clamp the block end to exclude it.
+  it('clamps the last block to the cursor row, dropping the trailing prompt', () => {
+    // start=2 (command), output rows 3-4, prompt row 5 = cursor.
+    const endBoundary = resolveBlockEndBoundary({
+      start: 2,
+      storedEndBoundary: 6,
+      nextStart: undefined,
+      nextPromptLine: undefined,
+      cursorLine: 5
+    })
+    expect(endBoundary).toBe(5)
+    expect(endBoundary - 1).toBe(4) // inclusive end row = last output row, not the prompt
+  })
+
+  it('ignores the cursor when it is not below the block start', () => {
+    // Scrolled-back block whose cursor (current prompt) is far above it.
+    expect(
+      resolveBlockEndBoundary({
+        start: 10,
+        storedEndBoundary: 14,
+        nextStart: undefined,
+        nextPromptLine: undefined,
+        cursorLine: 3
+      })
+    ).toBe(14)
+  })
+
+  it('still honors the next command line and prompt-only boundaries', () => {
+    expect(
+      resolveBlockEndBoundary({
+        start: 0,
+        storedEndBoundary: 20,
+        nextStart: 8,
+        nextPromptLine: 6,
+        cursorLine: 18
+      })
+    ).toBe(6)
   })
 })

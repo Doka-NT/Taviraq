@@ -242,3 +242,31 @@ export function visualEndForLogicalSpan(
   }
   return end
 }
+
+/**
+ * Resolve the exclusive end boundary of a terminal block's highlight range.
+ *
+ * Each candidate caps the block from below: the next block's command line, a
+ * detected prompt-only line, the stored logical end, and — crucially — the
+ * cursor line. The active shell prompt always sits on the cursor's row, so a
+ * themed prompt (e.g. `Taviraq git:(branch) ✗`) that prompt-only detection
+ * cannot match is still excluded from the block. The cursor only applies when
+ * it lies strictly below the block start; otherwise it would clamp the block
+ * to nothing.
+ */
+export function resolveBlockEndBoundary(params: {
+  start: number
+  storedEndBoundary: number
+  nextStart: number | undefined
+  nextPromptLine: number | undefined
+  cursorLine: number
+}): number {
+  const { start, storedEndBoundary, nextStart, nextPromptLine, cursorLine } = params
+  const cursorBoundary = cursorLine > start ? cursorLine : storedEndBoundary
+  return Math.min(
+    nextStart === undefined ? storedEndBoundary : nextStart,
+    nextPromptLine === undefined ? storedEndBoundary : nextPromptLine,
+    cursorBoundary,
+    storedEndBoundary
+  )
+}

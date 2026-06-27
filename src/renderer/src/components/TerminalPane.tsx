@@ -13,7 +13,7 @@ import type { TerminalBlock, TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, resolveBlockEndBoundary, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -244,6 +244,7 @@ function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map
 
 function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<string, { start: number; end: number }> {
   const commandLines = commandLinesForBlocks(terminal, blocks)
+  const cursorLine = terminal.buffer.active.baseY + terminal.buffer.active.cursorY
   const sorted = blocks.slice().sort((a, b) => a.startOffset - b.startOffset)
   const ranges = new Map<string, { start: number; end: number }>()
 
@@ -278,11 +279,13 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
         ) + 1
       )
       : terminal.buffer.active.length
-    const endBoundary = Math.min(
-      nextStart === undefined ? storedEndBoundary : nextStart,
-      nextPromptLine === undefined ? storedEndBoundary : nextPromptLine,
-      storedEndBoundary
-    )
+    const endBoundary = resolveBlockEndBoundary({
+      start,
+      storedEndBoundary,
+      nextStart,
+      nextPromptLine,
+      cursorLine
+    })
     let end = Math.max(start, endBoundary - 1)
     while (end > start) {
       const text = lineTextAt(terminal, end)

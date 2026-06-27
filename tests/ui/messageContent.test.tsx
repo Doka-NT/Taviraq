@@ -237,6 +237,7 @@ describe('MessageContent', () => {
   })
 
   it('renders an unclosed fenced block as code while still streaming (issue #176)', () => {
+    const onRun = vi.fn()
     const { container } = render(
       <MessageContent
         content={[
@@ -246,6 +247,7 @@ describe('MessageContent', () => {
           'set -euo pipefail',
           'apt-get update'
         ].join('\n')}
+        onRun={onRun}
       />
     )
 
@@ -253,7 +255,11 @@ describe('MessageContent', () => {
     expect(screen.getByText(/set -euo pipefail/)).toBeInTheDocument()
     // The opening fence must not leak into the rendered text.
     expect(screen.queryByText(/```/)).not.toBeInTheDocument()
-    expect(container.querySelector('.msg-action-pill')).toBeInTheDocument()
+    // A still-streaming shell fence must be inert: no Run button on a possibly
+    // truncated command, and it renders as a plain code block, not an action pill.
+    expect(container.querySelector('.msg-code-block')).toBeInTheDocument()
+    expect(container.querySelector('.msg-action-pill')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Run in terminal' })).not.toBeInTheDocument()
   })
 
   it('keeps text before an unclosed fence on the text path, not inside the code block', () => {

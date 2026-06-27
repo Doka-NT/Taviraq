@@ -25,7 +25,7 @@ interface MessageContentProps {
 
 type Segment =
   | { type: 'text'; text: string }
-  | { type: 'code'; code: string; lang: string }
+  | { type: 'code'; code: string; lang: string; streaming?: boolean }
 
 type TextBlock =
   | { type: 'paragraph'; text: string }
@@ -71,7 +71,7 @@ function parseContent(content: string, hidePlanningFences: boolean): Segment[] {
       segments.push({ type: 'text', text: before })
     }
     if (!(hidePlanningFences && HIDDEN_FENCE_LANGS.has(openFence[2].toLowerCase()))) {
-      segments.push({ type: 'code', lang: openFence[2], code: (openFence[3] ?? '').trim() })
+      segments.push({ type: 'code', lang: openFence[2], code: (openFence[3] ?? '').trim(), streaming: true })
     }
   } else if (tail) {
     segments.push({ type: 'text', text: tail })
@@ -239,7 +239,10 @@ export function MessageContent({
       {segments.map((seg, i) => {
         if (seg.type === 'code') {
           const normalizedLang = seg.lang.toLowerCase()
-          const isShell = SHELL_LANGS.has(normalizedLang)
+          // A still-streaming open fence renders as an inert code block: the
+          // command may be truncated or missing later safety lines, so it must
+          // not expose Run/expand controls until the closing fence arrives (#176).
+          const isShell = SHELL_LANGS.has(normalizedLang) && !seg.streaming
           const codeLanguage = normalizedLang || 'code'
           const isCollapsibleShell = isShell && (
             seg.code.split('\n').length > COLLAPSIBLE_SHELL_LINE_COUNT ||

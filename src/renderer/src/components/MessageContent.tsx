@@ -25,7 +25,7 @@ interface MessageContentProps {
 
 type Segment =
   | { type: 'text'; text: string }
-  | { type: 'code'; code: string; lang: string }
+  | { type: 'code'; code: string; lang: string; streaming?: boolean }
 
 type TextBlock =
   | { type: 'paragraph'; text: string }
@@ -33,6 +33,12 @@ type TextBlock =
   | { type: 'table'; header: string[]; rows: string[][] }
 
 const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
+// A fence that has been opened but not yet closed — happens mid-stream before the
+// closing ``` arrives. Without this the opener and its body leak into the text path
+// and render as raw Markdown (visible ```, list markers, headings) until the stream
+// closes the fence (issue #176). Anchored at end of the remaining tail so it only
+// matches a trailing, still-open block.
+const OPEN_FENCE_RE = /(^|\n)```([a-zA-Z0-9_-]*)(?:\n([\s\S]*))?$/
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
 // Planning fences are derived state rendered by TaskListPanel, so they must not
 // also surface as raw code blocks inside the message body (issue #163).
@@ -56,8 +62,19 @@ function parseContent(content: string, hidePlanningFences: boolean): Segment[] {
     lastIndex = match.index + match[0].length
   }
 
-  if (lastIndex < content.length) {
-    segments.push({ type: 'text', text: content.slice(lastIndex) })
+  const tail = content.slice(lastIndex)
+  const openFence = OPEN_FENCE_RE.exec(tail)
+
+  if (openFence) {
+    const before = tail.slice(0, openFence.index + openFence[1].length)
+    if (before) {
+      segments.push({ type: 'text', text: before })
+    }
+    if (!(hidePlanningFences && HIDDEN_FENCE_LANGS.has(openFence[2].toLowerCase()))) {
+      segments.push({ type: 'code', lang: openFence[2], code: (openFence[3] ?? '').trim(), streaming: true })
+    }
+  } else if (tail) {
+    segments.push({ type: 'text', text: tail })
   }
 
   return segments
@@ -222,7 +239,10 @@ export function MessageContent({
       {segments.map((seg, i) => {
         if (seg.type === 'code') {
           const normalizedLang = seg.lang.toLowerCase()
-          const isShell = SHELL_LANGS.has(normalizedLang)
+          // A still-streaming open fence renders as an inert code block: the
+          // command may be truncated or missing later safety lines, so it must
+          // not expose Run/expand controls until the closing fence arrives (#176).
+          const isShell = SHELL_LANGS.has(normalizedLang) && !seg.streaming
           const codeLanguage = normalizedLang || 'code'
           const isCollapsibleShell = isShell && (
             seg.code.split('\n').length > COLLAPSIBLE_SHELL_LINE_COUNT ||

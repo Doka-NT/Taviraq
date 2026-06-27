@@ -783,7 +783,10 @@ async function createWindow(): Promise<void> {
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: true,
+      // sandbox: true is incompatible with the ESM preload (.mjs): Electron's sandboxed
+      // preload context does not support ES module syntax. Sandbox hardening requires
+      // converting the preload to CJS first (tracked separately).
+      sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false

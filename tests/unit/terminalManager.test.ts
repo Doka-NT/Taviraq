@@ -375,6 +375,15 @@ describe('endsOnFreshLine', () => {
     expect(endsOnFreshLine(`99%${promptSetup}`)).toBe(false)
   })
 
+  it('preserves reverse-video output and only strips the PROMPT_SP marker', () => {
+    const promptSetup = `\x1b[7m%\x1b[27m${' '.repeat(40)}\r \r`
+    // Reverse-video output with no trailing newline (e.g. `printf '\\e[7mfoo\\e[27m'`)
+    // must stay a partial line — its reverse span is not the EOL marker.
+    expect(endsOnFreshLine(`\x1b[7mfoo\x1b[27m${promptSetup}`)).toBe(false)
+    // The same reverse-video output followed by a newline is a fresh line.
+    expect(endsOnFreshLine(`\x1b[7mfoo\x1b[27m\n${promptSetup}`)).toBe(true)
+  })
+
   it('is false when output lacks a trailing newline (prompt shares the row)', () => {
     expect(endsOnFreshLine('foo')).toBe(false)
     expect(endsOnFreshLine('partial line\nfoo')).toBe(false)

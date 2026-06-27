@@ -524,11 +524,14 @@ function isUtf8Locale(value: string | undefined): boolean {
 // True when the cleaned output ends at a line break — i.e. the next prompt will
 // be drawn on its own fresh row rather than appended after partial output (output
 // without a trailing newline). Trailing ANSI control sequences, carriage returns,
-// and spaces emitted during prompt setup are ignored.
+// and spaces emitted during prompt setup are ignored. zsh's PROMPT_SP emits a
+// standout EOL marker followed by a row of spaces and a CR before the prompt; that
+// specific shape is stripped, but reverse-video spans in real output (not followed
+// by the space-pad + CR) are preserved so their final line is not lost.
 export function endsOnFreshLine(text: string): boolean {
   const stripped = text
     .replace(new RegExp(`${ESC}\\][^]*?(?:${BEL}|${ESC}\\\\)`, 'g'), '')
-    .replace(new RegExp(`${ESC}\\[7m[^]*?${ESC}\\[27m`, 'g'), '')
+    .replace(new RegExp(`${ESC}\\[7m[^${ESC}]*${ESC}\\[27m(?:${ESC}\\[[0-9;]*m|[ \\t])*\\r`, 'g'), '')
     .replace(new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, 'g'), '')
     .replace(new RegExp(`${ESC}[@-_]`, 'g'), '')
     .replace(/[ \t\r]+$/, '')

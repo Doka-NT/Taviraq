@@ -8,6 +8,7 @@ import {
   findCommandStartOffset,
   lineMatchesCommand,
   lineMatchesCommandStart,
+  logicalLineStartRow,
   resolveBlockEndBoundary,
   stripCommandEcho,
   terminalTailStartOffset,
@@ -206,5 +207,27 @@ describe('resolveBlockEndBoundary', () => {
     expect(
       resolveBlockEndBoundary({ storedEndBoundary: 20, nextStart: 8, nextPromptLine: 6 })
     ).toBe(6)
+  })
+})
+
+describe('logicalLineStartRow', () => {
+  const buffer = (wrappedRows: boolean[]) => (line: number): boolean | undefined =>
+    line >= 0 && line < wrappedRows.length ? wrappedRows[line] : undefined
+
+  it('returns the row itself for a non-wrapped (single-row) prompt', () => {
+    // rows: 2=command, 3=output, 4=prompt (not wrapped). Dropping starts at 4.
+    expect(logicalLineStartRow(buffer([false, false, false, false, false]), 4, 3)).toBe(4)
+  })
+
+  it('walks back over wrapped continuation rows of a wide prompt', () => {
+    // Regression for Codex #180: a prompt wider than the terminal wraps onto rows
+    // 5-7 (rows 6,7 are wrapped). The whole prompt logical line starts at row 5.
+    const rows = [false, false, false, false, false, false, true, true]
+    expect(logicalLineStartRow(buffer(rows), 7, 3)).toBe(5)
+  })
+
+  it('never goes below the floor', () => {
+    const rows = [false, true, true, true]
+    expect(logicalLineStartRow(buffer(rows), 3, 2)).toBe(2)
   })
 })

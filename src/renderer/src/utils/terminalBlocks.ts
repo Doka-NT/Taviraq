@@ -244,6 +244,24 @@ export function visualEndForLogicalSpan(
 }
 
 /**
+ * Walk back from `endRow` over wrapped continuation rows to the first row of the
+ * logical line it belongs to. Used to drop an entire trailing prompt — which may
+ * wrap across several visual rows when it is wider than the terminal — rather than
+ * just its last wrapped row. Never goes below `floor`.
+ */
+export function logicalLineStartRow(
+  isWrappedRow: (line: number) => boolean | undefined,
+  endRow: number,
+  floor: number
+): number {
+  let row = endRow
+  while (row > floor && isWrappedRow(row) === true) {
+    row -= 1
+  }
+  return Math.max(floor, row)
+}
+
+/**
  * Resolve the exclusive end boundary of a terminal block's highlight range.
  * Each candidate caps the block from below: the next block's command line, a
  * detected prompt line, and the stored logical end.

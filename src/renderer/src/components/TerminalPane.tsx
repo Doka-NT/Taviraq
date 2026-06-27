@@ -13,7 +13,7 @@ import type { TerminalBlock, TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, resolveBlockEndBoundary, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, logicalLineStartRow, resolveBlockEndBoundary, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -280,10 +280,15 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
       : terminal.buffer.active.length
     // When the closing prompt was drawn on its own fresh line, the block's last
     // counted row is that themed prompt (which prompt-only detection misses) — so
-    // drop it. Output without a trailing newline (prompt shares the output row)
-    // keeps promptOnFreshLine false, so the final output line is preserved.
+    // drop the whole prompt logical line, including any wrapped continuation rows
+    // for prompts wider than the terminal. Output without a trailing newline keeps
+    // promptOnFreshLine false, so the prompt shares its row and is preserved.
     if (block.complete && block.promptOnFreshLine && storedEndBoundary > start + 1) {
-      storedEndBoundary -= 1
+      storedEndBoundary = logicalLineStartRow(
+        (line) => isWrappedRowAt(terminal, line),
+        storedEndBoundary - 1,
+        start + 1
+      )
     }
     const endBoundary = resolveBlockEndBoundary({ storedEndBoundary, nextStart, nextPromptLine })
     let end = Math.max(start, endBoundary - 1)

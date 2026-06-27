@@ -247,9 +247,16 @@ export class TerminalManager {
           echoed: true
         })
       }
-      if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
+      const sshHeuristicPrompt = managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data)
+      if (parsed.sawPrompt || sshHeuristicPrompt) {
         this.restoreTransientSsh(managed)
-        this.emit('terminal:prompt', { sessionId: id, promptOnFreshLine: parsed.promptOnFreshLine })
+        // Only the local OSC-marker path can tell whether the prompt landed on a
+        // fresh line. The SSH heuristic has no such signal, so report false there
+        // to avoid dropping same-row remote output (e.g. `printf foo` over SSH).
+        this.emit('terminal:prompt', {
+          sessionId: id,
+          promptOnFreshLine: parsed.sawPrompt ? parsed.promptOnFreshLine : false
+        })
       }
     })
 
@@ -521,6 +528,7 @@ function isUtf8Locale(value: string | undefined): boolean {
 export function endsOnFreshLine(text: string): boolean {
   const stripped = text
     .replace(new RegExp(`${ESC}\\][^]*?(?:${BEL}|${ESC}\\\\)`, 'g'), '')
+    .replace(new RegExp(`${ESC}\\[7m[^]*?${ESC}\\[27m`, 'g'), '')
     .replace(new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, 'g'), '')
     .replace(new RegExp(`${ESC}[@-_]`, 'g'), '')
     .replace(/[ \t\r]+$/, '')
@@ -552,7 +560,7 @@ function stripTerminalMarkers(
       sawPrompt = true
       // The output preceding this prompt marker decides whether the prompt lands
       // on its own line. Keep only the tail — enough to see the final newline.
-      promptOnFreshLine = endsOnFreshLine(`${tailCarry}${clean}`.slice(-128))
+      promptOnFreshLine = endsOnFreshLine(`${tailCarry}${clean}`.slice(-1024))
       continue
     }
 
@@ -560,7 +568,7 @@ function stripTerminalMarkers(
       const endIndex = input.indexOf(OSC_END, COMMAND_OSC_PREFIX.length)
       if (endIndex === -1) {
         session.promptMarkerRemainder = input
-        session.outputTailCarry = `${tailCarry}${clean}`.slice(-128)
+        session.outputTailCarry = `${tailCarry}${clean}`.slice(-1024)
         return { data: clean, sawPrompt, promptOnFreshLine, commands }
       }
       const command = input.slice(COMMAND_OSC_PREFIX.length, endIndex).trim()
@@ -579,7 +587,7 @@ function stripTerminalMarkers(
   const completeLength = input.length - remainderLength
   clean += input.slice(0, completeLength)
   session.promptMarkerRemainder = remainderLength > 0 ? input.slice(completeLength) : undefined
-  session.outputTailCarry = `${tailCarry}${clean}`.slice(-128)
+  session.outputTailCarry = `${tailCarry}${clean}`.slice(-1024)
 
   return { data: clean, sawPrompt, promptOnFreshLine, commands }
 }

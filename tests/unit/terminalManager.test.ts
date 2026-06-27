@@ -364,6 +364,17 @@ describe('endsOnFreshLine', () => {
     expect(endsOnFreshLine('done\n\x1b[0m   ')).toBe(true)
   })
 
+  it("strips zsh's PROMPT_SP standout EOL mark and title sequences from the tail", () => {
+    // zsh emits `<EOL-mark><spaces>\r<title OSCs>` after the output, before the
+    // prompt marker. The mark must not be read as trailing content.
+    const promptSetup = `\x1b[7m%\x1b[27m\x1b[1m\x1b[0m${' '.repeat(76)}\r \r\x1b]2;host\x07\x1b]1;~\x07`
+    expect(endsOnFreshLine(`1\n2\n3\n${promptSetup}`)).toBe(true)
+    // A partial line keeps its content before the mark — still not a fresh line.
+    expect(endsOnFreshLine(`foo${promptSetup}`)).toBe(false)
+    // Real output ending in '%' is preserved (not confused with the EOL mark).
+    expect(endsOnFreshLine(`99%${promptSetup}`)).toBe(false)
+  })
+
   it('is false when output lacks a trailing newline (prompt shares the row)', () => {
     expect(endsOnFreshLine('foo')).toBe(false)
     expect(endsOnFreshLine('partial line\nfoo')).toBe(false)

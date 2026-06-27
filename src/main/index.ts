@@ -89,6 +89,7 @@ if (userDataDir) {
 
 let mainWindow: BrowserWindow | undefined
 let aboutWindow: BrowserWindow | undefined
+const pendingApprovedCommands = new Map<string, Set<string>>()
 let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
@@ -782,7 +783,7 @@ async function createWindow(): Promise<void> {
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false
@@ -807,6 +808,12 @@ async function createWindow(): Promise<void> {
       console.error('[open external url failed]', error)
     })
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('app://') && !url.startsWith('file://')) {
+      event.preventDefault()
+    }
   })
 
   mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -1330,9 +1337,21 @@ function registerIpc(): void {
 
   ipcMain.handle('command:propose', (_event, text: string) => extractCommandProposals(text))
 
+  ipcMain.handle('command:approve', (_event, sessionId: string, command: string) => {
+    if (!pendingApprovedCommands.has(sessionId)) {
+      pendingApprovedCommands.set(sessionId, new Set())
+    }
+    pendingApprovedCommands.get(sessionId)!.add(command)
+  })
+
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
+    const approved = pendingApprovedCommands.get(sessionId)
+    const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
+    if (!approved?.has(command)) {
+      throw new Error('Command was not approved before execution.')
+    }
+    approved.delete(command)
     try {
-      const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
       terminalManager.runConfirmed(sessionId, resolvedCommand, command)
     } catch (error) {
       throw new Error(error instanceof Error ? error.message : 'Unable to resolve local secret placeholders.')

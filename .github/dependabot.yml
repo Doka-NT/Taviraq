@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      electron:
+        patterns: ["electron", "electron-builder", "electron-updater", "electron-vite"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      xterm:
+        patterns: ["@xterm/*"]
+      build-tooling:
+        patterns: ["vite", "@vitejs/*", "vitest", "@vitejs/plugin-react", "typescript", "eslint"]
+      testing:
+        patterns: ["playwright", "jsdom"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope

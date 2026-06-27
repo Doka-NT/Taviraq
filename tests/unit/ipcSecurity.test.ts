@@ -15,20 +15,25 @@ function makeGate() {
     runConfirmed: vi.fn()
   }
 
+  function normalizeApprovalKey(command: string): string {
+    return command.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+  }
+
   function handleApprove(sessionId: string, command: string): void {
     if (!pendingApprovedCommands.has(sessionId)) {
       pendingApprovedCommands.set(sessionId, new Set())
     }
-    pendingApprovedCommands.get(sessionId)!.add(command)
+    pendingApprovedCommands.get(sessionId)!.add(normalizeApprovalKey(command))
   }
 
   function handleRunConfirmed(sessionId: string, command: string): void {
     const approved = pendingApprovedCommands.get(sessionId)
     const resolvedCommand = resolveSecretPlaceholders(command)
-    if (!approved?.has(command)) {
+    const approvalKey = normalizeApprovalKey(command)
+    if (!approved?.has(approvalKey)) {
       throw new Error('Command was not approved before execution.')
     }
-    approved.delete(command)
+    approved.delete(approvalKey)
     try {
       terminalManager.runConfirmed(sessionId, resolvedCommand, command)
     } catch (error) {
@@ -80,5 +85,15 @@ describe('command:runConfirmed authorization gate', () => {
     expect(() => gate.handleRunConfirmed('session-1', 'rm -rf /')).toThrow(
       'Command was not approved before execution.'
     )
+  })
+
+  it('matches multiline heredoc commands across CRLF/whitespace differences', () => {
+    const approved = 'cat <<EOF\nhello\nworld\nEOF'
+    // The executed command arrives with CRLF line endings and trailing whitespace,
+    // as commonly happens with LLM-proposed heredoc commands.
+    const executed = 'cat <<EOF\r\nhello\r\nworld\r\nEOF\r\n  '
+    gate.handleApprove('session-1', approved)
+    expect(() => gate.handleRunConfirmed('session-1', executed)).not.toThrow()
+    expect(gate.terminalManager.runConfirmed).toHaveBeenCalledTimes(1)
   })
 })

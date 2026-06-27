@@ -90,6 +90,14 @@ if (userDataDir) {
 let mainWindow: BrowserWindow | undefined
 let aboutWindow: BrowserWindow | undefined
 const pendingApprovedCommands = new Map<string, Set<string>>()
+
+// Canonical key for matching an approved command against the one actually run.
+// The renderer trims the confirmed command, but heredocs and LLM-proposed
+// commands routinely carry CRLF line endings and trailing whitespace; matching
+// raw strings would spuriously reject an approved command as "not approved".
+function normalizeApprovalKey(command: string): string {
+  return command.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+}
 let isQuitting = false
 let currentHideShortcut = ''
 let isRecordingShortcut = false
@@ -1344,16 +1352,17 @@ function registerIpc(): void {
     if (!pendingApprovedCommands.has(sessionId)) {
       pendingApprovedCommands.set(sessionId, new Set())
     }
-    pendingApprovedCommands.get(sessionId)!.add(command)
+    pendingApprovedCommands.get(sessionId)!.add(normalizeApprovalKey(command))
   })
 
   ipcMain.handle('command:runConfirmed', (_event, sessionId: string, command: string) => {
     const approved = pendingApprovedCommands.get(sessionId)
     const resolvedCommand = resolveSecretPlaceholders(command, secretContextsBySession.get(sessionId))
-    if (!approved?.has(command)) {
+    const approvalKey = normalizeApprovalKey(command)
+    if (!approved?.has(approvalKey)) {
       throw new Error('Command was not approved before execution.')
     }
-    approved.delete(command)
+    approved.delete(approvalKey)
     try {
       terminalManager.runConfirmed(sessionId, resolvedCommand, command)
     } catch (error) {

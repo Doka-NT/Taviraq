@@ -260,20 +260,3 @@ export function resolveBlockEndBoundary(params: {
     storedEndBoundary
   )
 }
-
-/**
- * Recover the shell prompt text from a block's command-start row, which renders
- * as `<prompt><command>`. Returned trimmed, so a trailing prompt-only row can be
- * matched by value — this catches themed prompts (e.g. `Taviraq git:(branch) ✗`)
- * that the generic prompt-only heuristic misses, without dropping a row that
- * carries real output before the prompt (output that lacks a trailing newline).
- * Returns undefined when no prompt prefix can be recovered (e.g. command at col 0).
- */
-export function derivePromptText(startLineText: string, command: string): string | undefined {
-  const firstCommandLine = command.split('\n')[0]?.trim()
-  if (!firstCommandLine) return undefined
-  const commandIndex = startLineText.lastIndexOf(firstCommandLine)
-  if (commandIndex <= 0) return undefined
-  const prompt = startLineText.slice(0, commandIndex).trim()
-  return prompt.length > 0 ? prompt : undefined
-}

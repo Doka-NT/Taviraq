@@ -461,7 +461,7 @@ export function App(): JSX.Element {
     touchTerminalBlocks()
   }, [touchTerminalBlocks])
 
-  const handleCommandBlockComplete = useCallback((sessionId: string): void => {
+  const handleCommandBlockComplete = useCallback((sessionId: string, promptOnFreshLine?: boolean): void => {
     setSessions((current) =>
       current.map((session) =>
         session.id === sessionId && session.status === 'running'
@@ -476,7 +476,7 @@ export function App(): JSX.Element {
     const blocks = terminalBlocksRef.current.get(sessionId) ?? []
     terminalBlocksRef.current.set(sessionId, blocks.map((block) =>
       block.id === blockId
-        ? { ...updateBlockBounds(block, output), complete: true }
+        ? { ...updateBlockBounds(block, output), complete: true, promptOnFreshLine: promptOnFreshLine !== false }
         : block
     ))
     activeBlockIdsRef.current.delete(sessionId)
@@ -959,8 +959,8 @@ export function App(): JSX.Element {
     const offCommand = window.api.terminal.onCommand(({ sessionId, command, echoed }) => {
       handleCommandBlockStart(sessionId, command, echoed)
     })
-    const offPrompt = window.api.terminal.onPrompt(({ sessionId }) => {
-      handleCommandBlockComplete(sessionId)
+    const offPrompt = window.api.terminal.onPrompt(({ sessionId, promptOnFreshLine }) => {
+      handleCommandBlockComplete(sessionId, promptOnFreshLine)
     })
 
     return () => {

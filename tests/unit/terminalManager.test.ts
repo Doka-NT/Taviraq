@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
-import { looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'
+import { endsOnFreshLine, looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
 function createManagerWithSession(
@@ -344,5 +344,33 @@ describe('looksLikeShellPrompt', () => {
 
   it('preserves prompt text between multiple ST-terminated OSC title sequences', () => {
     expect(looksLikeShellPrompt('\x1b]0;before\x1b\\deploy@example:~$ \x1b]0;after\x1b\\')).toBe(true)
+  })
+})
+
+describe('endsOnFreshLine', () => {
+  // Decides whether the next prompt lands on its own row. Drives #134: a prompt on
+  // a fresh line is excluded from the block highlight; one sharing an output row is
+  // kept so the final output line is not dropped (Codex #180 review).
+  it('is true when the output ends with a newline', () => {
+    expect(endsOnFreshLine('1\n2\n3\n4\n')).toBe(true)
+  })
+
+  it('is true for a bare command with no output (only the entered newline)', () => {
+    expect(endsOnFreshLine('cd /tmp\n')).toBe(true)
+  })
+
+  it('ignores trailing carriage returns, spaces, and ANSI emitted during prompt setup', () => {
+    expect(endsOnFreshLine('done\n\r\x1b[K')).toBe(true)
+    expect(endsOnFreshLine('done\n\x1b[0m   ')).toBe(true)
+  })
+
+  it('is false when output lacks a trailing newline (prompt shares the row)', () => {
+    expect(endsOnFreshLine('foo')).toBe(false)
+    expect(endsOnFreshLine('partial line\nfoo')).toBe(false)
+    expect(endsOnFreshLine('foo\x1b[K')).toBe(false)
+  })
+
+  it('treats empty preceding output as a fresh line', () => {
+    expect(endsOnFreshLine('')).toBe(true)
   })
 })

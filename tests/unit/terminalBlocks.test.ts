@@ -7,7 +7,6 @@ import {
   findBufferedCommandStartOffset,
   findCommandStartOffset,
   lineMatchesCommand,
-  derivePromptText,
   lineMatchesCommandStart,
   resolveBlockEndBoundary,
   stripCommandEcho,
@@ -207,32 +206,5 @@ describe('resolveBlockEndBoundary', () => {
     expect(
       resolveBlockEndBoundary({ storedEndBoundary: 20, nextStart: 8, nextPromptLine: 6 })
     ).toBe(6)
-  })
-})
-
-describe('derivePromptText', () => {
-  const PROMPT = 'Taviraq git:(fix/keychain-legacy-secret-migration) ✗'
-
-  it('recovers the themed prompt from a command-start row', () => {
-    expect(derivePromptText(`${PROMPT} seq 4`, 'seq 4')).toBe(PROMPT)
-  })
-
-  it('matches a trailing prompt-only row by value but not an output+prompt row', () => {
-    const prompt = derivePromptText(`${PROMPT} printf foo`, 'printf foo')
-    expect(prompt).toBe(PROMPT)
-    // Regression for Codex #180 review: output that shares the prompt row (no
-    // trailing newline) must NOT be treated as a prompt-only line.
-    expect(`${PROMPT} `.trim() === prompt).toBe(true)
-    expect(`foo${PROMPT} `.trim() === prompt).toBe(false)
-  })
-
-  it('uses the first line for multi-line commands', () => {
-    expect(derivePromptText(`${PROMPT} for i in 1 2`, 'for i in 1 2\ndo echo $i')).toBe(PROMPT)
-  })
-
-  it('returns undefined when no prompt prefix precedes the command', () => {
-    expect(derivePromptText('seq 4', 'seq 4')).toBeUndefined()
-    expect(derivePromptText('', 'seq 4')).toBeUndefined()
-    expect(derivePromptText(`${PROMPT} seq 4`, '   ')).toBeUndefined()
   })
 })

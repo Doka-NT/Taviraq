@@ -52,6 +52,11 @@ export interface TerminalCommandEvent {
 
 export interface TerminalPromptEvent {
   sessionId: string
+  // True when this prompt is drawn on its own fresh line (the preceding command
+  // output ended with a newline), false when it shares a row with trailing output
+  // that lacked a newline. Used to exclude the trailing prompt from a block's
+  // highlight without dropping same-row output.
+  promptOnFreshLine?: boolean
 }
 
 export interface TerminalBlock {
@@ -63,6 +68,8 @@ export interface TerminalBlock {
   startLine: number
   endLine: number
   complete: boolean
+  // True when the prompt that closed this block was drawn on its own fresh line.
+  promptOnFreshLine?: boolean
 }
 
 export interface SSHProfile {

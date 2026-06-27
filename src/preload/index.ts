@@ -151,8 +151,8 @@ const api = {
         ipcRenderer.removeListener('terminal:session', listener)
       }
     },
-    onPrompt: (callback: (payload: { sessionId: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string }) => callback(payload)
+    onPrompt: (callback: (payload: { sessionId: string; promptOnFreshLine?: boolean }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { sessionId: string; promptOnFreshLine?: boolean }) => callback(payload)
       ipcRenderer.on('terminal:prompt', listener)
       return () => {
         ipcRenderer.removeListener('terminal:prompt', listener)

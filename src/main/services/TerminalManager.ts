@@ -19,6 +19,7 @@ const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
 const AIT_OSC_PREFIX = '\x1b]6973;'
 const OSC_END = '\x07'
 const ESC = String.fromCharCode(27)
+const BEL = String.fromCharCode(7)
 const ANSI_CSI_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
 const ANSI_OSC_PATTERN = new RegExp(`${ESC}\\](?:[^${ESC}\\x07]|${ESC}(?!\\\\))*?(?:\\x07|${ESC}\\\\)`, 'g')
 
@@ -31,6 +32,7 @@ interface ManagedSession {
   cwdTimer?: NodeJS.Timeout
   zdotdir?: string  // temp dir to clean up on kill
   promptMarkerRemainder?: string
+  outputTailCarry?: string  // tail of cleaned output, to detect prompts drawn on a fresh line
   inputLine?: string
   inputEscapeSequence?: boolean
   transientSsh?: boolean
@@ -247,7 +249,7 @@ export class TerminalManager {
       }
       if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
-        this.emit('terminal:prompt', { sessionId: id })
+        this.emit('terminal:prompt', { sessionId: id, promptOnFreshLine: parsed.promptOnFreshLine })
       }
     })
 
@@ -512,13 +514,28 @@ function isUtf8Locale(value: string | undefined): boolean {
   return Boolean(value && /utf-?8/i.test(value))
 }
 
+// True when the cleaned output ends at a line break — i.e. the next prompt will
+// be drawn on its own fresh row rather than appended after partial output (output
+// without a trailing newline). Trailing ANSI control sequences, carriage returns,
+// and spaces emitted during prompt setup are ignored.
+export function endsOnFreshLine(text: string): boolean {
+  const stripped = text
+    .replace(new RegExp(`${ESC}\\][^]*?(?:${BEL}|${ESC}\\\\)`, 'g'), '')
+    .replace(new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, 'g'), '')
+    .replace(new RegExp(`${ESC}[@-_]`, 'g'), '')
+    .replace(/[ \t\r]+$/, '')
+  return stripped === '' || stripped.endsWith('\n')
+}
+
 function stripTerminalMarkers(
   session: ManagedSession,
   data: string
-): { data: string; sawPrompt: boolean; commands: string[] } {
+): { data: string; sawPrompt: boolean; promptOnFreshLine: boolean; commands: string[] } {
   let input = `${session.promptMarkerRemainder ?? ''}${data}`
+  const tailCarry = session.outputTailCarry ?? ''
   let clean = ''
   let sawPrompt = false
+  let promptOnFreshLine = true
   const commands: string[] = []
 
   while (true) {
@@ -533,6 +550,9 @@ function stripTerminalMarkers(
     if (input.startsWith(PROMPT_OSC)) {
       input = input.slice(PROMPT_OSC.length)
       sawPrompt = true
+      // The output preceding this prompt marker decides whether the prompt lands
+      // on its own line. Keep only the tail — enough to see the final newline.
+      promptOnFreshLine = endsOnFreshLine(`${tailCarry}${clean}`.slice(-128))
       continue
     }
 
@@ -540,7 +560,8 @@ function stripTerminalMarkers(
       const endIndex = input.indexOf(OSC_END, COMMAND_OSC_PREFIX.length)
       if (endIndex === -1) {
         session.promptMarkerRemainder = input
-        return { data: clean, sawPrompt, commands }
+        session.outputTailCarry = `${tailCarry}${clean}`.slice(-128)
+        return { data: clean, sawPrompt, promptOnFreshLine, commands }
       }
       const command = input.slice(COMMAND_OSC_PREFIX.length, endIndex).trim()
       if (command) {
@@ -558,8 +579,9 @@ function stripTerminalMarkers(
   const completeLength = input.length - remainderLength
   clean += input.slice(0, completeLength)
   session.promptMarkerRemainder = remainderLength > 0 ? input.slice(completeLength) : undefined
+  session.outputTailCarry = `${tailCarry}${clean}`.slice(-128)
 
-  return { data: clean, sawPrompt, commands }
+  return { data: clean, sawPrompt, promptOnFreshLine, commands }
 }
 
 function longestTerminalMarkerPrefixAtEnd(value: string): number {

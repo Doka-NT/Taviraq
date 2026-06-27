@@ -13,7 +13,7 @@ import type { TerminalBlock, TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { commandVisibleLineCount, lineMatchesCommand, lineMatchesCommandStart, resolveBlockEndBoundary, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
+import { commandVisibleLineCount, derivePromptText, lineMatchesCommand, lineMatchesCommandStart, resolveBlockEndBoundary, stripCommandEcho, visualEndForLogicalSpan } from '@renderer/utils/terminalBlocks'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -244,7 +244,6 @@ function commandLinesForBlocks(terminal: Terminal, blocks: TerminalBlock[]): Map
 
 function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<string, { start: number; end: number }> {
   const commandLines = commandLinesForBlocks(terminal, blocks)
-  const cursorLine = terminal.buffer.active.baseY + terminal.buffer.active.cursorY
   const sorted = blocks.slice().sort((a, b) => a.startOffset - b.startOffset)
   const ranges = new Map<string, { start: number; end: number }>()
 
@@ -258,10 +257,18 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
       .map((candidate) => commandLines.get(candidate.id))
       .find((line): line is number => line !== undefined && line > start)
 
+    // A row is the trailing shell prompt when it is prompt-only (generic) or
+    // exactly equals this block's prompt text — the latter catches themed
+    // prompts on their own line while leaving an output+prompt row (output with
+    // no trailing newline) intact, so its final output line is not dropped.
+    const promptText = derivePromptText(lineTextAt(terminal, start), block.command)
+    const isTrailingPromptLine = (text: string): boolean =>
+      isPromptOnlyLine(text) || (promptText !== undefined && text.trim() === promptText)
+
     let nextPromptLine: number | undefined
     const promptSearchEnd = nextStart === undefined ? terminal.buffer.active.length - 1 : nextStart
     for (let line = start + 1; line <= promptSearchEnd; line += 1) {
-      if (isPromptOnlyLine(lineTextAt(terminal, line))) {
+      if (isTrailingPromptLine(lineTextAt(terminal, line))) {
         nextPromptLine = line
         break
       }
@@ -279,17 +286,11 @@ function blockVisualRanges(terminal: Terminal, blocks: TerminalBlock[]): Map<str
         ) + 1
       )
       : terminal.buffer.active.length
-    const endBoundary = resolveBlockEndBoundary({
-      start,
-      storedEndBoundary,
-      nextStart,
-      nextPromptLine,
-      cursorLine
-    })
+    const endBoundary = resolveBlockEndBoundary({ storedEndBoundary, nextStart, nextPromptLine })
     let end = Math.max(start, endBoundary - 1)
     while (end > start) {
       const text = lineTextAt(terminal, end)
-      if (text.trim() !== '' && !isPromptOnlyLine(text)) break
+      if (text.trim() !== '' && !isTrailingPromptLine(text)) break
       end -= 1
     }
     ranges.set(block.id, { start, end })

@@ -7,6 +7,7 @@ import {
   findBufferedCommandStartOffset,
   findCommandStartOffset,
   lineMatchesCommand,
+  derivePromptText,
   lineMatchesCommandStart,
   resolveBlockEndBoundary,
   stripCommandEcho,
@@ -189,45 +190,49 @@ describe('terminal block command matching', () => {
 })
 
 describe('resolveBlockEndBoundary', () => {
-  // Regression for #134: the trailing themed prompt (`Taviraq git:(branch) ✗`)
-  // is not recognized by prompt-only detection, so nextPromptLine is undefined
-  // and the stored boundary reaches the prompt row. The cursor sits on that
-  // prompt row, so it must clamp the block end to exclude it.
-  it('clamps the last block to the cursor row, dropping the trailing prompt', () => {
-    // start=2 (command), output rows 3-4, prompt row 5 = cursor.
-    const endBoundary = resolveBlockEndBoundary({
-      start: 2,
-      storedEndBoundary: 6,
-      nextStart: undefined,
-      nextPromptLine: undefined,
-      cursorLine: 5
-    })
-    expect(endBoundary).toBe(5)
-    expect(endBoundary - 1).toBe(4) // inclusive end row = last output row, not the prompt
-  })
-
-  it('ignores the cursor when it is not below the block start', () => {
-    // Scrolled-back block whose cursor (current prompt) is far above it.
+  it('falls back to the stored end when nothing else caps the block', () => {
     expect(
-      resolveBlockEndBoundary({
-        start: 10,
-        storedEndBoundary: 14,
-        nextStart: undefined,
-        nextPromptLine: undefined,
-        cursorLine: 3
-      })
-    ).toBe(14)
-  })
-
-  it('still honors the next command line and prompt-only boundaries', () => {
-    expect(
-      resolveBlockEndBoundary({
-        start: 0,
-        storedEndBoundary: 20,
-        nextStart: 8,
-        nextPromptLine: 6,
-        cursorLine: 18
-      })
+      resolveBlockEndBoundary({ storedEndBoundary: 6, nextStart: undefined, nextPromptLine: undefined })
     ).toBe(6)
+  })
+
+  it('caps the block at the trailing prompt row when one is detected', () => {
+    // start=2 (command), output rows 3-6, themed prompt detected at row 7.
+    expect(
+      resolveBlockEndBoundary({ storedEndBoundary: 8, nextStart: undefined, nextPromptLine: 7 })
+    ).toBe(7) // inclusive end row = 6 (last output), excluding the prompt at 7
+  })
+
+  it('honors the next command line and prompt boundaries', () => {
+    expect(
+      resolveBlockEndBoundary({ storedEndBoundary: 20, nextStart: 8, nextPromptLine: 6 })
+    ).toBe(6)
+  })
+})
+
+describe('derivePromptText', () => {
+  const PROMPT = 'Taviraq git:(fix/keychain-legacy-secret-migration) ✗'
+
+  it('recovers the themed prompt from a command-start row', () => {
+    expect(derivePromptText(`${PROMPT} seq 4`, 'seq 4')).toBe(PROMPT)
+  })
+
+  it('matches a trailing prompt-only row by value but not an output+prompt row', () => {
+    const prompt = derivePromptText(`${PROMPT} printf foo`, 'printf foo')
+    expect(prompt).toBe(PROMPT)
+    // Regression for Codex #180 review: output that shares the prompt row (no
+    // trailing newline) must NOT be treated as a prompt-only line.
+    expect(`${PROMPT} `.trim() === prompt).toBe(true)
+    expect(`foo${PROMPT} `.trim() === prompt).toBe(false)
+  })
+
+  it('uses the first line for multi-line commands', () => {
+    expect(derivePromptText(`${PROMPT} for i in 1 2`, 'for i in 1 2\ndo echo $i')).toBe(PROMPT)
+  })
+
+  it('returns undefined when no prompt prefix precedes the command', () => {
+    expect(derivePromptText('seq 4', 'seq 4')).toBeUndefined()
+    expect(derivePromptText('', 'seq 4')).toBeUndefined()
+    expect(derivePromptText(`${PROMPT} seq 4`, '   ')).toBeUndefined()
   })
 })

@@ -245,28 +245,35 @@ export function visualEndForLogicalSpan(
 
 /**
  * Resolve the exclusive end boundary of a terminal block's highlight range.
- *
  * Each candidate caps the block from below: the next block's command line, a
- * detected prompt-only line, the stored logical end, and — crucially — the
- * cursor line. The active shell prompt always sits on the cursor's row, so a
- * themed prompt (e.g. `Taviraq git:(branch) ✗`) that prompt-only detection
- * cannot match is still excluded from the block. The cursor only applies when
- * it lies strictly below the block start; otherwise it would clamp the block
- * to nothing.
+ * detected prompt line, and the stored logical end.
  */
 export function resolveBlockEndBoundary(params: {
-  start: number
   storedEndBoundary: number
   nextStart: number | undefined
   nextPromptLine: number | undefined
-  cursorLine: number
 }): number {
-  const { start, storedEndBoundary, nextStart, nextPromptLine, cursorLine } = params
-  const cursorBoundary = cursorLine > start ? cursorLine : storedEndBoundary
+  const { storedEndBoundary, nextStart, nextPromptLine } = params
   return Math.min(
     nextStart === undefined ? storedEndBoundary : nextStart,
     nextPromptLine === undefined ? storedEndBoundary : nextPromptLine,
-    cursorBoundary,
     storedEndBoundary
   )
+}
+
+/**
+ * Recover the shell prompt text from a block's command-start row, which renders
+ * as `<prompt><command>`. Returned trimmed, so a trailing prompt-only row can be
+ * matched by value — this catches themed prompts (e.g. `Taviraq git:(branch) ✗`)
+ * that the generic prompt-only heuristic misses, without dropping a row that
+ * carries real output before the prompt (output that lacks a trailing newline).
+ * Returns undefined when no prompt prefix can be recovered (e.g. command at col 0).
+ */
+export function derivePromptText(startLineText: string, command: string): string | undefined {
+  const firstCommandLine = command.split('\n')[0]?.trim()
+  if (!firstCommandLine) return undefined
+  const commandIndex = startLineText.lastIndexOf(firstCommandLine)
+  if (commandIndex <= 0) return undefined
+  const prompt = startLineText.slice(0, commandIndex).trim()
+  return prompt.length > 0 ? prompt : undefined
 }

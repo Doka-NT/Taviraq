@@ -250,12 +250,13 @@ export class TerminalManager {
       const sshHeuristicPrompt = managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data)
       if (parsed.sawPrompt || sshHeuristicPrompt) {
         this.restoreTransientSsh(managed)
-        // Only the local OSC-marker path can tell whether the prompt landed on a
-        // fresh line. The SSH heuristic has no such signal, so report false there
-        // to avoid dropping same-row remote output (e.g. `printf foo` over SSH).
+        // The local OSC-marker path carries an exact fresh-line signal. SSH has no
+        // marker, so derive it heuristically from the remote stream.
         this.emit('terminal:prompt', {
           sessionId: id,
-          promptOnFreshLine: parsed.sawPrompt ? parsed.promptOnFreshLine : false
+          promptOnFreshLine: parsed.sawPrompt
+            ? parsed.promptOnFreshLine
+            : sshPromptOnFreshLine(parsed.data)
         })
       }
     })
@@ -607,6 +608,17 @@ function longestTerminalMarkerPrefixAtEnd(value: string): number {
   }
 
   return 0
+}
+
+// Heuristic fresh-line decision for SSH prompts (no OSC marker is available).
+// `looksLikeShellPrompt` treats the last non-empty line as the prompt; the prompt
+// is on its own row when there is output above it (a newline precedes that line).
+// Limitation: remote output without a trailing newline that merges onto the prompt
+// row can still be reported as fresh, since the greedy prompt match cannot tell the
+// merged output from the prompt — a rare case for interactive SSH shells.
+export function sshPromptOnFreshLine(data: string): boolean {
+  const normalized = stripAnsi(data).replace(/\r\n?/g, '\n').replace(/\n+$/, '')
+  return normalized.includes('\n')
 }
 
 export function looksLikeShellPrompt(data: string): boolean {

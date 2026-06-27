@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { homedir } from 'node:os'
-import { endsOnFreshLine, looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'
+import { endsOnFreshLine, looksLikeShellPrompt, sshPromptOnFreshLine, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
 function createManagerWithSession(
@@ -392,5 +392,21 @@ describe('endsOnFreshLine', () => {
 
   it('treats empty preceding output as a fresh line', () => {
     expect(endsOnFreshLine('')).toBe(true)
+  })
+})
+
+describe('sshPromptOnFreshLine', () => {
+  it('is true when the remote prompt follows newline-terminated output', () => {
+    expect(sshPromptOnFreshLine('file1\nfile2\ndeploy@example:~$ ')).toBe(true)
+    expect(sshPromptOnFreshLine('/home/deploy\r\ndeploy@example:~$ ')).toBe(true)
+  })
+
+  it('is false when the prompt is the only line (no output above it)', () => {
+    expect(sshPromptOnFreshLine('deploy@example:~$ ')).toBe(false)
+    expect(sshPromptOnFreshLine('\x1b[32mdeploy@example\x1b[0m:~$ ')).toBe(false)
+  })
+
+  it('ignores trailing blank lines when locating output above the prompt', () => {
+    expect(sshPromptOnFreshLine('output\ndeploy@example:~$ \n\n')).toBe(true)
   })
 })

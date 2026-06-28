@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp, Copy, Play, TerminalSquare } from 'lucide-react'
 import { buildActionChips, detectMiniBarRows } from '@renderer/utils/redesign'
-import { TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG } from '@shared/taskList'
+import { TASK_LIST_FENCE_LANG } from '@shared/taskList'
 
 interface MessageContentProps {
   content: string
@@ -10,9 +10,9 @@ interface MessageContentProps {
   onPrompt?: (prompt: string) => void
   redactContent?: (text: string) => string
   /**
-   * Hide `tasklist`/`taskplan` planning fences from the rendered body. Only set
-   * when TaskListPanel is rendering them; otherwise the plan content would have
-   * no other representation and would vanish from the transcript (issue #163).
+   * Hide the `tasklist` planning fence from the rendered body (it is rendered
+   * by TaskListPanel instead). The optional `taskplan` block stays visible as a
+   * code block, since the panel no longer surfaces it elsewhere (issue #163).
    */
   hidePlanningFences?: boolean
   disabled?: boolean
@@ -40,11 +40,11 @@ const FENCE_RE = /```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g
 // matches a trailing, still-open block.
 const OPEN_FENCE_RE = /(^|\n)```([a-zA-Z0-9_-]*)(?:\n([\s\S]*))?$/
 const SHELL_LANGS = new Set(['bash', 'sh', 'shell', 'zsh', 'cmd', 'fish', 'ksh'])
-// Planning fences are derived state rendered by TaskListPanel, so they must not
-// also surface as raw code blocks inside the message body (issue #163).
-const HIDDEN_FENCE_LANGS = new Set(
-  [TASK_LIST_FENCE_LANG, TASK_PLAN_FENCE_LANG].map((lang) => lang.toLowerCase())
-)
+// The `tasklist` fence is derived state rendered by TaskListPanel, so it must
+// not also surface as a raw code block inside the message body (issue #163).
+// `taskplan` is intentionally NOT hidden: with the reveal-plan action gone, the
+// code block is the only place the detailed plan remains visible.
+const HIDDEN_FENCE_LANGS = new Set([TASK_LIST_FENCE_LANG.toLowerCase()])
 const COLLAPSIBLE_SHELL_LINE_COUNT = 3
 const COLLAPSIBLE_SHELL_CHAR_COUNT = 96
 

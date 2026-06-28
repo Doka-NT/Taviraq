@@ -68,4 +68,23 @@ describe('TaskListPanel', () => {
     expect(toggle.getAttribute('aria-controls')).toBe('task-list-items')
     expect(container.querySelector('ol')?.id).toBe('task-list-items')
   })
+
+  it('resets to collapsed when remounted for a new task list (new request)', () => {
+    // LlmPanel keys TaskListPanel on the last user-message index, so a new agent
+    // request remounts the panel instead of swapping props in place — which would
+    // otherwise let `expanded=true` leak from the previous checklist.
+    const listA: TaskList = { items: [{ text: 'A1', status: 'active' }] }
+    const listB: TaskList = {
+      items: [{ text: 'B1', status: 'active' }, { text: 'B2', status: 'pending' }]
+    }
+    const { container, rerender } = render(<TaskListPanel taskList={listA} t={t} />)
+    const toggle = container.querySelector('.task-list-toggle') as HTMLButtonElement
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+
+    rerender(<TaskListPanel key="next-request" taskList={listB} t={t} />)
+    const nextToggle = container.querySelector('.task-list-toggle') as HTMLButtonElement
+    expect(nextToggle.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('ol')?.hasAttribute('hidden')).toBe(true)
+  })
 })

@@ -3291,6 +3291,18 @@ export function LlmPanel({
     () => chatToolsSettings.taskListPlanning ? parseTaskListFromMessages(messages) : null,
     [chatToolsSettings.taskListPlanning, messages]
   )
+  // Identity key for the task list panel: the index of the last user message.
+  // Stable for the whole agent request (the user doesn't post mid-run), so the
+  // panel's local expand/collapse state survives token/turn updates; it changes
+  // when the user starts a new request, which remounts TaskListPanel and resets
+  // it back to collapsed-by-default instead of inheriting `expanded` from the
+  // previous checklist.
+  const taskListKey = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user') return i
+    }
+    return 0
+  }, [messages])
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
     draft,
@@ -5162,6 +5174,7 @@ export function LlmPanel({
       <section className="chat-log" aria-live="polite" ref={chatLogRef} onScroll={handleChatLogScroll}>
         {taskList ? (
           <TaskListPanel
+            key={taskListKey}
             taskList={taskList}
             t={t}
           />

@@ -7,17 +7,17 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import pty from 'node-pty'
-import type { CreateSshCommandRequest, CreateTerminalRequest, SSHProfile, TerminalCommandEvent, TerminalSessionInfo } from '@shared/types'
+import type { CreateSshCommandRequest, CreateTerminalRequest, SSHProfile, TerminalSessionInfo } from '@shared/types'
 import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 import { resolveExistingCwd } from '@main/utils/cwd'
 
 const execFileAsync = promisify(execFile)
 
-// OSC marker emitted by shell hook on every prompt
-const PROMPT_OSC = '\x1b]6973;PROMPT\x07'
-const COMMAND_OSC_PREFIX = '\x1b]6973;COMMAND;'
-const AIT_OSC_PREFIX = '\x1b]6973;'
 const OSC_END = '\x07'
+// Legacy 6973 prefix (stripped for defence-in-depth if old hooks remain)
+const AIT_LEGACY_PREFIX = '\x1b]6973;'
+// 633;E prefix used for display-command substitution in rewrite633E
+const OSC_633E_PREFIX = '\x1b]633;E;'
 const ESC = String.fromCharCode(27)
 const ANSI_CSI_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
 const ANSI_OSC_PATTERN = new RegExp(`${ESC}\\](?:[^${ESC}\\x07]|${ESC}(?!\\\\))*?(?:\\x07|${ESC}\\\\)`, 'g')
@@ -161,9 +161,7 @@ export class TerminalManager {
       }
 
       const wasSshSession = session.info.kind === 'ssh'
-      if (wasSshSession) {
-        this.emitCommand({ sessionId, command: normalizedDisplay || normalized, echoed: false })
-      } else {
+      if (!wasSshSession) {
         if (normalizedDisplay && normalizedDisplay !== normalized) {
           session.pendingCommandDisplay = {
             written: normalized,
@@ -224,7 +222,7 @@ export class TerminalManager {
 
     const hookEnv = options.kind === 'local' ? buildHookEnv(options.shell, nonce) : { env: {} }
 
-    const child = pty.spawn(options.file, options.args, {
+    const child = pty.spawn(options.file, [...options.args, ...(hookEnv.args ?? [])], {
       name: 'xterm-256color',
       cols: options.cols ?? 100,
       rows: options.rows ?? 30,
@@ -238,14 +236,8 @@ export class TerminalManager {
     child.onData((data) => {
       const parsed = stripTerminalMarkers(managed, data)
       if (parsed.data) {
-        this.emit('terminal:data', { sessionId: id, data: parsed.data })
-      }
-      for (const command of parsed.commands) {
-        this.emitCommand({
-          sessionId: id,
-          command: this.displayCommandForParsedMarker(managed, command),
-          echoed: true
-        })
+        const safe = rewrite633E(managed, parsed.data)
+        this.emit('terminal:data', { sessionId: id, data: safe })
       }
       if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
@@ -325,10 +317,7 @@ export class TerminalManager {
         if (session.info.kind === 'local') {
           this.captureSubmittedCommand(session, session.inputLine ?? '')
         } else if (session.info.kind === 'ssh') {
-          const command = (session.inputLine ?? '').trim()
-          if (command) {
-            this.emitCommand({ sessionId: session.info.id, command, echoed: false })
-          }
+          // SSH block command text handled by shell 633;E hooks if available
         }
         session.inputLine = ''
       } else if (char === '\x7f' || char === '\b') {
@@ -414,14 +403,12 @@ export class TerminalManager {
     this.getWindow()?.webContents.send(channel, payload)
   }
 
-  private emitCommand(payload: TerminalCommandEvent): void {
-    this.emit('terminal:command', payload)
-  }
 }
 
 interface HookEnv {
   env: Record<string, string>
   zdotdir?: string
+  args?: string[]
 }
 
 function buildHookEnv(shell: string | undefined, nonce: string | undefined): HookEnv {
@@ -444,28 +431,44 @@ function buildHookEnv(shell: string | undefined, nonce: string | undefined): Hoo
 }
 
 function buildBashHookEnv(nonce: string | undefined): HookEnv {
-  const existing = process.env.PROMPT_COMMAND ? `; ${process.env.PROMPT_COMMAND}` : ''
-  // Save exit code before running PROMPT_COMMAND (printf would reset $? to 0).
-  // Emit legacy 6973 PROMPT (shadow), then OSC 133;D + 633;P;Cwd.
-  const promptCmd = [
-    '_ait_ec=$?',
-    'printf "\\033]6973;PROMPT\\007"',
-    'printf "\\033]133;D;%s\\007" "$_ait_ec"',
-    'printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
-    'unset _ait_ec'
-  ].join('; ')
-
-  // Wrap PS1 with 133;A (prompt start) / 133;B (command start) markers.
+  const home = process.env.HOME ?? homedir()
   const userPs1 = process.env.PS1 ?? '\\$ '
   const userPs0 = process.env.PS0 ?? ''
+  const existingPC = process.env.PROMPT_COMMAND ? `; ${process.env.PROMPT_COMMAND}` : ''
+  const nonceLit = (nonce ?? '').replace(/'/g, "'\\''")
+
+  // bash --init-file: sources this file instead of ~/.bashrc for interactive shells.
+  // We source the user's rc files first, then append our OSC 133/633 hooks.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'ait-bash-'))
+  const initFile = join(tmpDir, 'bash_init')
+  const initContent = [
+    '[ -f /etc/bash.bashrc ] && source /etc/bash.bashrc',
+    `[ -f "${home}/.bashrc" ] && source "${home}/.bashrc"`,
+    // preexec via PS0: runs in a subshell just before the user's command.
+    // Redirects to /dev/tty so the OSC bytes go to the terminal, not the PS0 capture.
+    '___ait_si_ps0() {',
+    '  local _c="$1" _e',
+    '  _e="${_c//\\\\/\\\\\\\\}"',
+    '  _e="${_e//;/\\x3b}"',
+    "  _e=\"${_e//$'\\n'/\\x0a}\"",
+    "  _e=\"${_e//$'\\r'/\\x0d}\"",
+    `  printf '\\033]633;E;%s;%s\\007\\033]133;C\\007' "$_e" '${nonceLit}' >/dev/tty 2>/dev/null`,
+    '}',
+    '___ait_si_precmd() {',
+    '  local _ec=$?',
+    '  printf \'\\033]133;D;%s\\007\' "$_ec"',
+    '  printf \'\\033]633;P;Cwd=%s\\007\' "$PWD"',
+    '}',
+    `PROMPT_COMMAND='___ait_si_precmd${existingPC}'`,
+    `PS1='\\[\\e]133;A\\a\\]${userPs1}\\[\\e]133;B\\a\\]'`,
+    `PS0='$(___ait_si_ps0 "$BASH_COMMAND")${userPs0}'`
+  ].join('\n')
+  writeFileSync(initFile, initContent + '\n')
 
   return {
-    env: {
-      PROMPT_COMMAND: `${promptCmd}${existing}`,
-      PS1: `\\[\\e]133;A\\a\\]${userPs1}\\[\\e]133;B\\a\\]`,
-      PS0: `${userPs0}\\[\\e]133;C\\a\\]`,
-      TAVIRAQ_SI_NONCE: nonce ?? ''
-    }
+    env: { TAVIRAQ_SI_NONCE: nonce ?? '' },
+    args: ['--init-file', initFile],
+    zdotdir: tmpDir
   }
 }
 
@@ -498,11 +501,6 @@ function buildZshHookEnv(nonce: string | undefined): HookEnv {
     '[ -f "$ZDOTDIR/.zshrc" ] && source "$ZDOTDIR/.zshrc" 2>/dev/null',
     'fc -R "$HISTFILE" 2>/dev/null || true',
     'unset ZSH_AUTOSUGGEST_USE_ASYNC',
-    // Legacy 6973 shadow hooks — removed in Step 5
-    '___ait_precmd() { printf "\\033]6973;PROMPT\\007"; }',
-    '___ait_preexec() { printf "\\033]6973;COMMAND;%s\\007" "$1"; }',
-    'precmd_functions+=(___ait_precmd)',
-    'preexec_functions+=(___ait_preexec)',
     // OSC 133/633 hooks (appended after theme hooks so they run last in precmd)
     `___ait_si_nonce=${nonceLiteral}`,
     // precmd: close previous block (133;D), update cwd (633;P), mark prompt start
@@ -617,68 +615,95 @@ function isUtf8Locale(value: string | undefined): boolean {
   return Boolean(value && /utf-?8/i.test(value))
 }
 
+// Strip any remaining legacy 6973 markers (defence-in-depth: hooks in old shell configs).
+// Returns cleaned data and whether a 6973;PROMPT was seen (for SSH heuristic).
 function stripTerminalMarkers(
   session: ManagedSession,
   data: string
-): { data: string; sawPrompt: boolean; commands: string[] } {
+): { data: string; sawPrompt: boolean } {
   let input = `${session.promptMarkerRemainder ?? ''}${data}`
   let clean = ''
   let sawPrompt = false
-  const commands: string[] = []
 
   while (true) {
-    const markerIndex = input.indexOf(AIT_OSC_PREFIX)
-    if (markerIndex === -1) {
-      break
+    const idx = input.indexOf(AIT_LEGACY_PREFIX)
+    if (idx === -1) break
+
+    clean += input.slice(0, idx)
+    input = input.slice(idx + AIT_LEGACY_PREFIX.length)
+
+    // Find end of the OSC sequence
+    const end = input.indexOf(OSC_END)
+    if (end === -1) {
+      session.promptMarkerRemainder = AIT_LEGACY_PREFIX + input
+      return { data: clean, sawPrompt }
     }
-
-    clean += input.slice(0, markerIndex)
-    input = input.slice(markerIndex)
-
-    if (input.startsWith(PROMPT_OSC)) {
-      input = input.slice(PROMPT_OSC.length)
-      sawPrompt = true
-      continue
-    }
-
-    if (input.startsWith(COMMAND_OSC_PREFIX)) {
-      const endIndex = input.indexOf(OSC_END, COMMAND_OSC_PREFIX.length)
-      if (endIndex === -1) {
-        session.promptMarkerRemainder = input
-        return { data: clean, sawPrompt, commands }
-      }
-      const command = input.slice(COMMAND_OSC_PREFIX.length, endIndex).trim()
-      if (command) {
-        commands.push(command)
-      }
-      input = input.slice(endIndex + OSC_END.length)
-      continue
-    }
-
-    clean += input[0]
-    input = input.slice(1)
+    const body = input.slice(0, end)
+    if (body === 'PROMPT') sawPrompt = true
+    input = input.slice(end + OSC_END.length)
   }
 
-  const remainderLength = longestTerminalMarkerPrefixAtEnd(input)
-  const completeLength = input.length - remainderLength
-  clean += input.slice(0, completeLength)
-  session.promptMarkerRemainder = remainderLength > 0 ? input.slice(completeLength) : undefined
+  // Buffer trailing partial legacy prefix for next chunk
+  const maxPfx = AIT_LEGACY_PREFIX.length - 1
+  const tailLen = Math.min(input.length, maxPfx)
+  let remainder = 0
+  for (let l = tailLen; l > 0; l--) {
+    if (AIT_LEGACY_PREFIX.startsWith(input.slice(-l))) { remainder = l; break }
+  }
+  clean += input.slice(0, input.length - remainder)
+  session.promptMarkerRemainder = remainder > 0 ? input.slice(-remainder) : undefined
 
-  return { data: clean, sawPrompt, commands }
+  return { data: clean, sawPrompt }
 }
 
-function longestTerminalMarkerPrefixAtEnd(value: string): number {
-  const candidates = [PROMPT_OSC, COMMAND_OSC_PREFIX]
-  const maxLength = Math.min(value.length, Math.max(...candidates.map((candidate) => candidate.length - 1)))
+// Rewrite 633;E sequences so display commands with [[TAVIRAQ_SECRET_*]] placeholders
+// are not exposed to the renderer. Uses session.pendingCommandDisplay set by runConfirmed.
+function rewrite633E(session: ManagedSession, data: string): string {
+  const pending = session.pendingCommandDisplay
+  if (!pending) return data  // fast path: nothing to rewrite
 
-  for (let length = maxLength; length > 0; length -= 1) {
-    const suffix = value.slice(-length)
-    if (candidates.some((candidate) => candidate.startsWith(suffix))) {
-      return length
+  let input = data
+  let output = ''
+
+  while (true) {
+    const idx = input.indexOf(OSC_633E_PREFIX)
+    if (idx === -1) { output += input; break }
+
+    output += input.slice(0, idx)
+    const rest = input.slice(idx + OSC_633E_PREFIX.length)
+
+    const endBel = rest.indexOf('\x07')
+    const endSt = rest.indexOf('\x1b\\')
+    const endIdx = endBel === -1 ? endSt : endSt === -1 ? endBel : Math.min(endBel, endSt)
+    if (endIdx === -1) {
+      // Incomplete sequence — pass through unchanged
+      output += OSC_633E_PREFIX + rest
+      break
+    }
+    const term = rest[endIdx] === '\x07' ? '\x07' : '\x1b\\'
+    const payload = rest.slice(0, endIdx)
+    input = rest.slice(endIdx + term.length)
+
+    const lastSemi = payload.lastIndexOf(';')
+    const nonce = lastSemi !== -1 ? payload.slice(lastSemi + 1) : ''
+    const escapedCmd = lastSemi !== -1 ? payload.slice(0, lastSemi) : payload
+    const rawCmd = escapedCmd
+      .replace(/\\x0d/g, '\r').replace(/\\x0a/g, '\n')
+      .replace(/\\x3b/g, ';').replace(/\\\\/g, '\\').trim()
+
+    if (session.pendingCommandDisplay?.written === rawCmd) {
+      const display = session.pendingCommandDisplay.display
+      session.pendingCommandDisplay = undefined
+      const safeEscaped = display
+        .replace(/\\/g, '\\\\').replace(/;/g, '\\x3b')
+        .replace(/\r/g, '\\x0d').replace(/\n/g, '\\x0a')
+      output += `${OSC_633E_PREFIX}${safeEscaped};${nonce}${term}`
+    } else {
+      output += `${OSC_633E_PREFIX}${payload};${nonce}${term}`
     }
   }
 
-  return 0
+  return output
 }
 
 export function looksLikeShellPrompt(data: string): boolean {

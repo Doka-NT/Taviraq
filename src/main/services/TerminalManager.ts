@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import type { BrowserWindow } from 'electron'
 import { execFile } from 'node:child_process'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -206,6 +206,7 @@ export class TerminalManager {
     reconnectCommand?: string
   }): TerminalSessionInfo {
     const id = randomUUID()
+    const nonce = options.kind === 'local' ? randomUUID() : undefined
     const info: TerminalSessionInfo = {
       id,
       kind: options.kind,
@@ -217,10 +218,11 @@ export class TerminalManager {
       remoteTarget: options.remoteTarget,
       reconnectCommand: options.reconnectCommand,
       command: options.command,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      shellIntegrationNonce: nonce
     }
 
-    const hookEnv = options.kind === 'local' ? buildHookEnv(options.shell) : { env: {} }
+    const hookEnv = options.kind === 'local' ? buildHookEnv(options.shell, nonce) : { env: {} }
 
     const child = pty.spawn(options.file, options.args, {
       name: 'xterm-256color',
@@ -422,54 +424,167 @@ interface HookEnv {
   zdotdir?: string
 }
 
-function buildHookEnv(shell: string | undefined): HookEnv {
+function buildHookEnv(shell: string | undefined, nonce: string | undefined): HookEnv {
   const shellName = shell?.split('/').at(-1) ?? ''
 
   if (shellName === 'bash') {
-    const existing = process.env.PROMPT_COMMAND ? `; ${process.env.PROMPT_COMMAND}` : ''
-    return {
-      env: { PROMPT_COMMAND: `printf "\\033]6973;PROMPT\\007"${existing}` }
-    }
+    return buildBashHookEnv(nonce)
   }
 
   if (shellName === 'zsh') {
-    const home = process.env.HOME ?? homedir()
-    const realZdotdir = process.env.ZDOTDIR ?? home
-    const realZdotdirLiteral = zshSingleQuoted(realZdotdir)
-
-    const tmpDir = mkdtempSync(join(tmpdir(), 'ait-zdotdir-'))
-
-    // .zshenv — sourced for all zsh instances (login + non-login)
-    writeFileSync(join(tmpDir, '.zshenv'), [
-      '___ait_boot_zdotdir="$ZDOTDIR"',
-      `___ait_user_zdotdir=${realZdotdirLiteral}`,
-      'ZDOTDIR="$___ait_user_zdotdir"',
-      '[ -f "$ZDOTDIR/.zshenv" ] && source "$ZDOTDIR/.zshenv" 2>/dev/null',
-      '___ait_user_zdotdir="$ZDOTDIR"',
-      'ZDOTDIR="$___ait_boot_zdotdir"',
-      'export ___AIT_USER_ZDOTDIR="$___ait_user_zdotdir"'
-    ].join('\n') + '\n')
-
-    // .zshrc — let user's rc see their real ZDOTDIR, then add hook AFTER it.
-    writeFileSync(join(tmpDir, '.zshrc'), [
-      `___ait_default_zdotdir=${realZdotdirLiteral}`,
-      'ZDOTDIR="${___AIT_USER_ZDOTDIR:-$___ait_default_zdotdir}"',
-      'HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"',
-      '[ -f "$ZDOTDIR/.zshrc" ] && source "$ZDOTDIR/.zshrc" 2>/dev/null',
-      'fc -R "$HISTFILE" 2>/dev/null || true',
-      'unset ZSH_AUTOSUGGEST_USE_ASYNC',
-      '___ait_precmd() { printf "\\033]6973;PROMPT\\007"; }',
-      '___ait_preexec() { printf "\\033]6973;COMMAND;%s\\007" "$1"; }',
-      'precmd_functions+=(___ait_precmd)',
-      'preexec_functions+=(___ait_preexec)',
-      'unset ___AIT_USER_ZDOTDIR ___ait_boot_zdotdir ___ait_default_zdotdir ___ait_user_zdotdir'
-    ].join('\n') + '\n')
-
-    return { env: { ZDOTDIR: tmpDir }, zdotdir: tmpDir }
+    return buildZshHookEnv(nonce)
   }
 
-  // Unknown shell: fall back to env-based PROMPT_COMMAND (works for some shells)
+  if (shellName === 'fish') {
+    return buildFishHookEnv(nonce)
+  }
+
+  // Unknown shell: no shell integration
   return { env: {} }
+}
+
+function buildBashHookEnv(nonce: string | undefined): HookEnv {
+  const existing = process.env.PROMPT_COMMAND ? `; ${process.env.PROMPT_COMMAND}` : ''
+  // Save exit code before running PROMPT_COMMAND (printf would reset $? to 0).
+  // Emit legacy 6973 PROMPT (shadow), then OSC 133;D + 633;P;Cwd.
+  const promptCmd = [
+    '_ait_ec=$?',
+    'printf "\\033]6973;PROMPT\\007"',
+    'printf "\\033]133;D;%s\\007" "$_ait_ec"',
+    'printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
+    'unset _ait_ec'
+  ].join('; ')
+
+  // Wrap PS1 with 133;A (prompt start) / 133;B (command start) markers.
+  const userPs1 = process.env.PS1 ?? '\\$ '
+  const userPs0 = process.env.PS0 ?? ''
+
+  return {
+    env: {
+      PROMPT_COMMAND: `${promptCmd}${existing}`,
+      PS1: `\\[\\e]133;A\\a\\]${userPs1}\\[\\e]133;B\\a\\]`,
+      PS0: `${userPs0}\\[\\e]133;C\\a\\]`,
+      TAVIRAQ_SI_NONCE: nonce ?? ''
+    }
+  }
+}
+
+function buildZshHookEnv(nonce: string | undefined): HookEnv {
+  const home = process.env.HOME ?? homedir()
+  const realZdotdir = process.env.ZDOTDIR ?? home
+  const realZdotdirLiteral = zshSingleQuoted(realZdotdir)
+  const nonceLiteral = nonce ? zshSingleQuoted(nonce) : "''"
+
+  const tmpDir = mkdtempSync(join(tmpdir(), 'ait-zdotdir-'))
+
+  // .zshenv — sourced for all zsh instances (login + non-login)
+  writeFileSync(join(tmpDir, '.zshenv'), [
+    '___ait_boot_zdotdir="$ZDOTDIR"',
+    `___ait_user_zdotdir=${realZdotdirLiteral}`,
+    'ZDOTDIR="$___ait_user_zdotdir"',
+    '[ -f "$ZDOTDIR/.zshenv" ] && source "$ZDOTDIR/.zshenv" 2>/dev/null',
+    '___ait_user_zdotdir="$ZDOTDIR"',
+    'ZDOTDIR="$___ait_boot_zdotdir"',
+    'export ___AIT_USER_ZDOTDIR="$___ait_user_zdotdir"'
+  ].join('\n') + '\n')
+
+  // .zshrc — source user's rc first, then append our hooks so they run last.
+  // The OSC 133/633 hooks run after theme managers (oh-my-zsh, starship, etc.)
+  // that register their own precmd/preexec via precmd_functions.
+  writeFileSync(join(tmpDir, '.zshrc'), [
+    `___ait_default_zdotdir=${realZdotdirLiteral}`,
+    'ZDOTDIR="${___AIT_USER_ZDOTDIR:-$___ait_default_zdotdir}"',
+    'HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"',
+    '[ -f "$ZDOTDIR/.zshrc" ] && source "$ZDOTDIR/.zshrc" 2>/dev/null',
+    'fc -R "$HISTFILE" 2>/dev/null || true',
+    'unset ZSH_AUTOSUGGEST_USE_ASYNC',
+    // Legacy 6973 shadow hooks — removed in Step 5
+    '___ait_precmd() { printf "\\033]6973;PROMPT\\007"; }',
+    '___ait_preexec() { printf "\\033]6973;COMMAND;%s\\007" "$1"; }',
+    'precmd_functions+=(___ait_precmd)',
+    'preexec_functions+=(___ait_preexec)',
+    // OSC 133/633 hooks (appended after theme hooks so they run last in precmd)
+    `___ait_si_nonce=${nonceLiteral}`,
+    // precmd: close previous block (133;D), update cwd (633;P), mark prompt start
+    // (133;A via printf before PROMPT renders), append 133;B to end of PROMPT for
+    // command-start marker. Re-appends each time so theme resets are handled.
+    '___ait_si_precmd() {',
+    '  printf "\\033]133;D;%d\\007" "$?"',
+    '  printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
+    '  printf "\\033]133;A\\007"',
+    // Append 133;B to PROMPT only if not already present; strip stale copy first
+    "  local _ait_b=$'\\e]133;B\\a'",
+    '  PROMPT="${PROMPT//%{$_ait_b%}/}"',
+    '  PROMPT="${PROMPT}%{$_ait_b%}"',
+    '}',
+    // preexec: emit command text (633;E with nonce) + output start (133;C)
+    '___ait_si_preexec() {',
+    '  local _ait_cmd="$1"',
+    // Escape: \ -> \\, ; -> \x3b, newline -> \x0a, CR -> \x0d
+    '  local _ait_esc="${_ait_cmd//\\\\/\\\\\\\\}"',
+    '  _ait_esc="${_ait_esc//;/\\\\x3b}"',
+    "  _ait_esc=\"${_ait_esc//$'\\n'/\\\\x0a}\"",
+    "  _ait_esc=\"${_ait_esc//$'\\r'/\\\\x0d}\"",
+    '  printf "\\033]633;E;%s;%s\\007" "$_ait_esc" "$___ait_si_nonce"',
+    '  printf "\\033]133;C\\007"',
+    '}',
+    'precmd_functions+=(___ait_si_precmd)',
+    'preexec_functions+=(___ait_si_preexec)',
+    'unset ___AIT_USER_ZDOTDIR ___ait_boot_zdotdir ___ait_default_zdotdir ___ait_user_zdotdir'
+  ].join('\n') + '\n')
+
+  return { env: { ZDOTDIR: tmpDir, TAVIRAQ_SI_NONCE: nonce ?? '' }, zdotdir: tmpDir }
+}
+
+function buildFishHookEnv(nonce: string | undefined): HookEnv {
+  // Fish reads from conf.d/ files at startup. We write a config fragment to a
+  // temp directory and point XDG_CONFIG_HOME there; fish also reads the user's
+  // real config via the standard paths, so we include sourcing it.
+  const home = process.env.HOME ?? homedir()
+  const userXdgConfig = process.env.XDG_CONFIG_HOME ?? join(home, '.config')
+  const userFishConfig = join(userXdgConfig, 'fish', 'config.fish')
+
+  const tmpDir = mkdtempSync(join(tmpdir(), 'ait-fish-'))
+  const confDPath = join(tmpDir, 'fish', 'conf.d')
+  try { mkdirSync(confDPath, { recursive: true }) } catch { /* ignore */ }
+
+  const nonceLiteral = nonce ? fishQuoted(nonce) : "''"
+  const hooks = [
+    `[ -f ${fishQuoted(userFishConfig)} ] && source ${fishQuoted(userFishConfig)}`,
+    `set -gx TAVIRAQ_SI_NONCE ${nonceLiteral}`,
+    'function __ait_si_fish_prompt --on-event fish_prompt',
+    '  printf "\\033]133;D;%d\\007" "$__ait_si_last_status"',
+    '  printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
+    '  printf "\\033]133;A\\007"',
+    'end',
+    'function __ait_si_fish_preexec --on-event fish_preexec',
+    `  set -l _ait_nonce ${nonceLiteral}`,
+    '  set -l _ait_esc (string replace --all \';\' \'\\x3b\' -- $argv[1])',
+    '  printf "\\033]633;E;%s;%s\\007" "$_ait_esc" "$_ait_nonce"',
+    '  printf "\\033]133;C\\007"',
+    'end',
+    'function __ait_si_fish_postexec --on-event fish_postexec',
+    '  set -g __ait_si_last_status $status',
+    'end'
+  ].join('\n')
+
+  writeFileSync(join(confDPath, 'taviraq.fish'), hooks + '\n')
+  return { env: { XDG_CONFIG_HOME: tmpDir, TAVIRAQ_SI_NONCE: nonce ?? '' }, zdotdir: tmpDir }
+}
+
+function writeTempFile(prefix: string, suffix: string, content: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix))
+  const filePath = join(dir, `hook${suffix}`)
+  writeFileSync(filePath, content)
+  return filePath
+}
+
+function bashSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function fishQuoted(value: string): string {
+  return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
 }
 
 function zshSingleQuoted(value: string): string {

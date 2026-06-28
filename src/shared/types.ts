@@ -29,6 +29,7 @@ export interface TerminalSessionInfo {
   reconnectCommand?: string
   command: string
   createdAt: number
+  shellIntegrationNonce?: string
 }
 
 export interface CreateTerminalRequest {

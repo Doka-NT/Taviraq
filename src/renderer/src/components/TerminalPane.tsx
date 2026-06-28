@@ -13,7 +13,7 @@ import type { TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { BlockTracker, type CommandBlock } from '@renderer/utils/blockTracker'
+import { BlockTracker, type BlockTrackerActivity, type CommandBlock } from '@renderer/utils/blockTracker'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -36,6 +36,7 @@ interface TerminalPaneProps {
   onToggleBlockSelection: (blockId: string, additive: boolean) => void
   onClearBlockSelection: () => void
   onBlocksChange: (sessionId: string, blocks: CommandBlock[]) => void
+  onBlockActivityChange: (sessionId: string, activity: BlockTrackerActivity) => void
   onAskBlocks: (blocks: CommandBlock[]) => void
   onRerunBlock: (block: CommandBlock) => void
   onSaveSnippet: (command: string) => void
@@ -182,6 +183,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   onToggleBlockSelection,
   onClearBlockSelection,
   onBlocksChange,
+  onBlockActivityChange,
   onAskBlocks,
   onRerunBlock,
   onSaveSnippet,
@@ -209,6 +211,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const activeTrackerRef = useRef<BlockTracker | null>(null)
   const onBlocksChangeRef = useRef(onBlocksChange)
+  const onBlockActivityChangeRef = useRef(onBlockActivityChange)
   const commandBlocksRef = useRef<CommandBlock[]>([])
   const selectedBlockIdsRef = useRef<string[]>([])
   const activeSessionNonceRef = useRef<string>()
@@ -386,6 +389,10 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   useEffect(() => {
     onBlocksChangeRef.current = onBlocksChange
   }, [onBlocksChange])
+
+  useEffect(() => {
+    onBlockActivityChangeRef.current = onBlockActivityChange
+  }, [onBlockActivityChange])
 
   const closeSearch = useCallback((): void => {
     setIsSearchOpen(false)
@@ -664,12 +671,18 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     }
     if (activeSessionId) {
       const nonce = activeSessionNonceRef.current ?? ''
-      activeTrackerRef.current = new BlockTracker(terminal, activeSessionId, nonce, () => {
-        const blocks = activeTrackerRef.current?.getBlocks() ?? []
-        commandBlocksRef.current = blocks
-        onBlocksChangeRef.current(activeSessionId, blocks)
-        scheduleBlockHighlightSync()
-      })
+      activeTrackerRef.current = new BlockTracker(
+        terminal,
+        activeSessionId,
+        nonce,
+        () => {
+          const blocks = activeTrackerRef.current?.getBlocks() ?? []
+          commandBlocksRef.current = blocks
+          onBlocksChangeRef.current(activeSessionId, blocks)
+          scheduleBlockHighlightSync()
+        },
+        (activity) => onBlockActivityChangeRef.current(activeSessionId, activity)
+      )
     }
 
     const output = activeSessionId ? outputBuffers.current.get(activeSessionId) ?? '' : ''

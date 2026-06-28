@@ -34,6 +34,7 @@ interface ManagedSession {
   inputLine?: string
   inputEscapeSequence?: boolean
   transientSsh?: boolean
+  osc633ERemainder?: string
   pendingCommandDisplay?: {
     written: string
     display: string
@@ -411,7 +412,7 @@ interface HookEnv {
   args?: string[]
 }
 
-function buildHookEnv(shell: string | undefined, nonce: string | undefined): HookEnv {
+export function buildHookEnv(shell: string | undefined, nonce: string | undefined): HookEnv {
   const shellName = shell?.split('/').at(-1) ?? ''
 
   if (shellName === 'bash') {
@@ -466,7 +467,7 @@ function buildBashHookEnv(nonce: string | undefined): HookEnv {
   writeFileSync(initFile, initContent + '\n')
 
   return {
-    env: { TAVIRAQ_SI_NONCE: nonce ?? '' },
+    env: {},
     args: ['--init-file', initFile],
     zdotdir: tmpDir
   }
@@ -531,7 +532,7 @@ function buildZshHookEnv(nonce: string | undefined): HookEnv {
     'unset ___AIT_USER_ZDOTDIR ___ait_boot_zdotdir ___ait_default_zdotdir ___ait_user_zdotdir'
   ].join('\n') + '\n')
 
-  return { env: { ZDOTDIR: tmpDir, TAVIRAQ_SI_NONCE: nonce ?? '' }, zdotdir: tmpDir }
+  return { env: { ZDOTDIR: tmpDir }, zdotdir: tmpDir }
 }
 
 function buildFishHookEnv(nonce: string | undefined): HookEnv {
@@ -549,7 +550,6 @@ function buildFishHookEnv(nonce: string | undefined): HookEnv {
   const nonceLiteral = nonce ? fishQuoted(nonce) : "''"
   const hooks = [
     `[ -f ${fishQuoted(userFishConfig)} ] && source ${fishQuoted(userFishConfig)}`,
-    `set -gx TAVIRAQ_SI_NONCE ${nonceLiteral}`,
     'function __ait_si_fish_prompt --on-event fish_prompt',
     '  printf "\\033]133;D;%d\\007" "$__ait_si_last_status"',
     '  printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
@@ -571,7 +571,7 @@ function buildFishHookEnv(nonce: string | undefined): HookEnv {
   ].join('\n')
 
   writeFileSync(join(confDPath, 'taviraq.fish'), hooks + '\n')
-  return { env: { XDG_CONFIG_HOME: tmpDir, TAVIRAQ_SI_NONCE: nonce ?? '' }, zdotdir: tmpDir }
+  return { env: { XDG_CONFIG_HOME: tmpDir }, zdotdir: tmpDir }
 }
 
 
@@ -662,16 +662,30 @@ function stripTerminalMarkers(
 
 // Rewrite 633;E sequences so display commands with [[TAVIRAQ_SECRET_*]] placeholders
 // are not exposed to the renderer. Uses session.pendingCommandDisplay set by runConfirmed.
-function rewrite633E(session: ManagedSession, data: string): string {
+export function rewrite633E(session: ManagedSession, data: string): string {
   const pending = session.pendingCommandDisplay
-  if (!pending) return data  // fast path: nothing to rewrite
+  const remainder = session.osc633ERemainder
+  if (!pending && !remainder) return data  // fast path: nothing to rewrite
 
-  let input = data
+  let input = `${remainder ?? ''}${data}`
   let output = ''
+  session.osc633ERemainder = undefined
 
   while (true) {
     const idx = input.indexOf(OSC_633E_PREFIX)
-    if (idx === -1) { output += input; break }
+    if (idx === -1) {
+      if (!session.pendingCommandDisplay) {
+        output += input
+        break
+      }
+
+      const partialPrefixLength = trailingPrefixLength(input, OSC_633E_PREFIX)
+      output += input.slice(0, input.length - partialPrefixLength)
+      session.osc633ERemainder = partialPrefixLength > 0
+        ? input.slice(-partialPrefixLength)
+        : undefined
+      break
+    }
 
     output += input.slice(0, idx)
     const rest = input.slice(idx + OSC_633E_PREFIX.length)
@@ -680,8 +694,8 @@ function rewrite633E(session: ManagedSession, data: string): string {
     const endSt = rest.indexOf('\x1b\\')
     const endIdx = endBel === -1 ? endSt : endSt === -1 ? endBel : Math.min(endBel, endSt)
     if (endIdx === -1) {
-      // Incomplete sequence — pass through unchanged
-      output += OSC_633E_PREFIX + rest
+      // Keep incomplete command metadata in main until xterm's OSC terminator arrives.
+      session.osc633ERemainder = OSC_633E_PREFIX + rest
       break
     }
     const term = rest[endIdx] === '\x07' ? '\x07' : '\x1b\\'
@@ -703,11 +717,19 @@ function rewrite633E(session: ManagedSession, data: string): string {
         .replace(/\r/g, '\\x0d').replace(/\n/g, '\\x0a')
       output += `${OSC_633E_PREFIX}${safeEscaped};${nonce}${term}`
     } else {
-      output += `${OSC_633E_PREFIX}${payload};${nonce}${term}`
+      output += `${OSC_633E_PREFIX}${payload}${term}`
     }
   }
 
   return output
+}
+
+function trailingPrefixLength(value: string, prefix: string): number {
+  const maxLength = Math.min(value.length, prefix.length - 1)
+  for (let length = maxLength; length > 0; length -= 1) {
+    if (prefix.startsWith(value.slice(-length))) return length
+  }
+  return 0
 }
 
 export function looksLikeShellPrompt(data: string): boolean {

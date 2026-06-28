@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
-import type { CommandBlock } from './utils/blockTracker'
+import type { BlockTrackerActivity, CommandBlock } from './utils/blockTracker'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
@@ -341,6 +341,16 @@ export function App(): JSX.Element {
 
   const handleBlocksChange = useCallback((sessionId: string, blocks: CommandBlock[]): void => {
     commandBlocksRef.current.set(sessionId, blocks)
+  }, [])
+
+  const handleBlockActivityChange = useCallback((sessionId: string, activity: BlockTrackerActivity): void => {
+    setSessions((current) =>
+      current.map((session) =>
+        session.id === sessionId && isLiveSessionStatus(session.status)
+          ? { ...session, status: activity }
+          : session
+      )
+    )
   }, [])
 
   const toggleBlockSelection = useCallback((blockId: string, additive: boolean): void => {
@@ -1538,6 +1548,7 @@ export function App(): JSX.Element {
           onToggleBlockSelection={toggleBlockSelection}
           onClearBlockSelection={clearBlockSelection}
           onBlocksChange={handleBlocksChange}
+          onBlockActivityChange={handleBlockActivityChange}
           onAskBlocks={askAboutBlocks}
           onRerunBlock={requestBlockRerun}
           onSaveSnippet={openSnippetForm}

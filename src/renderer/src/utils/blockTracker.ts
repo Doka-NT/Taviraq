@@ -14,6 +14,8 @@ export interface CommandBlock {
   quality: 'osc' | 'heuristic'
 }
 
+export type BlockTrackerActivity = 'running' | 'idle'
+
 // VS Code escaping scheme: \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d
 function unescapeCommandText(escaped: string): string {
   return escaped
@@ -32,7 +34,8 @@ export class BlockTracker {
     private readonly terminal: Terminal,
     private readonly sessionId: string,
     private readonly nonce: string,
-    private readonly onChange: () => void
+    private readonly onChange: () => void,
+    private readonly onActivityChange: (activity: BlockTrackerActivity) => void
   ) {
     const h133 = terminal.parser.registerOscHandler(133, (data) => this.handle133(data))
     const h633 = terminal.parser.registerOscHandler(633, (data) => this.handle633(data))
@@ -115,6 +118,7 @@ export class BlockTracker {
         if (this.pending) {
           this.finalizePending(undefined, undefined)
         }
+        this.onActivityChange('idle')
         const marker = this.terminal.registerMarker(0)
         if (!marker) return true
         this.pending = {
@@ -134,11 +138,13 @@ export class BlockTracker {
         if (!this.pending) return true
         const marker = this.terminal.registerMarker(0)
         if (marker) this.pending.outputStart = marker
+        this.onActivityChange('running')
         break
       }
       case 'D': {
         const exitCode = param !== '' ? parseInt(param, 10) : undefined
         this.finalizePending(this.terminal.registerMarker(0) ?? undefined, exitCode)
+        this.onActivityChange('idle')
         break
       }
     }

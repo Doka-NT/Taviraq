@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync, rmSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { looksLikeShellPrompt, TerminalManager } from '../../src/main/services/TerminalManager'
+import { join } from 'node:path'
+import { buildHookEnv, looksLikeShellPrompt, rewrite633E, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
 function createManagerWithSession(
@@ -131,6 +133,80 @@ describe('TerminalManager.runConfirmed', () => {
     expect(writes).toEqual(['ls -la\r'])
     // SSH command tracking now relies on shell 633;E hooks rather than input interception
     expect(sends.filter((s) => s.channel === 'terminal:command')).toEqual([])
+  })
+})
+
+describe('OSC 633 command metadata', () => {
+  it('buffers split command markers until it can replace resolved secrets', () => {
+    const session = {
+      pendingCommandDisplay: {
+        written: 'curl -H "Authorization: Bearer real-token" https://example.test',
+        display: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
+      }
+    }
+
+    const first = rewrite633E(
+      session as never,
+      'before\x1b]633;E;curl -H "Authorization: Bearer real-token" https://example.test;nonce'
+    )
+    const second = rewrite633E(session as never, '\x07after')
+
+    expect(first).toBe('before')
+    expect(second).toBe(
+      '\x1b]633;E;curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test;nonce\x07after'
+    )
+    expect(session.pendingCommandDisplay).toBeUndefined()
+    expect(second).not.toContain('real-token')
+  })
+
+  it('buffers a command marker prefix split across PTY chunks', () => {
+    const session = {
+      pendingCommandDisplay: {
+        written: 'echo real-token',
+        display: 'echo [[TAVIRAQ_SECRET_1_TOKEN]]'
+      }
+    }
+
+    expect(rewrite633E(session as never, 'before\x1b]63')).toBe('before')
+    expect(rewrite633E(session as never, '3;E;echo real-token;nonce\x07after')).toBe(
+      '\x1b]633;E;echo [[TAVIRAQ_SECRET_1_TOKEN]];nonce\x07after'
+    )
+  })
+
+  it('preserves unmatched command markers without duplicating the nonce', () => {
+    const session = {
+      pendingCommandDisplay: {
+        written: 'echo real-token',
+        display: 'echo [[TAVIRAQ_SECRET_1_TOKEN]]'
+      }
+    }
+
+    expect(rewrite633E(session as never, '\x1b]633;E;pwd;nonce\x07')).toBe(
+      '\x1b]633;E;pwd;nonce\x07'
+    )
+  })
+})
+
+describe('shell integration nonce isolation', () => {
+  const tempDirs: string[] = []
+
+  afterEach(() => {
+    for (const dir of tempDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    ['/bin/bash', 'bash_init'],
+    ['/bin/zsh', '.zshrc'],
+    ['/opt/homebrew/bin/fish', 'fish/conf.d/taviraq.fish']
+  ])('embeds the nonce in the %s hook without exporting it to child commands', (shell, hookPath) => {
+    const hook = buildHookEnv(shell, 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+
+    expect(hook.env).not.toHaveProperty('TAVIRAQ_SI_NONCE')
+    expect(readFileSync(join(hook.zdotdir ?? '', hookPath), 'utf8')).toContain('test-nonce')
+    expect(readFileSync(join(hook.zdotdir ?? '', hookPath), 'utf8')).not.toContain('set -gx TAVIRAQ_SI_NONCE')
   })
 })
 

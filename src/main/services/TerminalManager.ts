@@ -161,13 +161,13 @@ export class TerminalManager {
       }
 
       const wasSshSession = session.info.kind === 'ssh'
-      if (!wasSshSession) {
-        if (normalizedDisplay && normalizedDisplay !== normalized) {
-          session.pendingCommandDisplay = {
-            written: normalized,
-            display: normalizedDisplay
-          }
+      if (normalizedDisplay && normalizedDisplay !== normalized) {
+        session.pendingCommandDisplay = {
+          written: normalized,
+          display: normalizedDisplay
         }
+      }
+      if (!wasSshSession) {
         this.captureSubmittedCommand(session, normalized)
       }
 

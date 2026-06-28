@@ -81,7 +81,7 @@ describe('TerminalManager.runConfirmed', () => {
     expect(writes).toEqual(['\x03', 'pwd\r'])
   })
 
-  it('writes resolved SSH commands while emitting placeholder metadata', () => {
+  it('writes resolved SSH commands and stores placeholder for 633;E rewrite', () => {
     const sends: Array<{ channel: string; payload: unknown }> = []
     const { manager, writes } = createManagerWithSession({ kind: 'ssh' }, undefined, sends)
 
@@ -92,13 +92,13 @@ describe('TerminalManager.runConfirmed', () => {
     )
 
     expect(writes).toEqual(['curl -H "Authorization: Bearer real-token" https://example.test\r'])
-    expect(sends).toContainEqual({
-      channel: 'terminal:command',
-      payload: {
-        sessionId: 'session-1',
-        command: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test',
-        echoed: false
-      }
+    // terminal:command is no longer emitted — placeholder rewriting is done via rewrite633E
+    expect(sends.filter((s) => s.channel === 'terminal:command')).toEqual([])
+    // pendingCommandDisplay should be set so rewrite633E can substitute the placeholder
+    const session = (manager as unknown as { sessions: Map<string, { pendingCommandDisplay?: { written: string; display: string } }> }).sessions.get('session-1')
+    expect(session?.pendingCommandDisplay).toEqual({
+      written: 'curl -H "Authorization: Bearer real-token" https://example.test',
+      display: 'curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test'
     })
   })
 
@@ -122,17 +122,15 @@ describe('TerminalManager.runConfirmed', () => {
     expect(display).toBe('curl -H "Authorization: Bearer [[TAVIRAQ_SECRET_1_TOKEN]]" https://example.test')
   })
 
-  it('emits command events for commands typed inside direct SSH sessions', () => {
+  it('writes typed commands in SSH sessions without emitting terminal:command', () => {
     const sends: Array<{ channel: string; payload: unknown }> = []
     const { manager, writes } = createManagerWithSession({ kind: 'ssh' }, undefined, sends)
 
     manager.write('session-1', 'ls -la\r')
 
     expect(writes).toEqual(['ls -la\r'])
-    expect(sends).toContainEqual({
-      channel: 'terminal:command',
-      payload: { sessionId: 'session-1', command: 'ls -la', echoed: false }
-    })
+    // SSH command tracking now relies on shell 633;E hooks rather than input interception
+    expect(sends.filter((s) => s.channel === 'terminal:command')).toEqual([])
   })
 })
 

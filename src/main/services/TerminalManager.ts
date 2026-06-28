@@ -557,7 +557,11 @@ function buildFishHookEnv(nonce: string | undefined): HookEnv {
     'end',
     'function __ait_si_fish_preexec --on-event fish_preexec',
     `  set -l _ait_nonce ${nonceLiteral}`,
-    '  set -l _ait_esc (string replace --all \';\' \'\\x3b\' -- $argv[1])',
+    // Escape order: backslash first, then delimiters — fish double-quotes: \\ → \
+    '  set -l _ait_esc (string replace --all -- "\\\\" "\\\\\\\\" -- $argv[1])',
+    '  set _ait_esc (string replace --all -- ";" "\\x3b" -- $_ait_esc)',
+    '  set _ait_esc (string replace --all -- "\\n" "\\x0a" -- $_ait_esc)',
+    '  set _ait_esc (string replace --all -- "\\r" "\\x0d" -- $_ait_esc)',
     '  printf "\\033]633;E;%s;%s\\007" "$_ait_esc" "$_ait_nonce"',
     '  printf "\\033]133;C\\007"',
     'end',

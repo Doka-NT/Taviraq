@@ -31,7 +31,7 @@ import { CommandConfirmationDialog, type CommandConfirmation } from './CommandCo
 import { ComposerConfigControl } from './ComposerConfigControl'
 import { TaskListPanel } from './TaskListPanel'
 import { BoundedScroll } from './BoundedScroll'
-import { parseTaskListFromMessages, parseTaskPlanFromMessages } from '@shared/taskList'
+import { parseTaskListFromMessages } from '@shared/taskList'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -990,7 +990,6 @@ export function LlmPanel({
   const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
   const [telemetrySettings, setTelemetrySettings] = useState<TelemetrySettings | null>(null)
   const [telemetryActive, setTelemetryActive] = useState(false)
-  const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
   const [customPatternRegex, setCustomPatternRegex] = useState('')
@@ -3292,17 +3291,6 @@ export function LlmPanel({
     () => chatToolsSettings.taskListPlanning ? parseTaskListFromMessages(messages) : null,
     [chatToolsSettings.taskListPlanning, messages]
   )
-  const taskPlan = useMemo(
-    () => chatToolsSettings.taskListPlanning ? parseTaskPlanFromMessages(messages) : null,
-    [chatToolsSettings.taskListPlanning, messages]
-  )
-  const handleRevealPlan = useCallback(() => {
-    if (!taskPlan || !activeSessionId) return
-    setRevealingPlan(true)
-    void window.api.taskPlan.reveal(activeSessionId, taskPlan).finally(() => {
-      setRevealingPlan(false)
-    })
-  }, [activeSessionId, taskPlan])
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
     draft,
@@ -5175,9 +5163,6 @@ export function LlmPanel({
         {taskList ? (
           <TaskListPanel
             taskList={taskList}
-            hasPlanFile={Boolean(taskPlan)}
-            revealing={revealingPlan}
-            onRevealPlan={handleRevealPlan}
             t={t}
           />
         ) : null}

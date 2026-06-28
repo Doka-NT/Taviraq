@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { TaskListPanel } from '@renderer/components/TaskListPanel'
 import type { TaskList } from '@shared/taskList'
 import type { LanguageContextValue } from '@renderer/i18n/language'
@@ -19,9 +19,6 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof TaskListPane
   return render(
     <TaskListPanel
       taskList={taskList}
-      hasPlanFile={false}
-      revealing={false}
-      onRevealPlan={vi.fn()}
       t={t}
       {...overrides}
     />

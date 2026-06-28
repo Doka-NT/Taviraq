@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: MPL-2.0
 import { useState } from 'react'
-import { Check, ChevronDown, Circle, FolderOpen, ListChecks, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, Circle, ListChecks, Loader2 } from 'lucide-react'
 import type { TaskList } from '@shared/taskList'
 import { summarizeTaskList } from '@shared/taskList'
 import type { LanguageContextValue } from '@renderer/i18n/language'
 
 interface TaskListPanelProps {
   taskList: TaskList
-  hasPlanFile: boolean
-  revealing: boolean
-  onRevealPlan: () => void
   t: LanguageContextValue['t']
 }
 
 export function TaskListPanel({
   taskList,
-  hasPlanFile,
-  revealing,
-  onRevealPlan,
   t
 }: TaskListPanelProps): JSX.Element {
   const [expanded, setExpanded] = useState(false)
@@ -79,20 +73,6 @@ export function TaskListPanel({
         ))}
       </ol>
 
-      {hasPlanFile ? (
-        <div className="task-list-panel-actions">
-          <button
-            type="button"
-            className="quiet-button"
-            onClick={onRevealPlan}
-            disabled={revealing}
-            title={t('taskList.revealPlan')}
-          >
-            <FolderOpen size={12} aria-hidden />
-            <span>{t('taskList.revealPlan')}</span>
-          </button>
-        </div>
-      ) : null}
     </section>
   )
 }

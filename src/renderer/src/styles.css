@@ -6041,11 +6041,14 @@ textarea:focus {
 }
 
 .task-list-items {
-  display: grid;
   gap: 3px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.task-list-items:not([hidden]) {
+  display: grid;
 }
 
 .task-list-item {

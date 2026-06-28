@@ -126,15 +126,31 @@ try {
   ))
   await captureSettings(page, '01-task-list-enabled.png')
 
-  // 3. Close settings; the seeded conversation now shows the checklist panel.
+  // 3. Close settings; the seeded conversation shows the checklist panel.
+  //    The panel is collapsed by default: only the in-progress step + progress
+  //    counter are visible; the pending steps stay hidden behind `hidden` +
+  //    `.task-list-items:not([hidden]) { display: grid }` (otherwise the author
+  //    `display:grid` would override `[hidden] { display:none }`).
   await page.getByRole('button', { name: 'Закрыть настройки' }).click()
   await page.locator('.settings-screen').waitFor({ state: 'hidden' })
   const panel = page.locator('.task-list-panel')
   await panel.waitFor({ state: 'visible' })
-  await panel.getByText('Перезапустить сервис').waitFor({ state: 'visible' })
+  const toggle = panel.locator('.task-list-toggle')
+  await toggle.waitFor({ state: 'visible' })
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
+  await panel.locator('.task-list-current-step').getByText('Проверить подключение к серверу').waitFor({ state: 'visible' })
+  // Pending step exists in the DOM but must NOT be visible while collapsed.
+  await panel.getByText('Перезапустить сервис').waitFor({ state: 'hidden' })
   await panel.getByRole('button', { name: 'Показать план в Finder' }).waitFor({ state: 'visible' })
-  await captureLocator(panel, '02-task-list-panel.png')
-  await captureLocator(page.locator('.llm-panel'), '03-task-list-in-chat.png')
+  await captureLocator(panel, '02-task-list-collapsed.png')
+  await captureLocator(page.locator('.llm-panel'), '03-task-list-collapsed-in-chat.png')
+
+  // 4. Expand via the toggle: every step is now laid out and visible.
+  await toggle.click()
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true')
+  await panel.getByText('Перезапустить сервис').waitFor({ state: 'visible' })
+  await panel.getByText('Проверить логи').waitFor({ state: 'visible' })
+  await captureLocator(panel, '04-task-list-expanded.png')
 
   console.log(`Saved ${screenshots.length} screenshot(s):`)
   for (const path of screenshots) console.log(`  ${path}`)

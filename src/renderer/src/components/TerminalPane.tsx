@@ -692,7 +692,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         void window.api.terminal.resize(activeSessionIdRef.current, terminal.cols, terminal.rows)
       }
     })
-  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleTerminalMetricsUpdate, t])
+  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleBlockHighlightSync, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
     if (!activeSessionId) return

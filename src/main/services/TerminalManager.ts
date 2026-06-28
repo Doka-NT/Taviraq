@@ -572,16 +572,6 @@ function buildFishHookEnv(nonce: string | undefined): HookEnv {
   return { env: { XDG_CONFIG_HOME: tmpDir, TAVIRAQ_SI_NONCE: nonce ?? '' }, zdotdir: tmpDir }
 }
 
-function writeTempFile(prefix: string, suffix: string, content: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
-  const filePath = join(dir, `hook${suffix}`)
-  writeFileSync(filePath, content)
-  return filePath
-}
-
-function bashSingleQuoted(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`
-}
 
 function fishQuoted(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`

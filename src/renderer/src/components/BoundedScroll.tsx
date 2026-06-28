@@ -50,6 +50,16 @@ export function BoundedScroll({
     return () => observer.disconnect()
   }, [])
 
+  // Re-measure when collapsing back: removing the max-height cap (expand) lets
+  // clientHeight grow so ResizeObserver reports "no overflow" and would hide the
+  // toggle. We keep the toggle mounted while expanded (see render below), and on
+  // collapse we recompute overflow directly so the toggle reappears immediately.
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el || expanded) return
+    setOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [expanded])
+
   // Keep the bottom in view while streaming, unless the user scrolled up or
   // expanded the block (expanded shows full height, no scroll needed).
   useLayoutEffect(() => {
@@ -81,7 +91,7 @@ export function BoundedScroll({
       >
         {children}
       </div>
-      {overflowing ? (
+      {overflowing || expanded ? (
         <button
           type="button"
           className="quiet-button bounded-scroll-toggle"

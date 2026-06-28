@@ -56,7 +56,7 @@ export function TaskListPanel({
       </button>
 
       {activeStep && !expanded ? (
-        <div className="task-list-current-step" aria-hidden>
+        <div className="task-list-current-step">
           <span className="task-list-item-icon">
             <Loader2 size={13} className="task-list-spin" />
           </span>

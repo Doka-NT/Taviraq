@@ -71,4 +71,22 @@ describe('BoundedScroll', () => {
     expect(region.scrollTop).toBe(500)
     restore()
   })
+
+  it('keeps the toggle reachable after expanding so it can collapse again', () => {
+    const restore = overrideSizes(500, 100)
+    const { container } = render(
+      <BoundedScroll showMoreLabel="more" showLessLabel="less">long body</BoundedScroll>
+    )
+    const toggle = container.querySelector('button') as HTMLButtonElement
+    fireEvent.click(toggle)
+    // After expand the toggle must stay mounted ("Show less"); otherwise once the
+    // max-height cap is removed the overflow check would hide it and trap the user
+    // in the expanded state.
+    const toggleAfterExpand = container.querySelector('button') as HTMLButtonElement
+    expect(toggleAfterExpand).not.toBeNull()
+    expect(toggleAfterExpand.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(toggleAfterExpand)
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    restore()
+  })
 })

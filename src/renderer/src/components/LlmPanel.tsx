@@ -3299,7 +3299,10 @@ export function LlmPanel({
   // previous checklist.
   const taskListKey = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
-      if (messages[i].role === 'user') return i
+      // Skip command-output continuations injected by runAgenticStep — they are
+      // pseudo-user messages that appear mid-run and would otherwise flip the key
+      // on every step, resetting the expanded state between agent commands.
+      if (messages[i].role === 'user' && messages[i].display !== 'command-output') return i
     }
     return 0
   }, [messages])

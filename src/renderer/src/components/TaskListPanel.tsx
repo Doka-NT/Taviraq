@@ -60,7 +60,7 @@ export function TaskListPanel({
 
       <ol id="task-list-items" className="task-list-items" hidden={!expanded}>
         {taskList.items.map((item, index) => (
-          <li key={`${index}-${item.text}`} className={`task-list-item ${item.status}`}>
+          <li key={index} className={`task-list-item ${item.status}`}>
             <span className="task-list-item-icon" aria-hidden>
               {item.status === 'done'
                 ? <Check size={13} />

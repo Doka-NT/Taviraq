@@ -5461,29 +5461,14 @@ export function LlmPanel({
                   <span /><span /><span />
                 </div>
               ) : message.role === 'assistant' && message.content ? (
-                boundLastAssistant ? (
-                  <BoundedScroll
-                    streaming={streaming || agenticRunning}
-                    scrollToken={(message.displayContent ?? message.maskedContent ?? message.content).length}
-                    showMoreLabel={t('taskList.showMore')}
-                    showLessLabel={t('taskList.showLess')}
-                    ariaLabel={t('taskList.currentStep')}
-                  >
-                    <MessageContent
-                      content={message.displayContent ?? message.maskedContent ?? message.content}
-                      redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
-                      hidePlanningFences={Boolean(taskList)}
-                      onRun={runCommand}
-                      onPrompt={setPromptDraft}
-                      disabled={!activeSession || agenticCommandRunning}
-                      runLabel={t('chat.runInTerminal')}
-                      expandCommandLabel={t('chat.showFullCommand')}
-                      collapseCommandLabel={t('chat.collapseCommand')}
-                      copyCodeLabel={t('chat.copyCode')}
-                      copiedLabel={t('chat.copied')}
-                    />
-                  </BoundedScroll>
-                ) : (
+                <BoundedScroll
+                  bounded={boundLastAssistant}
+                  streaming={streaming || agenticRunning}
+                  scrollToken={(message.displayContent ?? message.maskedContent ?? message.content).length}
+                  showMoreLabel={t('taskList.showMore')}
+                  showLessLabel={t('taskList.showLess')}
+                  ariaLabel={t('taskList.currentStep')}
+                >
                   <MessageContent
                     content={message.displayContent ?? message.maskedContent ?? message.content}
                     redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
@@ -5497,7 +5482,7 @@ export function LlmPanel({
                     copyCodeLabel={t('chat.copyCode')}
                     copiedLabel={t('chat.copied')}
                   />
-                )
+                </BoundedScroll>
               ) : message.role === 'assistant' ? null : (
                 <p>{message.displayContent ?? hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
               )}

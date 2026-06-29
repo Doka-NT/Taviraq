@@ -4,10 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   parseTaskListBlock,
   parseTaskListFromMessages,
-  parseTaskPlanFromMessages,
   summarizeTaskList,
-  TASK_LIST_FENCE_LANG,
-  TASK_PLAN_FENCE_LANG
+  TASK_LIST_FENCE_LANG
 } from '@shared/taskList'
 
 function tasklist(body: string): string {
@@ -75,21 +73,6 @@ describe('parseTaskListFromMessages', () => {
   })
 })
 
-describe('parseTaskPlanFromMessages', () => {
-  it('extracts the latest detailed plan block', () => {
-    const plan = parseTaskPlanFromMessages([
-      { role: 'assistant', content: '```' + TASK_PLAN_FENCE_LANG + '\nOld plan\n```' },
-      { role: 'assistant', content: '```' + TASK_PLAN_FENCE_LANG + '\nStep 1: do the thing\n```' }
-    ])
-    expect(plan).toBe('Step 1: do the thing')
-  })
-
-  it('returns null without a plan block', () => {
-    expect(parseTaskPlanFromMessages([
-      { role: 'assistant', content: tasklist('- [ ] a') }
-    ])).toBeNull()
-  })
-})
 
 describe('summarizeTaskList', () => {
   it('counts done and active items', () => {

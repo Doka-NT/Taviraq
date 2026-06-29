@@ -75,19 +75,6 @@ export function parseTaskListFromMessages(
   return null
 }
 
-/** Most recent detailed-plan (`taskplan`) block across the conversation. */
-export function parseTaskPlanFromMessages(
-  messages: Array<{ role: string; content: string }>
-): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message.role !== 'assistant' || !message.content) continue
-    const block = extractLastFencedBlock(message.content, TASK_PLAN_FENCE_LANG)
-    if (block !== undefined && block.trim()) return block.trim()
-  }
-  return null
-}
-
 export interface TaskListProgress {
   total: number
   done: number

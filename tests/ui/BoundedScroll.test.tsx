@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
+import { act } from 'react'
 import { fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BoundedScroll } from '@renderer/components/BoundedScroll'
@@ -70,6 +71,38 @@ describe('BoundedScroll', () => {
     // nearBottomRef starts true -> scrollTop pinned to scrollHeight
     expect(region.scrollTop).toBe(500)
     restore()
+  })
+
+  it('shows the toggle when content grows past the cap during streaming', () => {
+    // Regression: the fix observes the inner content wrapper (not the max-height-
+    // capped container), so ResizeObserver fires again as tokens arrive and the
+    // "show more" button appears even when the cap is already hit.
+    let triggerResize: (() => void) | null = null
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(cb: ResizeObserverCallback) {
+        triggerResize = () => cb([], this as unknown as ResizeObserver)
+      }
+      observe() { /* noop */ }
+      disconnect() { triggerResize = null }
+    })
+
+    // Phase 1: content fits — no toggle.
+    let restoreSizes = overrideSizes(50, 50)
+    const { container } = render(
+      <BoundedScroll streaming scrollToken={1} showMoreLabel="more" showLessLabel="less">
+        content
+      </BoundedScroll>
+    )
+    expect(container.querySelector('button')).toBeNull()
+
+    // Phase 2: content grows past the bounded cap — simulate ResizeObserver firing.
+    restoreSizes()
+    restoreSizes = overrideSizes(500, 100)
+    act(() => { triggerResize!() })
+
+    expect(container.querySelector('button')).not.toBeNull()
+    expect(container.querySelector('button')?.textContent).toBe('more')
+    restoreSizes()
   })
 
   it('keeps the toggle reachable after expanding so it can collapse again', () => {

@@ -42,7 +42,6 @@ import { createDefaultTelemetrySettings, normalizeTelemetrySettings } from '@sha
 import { PromptStore } from './services/promptStore'
 import { CommandSnippetStore } from './services/commandSnippetStore'
 import { SessionStateStore } from './services/sessionStateStore'
-import { TaskPlanStore } from './services/taskPlanStore'
 import {
   buildProxyPasswordRef,
   deleteApiKey,
@@ -121,7 +120,6 @@ const commandSnippetStore = new CommandSnippetStore()
 const sessionStateStore = new SessionStateStore()
 const chatHistoryStore = new ChatHistoryStore()
 const mcpConfigStore = new McpConfigStore()
-const taskPlanStore = new TaskPlanStore()
 const capabilityRegistry = new CapabilityRegistry()
 const summarizeControllers = new Map<string, AbortController>()
 const chatStreamControllers = new Map<string, AbortController>()
@@ -1017,13 +1015,7 @@ function registerIpc(): void {
     return config
   })
 
-  ipcMain.handle('taskPlan:reveal', async (_event, sessionId: unknown, plan: unknown) => {
-    if (typeof sessionId !== 'string' || !sessionId.trim()) return
-    if (typeof plan !== 'string' || !plan.trim()) return
-    await taskPlanStore.revealPlan(sessionId, plan)
-  })
-
-  ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
+ipcMain.handle('app:openExternalUrl', (_event, url: string) => {
     return openAllowedExternalUrl(url)
   })
 

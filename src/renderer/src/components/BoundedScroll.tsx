@@ -9,6 +9,10 @@ import {
 
 interface BoundedScrollProps {
   children: ReactNode
+  /** When false, renders children without height constraints or overflow detection.
+   * The same DOM structure is used so parent components can always render
+   * BoundedScroll without causing a child remount when this flag changes. */
+  bounded?: boolean
   /** When true, the container auto-scrolls to the bottom on content growth
    * (unless the user scrolled up or expanded the block). */
   streaming?: boolean
@@ -26,6 +30,7 @@ interface BoundedScrollProps {
  */
 export function BoundedScroll({
   children,
+  bounded = true,
   streaming = false,
   scrollToken,
   showMoreLabel,
@@ -33,32 +38,40 @@ export function BoundedScroll({
   ariaLabel
 }: BoundedScrollProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const nearBottomRef = useRef(true)
   const [expanded, setExpanded] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
 
-  // Detect overflow whenever the measured content size changes.
+  // Detect overflow whenever the content size changes.
+  // We observe the inner content wrapper (contentRef), not the container — the
+  // container is capped by max-height so its border-box stops changing once
+  // content exceeds the cap, meaning a ResizeObserver on it never fires again
+  // and the "show more" toggle never appears during streaming.
   useEffect(() => {
-    const el = containerRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
+    if (!bounded) return
+    const container = containerRef.current
+    const content = contentRef.current
+    if (!container || !content || typeof ResizeObserver === 'undefined') return
     const measure = () => {
-      setOverflowing(el.scrollHeight > el.clientHeight + 1)
+      setOverflowing(container.scrollHeight > container.clientHeight + 1)
     }
     measure()
     const observer = new ResizeObserver(measure)
-    observer.observe(el)
+    observer.observe(content)
     return () => observer.disconnect()
-  }, [])
+  }, [bounded])
 
   // Re-measure when collapsing back: removing the max-height cap (expand) lets
   // clientHeight grow so ResizeObserver reports "no overflow" and would hide the
   // toggle. We keep the toggle mounted while expanded (see render below), and on
   // collapse we recompute overflow directly so the toggle reappears immediately.
   useLayoutEffect(() => {
+    if (!bounded) return
     const el = containerRef.current
     if (!el || expanded) return
     setOverflowing(el.scrollHeight > el.clientHeight + 1)
-  }, [expanded])
+  }, [bounded, expanded])
 
   // Keep the bottom in view while streaming, unless the user scrolled up or
   // expanded the block (expanded shows full height, no scroll needed).
@@ -79,19 +92,19 @@ export function BoundedScroll({
   const contentId = 'bounded-scroll-content'
 
   return (
-    <div className={`bounded-scroll-wrapper${expanded ? ' expanded' : ''}`}>
+    <div className={`bounded-scroll-wrapper${expanded ? ' expanded' : ''}${!bounded ? ' unbounded' : ''}`}>
       <div
         id={contentId}
         ref={containerRef}
         className="bounded-scroll"
         role="region"
         aria-label={ariaLabel}
-        tabIndex={overflowing && !expanded ? 0 : -1}
+        tabIndex={bounded && overflowing && !expanded ? 0 : -1}
         onScroll={handleScroll}
       >
-        {children}
+        <div ref={contentRef}>{children}</div>
       </div>
-      {overflowing || expanded ? (
+      {bounded && (overflowing || expanded) ? (
         <button
           type="button"
           className="quiet-button bounded-scroll-toggle"

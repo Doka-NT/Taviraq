@@ -6095,11 +6095,6 @@ textarea:focus {
   animation: spin 1s linear infinite;
 }
 
-.task-list-panel-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
 /* Bounded streaming output — keeps the live agent step from consuming the whole
    chat area while the agent is working. */
 .bounded-scroll-wrapper {
@@ -6113,8 +6108,10 @@ textarea:focus {
   border-radius: 4px;
 }
 
-.bounded-scroll-wrapper.expanded .bounded-scroll {
+.bounded-scroll-wrapper.expanded .bounded-scroll,
+.bounded-scroll-wrapper.unbounded .bounded-scroll {
   max-height: none;
+  overflow-y: visible;
 }
 
 .bounded-scroll-toggle {

@@ -13,7 +13,7 @@ import type { TerminalCursorStyle } from '@shared/types'
 import { useT } from '@renderer/i18n/language'
 import type { TerminalColors } from '@renderer/themes/types'
 import { getSessionRenderStatus, isLiveSessionStatus, type SessionTabInfo } from '@renderer/utils/sessionTabs'
-import { BlockTracker, type BlockTrackerActivity, type CommandBlock } from '@renderer/utils/blockTracker'
+import { BlockTracker, hasCommandText, type BlockTrackerActivity, type CommandBlock } from '@renderer/utils/blockTracker'
 import { outputWithVisibleCursor } from '@renderer/utils/terminalOutput'
 
 interface TerminalPaneProps {
@@ -835,6 +835,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
   }, [copyText, selectedBlockText, selectedBlocks])
 
   const copySelectedCommands = useCallback((): void => {
+    if (!selectedBlocks.every(hasCommandText)) return
     copyText(selectedBlocks.map((block) => block.command).join('\n'))
   }, [copyText, selectedBlocks])
 
@@ -846,15 +847,17 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
 
   const rerunSelectedBlock = useCallback((): void => {
     const block = selectedBlocks[0]
-    if (!block || selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)) return
+    if (!block || !hasCommandText(block) || selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)) return
     onRerunBlock(block)
   }, [activeSession?.status, onRerunBlock, selectedBlocks])
 
   const saveSelectedSnippet = useCallback((): void => {
     const block = selectedBlocks[0]
-    if (!block || selectedBlocks.length !== 1) return
+    if (!block || !hasCommandText(block) || selectedBlocks.length !== 1) return
     onSaveSnippet(block.command.trim())
   }, [onSaveSnippet, selectedBlocks])
+
+  const selectedCommandsAvailable = selectedBlocks.every(hasCommandText)
 
   const visibleSelectedBlocks = terminalMetrics
     ? selectedBlocks
@@ -935,13 +938,24 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
       {selectedBlocks.length && visibleSelectedBlocks.length ? (
         <div className="terminal-block-toolbar" style={{ top: toolbarTop }}>
           <span className="terminal-block-count">{selectedBlocks.length}</span>
+          {!selectedCommandsAvailable ? (
+            <span className="terminal-block-command-unavailable">
+              {t('terminal.blocks.commandUnavailable')}
+            </span>
+          ) : null}
           <button type="button" onClick={() => onAskBlocks(selectedBlocks)} title={t('terminal.blocks.askAi')} aria-label={t('terminal.blocks.askAi')}>
             <Sparkles size={14} aria-hidden="true" />
           </button>
           <button type="button" onClick={copySelectedBlocks} title={t('terminal.blocks.copyBlock')} aria-label={t('terminal.blocks.copyBlock')}>
             <Copy size={14} aria-hidden="true" />
           </button>
-          <button type="button" onClick={copySelectedCommands} title={t('terminal.blocks.copyCommand')} aria-label={t('terminal.blocks.copyCommand')}>
+          <button
+            type="button"
+            onClick={copySelectedCommands}
+            disabled={!selectedCommandsAvailable}
+            title={selectedCommandsAvailable ? t('terminal.blocks.copyCommand') : t('terminal.blocks.commandUnavailable')}
+            aria-label={selectedCommandsAvailable ? t('terminal.blocks.copyCommand') : t('terminal.blocks.commandUnavailable')}
+          >
             <SquareTerminal size={14} aria-hidden="true" />
           </button>
           <button type="button" onClick={copySelectedOutputs} title={t('terminal.blocks.copyOutput')} aria-label={t('terminal.blocks.copyOutput')}>
@@ -950,18 +964,18 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
           <button
             type="button"
             onClick={rerunSelectedBlock}
-            disabled={selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)}
-            title={t('terminal.blocks.rerunCommand')}
-            aria-label={t('terminal.blocks.rerunCommand')}
+            disabled={!selectedCommandsAvailable || selectedBlocks.length !== 1 || !isLiveSessionStatus(activeSession?.status)}
+            title={selectedCommandsAvailable ? t('terminal.blocks.rerunCommand') : t('terminal.blocks.commandUnavailable')}
+            aria-label={selectedCommandsAvailable ? t('terminal.blocks.rerunCommand') : t('terminal.blocks.commandUnavailable')}
           >
             <Play size={14} aria-hidden="true" />
           </button>
           <button
             type="button"
             onClick={saveSelectedSnippet}
-            disabled={selectedBlocks.length !== 1}
-            title={t('terminal.blocks.saveSnippet')}
-            aria-label={t('terminal.blocks.saveSnippet')}
+            disabled={!selectedCommandsAvailable || selectedBlocks.length !== 1}
+            title={selectedCommandsAvailable ? t('terminal.blocks.saveSnippet') : t('terminal.blocks.commandUnavailable')}
+            aria-label={selectedCommandsAvailable ? t('terminal.blocks.saveSnippet') : t('terminal.blocks.commandUnavailable')}
           >
             <BookmarkPlus size={14} aria-hidden="true" />
           </button>

@@ -433,18 +433,28 @@ export function buildHookEnv(shell: string | undefined, nonce: string | undefine
 
 function buildBashHookEnv(nonce: string | undefined): HookEnv {
   const home = process.env.HOME ?? homedir()
-  const userPs1 = process.env.PS1 ?? '\\$ '
-  const userPs0 = process.env.PS0 ?? ''
-  const existingPC = process.env.PROMPT_COMMAND ? `; ${process.env.PROMPT_COMMAND}` : ''
   const nonceLit = (nonce ?? '').replace(/'/g, "'\\''")
+  const homeLit = home.replace(/'/g, "'\\''")
 
   // bash --init-file: sources this file instead of ~/.bashrc for interactive shells.
-  // We source the user's rc files first, then append our OSC 133/633 hooks.
+  // Install once, source the user's rc files, then layer OSC 133/633 hooks over
+  // the prompt state that bash actually has after startup.
   const tmpDir = mkdtempSync(join(tmpdir(), 'ait-bash-'))
   const initFile = join(tmpDir, 'bash_init')
   const initContent = [
+    'if [[ ${___ait_si_installed:-0} == 1 ]]; then',
+    '  return 0 2>/dev/null || exit 0',
+    'fi',
+    '___ait_si_installed=1',
     '[ -f /etc/bash.bashrc ] && source /etc/bash.bashrc',
-    `[ -f "${home}/.bashrc" ] && source "${home}/.bashrc"`,
+    `___ait_si_user_bashrc='${homeLit}/.bashrc'`,
+    '[ -f "$___ait_si_user_bashrc" ] && source "$___ait_si_user_bashrc"',
+    'if [[ ${PS1+x} ]]; then',
+    '  ___ait_si_user_ps1=$PS1',
+    'else',
+    "  ___ait_si_user_ps1='\\$ '",
+    'fi',
+    '___ait_si_user_ps0=${PS0-}',
     // preexec via PS0: runs in a subshell just before the user's command.
     // Redirects to /dev/tty so the OSC bytes go to the terminal, not the PS0 capture.
     '___ait_si_ps0() {',
@@ -460,9 +470,18 @@ function buildBashHookEnv(nonce: string | undefined): HookEnv {
     '  printf \'\\033]133;D;%s\\007\' "$_ec"',
     '  printf \'\\033]633;P;Cwd=%s\\007\' "$PWD"',
     '}',
-    `PROMPT_COMMAND='___ait_si_precmd${existingPC}'`,
-    `PS1='\\[\\e]133;A\\a\\]${userPs1}\\[\\e]133;B\\a\\]'`,
-    `PS0='$(___ait_si_ps0 "$BASH_COMMAND")${userPs0}'`
+    'if declare -p PROMPT_COMMAND 2>/dev/null | grep -q \'^declare -a\'; then',
+    '  PROMPT_COMMAND=(___ait_si_precmd "${PROMPT_COMMAND[@]}")',
+    'else',
+    '  ___ait_si_user_prompt_command=${PROMPT_COMMAND-}',
+    "  PROMPT_COMMAND='___ait_si_precmd'",
+    '  if [[ -n $___ait_si_user_prompt_command ]]; then',
+    "    PROMPT_COMMAND+='; '",
+    '    PROMPT_COMMAND+=$___ait_si_user_prompt_command',
+    '  fi',
+    'fi',
+    "PS1='\\[\\e]133;A\\a\\]'\"$___ait_si_user_ps1\"'\\[\\e]133;B\\a\\]'",
+    "PS0='$(___ait_si_ps0 \"$BASH_COMMAND\")'\"$___ait_si_user_ps0\""
   ].join('\n')
   writeFileSync(initFile, initContent + '\n')
 

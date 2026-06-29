@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync, rmSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildHookEnv, looksLikeShellPrompt, rewrite633E, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
@@ -189,8 +190,20 @@ describe('OSC 633 command metadata', () => {
 
 describe('shell integration nonce isolation', () => {
   const tempDirs: string[] = []
+  const originalHome = process.env.HOME
+  const originalPs1 = process.env.PS1
+  const originalPs0 = process.env.PS0
+  const originalPromptCommand = process.env.PROMPT_COMMAND
 
   afterEach(() => {
+    if (originalHome === undefined) delete process.env.HOME
+    else process.env.HOME = originalHome
+    if (originalPs1 === undefined) delete process.env.PS1
+    else process.env.PS1 = originalPs1
+    if (originalPs0 === undefined) delete process.env.PS0
+    else process.env.PS0 = originalPs0
+    if (originalPromptCommand === undefined) delete process.env.PROMPT_COMMAND
+    else process.env.PROMPT_COMMAND = originalPromptCommand
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true })
     }
@@ -207,6 +220,69 @@ describe('shell integration nonce isolation', () => {
     expect(hook.env).not.toHaveProperty('TAVIRAQ_SI_NONCE')
     expect(readFileSync(join(hook.zdotdir ?? '', hookPath), 'utf8')).toContain('test-nonce')
     expect(readFileSync(join(hook.zdotdir ?? '', hookPath), 'utf8')).not.toContain('set -gx TAVIRAQ_SI_NONCE')
+  })
+
+  it('layers bash hooks over prompt state set by .bashrc and remains idempotent', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ait-bash-home-'))
+    tempDirs.push(home)
+    process.env.HOME = home
+    process.env.PS1 = 'stale-parent-prompt'
+    process.env.PS0 = 'stale-parent-ps0'
+    process.env.PROMPT_COMMAND = 'stale_parent_hook'
+    writeFileSync(join(home, '.bashrc'), [
+      "PS1='custom-prompt> '",
+      "PS0='user-ps0:'",
+      "PROMPT_COMMAND=('printf user-one' 'printf user-two')"
+    ].join('\n') + '\n')
+
+    const hook = buildHookEnv('/bin/bash', 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+    const initFile = hook.args?.[1]
+    expect(initFile).toBeTruthy()
+
+    const output = execFileSync('/bin/bash', ['--noprofile', '-c', [
+      'source "$1"',
+      'source "$1"',
+      'declare -p PS1 PS0 PROMPT_COMMAND ___ait_si_installed'
+    ].join('\n'), 'bash', initFile ?? ''], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home }
+    })
+
+    const promptCommand = output.split('\n').find((line) => line.includes('PROMPT_COMMAND=')) ?? ''
+    expect(output).toContain('custom-prompt> ')
+    expect(output).toContain('user-ps0:')
+    expect(output).not.toContain('stale-parent')
+    expect(promptCommand).toContain('printf user-one')
+    expect(promptCommand).toContain('printf user-two')
+    expect(promptCommand.match(/___ait_si_precmd/g)).toHaveLength(1)
+    expect(output).toContain('___ait_si_installed="1"')
+  })
+
+  it('preserves string PROMPT_COMMAND and handles unset prompt variables', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ait-bash-home-'))
+    tempDirs.push(home)
+    process.env.HOME = home
+    writeFileSync(join(home, '.bashrc'), [
+      'unset PS1 PS0',
+      "PROMPT_COMMAND='printf user-hook'"
+    ].join('\n') + '\n')
+
+    const hook = buildHookEnv('/bin/bash', 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+    const initFile = hook.args?.[1]
+    const output = execFileSync('/bin/bash', ['--noprofile', '-c', [
+      'source "$1"',
+      'declare -p PS1 PS0 PROMPT_COMMAND'
+    ].join('\n'), 'bash', initFile ?? ''], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home }
+    })
+
+    expect(output).toContain('printf user-hook')
+    expect(output).toContain('133;A')
+    expect(output).toContain('133;B')
+    expect(output).toContain('___ait_si_ps0')
   })
 })
 

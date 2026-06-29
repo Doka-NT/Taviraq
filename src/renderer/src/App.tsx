@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
-import type { BlockTrackerActivity, CommandBlock } from './utils/blockTracker'
+import { remapRestored633ENonce, type BlockTrackerActivity, type CommandBlock } from './utils/blockTracker'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
@@ -371,7 +371,7 @@ export function App(): JSX.Element {
 
     const selected = blocks
       .map((block, index) => {
-        const text = terminalPaneRef.current?.blockFullText(block) ?? `$ ${block.command}`
+        const text = terminalPaneRef.current?.blockFullText(block) ?? (block.command.trim() ? `$ ${block.command}` : '')
         return `${appT('terminal.blocks.label', { index: index + 1 })}\n\`\`\`text\n${text}\n\`\`\``
       })
       .join('\n\n')
@@ -397,6 +397,7 @@ export function App(): JSX.Element {
   }, [pendingBlockPrompt, showSidebar])
 
   const requestBlockRerun = useCallback((block: CommandBlock): void => {
+    if (!block.command.trim()) return
     setPendingBlockRerun({
       sessionId: block.sessionId,
       command: block.command
@@ -436,6 +437,7 @@ export function App(): JSX.Element {
           reconnectCommand: session.reconnectCommand,
           command: session.command,
           createdAt: session.createdAt,
+          shellIntegrationNonce: session.shellIntegrationNonce,
           status: session.kind === 'ssh' || session.status === 'reconnecting'
             ? 'disconnected'
             : session.status === 'exited' || session.status === 'disconnected' ? session.status : 'running',
@@ -720,7 +722,12 @@ export function App(): JSX.Element {
             status: 'running'
           })
           idMap.set(saved.id, session.id)
-          restoredOutputs.set(session.id, `${saved.output ?? ''}${fallbackNotice}`)
+          const restoredOutput = remapRestored633ENonce(
+            saved.output ?? '',
+            saved.shellIntegrationNonce,
+            session.shellIntegrationNonce
+          )
+          restoredOutputs.set(session.id, `${restoredOutput}${fallbackNotice}`)
         } else {
           const id = `restored-${crypto.randomUUID()}`
           restoredSessions.push({

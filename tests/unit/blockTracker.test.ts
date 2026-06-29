@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MPL-2.0
 import { describe, expect, it, vi } from 'vitest'
 import type { IMarker, Terminal } from '@xterm/xterm'
-import { BlockTracker, type BlockTrackerActivity } from '../../src/renderer/src/utils/blockTracker'
+import {
+  BlockTracker,
+  hasCommandText,
+  remapRestored633ENonce,
+  type BlockTrackerActivity
+} from '../../src/renderer/src/utils/blockTracker'
 
-function createTracker(): {
+function createTracker(nonce = 'nonce'): {
   tracker: BlockTracker
   handlers: Map<number, (data: string) => boolean>
   activities: BlockTrackerActivity[]
@@ -39,7 +44,7 @@ function createTracker(): {
   const tracker = new BlockTracker(
     terminal,
     'session-1',
-    'nonce',
+    nonce,
     onChange,
     (activity) => activities.push(activity)
   )
@@ -71,5 +76,77 @@ describe('BlockTracker activity', () => {
     expect(activities).toEqual(['idle', 'running', 'idle'])
     expect(onChange).toHaveBeenCalledOnce()
     expect(tracker.getBlocks()).toHaveLength(1)
+  })
+})
+
+describe('BlockTracker command metadata', () => {
+  it('keeps live nonce validation strict', () => {
+    const { tracker, handlers } = createTracker('current-nonce')
+
+    handlers.get(133)?.('A')
+    handlers.get(633)?.('E;echo forged;old-nonce')
+    handlers.get(133)?.('C')
+    handlers.get(133)?.('D;0')
+
+    expect(tracker.getBlocks()[0]?.command).toBe('')
+
+    handlers.get(133)?.('A')
+    handlers.get(633)?.('E;echo trusted;current-nonce')
+    handlers.get(133)?.('C')
+    handlers.get(133)?.('D;0')
+
+    expect(tracker.getBlocks()[1]?.command).toBe('echo trusted')
+  })
+
+  it('remaps only exact old nonces in trusted restored output', () => {
+    const restored = [
+      'before',
+      '\x1b]633;E;echo one;old-nonce\x07',
+      '\x1b]633;E;echo two;other-nonce\x1b\\',
+      '\x1b]633;P;Cwd=/tmp\x07',
+      'after'
+    ].join('')
+
+    expect(remapRestored633ENonce(restored, 'old-nonce', 'new-nonce')).toBe([
+      'before',
+      '\x1b]633;E;echo one;new-nonce\x07',
+      '\x1b]633;E;echo two;other-nonce\x1b\\',
+      '\x1b]633;P;Cwd=/tmp\x07',
+      'after'
+    ].join(''))
+    expect(remapRestored633ENonce(restored, undefined, 'new-nonce')).toBe(restored)
+  })
+
+  it('restores command text after nonce rotation without relaxing live validation', () => {
+    const { tracker, handlers } = createTracker('new-nonce')
+    const restored = remapRestored633ENonce(
+      '\x1b]633;E;printf old\\x3b command;old-nonce\x07',
+      'old-nonce',
+      'new-nonce'
+    )
+    const payload = restored.slice('\x1b]633;'.length, -1)
+
+    handlers.get(133)?.('A')
+    handlers.get(633)?.(payload)
+    handlers.get(133)?.('C')
+    handlers.get(133)?.('D;0')
+
+    expect(tracker.getBlocks()[0]?.command).toBe('printf old; command')
+  })
+
+  it('reports whether command-dependent actions have usable text', () => {
+    expect(hasCommandText({ command: '  pwd  ' })).toBe(true)
+    expect(hasCommandText({ command: '  ' })).toBe(false)
+  })
+
+  it('omits a fake prompt from block text when command metadata is unavailable', () => {
+    const { tracker, handlers } = createTracker()
+    handlers.get(133)?.('A')
+    handlers.get(133)?.('C')
+    handlers.get(133)?.('D;0')
+    const block = tracker.getBlocks()[0]
+
+    expect(tracker.blockFullText(block)).toBe('')
+    expect(tracker.blockFullText(block)).not.toContain('$ ')
   })
 })

@@ -240,6 +240,7 @@ export interface RestoredTerminalSession {
   reconnectCommand?: string
   command: string
   createdAt: number
+  shellIntegrationNonce?: string
   status: 'running' | 'exited' | 'disconnected'
   output: string
 }

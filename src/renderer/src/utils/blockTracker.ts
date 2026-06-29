@@ -16,6 +16,41 @@ export interface CommandBlock {
 
 export type BlockTrackerActivity = 'running' | 'idle'
 
+const OSC_633E_PREFIX = '\x1b]633;E;'
+
+export function hasCommandText(block: Pick<CommandBlock, 'command'>): boolean {
+  return block.command.trim().length > 0
+}
+
+export function remapRestored633ENonce(output: string, oldNonce: string | undefined, newNonce: string | undefined): string {
+  if (!oldNonce || !newNonce || oldNonce === newNonce) return output
+
+  let input = output
+  let result = ''
+
+  while (true) {
+    const markerIndex = input.indexOf(OSC_633E_PREFIX)
+    if (markerIndex === -1) return result + input
+
+    result += input.slice(0, markerIndex)
+    const marker = input.slice(markerIndex + OSC_633E_PREFIX.length)
+    const belIndex = marker.indexOf('\x07')
+    const stIndex = marker.indexOf('\x1b\\')
+    const endIndex = belIndex === -1 ? stIndex : stIndex === -1 ? belIndex : Math.min(belIndex, stIndex)
+    if (endIndex === -1) return result + OSC_633E_PREFIX + marker
+
+    const terminator = marker[endIndex] === '\x07' ? '\x07' : '\x1b\\'
+    const payload = marker.slice(0, endIndex)
+    const nonceSeparator = payload.lastIndexOf(';')
+    if (nonceSeparator !== -1 && payload.slice(nonceSeparator + 1) === oldNonce) {
+      result += `${OSC_633E_PREFIX}${payload.slice(0, nonceSeparator + 1)}${newNonce}${terminator}`
+    } else {
+      result += `${OSC_633E_PREFIX}${payload}${terminator}`
+    }
+    input = marker.slice(endIndex + terminator.length)
+  }
+}
+
 // VS Code escaping scheme: \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d
 function unescapeCommandText(escaped: string): string {
   return escaped
@@ -90,7 +125,8 @@ export class BlockTracker {
 
   blockFullText(block: CommandBlock): string {
     const output = this.blockOutputText(block)
-    return [`$ ${block.command}`, output].filter(Boolean).join('\n')
+    const command = hasCommandText(block) ? `$ ${block.command}` : ''
+    return [command, output].filter(Boolean).join('\n')
   }
 
   dispose(): void {

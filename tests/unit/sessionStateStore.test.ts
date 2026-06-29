@@ -113,4 +113,25 @@ describe('session state helpers', () => {
 
     expect(snapshot.sessions[0].reconnectCommand).toBe('ssh artem@cloud-vm')
   })
+
+  it('preserves a local shell integration nonce for trusted transcript restore', () => {
+    const snapshot = normalizeSessionState({
+      version: 1,
+      savedAt: '2026-05-03T00:00:00.000Z',
+      activeSessionId: 'local-tab',
+      sessions: [{
+        id: 'local-tab',
+        kind: 'local',
+        label: 'zsh',
+        command: '/bin/zsh',
+        createdAt: 1,
+        shellIntegrationNonce: 'saved-nonce',
+        status: 'running',
+        output: '\x1b]633;E;pwd;saved-nonce\x07'
+      }],
+      assistantThreads: {}
+    })
+
+    expect(snapshot.sessions[0].shellIntegrationNonce).toBe('saved-nonce')
+  })
 })

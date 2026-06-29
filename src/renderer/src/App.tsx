@@ -13,7 +13,7 @@ import { TRANSLATIONS, type Language, type Translations } from './i18n/translati
 import { themeMap, themes, DEFAULT_THEME_ID } from './themes/definitions'
 import { applyThemeToDom } from './themes/applyTheme'
 import type { TerminalColors } from './themes/types'
-import { compactPath, getCwdBasename, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, type SessionTabStatus } from './utils/sessionTabs'
+import { compactPath, getCwdBasename, getSessionStatusMeta, getSessionTooltip, getSshTabIndicatorTitle, getTabLabel, isLiveSessionStatus, mergeRestoredSessionOutput, sessionStatusAfterPrompt, type SessionTabStatus } from './utils/sessionTabs'
 
 interface SessionState extends TerminalSessionInfo {
   status: SessionTabStatus
@@ -782,6 +782,16 @@ export function App(): JSX.Element {
   }, [createLocalSession, scheduleSessionStateSave])
 
   useEffect(() => {
+    const offPrompt = window.api.terminal.onPrompt(({ sessionId }) => {
+      setSessions((current) =>
+        current.map((session) =>
+          session.id === sessionId
+            ? { ...session, status: sessionStatusAfterPrompt(session.status) }
+            : session
+        )
+      )
+    })
+
     const offExit = window.api.terminal.onExit(({ sessionId }) => {
       setSessions((current) =>
         current.map((session) =>
@@ -814,6 +824,7 @@ export function App(): JSX.Element {
     })
 
     return () => {
+      offPrompt()
       offExit()
       offCwd()
       offSession()

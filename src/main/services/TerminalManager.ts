@@ -18,6 +18,7 @@ const OSC_END = '\x07'
 const AIT_LEGACY_PREFIX = '\x1b]6973;'
 // 633;E prefix used for display-command substitution in rewrite633E
 const OSC_633E_PREFIX = '\x1b]633;E;'
+const OSC_133_PROMPT_SEQUENCES = ['\x1b]133;A\x07', '\x1b]133;A\x1b\\']
 const ESC = String.fromCharCode(27)
 const ANSI_CSI_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
 const ANSI_OSC_PATTERN = new RegExp(`${ESC}\\](?:[^${ESC}\\x07]|${ESC}(?!\\\\))*?(?:\\x07|${ESC}\\\\)`, 'g')
@@ -35,6 +36,7 @@ interface ManagedSession {
   inputEscapeSequence?: boolean
   transientSsh?: boolean
   osc633ERemainder?: string
+  osc133PromptRemainder?: string
   pendingCommandDisplay?: {
     written: string
     display: string
@@ -236,11 +238,12 @@ export class TerminalManager {
 
     child.onData((data) => {
       const parsed = stripTerminalMarkers(managed, data)
+      const sawSemanticPrompt = detectOsc133Prompt(managed, parsed.data)
       if (parsed.data) {
         const safe = rewrite633E(managed, parsed.data)
         this.emit('terminal:data', { sessionId: id, data: safe })
       }
-      if (parsed.sawPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
+      if (parsed.sawPrompt || sawSemanticPrompt || (managed.info.kind === 'ssh' && looksLikeShellPrompt(parsed.data))) {
         this.restoreTransientSsh(managed)
         this.emit('terminal:prompt', { sessionId: id })
       }
@@ -555,20 +558,15 @@ function buildZshHookEnv(nonce: string | undefined): HookEnv {
 }
 
 function buildFishHookEnv(nonce: string | undefined): HookEnv {
-  // Fish reads from conf.d/ files at startup. We write a config fragment to a
-  // temp directory and point XDG_CONFIG_HOME there; fish also reads the user's
-  // real config via the standard paths, so we include sourcing it.
-  const home = process.env.HOME ?? homedir()
-  const userXdgConfig = process.env.XDG_CONFIG_HOME ?? join(home, '.config')
-  const userFishConfig = join(userXdgConfig, 'fish', 'config.fish')
-
+  // Run the generated hook after fish has loaded its normal conf.d and
+  // config.fish files. This keeps the user's XDG_CONFIG_HOME unchanged for
+  // both startup configuration and every child process launched by fish.
   const tmpDir = mkdtempSync(join(tmpdir(), 'ait-fish-'))
   const confDPath = join(tmpDir, 'fish', 'conf.d')
   try { mkdirSync(confDPath, { recursive: true }) } catch { /* ignore */ }
 
   const nonceLiteral = nonce ? fishQuoted(nonce) : "''"
   const hooks = [
-    `[ -f ${fishQuoted(userFishConfig)} ] && source ${fishQuoted(userFishConfig)}`,
     'function __ait_si_fish_prompt --on-event fish_prompt',
     '  printf "\\033]133;D;%d\\007" "$__ait_si_last_status"',
     '  printf "\\033]633;P;Cwd=%s\\007" "$PWD"',
@@ -589,8 +587,13 @@ function buildFishHookEnv(nonce: string | undefined): HookEnv {
     'end'
   ].join('\n')
 
-  writeFileSync(join(confDPath, 'taviraq.fish'), hooks + '\n')
-  return { env: { XDG_CONFIG_HOME: tmpDir }, zdotdir: tmpDir }
+  const hookFile = join(confDPath, 'taviraq.fish')
+  writeFileSync(hookFile, hooks + '\n')
+  return {
+    env: {},
+    args: ['-C', `source ${fishQuoted(hookFile)}`],
+    zdotdir: tmpDir
+  }
 }
 
 
@@ -749,6 +752,16 @@ function trailingPrefixLength(value: string, prefix: string): number {
     if (prefix.startsWith(value.slice(-length))) return length
   }
   return 0
+}
+
+export function detectOsc133Prompt(session: ManagedSession, data: string): boolean {
+  const input = `${session.osc133PromptRemainder ?? ''}${data}`
+  const sawPrompt = OSC_133_PROMPT_SEQUENCES.some((sequence) => input.includes(sequence))
+  const remainderLength = Math.max(
+    ...OSC_133_PROMPT_SEQUENCES.map((sequence) => trailingPrefixLength(input, sequence))
+  )
+  session.osc133PromptRemainder = remainderLength > 0 ? input.slice(-remainderLength) : undefined
+  return sawPrompt
 }
 
 export function looksLikeShellPrompt(data: string): boolean {

@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { buildHookEnv, looksLikeShellPrompt, rewrite633E, TerminalManager } from '../../src/main/services/TerminalManager'
+import { buildHookEnv, detectOsc133Prompt, looksLikeShellPrompt, rewrite633E, TerminalManager } from '../../src/main/services/TerminalManager'
 import type { TerminalSessionInfo } from '../../src/shared/types'
 
 function createManagerWithSession(
@@ -222,6 +222,16 @@ describe('shell integration nonce isolation', () => {
     expect(readFileSync(join(hook.zdotdir ?? '', hookPath), 'utf8')).not.toContain('set -gx TAVIRAQ_SI_NONCE')
   })
 
+  it('injects fish hooks after normal startup without replacing XDG_CONFIG_HOME', () => {
+    const hook = buildHookEnv('/opt/homebrew/bin/fish', 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+
+    expect(hook.env).not.toHaveProperty('XDG_CONFIG_HOME')
+    expect(hook.args?.[0]).toBe('-C')
+    expect(hook.args?.[1]).toContain('taviraq.fish')
+    expect(readFileSync(join(hook.zdotdir ?? '', 'fish/conf.d/taviraq.fish'), 'utf8')).not.toContain('config.fish')
+  })
+
   it('layers bash hooks over prompt state set by .bashrc and remains idempotent', () => {
     const home = mkdtempSync(join(tmpdir(), 'ait-bash-home-'))
     tempDirs.push(home)
@@ -283,6 +293,23 @@ describe('shell integration nonce isolation', () => {
     expect(output).toContain('133;A')
     expect(output).toContain('133;B')
     expect(output).toContain('___ait_si_ps0')
+  })
+})
+
+describe('OSC 133 prompt detection', () => {
+  it('recognizes BEL and ST prompt markers, including split chunks', () => {
+    const session: { osc133PromptRemainder?: string } = {}
+
+    expect(detectOsc133Prompt(session as never, 'before\x1b]133;')).toBe(false)
+    expect(detectOsc133Prompt(session as never, 'A\x07after')).toBe(true)
+    expect(detectOsc133Prompt(session as never, '\x1b]133;A\x1b\\')).toBe(true)
+  })
+
+  it('does not report unrelated OSC 133 lifecycle markers as prompts', () => {
+    const session: { osc133PromptRemainder?: string } = {}
+
+    expect(detectOsc133Prompt(session as never, '\x1b]133;C\x07')).toBe(false)
+    expect(session.osc133PromptRemainder).toBeUndefined()
   })
 })
 

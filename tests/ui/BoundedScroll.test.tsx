@@ -27,7 +27,9 @@ function overrideSizes(scrollHeight: number, clientHeight: number): () => void {
   Object.defineProperty(proto, 'clientHeight', { configurable: true, get: () => clientHeight })
   return () => {
     if (scrollDesc) Object.defineProperty(proto, 'scrollHeight', scrollDesc)
+    else delete proto.scrollHeight
     if (clientDesc) Object.defineProperty(proto, 'clientHeight', clientDesc)
+    else delete proto.clientHeight
   }
 }
 
@@ -37,6 +39,36 @@ describe('BoundedScroll', () => {
       <BoundedScroll showMoreLabel="more" showLessLabel="less">hello world</BoundedScroll>
     )
     expect(container.querySelector('.bounded-scroll')?.textContent).toContain('hello world')
+  })
+
+  it('uses unique ARIA targets and only labels bounded messages as the current step', () => {
+    const restore = overrideSizes(500, 100)
+    const { container } = render(
+      <>
+        <BoundedScroll bounded={false} ariaLabel="current step" showMoreLabel="more" showLessLabel="less">
+          historical message
+        </BoundedScroll>
+        <BoundedScroll ariaLabel="current step" showMoreLabel="more" showLessLabel="less">
+          first live message
+        </BoundedScroll>
+        <BoundedScroll ariaLabel="current step" showMoreLabel="more" showLessLabel="less">
+          second live message
+        </BoundedScroll>
+      </>
+    )
+
+    const regions = Array.from(container.querySelectorAll<HTMLElement>('[role="region"]'))
+    const toggles = Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+    expect(regions).toHaveLength(2)
+    expect(toggles).toHaveLength(2)
+    expect(container.querySelector('.unbounded .bounded-scroll')?.hasAttribute('id')).toBe(false)
+    expect(container.querySelector('.unbounded .bounded-scroll')?.hasAttribute('aria-label')).toBe(false)
+    expect(regions[0].id).not.toBe(regions[1].id)
+    expect(toggles[0].getAttribute('aria-controls')).toBe(regions[0].id)
+    expect(toggles[1].getAttribute('aria-controls')).toBe(regions[1].id)
+    expect(document.getElementById(regions[0].id)).toBe(regions[0])
+    expect(document.getElementById(regions[1].id)).toBe(regions[1])
+    restore()
   })
 
   it('does not show the toggle when content fits', () => {
@@ -53,9 +85,10 @@ describe('BoundedScroll', () => {
       <BoundedScroll showMoreLabel="more" showLessLabel="less">long body</BoundedScroll>
     )
     const toggle = container.querySelector('button') as HTMLButtonElement
+    const region = container.querySelector('[role="region"]') as HTMLElement
     expect(toggle).not.toBeNull()
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle.getAttribute('aria-controls')).toBe('bounded-scroll-content')
+    expect(toggle.getAttribute('aria-controls')).toBe(region.id)
     fireEvent.click(toggle)
     expect(container.querySelector('.bounded-scroll-wrapper')?.classList.contains('expanded')).toBe(true)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')

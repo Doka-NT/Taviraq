@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -39,6 +40,7 @@ export function BoundedScroll({
 }: BoundedScrollProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const contentId = useId()
   const nearBottomRef = useRef(true)
   const [expanded, setExpanded] = useState(false)
   const [overflowing, setOverflowing] = useState(false)
@@ -89,16 +91,14 @@ export function BoundedScroll({
     nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 32
   }
 
-  const contentId = 'bounded-scroll-content'
-
   return (
     <div className={`bounded-scroll-wrapper${expanded ? ' expanded' : ''}${!bounded ? ' unbounded' : ''}`}>
       <div
-        id={contentId}
+        id={bounded ? contentId : undefined}
         ref={containerRef}
         className="bounded-scroll"
-        role="region"
-        aria-label={ariaLabel}
+        role={bounded ? 'region' : undefined}
+        aria-label={bounded ? ariaLabel : undefined}
         tabIndex={bounded && overflowing && !expanded ? 0 : -1}
         onScroll={handleScroll}
       >

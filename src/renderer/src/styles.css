@@ -6010,6 +6010,14 @@ textarea:focus {
   background: rgba(var(--color-neutral-rgb), 0.06);
   font-size: calc(var(--app-text-size, 13.5px) - 2px);
   line-height: 1.35;
+  max-height: min(20vh, 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.task-list-current-step:focus-visible {
+  outline: 1.5px solid var(--accent-cyan);
+  outline-offset: 2px;
 }
 
 .task-list-current-step .task-list-item-icon {

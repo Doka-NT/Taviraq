@@ -21,6 +21,16 @@ await mkdir(screenshotDir, { recursive: true })
 
 const userDataDir = await mkdtemp(join(tmpdir(), 'taviraq-chat-tools-ui-'))
 
+const activeStepText = [
+  'Проверить подключение к серверу и последовательно сверить DNS, TLS-сертификат,',
+  'ответ health-check, журналы systemd и метрики процесса во всех окружениях,',
+  'зафиксировав каждое отклонение и безопасно остановившись до перезапуска сервиса,',
+  'если хотя бы одна обязательная проверка не прошла успешно, затем сравнить результат',
+  'с предыдущим стабильным запуском, проверить доступность зависимых API и очередей,',
+  'убедиться в отсутствии новых ошибок и предупреждений, подготовить краткий отчёт',
+  'с временными метками и только после этого перейти к следующему шагу плана'
+].join(' ')
+
 // Seed a session whose assistant turn carries a task list + detailed plan, so
 // the derived checklist panel renders with real content.
 const taskListMessage = [
@@ -28,7 +38,7 @@ const taskListMessage = [
   '',
   '```tasklist',
   '- [x] Прочитать конфигурацию',
-  '- [-] Проверить подключение к серверу',
+  `- [-] ${activeStepText}`,
   '- [ ] Перезапустить сервис',
   '- [ ] Проверить логи',
   '```',
@@ -104,7 +114,7 @@ try {
   await page.evaluate(() => {
     localStorage.setItem('taviraq.language', 'ru')
     localStorage.setItem('taviraq.sidebarVisible', 'true')
-    localStorage.setItem('taviraq.sidebarWidth', '640')
+    localStorage.setItem('taviraq.sidebarWidth', '420')
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('.app-shell').waitFor({ state: 'visible' })
@@ -138,7 +148,18 @@ try {
   const toggle = panel.locator('.task-list-toggle')
   await toggle.waitFor({ state: 'visible' })
   assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
-  await panel.locator('.task-list-current-step').getByText('Проверить подключение к серверу').waitFor({ state: 'visible' })
+  const currentStep = panel.locator('.task-list-current-step')
+  await currentStep.getByText(activeStepText).waitFor({ state: 'visible' })
+  const currentStepMetrics = await currentStep.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    tabIndex: element.tabIndex
+  }))
+  assert.ok(currentStepMetrics.clientHeight <= 120, `current step exceeded 120px: ${currentStepMetrics.clientHeight}`)
+  assert.ok(currentStepMetrics.scrollHeight > currentStepMetrics.clientHeight, 'verbose current step must overflow internally')
+  assert.equal(currentStepMetrics.overflowY, 'auto')
+  assert.equal(currentStepMetrics.tabIndex, 0)
   // Pending step exists in the DOM but must NOT be visible while collapsed.
   await panel.getByText('Перезапустить сервис').waitFor({ state: 'hidden' })
   await captureLocator(panel, '02-task-list-collapsed.png')

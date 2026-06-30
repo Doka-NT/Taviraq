@@ -38,6 +38,9 @@ describe('TaskListPanel', () => {
     const preview = container.querySelector('.task-list-current-step')
     expect(preview).not.toBeNull()
     expect(preview?.textContent).toContain('Step two')
+    expect(preview?.getAttribute('role')).toBe('region')
+    expect(preview?.getAttribute('aria-label')).toBe('taskList.currentStep')
+    expect(preview?.getAttribute('tabindex')).toBe('0')
     // progress line still rendered
     expect(container.querySelector('.task-list-panel-progress')?.textContent).toContain('taskList.progress')
   })

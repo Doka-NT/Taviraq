@@ -186,6 +186,24 @@ describe('OSC 633 command metadata', () => {
       '\x1b]633;E;pwd;nonce\x07'
     )
   })
+
+  it('matches the written command when it contains a literal backslash before a delimiter escape', () => {
+    // Real command: printf '\x3b' real-token. The hook escapes the literal
+    // backslash first (\ -> \\), so the wire payload carries two backslashes
+    // before x3b. A naive sequential-replace decoder would fail to match this
+    // against `written`, silently skipping the secret placeholder substitution.
+    const session = {
+      pendingCommandDisplay: {
+        written: "printf '\\x3b' real-token",
+        display: "printf '\\x3b' [[TAVIRAQ_SECRET_1_TOKEN]]"
+      }
+    }
+
+    expect(rewrite633E(session as never, "\x1b]633;E;printf '\\\\x3b' real-token;nonce\x07")).toBe(
+      "\x1b]633;E;printf '\\\\x3b' [[TAVIRAQ_SECRET_1_TOKEN]];nonce\x07"
+    )
+    expect(session.pendingCommandDisplay).toBeUndefined()
+  })
 })
 
 describe('shell integration nonce isolation', () => {

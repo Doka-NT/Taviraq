@@ -1,0 +1,54 @@
+// SPDX-License-Identifier: MPL-2.0
+
+const ANSI_ESCAPE = String.fromCharCode(27)
+const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
+const CSI_RE = new RegExp(
+  `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]|${ANSI_ESCAPE}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`,
+  'g'
+)
+
+// Strips full OSC sequences (title, hyperlinks, and shell-integration markers like
+// OSC 133/633, terminated by BEL or ST) before CSI/C1 sequences. A CSI-only stripper
+// leaves the OSC 633;E command text and shell-integration nonce as visible plain text.
+export function stripAnsi(value: string): string {
+  return value.replace(OSC_RE, '').replace(CSI_RE, '')
+}
+
+// Decodes the shell-integration escaping scheme used for OSC 633;E command text:
+// \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d (in that encode order). Decoding must walk
+// the string left to right and resolve each backslash as it's found, rather than running
+// four independent global replaces — otherwise a literal backslash immediately followed by
+// a delimiter-escape-looking sequence (e.g. a command containing the literal text `\x3b`)
+// is misread as an escape and decodes to the wrong character.
+export function decodeShellIntegrationCommand(escaped: string): string {
+  let result = ''
+  let i = 0
+  while (i < escaped.length) {
+    if (escaped[i] === '\\') {
+      if (escaped[i + 1] === '\\') {
+        result += '\\'
+        i += 2
+        continue
+      }
+      const marker = escaped.slice(i, i + 4)
+      if (marker === '\\x3b') {
+        result += ';'
+        i += 4
+        continue
+      }
+      if (marker === '\\x0a') {
+        result += '\n'
+        i += 4
+        continue
+      }
+      if (marker === '\\x0d') {
+        result += '\r'
+        i += 4
+        continue
+      }
+    }
+    result += escaped[i]
+    i += 1
+  }
+  return result
+}

@@ -134,6 +134,19 @@ describe('BlockTracker command metadata', () => {
     expect(tracker.getBlocks()[0]?.command).toBe('printf old; command')
   })
 
+  it('decodes a literal backslash before delimiter escapes, matching hook encode order', () => {
+    const { tracker, handlers } = createTracker('nonce')
+
+    // Real command: printf '\x3b'. The shell hook escapes the literal backslash
+    // first (\ -> \\), so the wire payload carries two backslashes before x3b.
+    handlers.get(133)?.('A')
+    handlers.get(633)?.("E;printf '\\\\x3b';nonce")
+    handlers.get(133)?.('C')
+    handlers.get(133)?.('D;0')
+
+    expect(tracker.getBlocks()[0]?.command).toBe("printf '\\x3b'")
+  })
+
   it('reports whether command-dependent actions have usable text', () => {
     expect(hasCommandText({ command: '  pwd  ' })).toBe(true)
     expect(hasCommandText({ command: '  ' })).toBe(false)

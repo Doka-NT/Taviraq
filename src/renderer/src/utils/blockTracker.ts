@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import type { IMarker, Terminal } from '@xterm/xterm'
+import { decodeShellIntegrationCommand } from '@shared/terminalText'
 
 export interface CommandBlock {
   id: string
@@ -49,15 +50,6 @@ export function remapRestored633ENonce(output: string, oldNonce: string | undefi
     }
     input = marker.slice(endIndex + terminator.length)
   }
-}
-
-// VS Code escaping scheme: \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d
-function unescapeCommandText(escaped: string): string {
-  return escaped
-    .replace(/\\x0d/g, '\r')
-    .replace(/\\x0a/g, '\n')
-    .replace(/\\x3b/g, ';')
-    .replace(/\\\\/g, '\\')
 }
 
 export class BlockTracker {
@@ -197,7 +189,7 @@ export class BlockTracker {
       if (!this.nonce || receivedNonce !== this.nonce) return true
       const escapedCmd = payload.slice(0, lastSemi)
       if (this.pending) {
-        this.pending.command = unescapeCommandText(escapedCmd)
+        this.pending.command = decodeShellIntegrationCommand(escapedCmd)
       }
     } else if (data.startsWith('P;Cwd=')) {
       const cwd = data.slice('P;Cwd='.length)

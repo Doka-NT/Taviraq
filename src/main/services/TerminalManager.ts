@@ -10,6 +10,7 @@ import pty from 'node-pty'
 import type { CreateSshCommandRequest, CreateTerminalRequest, SSHProfile, TerminalSessionInfo } from '@shared/types'
 import { buildSshCommand, parseSshCommand, parseSshCommandTarget } from '@main/utils/ssh'
 import { resolveExistingCwd } from '@main/utils/cwd'
+import { decodeShellIntegrationCommand } from '@shared/terminalText'
 
 const execFileAsync = promisify(execFile)
 
@@ -727,9 +728,7 @@ export function rewrite633E(session: ManagedSession, data: string): string {
     const lastSemi = payload.lastIndexOf(';')
     const nonce = lastSemi !== -1 ? payload.slice(lastSemi + 1) : ''
     const escapedCmd = lastSemi !== -1 ? payload.slice(0, lastSemi) : payload
-    const rawCmd = escapedCmd
-      .replace(/\\x0d/g, '\r').replace(/\\x0a/g, '\n')
-      .replace(/\\x3b/g, ';').replace(/\\\\/g, '\\').trim()
+    const rawCmd = decodeShellIntegrationCommand(escapedCmd).trim()
 
     if (session.pendingCommandDisplay?.written === rawCmd) {
       const display = session.pendingCommandDisplay.display

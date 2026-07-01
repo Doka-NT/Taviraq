@@ -21,6 +21,16 @@ await mkdir(screenshotDir, { recursive: true })
 
 const userDataDir = await mkdtemp(join(tmpdir(), 'taviraq-chat-tools-ui-'))
 
+const activeStepText = [
+  'Проверить подключение к серверу и последовательно сверить DNS, TLS-сертификат,',
+  'ответ health-check, журналы systemd и метрики процесса во всех окружениях,',
+  'зафиксировав каждое отклонение и безопасно остановившись до перезапуска сервиса,',
+  'если хотя бы одна обязательная проверка не прошла успешно, затем сравнить результат',
+  'с предыдущим стабильным запуском, проверить доступность зависимых API и очередей,',
+  'убедиться в отсутствии новых ошибок и предупреждений, подготовить краткий отчёт',
+  'с временными метками и только после этого перейти к следующему шагу плана'
+].join(' ')
+
 // Seed a session whose assistant turn carries a task list + detailed plan, so
 // the derived checklist panel renders with real content.
 const taskListMessage = [
@@ -28,7 +38,7 @@ const taskListMessage = [
   '',
   '```tasklist',
   '- [x] Прочитать конфигурацию',
-  '- [-] Проверить подключение к серверу',
+  `- [-] ${activeStepText}`,
   '- [ ] Перезапустить сервис',
   '- [ ] Проверить логи',
   '```',
@@ -104,7 +114,7 @@ try {
   await page.evaluate(() => {
     localStorage.setItem('taviraq.language', 'ru')
     localStorage.setItem('taviraq.sidebarVisible', 'true')
-    localStorage.setItem('taviraq.sidebarWidth', '640')
+    localStorage.setItem('taviraq.sidebarWidth', '420')
   })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await page.locator('.app-shell').waitFor({ state: 'visible' })
@@ -126,15 +136,41 @@ try {
   ))
   await captureSettings(page, '01-task-list-enabled.png')
 
-  // 3. Close settings; the seeded conversation now shows the checklist panel.
+  // 3. Close settings; the seeded conversation shows the checklist panel.
+  //    The panel is collapsed by default: only the in-progress step + progress
+  //    counter are visible; the pending steps stay hidden behind `hidden` +
+  //    `.task-list-items:not([hidden]) { display: grid }` (otherwise the author
+  //    `display:grid` would override `[hidden] { display:none }`).
   await page.getByRole('button', { name: 'Закрыть настройки' }).click()
   await page.locator('.settings-screen').waitFor({ state: 'hidden' })
   const panel = page.locator('.task-list-panel')
   await panel.waitFor({ state: 'visible' })
+  const toggle = panel.locator('.task-list-toggle')
+  await toggle.waitFor({ state: 'visible' })
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false')
+  const currentStep = panel.locator('.task-list-current-step')
+  await currentStep.getByText(activeStepText).waitFor({ state: 'visible' })
+  const currentStepMetrics = await currentStep.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    overflowY: getComputedStyle(element).overflowY,
+    tabIndex: element.tabIndex
+  }))
+  assert.ok(currentStepMetrics.clientHeight <= 120, `current step exceeded 120px: ${currentStepMetrics.clientHeight}`)
+  assert.ok(currentStepMetrics.scrollHeight > currentStepMetrics.clientHeight, 'verbose current step must overflow internally')
+  assert.equal(currentStepMetrics.overflowY, 'auto')
+  assert.equal(currentStepMetrics.tabIndex, 0)
+  // Pending step exists in the DOM but must NOT be visible while collapsed.
+  await panel.getByText('Перезапустить сервис').waitFor({ state: 'hidden' })
+  await captureLocator(panel, '02-task-list-collapsed.png')
+  await captureLocator(page.locator('.llm-panel'), '03-task-list-collapsed-in-chat.png')
+
+  // 4. Expand via the toggle: every step is now laid out and visible.
+  await toggle.click()
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true')
   await panel.getByText('Перезапустить сервис').waitFor({ state: 'visible' })
-  await panel.getByRole('button', { name: 'Показать план в Finder' }).waitFor({ state: 'visible' })
-  await captureLocator(panel, '02-task-list-panel.png')
-  await captureLocator(page.locator('.llm-panel'), '03-task-list-in-chat.png')
+  await panel.getByText('Проверить логи').waitFor({ state: 'visible' })
+  await captureLocator(panel, '04-task-list-expanded.png')
 
   console.log(`Saved ${screenshots.length} screenshot(s):`)
   for (const path of screenshots) console.log(`  ${path}`)

@@ -186,7 +186,11 @@ export interface Translations {
   'chatTools.taskList.off': string
   'taskList.title': string
   'taskList.progress': string
-  'taskList.revealPlan': string
+'taskList.showSteps': string
+  'taskList.hideSteps': string
+  'taskList.currentStep': string
+  'taskList.showMore': string
+  'taskList.showLess': string
   'security.title': string
   'security.secretMasking.label': string
   'security.secretMasking.desc': string
@@ -745,7 +749,11 @@ export const en: Translations = {
   'chatTools.taskList.off': 'Off',
   'taskList.title': 'Task list',
   'taskList.progress': '{done} of {total} done',
-  'taskList.revealPlan': 'Reveal plan in Finder',
+'taskList.showSteps': 'Show steps ({done} of {total})',
+  'taskList.hideSteps': 'Hide steps',
+  'taskList.currentStep': 'Current step',
+  'taskList.showMore': 'Show more',
+  'taskList.showLess': 'Show less',
   'security.title': 'Security',
   'security.secretMasking.label': 'Secret masking',
   'security.secretMasking.desc': 'Local scan for chat, terminal context, command checks, and summaries',
@@ -1288,7 +1296,11 @@ export const ru: Translations = {
   'chatTools.taskList.off': 'Выкл',
   'taskList.title': 'Список задач',
   'taskList.progress': 'Готово {done} из {total}',
-  'taskList.revealPlan': 'Показать план в Finder',
+'taskList.showSteps': 'Показать шаги ({done} из {total})',
+  'taskList.hideSteps': 'Свернуть шаги',
+  'taskList.currentStep': 'Текущий шаг',
+  'taskList.showMore': 'Показать полностью',
+  'taskList.showLess': 'Свернуть',
   'security.title': 'Безопасность',
   'security.secretMasking.label': 'Маскирование секретов',
   'security.secretMasking.desc': 'Локальная проверка чата, контекста терминала, команд и саммари',
@@ -1831,7 +1843,11 @@ export const cn: Translations = {
   'chatTools.taskList.off': '关',
   'taskList.title': '任务列表',
   'taskList.progress': '已完成 {done} / {total}',
-  'taskList.revealPlan': '在 Finder 中显示计划',
+'taskList.showSteps': '显示步骤（{done}/{total}）',
+  'taskList.hideSteps': '隐藏步骤',
+  'taskList.currentStep': '当前步骤',
+  'taskList.showMore': '展开',
+  'taskList.showLess': '收起',
   'security.title': '安全',
   'security.secretMasking.label': '密钥遮蔽',
   'security.secretMasking.desc': '本地扫描聊天、终端上下文、命令检查和摘要',

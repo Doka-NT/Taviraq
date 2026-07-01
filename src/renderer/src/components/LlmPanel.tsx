@@ -30,7 +30,8 @@ import { ConfirmDialog } from './ui/ConfirmDialog'
 import { CommandConfirmationDialog, type CommandConfirmation } from './CommandConfirmationDialog'
 import { ComposerConfigControl } from './ComposerConfigControl'
 import { TaskListPanel } from './TaskListPanel'
-import { parseTaskListFromMessages, parseTaskPlanFromMessages } from '@shared/taskList'
+import { BoundedScroll } from './BoundedScroll'
+import { parseTaskListFromMessages } from '@shared/taskList'
 import { buildSuggestionChips, formatModelLabel, statusToInlineStatus } from '@renderer/utils/redesign'
 import { applyAuthoritativeAssistantContent, stripTrailingAssistantMessages } from '@renderer/utils/chatMessages'
 import type { InlineStatus } from '@renderer/utils/redesign'
@@ -989,7 +990,6 @@ export function LlmPanel({
   const [chatToolsSettings, setChatToolsSettings] = useState<ChatToolsSettings>(createDefaultChatToolsSettings)
   const [telemetrySettings, setTelemetrySettings] = useState<TelemetrySettings | null>(null)
   const [telemetryActive, setTelemetryActive] = useState(false)
-  const [revealingPlan, setRevealingPlan] = useState(false)
   const [secretAuditEvents, setSecretAuditEvents] = useState<SecretMaskingAuditEvent[]>([])
   const [customPatternName, setCustomPatternName] = useState('')
   const [customPatternRegex, setCustomPatternRegex] = useState('')
@@ -3291,17 +3291,21 @@ export function LlmPanel({
     () => chatToolsSettings.taskListPlanning ? parseTaskListFromMessages(messages) : null,
     [chatToolsSettings.taskListPlanning, messages]
   )
-  const taskPlan = useMemo(
-    () => chatToolsSettings.taskListPlanning ? parseTaskPlanFromMessages(messages) : null,
-    [chatToolsSettings.taskListPlanning, messages]
-  )
-  const handleRevealPlan = useCallback(() => {
-    if (!taskPlan || !activeSessionId) return
-    setRevealingPlan(true)
-    void window.api.taskPlan.reveal(activeSessionId, taskPlan).finally(() => {
-      setRevealingPlan(false)
-    })
-  }, [activeSessionId, taskPlan])
+  // Identity key for the task list panel: the index of the last user message.
+  // Stable for the whole agent request (the user doesn't post mid-run), so the
+  // panel's local expand/collapse state survives token/turn updates; it changes
+  // when the user starts a new request, which remounts TaskListPanel and resets
+  // it back to collapsed-by-default instead of inheriting `expanded` from the
+  // previous checklist.
+  const taskListKey = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      // Skip command-output continuations injected by runAgenticStep — they are
+      // pseudo-user messages that appear mid-run and would otherwise flip the key
+      // on every step, resetting the expanded state between agent commands.
+      if (messages[i].role === 'user' && messages[i].display !== 'command-output') return i
+    }
+    return 0
+  }, [messages])
   const composerPayloadChars = useMemo(() => estimateComposerPayloadChars({
     messages: composerChatMessages,
     draft,
@@ -5173,10 +5177,8 @@ export function LlmPanel({
       <section className="chat-log" aria-live="polite" ref={chatLogRef} onScroll={handleChatLogScroll}>
         {taskList ? (
           <TaskListPanel
+            key={taskListKey}
             taskList={taskList}
-            hasPlanFile={Boolean(taskPlan)}
-            revealing={revealingPlan}
-            onRevealPlan={handleRevealPlan}
             t={t}
           />
         ) : null}
@@ -5318,6 +5320,7 @@ export function LlmPanel({
 
         {messages.map((message, index) => {
           const isLastAssistant = message.role === 'assistant' && index === messages.length - 1
+          const boundLastAssistant = isLastAssistant && (streaming || agenticRunning)
           const showDots = isLastAssistant && streaming && !message.content && !message.reasoningContent
           const reasoningIsStreaming = isLastAssistant && streaming && Boolean(message.reasoningContent) && !message.content
           const messageActionsDisabled = streaming || agenticRunning || agenticCommandRunning || Boolean(commandConfirmation)
@@ -5461,19 +5464,28 @@ export function LlmPanel({
                   <span /><span /><span />
                 </div>
               ) : message.role === 'assistant' && message.content ? (
-                <MessageContent
-                  content={message.displayContent ?? message.maskedContent ?? message.content}
-                  redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
-                  hidePlanningFences={Boolean(taskList)}
-                  onRun={runCommand}
-                  onPrompt={setPromptDraft}
-                  disabled={!activeSession || agenticCommandRunning}
-                  runLabel={t('chat.runInTerminal')}
-                  expandCommandLabel={t('chat.showFullCommand')}
-                  collapseCommandLabel={t('chat.collapseCommand')}
-                  copyCodeLabel={t('chat.copyCode')}
-                  copiedLabel={t('chat.copied')}
-                />
+                <BoundedScroll
+                  bounded={boundLastAssistant}
+                  streaming={streaming || agenticRunning}
+                  scrollToken={(message.displayContent ?? message.maskedContent ?? message.content).length}
+                  showMoreLabel={t('taskList.showMore')}
+                  showLessLabel={t('taskList.showLess')}
+                  ariaLabel={t('taskList.currentStep')}
+                >
+                  <MessageContent
+                    content={message.displayContent ?? message.maskedContent ?? message.content}
+                    redactContent={(value) => hideSecretPlaceholders(value, maskedSecretLabel)}
+                    hidePlanningFences={Boolean(taskList)}
+                    onRun={runCommand}
+                    onPrompt={setPromptDraft}
+                    disabled={!activeSession || agenticCommandRunning}
+                    runLabel={t('chat.runInTerminal')}
+                    expandCommandLabel={t('chat.showFullCommand')}
+                    collapseCommandLabel={t('chat.collapseCommand')}
+                    copyCodeLabel={t('chat.copyCode')}
+                    copiedLabel={t('chat.copied')}
+                  />
+                </BoundedScroll>
               ) : message.role === 'assistant' ? null : (
                 <p>{message.displayContent ?? hideSecretPlaceholders(message.content, maskedSecretLabel)}</p>
               )}

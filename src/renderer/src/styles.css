@@ -5962,11 +5962,70 @@ textarea:focus {
   animation: fadeInUp 160ms cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
-.task-list-panel-header {
+.task-list-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.task-list-toggle:focus-visible {
+  outline: 1.5px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* Push the progress counter to the right, chevron pinned after it. */
+.task-list-toggle .task-list-panel-progress {
+  flex: 1 1 auto;
+  text-align: right;
+}
+
+.task-list-chevron {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.task-list-panel.expanded .task-list-chevron {
+  transform: rotate(180deg);
+}
+
+/* Collapsed preview: the single in-progress step. */
+.task-list-current-step {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  padding: 5px 8px;
+  margin: 0 -8px;
+  border-radius: 4px;
+  background: rgba(var(--color-neutral-rgb), 0.06);
+  font-size: calc(var(--app-text-size, 13.5px) - 2px);
+  line-height: 1.35;
+  max-height: min(20vh, 120px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.task-list-current-step:focus-visible {
+  outline: 1.5px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.task-list-current-step .task-list-item-icon {
+  color: var(--accent-cyan);
+}
+
+.task-list-current-step .task-list-item-text {
+  color: var(--text-primary);
 }
 
 .task-list-panel-title {
@@ -5990,11 +6049,14 @@ textarea:focus {
 }
 
 .task-list-items {
-  display: grid;
   gap: 3px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.task-list-items:not([hidden]) {
+  display: grid;
 }
 
 .task-list-item {
@@ -6041,9 +6103,33 @@ textarea:focus {
   animation: spin 1s linear infinite;
 }
 
-.task-list-panel-actions {
-  display: flex;
-  justify-content: flex-end;
+/* Bounded streaming output — keeps the live agent step from consuming the whole
+   chat area while the agent is working. */
+.bounded-scroll-wrapper {
+  display: grid;
+  gap: 6px;
+}
+
+.bounded-scroll {
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  border-radius: 4px;
+}
+
+.bounded-scroll-wrapper.expanded .bounded-scroll,
+.bounded-scroll-wrapper.unbounded .bounded-scroll {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.bounded-scroll-toggle {
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .bounded-scroll {
+    max-height: min(35vh, 240px);
+  }
 }
 
 .update-notice {

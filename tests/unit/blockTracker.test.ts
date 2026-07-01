@@ -247,6 +247,12 @@ describe('BlockTracker output range', () => {
 
     expect(tracker.blockRange(block)).toEqual({ start: 5, end: 5, endColumn: 3 })
     expect(tracker.blockOutputText(block)).toBe('foo')
+
+    // The row with real output must also be hoverable/clickable and included
+    // in the selection highlight, not just readable via blockOutputText.
+    ;(tracker as unknown as { blocks: CommandBlock[] }).blocks.push(block)
+    expect(tracker.blockAtRow(5)).toBe(block)
+    expect(tracker.blockHighlightRange(block)).toEqual({ start: 3, end: 5 })
   })
 
   it('rejoins wrapped rows without inserting synthetic newlines', () => {

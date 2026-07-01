@@ -84,7 +84,11 @@ export class BlockTracker {
       const block = this.blocks[i]
       if (block.promptStart.isDisposed) continue
       const start = block.promptStart.line
-      const end = block.end && !block.end.isDisposed ? block.end.line : len
+      const endMarker = block.end && !block.end.isDisposed ? block.end : undefined
+      // Same-row output with no trailing newline (endColumn set) keeps the D
+      // marker's row as part of the block's output — see blockRange — so
+      // this hit test must include that row too, or it isn't selectable.
+      const end = endMarker ? endMarker.line + (block.endColumn ? 1 : 0) : len
       if (row >= start && row < end) return block
     }
     return undefined
@@ -117,7 +121,9 @@ export class BlockTracker {
     if (block.promptStart.isDisposed) return undefined
     const start = block.promptStart.line
     const endMarker = block.end && !block.end.isDisposed ? block.end : undefined
-    const endLine = endMarker ? endMarker.line - 1 : this.terminal.buffer.active.length - 1
+    const endLine = endMarker
+      ? endMarker.line - (block.endColumn ? 0 : 1)
+      : this.terminal.buffer.active.length - 1
     return { start, end: Math.max(start, endLine) }
   }
 

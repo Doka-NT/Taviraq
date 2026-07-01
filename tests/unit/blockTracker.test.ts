@@ -171,6 +171,16 @@ describe('BlockTracker output range', () => {
     return m as unknown as IMarker
   }
 
+  function mockLine(text: string, isWrapped = false): { isWrapped: boolean; translateToString: (trimRight?: boolean, startColumn?: number, endColumn?: number) => string } {
+    return {
+      isWrapped,
+      translateToString: (trimRight, startColumn = 0, endColumn = text.length) => {
+        const slice = text.slice(startColumn, endColumn)
+        return trimRight ? slice.replace(/\s+$/, '') : slice
+      }
+    }
+  }
+
   it('treats a same-row marker pair (zero-output command) as empty, not the next prompt row', () => {
     const rowText: Record<number, string> = { 5: 'user@host:~$ ' }
     const terminal = {
@@ -204,5 +214,70 @@ describe('BlockTracker output range', () => {
 
     expect(tracker.blockRange(block)).toEqual({ start: 5, end: 4 })
     expect(tracker.blockOutputText(block)).toBe('')
+  })
+
+  it('keeps real output that shares a row with the next prompt when there is no trailing newline', () => {
+    // e.g. `printf foo`: the D marker lands on the same row as outputStart,
+    // but at column 3 (after "foo"), not column 0 — the row already has the
+    // next prompt's text appended by the time it's read ("foo$ ").
+    const terminal = {
+      parser: { registerOscHandler: () => ({ dispose: vi.fn() }) },
+      registerMarker: () => marker(0),
+      buffer: {
+        active: {
+          length: 10,
+          getLine: (row: number) => row === 5 ? mockLine('foo$ ') : undefined
+        }
+      }
+    } as unknown as Terminal
+
+    const tracker = new BlockTracker(terminal, 'session-1', 'nonce', vi.fn(), vi.fn())
+    const block: CommandBlock = {
+      id: 'b1',
+      sessionId: 'session-1',
+      promptStart: marker(3),
+      commandStart: marker(4),
+      outputStart: marker(5),
+      end: marker(5),
+      endColumn: 3,
+      command: 'printf foo',
+      exitCode: 0,
+      quality: 'osc'
+    }
+
+    expect(tracker.blockRange(block)).toEqual({ start: 5, end: 5, endColumn: 3 })
+    expect(tracker.blockOutputText(block)).toBe('foo')
+  })
+
+  it('rejoins wrapped rows without inserting synthetic newlines', () => {
+    const lines: Record<number, ReturnType<typeof mockLine>> = {
+      5: mockLine('{"a":1,"b":'),
+      6: mockLine('2,"c":3}', true)
+    }
+    const terminal = {
+      parser: { registerOscHandler: () => ({ dispose: vi.fn() }) },
+      registerMarker: () => marker(0),
+      buffer: {
+        active: {
+          length: 10,
+          getLine: (row: number) => lines[row]
+        }
+      }
+    } as unknown as Terminal
+
+    const tracker = new BlockTracker(terminal, 'session-1', 'nonce', vi.fn(), vi.fn())
+    const block: CommandBlock = {
+      id: 'b1',
+      sessionId: 'session-1',
+      promptStart: marker(3),
+      commandStart: marker(4),
+      outputStart: marker(5),
+      end: marker(7),
+      command: 'echo json',
+      exitCode: 0,
+      quality: 'osc'
+    }
+
+    expect(tracker.blockOutputText(block)).toBe('{"a":1,"b":2,"c":3}')
   })
 })

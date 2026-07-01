@@ -204,6 +204,19 @@ describe('OSC 633 command metadata', () => {
     )
     expect(session.pendingCommandDisplay).toBeUndefined()
   })
+
+  it('buffers a split 633;E marker even with no secret substitution pending', () => {
+    const session: { pendingCommandDisplay?: unknown; osc633ERemainder?: string } = {}
+
+    const first = rewrite633E(session as never, 'before\x1b]633;E;ls')
+    expect(first).toBe('before')
+    expect(session.osc633ERemainder).toBeTruthy()
+    expect(first).not.toContain('nonce')
+
+    const second = rewrite633E(session as never, ';nonce\x07after')
+    expect(second).toBe('\x1b]633;E;ls;nonce\x07after')
+    expect(session.osc633ERemainder).toBeUndefined()
+  })
 })
 
 describe('shell integration nonce isolation', () => {

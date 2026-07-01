@@ -9,6 +9,7 @@ export interface CommandBlock {
   commandStart?: IMarker
   outputStart?: IMarker
   end?: IMarker
+  endColumn?: number
   command: string
   exitCode?: number
   cwd?: string
@@ -89,7 +90,7 @@ export class BlockTracker {
     return undefined
   }
 
-  blockRange(block: CommandBlock): { start: number; end: number } | undefined {
+  blockRange(block: CommandBlock): { start: number; end: number; endColumn?: number } | undefined {
     if (block.promptStart.isDisposed) return undefined
     const outputStart = block.outputStart && !block.outputStart.isDisposed
       ? block.outputStart.line
@@ -97,12 +98,19 @@ export class BlockTracker {
         ? block.commandStart.line
         : block.promptStart.line
     const endMarker = block.end && !block.end.isDisposed ? block.end : undefined
-    const endLine = endMarker ? endMarker.line - 1 : this.terminal.buffer.active.length - 1
-    // No Math.max clamp here: when a command produces no output, the D marker
-    // lands on the same row as outputStart (endLine < outputStart). readLines
-    // already treats from > to as empty, so clamping to outputStart would
-    // instead pull in that row's content once the next prompt renders there.
-    return { start: outputStart, end: endLine }
+    if (!endMarker) {
+      return { start: outputStart, end: this.terminal.buffer.active.length - 1 }
+    }
+    // The D marker lands on whatever row/column the cursor was at when the
+    // command finished. Column 0 means the last output ended with a newline
+    // (or there was none) — that row belongs to the next prompt. A non-zero
+    // column means real output shares that row with the eventual prompt text
+    // (e.g. `printf foo` with no trailing newline), so keep the row but bound
+    // it to D's column, excluding whatever the prompt writes after it.
+    if (block.endColumn) {
+      return { start: outputStart, end: endMarker.line, endColumn: block.endColumn }
+    }
+    return { start: outputStart, end: endMarker.line - 1 }
   }
 
   blockHighlightRange(block: CommandBlock): { start: number; end: number } | undefined {
@@ -116,7 +124,7 @@ export class BlockTracker {
   blockOutputText(block: CommandBlock): string {
     const range = this.blockRange(block)
     if (!range) return ''
-    return this.readLines(range.start, range.end)
+    return this.readLines(range.start, range.end, range.endColumn)
   }
 
   blockFullText(block: CommandBlock): string {
@@ -175,7 +183,8 @@ export class BlockTracker {
       }
       case 'D': {
         const exitCode = param !== '' ? parseInt(param, 10) : undefined
-        this.finalizePending(this.terminal.registerMarker(0) ?? undefined, exitCode)
+        const endColumn = this.terminal.buffer.active.cursorX
+        this.finalizePending(this.terminal.registerMarker(0) ?? undefined, exitCode, endColumn)
         this.onActivityChange('idle')
         break
       }
@@ -206,7 +215,7 @@ export class BlockTracker {
     return true
   }
 
-  private finalizePending(endMarker: IMarker | undefined, exitCode: number | undefined): void {
+  private finalizePending(endMarker: IMarker | undefined, exitCode: number | undefined, endColumn?: number): void {
     const p = this.pending
     this.pending = null
     if (!p) return
@@ -218,6 +227,7 @@ export class BlockTracker {
       commandStart: p.commandStart,
       outputStart: p.outputStart,
       end: endMarker,
+      endColumn,
       command: p.command,
       exitCode,
       cwd: p.cwd,
@@ -227,18 +237,30 @@ export class BlockTracker {
     this.onChange()
   }
 
-  private readLines(startLine: number, endLine: number): string {
+  private readLines(startLine: number, endLine: number, endColumn?: number): string {
     const buf = this.terminal.buffer.active
     const len = buf.length
     const from = Math.max(0, startLine)
     const to = Math.min(len - 1, endLine)
     if (from > to) return ''
 
-    const lines: string[] = []
+    let result = ''
     for (let i = from; i <= to; i++) {
-      lines.push(buf.getLine(i)?.translateToString(true) ?? '')
+      const line = buf.getLine(i)
+      const isLastRow = i === to
+      // A row that the NEXT row wraps from is a visual split of one logical
+      // line (long JSON/base64/paths), not a real line break — concatenate
+      // it directly instead of joining with \n, and don't trim its trailing
+      // content since that's mid-line, not end-of-line whitespace.
+      const nextWraps = !isLastRow && buf.getLine(i + 1)?.isWrapped === true
+      const trimRight = isLastRow || !nextWraps
+      const text = isLastRow && endColumn !== undefined
+        ? line?.translateToString(trimRight, 0, endColumn) ?? ''
+        : line?.translateToString(trimRight) ?? ''
+      result += text
+      if (!isLastRow && !nextWraps) result += '\n'
     }
-    return lines.join('\n').trim()
+    return result.trim()
   }
 
   private disposeBlockMarkers(block: CommandBlock): void {

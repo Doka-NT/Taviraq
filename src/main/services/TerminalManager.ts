@@ -687,9 +687,16 @@ function stripTerminalMarkers(
 // Rewrite 633;E sequences so display commands with [[TAVIRAQ_SECRET_*]] placeholders
 // are not exposed to the renderer. Uses session.pendingCommandDisplay set by runConfirmed.
 export function rewrite633E(session: ManagedSession, data: string): string {
-  const pending = session.pendingCommandDisplay
   const remainder = session.osc633ERemainder
-  if (!pending && !remainder) return data  // fast path: nothing to rewrite
+  // Fast path: nothing pending from a prior chunk, and this chunk contains
+  // neither a full nor a trailing-partial 633;E prefix to buffer. A partial
+  // prefix must still be buffered even with no secret substitution pending —
+  // otherwise a `633;E;...;<nonce>` fragment split before its terminator can
+  // sit in outputBuffers unterminated, where stripAnsi can't recognize it as
+  // an OSC sequence and the nonce reaches provider context as plain text.
+  if (!remainder && data.indexOf(OSC_633E_PREFIX) === -1 && trailingPrefixLength(data, OSC_633E_PREFIX) === 0) {
+    return data
+  }
 
   let input = `${remainder ?? ''}${data}`
   let output = ''
@@ -698,11 +705,6 @@ export function rewrite633E(session: ManagedSession, data: string): string {
   while (true) {
     const idx = input.indexOf(OSC_633E_PREFIX)
     if (idx === -1) {
-      if (!session.pendingCommandDisplay) {
-        output += input
-        break
-      }
-
       const partialPrefixLength = trailingPrefixLength(input, OSC_633E_PREFIX)
       output += input.slice(0, input.length - partialPrefixLength)
       session.osc633ERemainder = partialPrefixLength > 0

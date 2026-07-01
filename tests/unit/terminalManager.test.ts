@@ -217,6 +217,37 @@ describe('OSC 633 command metadata', () => {
     expect(second).toBe('\x1b]633;E;ls;nonce\x07after')
     expect(session.osc633ERemainder).toBeUndefined()
   })
+
+  it('buffers a split 133 prompt marker (not just 633;E) even with no secret pending', () => {
+    const session: { osc633ERemainder?: string } = {}
+
+    const first = rewrite633E(session as never, 'before\x1b]133;')
+    expect(first).toBe('before')
+    expect(session.osc633ERemainder).toBeTruthy()
+
+    const second = rewrite633E(session as never, 'A\x07after')
+    expect(second).toBe('\x1b]133;A\x07after')
+    expect(session.osc633ERemainder).toBeUndefined()
+  })
+
+  it('buffers a split 633;P cwd marker (not just 633;E) even with no secret pending', () => {
+    const session: { osc633ERemainder?: string } = {}
+
+    const first = rewrite633E(session as never, 'before\x1b]633;P;Cwd=/tmp')
+    expect(first).toBe('before')
+    expect(session.osc633ERemainder).toBeTruthy()
+
+    const second = rewrite633E(session as never, '\x07after')
+    expect(second).toBe('\x1b]633;P;Cwd=/tmp\x07after')
+    expect(session.osc633ERemainder).toBeUndefined()
+  })
+
+  it('passes complete 133 and 633;P markers through unchanged', () => {
+    const session = {}
+    expect(rewrite633E(session as never, 'x\x1b]133;A\x07y\x1b]633;P;Cwd=/tmp\x07z')).toBe(
+      'x\x1b]133;A\x07y\x1b]633;P;Cwd=/tmp\x07z'
+    )
+  })
 })
 
 describe('shell integration nonce isolation', () => {

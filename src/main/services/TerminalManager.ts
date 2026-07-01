@@ -19,6 +19,13 @@ const OSC_END = '\x07'
 const AIT_LEGACY_PREFIX = '\x1b]6973;'
 // 633;E prefix used for display-command substitution in rewrite633E
 const OSC_633E_PREFIX = '\x1b]633;E;'
+// Broader shell-integration OSC families rewrite633E must also buffer when a
+// PTY chunk splits them mid-sequence — 133;A/B/C/D (prompt lifecycle) and
+// 633;P (cwd) carry no secret, but an unterminated fragment left in
+// outputBuffers is still plain-text OSC framing that stripAnsi can't match.
+const OSC_133_PREFIX = '\x1b]133;'
+const OSC_633_PREFIX = '\x1b]633;'
+const SHELL_INTEGRATION_OSC_PREFIXES = [OSC_133_PREFIX, OSC_633_PREFIX]
 const OSC_133_PROMPT_SEQUENCES = ['\x1b]133;A\x07', '\x1b]133;A\x1b\\']
 const ESC = String.fromCharCode(27)
 const ANSI_CSI_PATTERN = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
@@ -688,13 +695,16 @@ function stripTerminalMarkers(
 // are not exposed to the renderer. Uses session.pendingCommandDisplay set by runConfirmed.
 export function rewrite633E(session: ManagedSession, data: string): string {
   const remainder = session.osc633ERemainder
-  // Fast path: nothing pending from a prior chunk, and this chunk contains
-  // neither a full nor a trailing-partial 633;E prefix to buffer. A partial
-  // prefix must still be buffered even with no secret substitution pending —
-  // otherwise a `633;E;...;<nonce>` fragment split before its terminator can
-  // sit in outputBuffers unterminated, where stripAnsi can't recognize it as
-  // an OSC sequence and the nonce reaches provider context as plain text.
-  if (!remainder && data.indexOf(OSC_633E_PREFIX) === -1 && trailingPrefixLength(data, OSC_633E_PREFIX) === 0) {
+  // Fast path: nothing pending from a prior chunk, and this chunk contains no
+  // full or trailing-partial shell-integration OSC prefix to buffer. A
+  // partial prefix must still be buffered even with no secret substitution
+  // pending — otherwise an unterminated OSC fragment (633;E carrying the
+  // nonce, or 133;*/633;P framing) can sit in outputBuffers where stripAnsi
+  // can't recognize it as an OSC sequence and it reaches provider context
+  // as plain text.
+  const hasFullIntroducer = SHELL_INTEGRATION_OSC_PREFIXES.some((prefix) => data.indexOf(prefix) !== -1)
+  const hasPartialPrefix = SHELL_INTEGRATION_OSC_PREFIXES.some((prefix) => trailingPrefixLength(data, prefix) > 0)
+  if (!remainder && !hasFullIntroducer && !hasPartialPrefix) {
     return data
   }
 
@@ -703,9 +713,13 @@ export function rewrite633E(session: ManagedSession, data: string): string {
   session.osc633ERemainder = undefined
 
   while (true) {
-    const idx = input.indexOf(OSC_633E_PREFIX)
+    const idx133 = input.indexOf(OSC_133_PREFIX)
+    const idx633 = input.indexOf(OSC_633_PREFIX)
+    const idx = idx133 === -1 ? idx633 : idx633 === -1 ? idx133 : Math.min(idx133, idx633)
     if (idx === -1) {
-      const partialPrefixLength = trailingPrefixLength(input, OSC_633E_PREFIX)
+      const partialPrefixLength = Math.max(
+        ...SHELL_INTEGRATION_OSC_PREFIXES.map((prefix) => trailingPrefixLength(input, prefix))
+      )
       output += input.slice(0, input.length - partialPrefixLength)
       session.osc633ERemainder = partialPrefixLength > 0
         ? input.slice(-partialPrefixLength)
@@ -714,19 +728,26 @@ export function rewrite633E(session: ManagedSession, data: string): string {
     }
 
     output += input.slice(0, idx)
-    const rest = input.slice(idx + OSC_633E_PREFIX.length)
+    const isCommandMarker = input.startsWith(OSC_633E_PREFIX, idx)
+    const matchedPrefix = isCommandMarker ? OSC_633E_PREFIX : idx === idx633 ? OSC_633_PREFIX : OSC_133_PREFIX
+    const rest = input.slice(idx + matchedPrefix.length)
 
     const endBel = rest.indexOf('\x07')
     const endSt = rest.indexOf('\x1b\\')
     const endIdx = endBel === -1 ? endSt : endSt === -1 ? endBel : Math.min(endBel, endSt)
     if (endIdx === -1) {
-      // Keep incomplete command metadata in main until xterm's OSC terminator arrives.
-      session.osc633ERemainder = OSC_633E_PREFIX + rest
+      // Keep the incomplete sequence in main until xterm's OSC terminator arrives.
+      session.osc633ERemainder = input.slice(idx)
       break
     }
     const term = rest[endIdx] === '\x07' ? '\x07' : '\x1b\\'
     const payload = rest.slice(0, endIdx)
     input = rest.slice(endIdx + term.length)
+
+    if (!isCommandMarker) {
+      output += `${matchedPrefix}${payload}${term}`
+      continue
+    }
 
     const lastSemi = payload.lastIndexOf(';')
     const nonce = lastSemi !== -1 ? payload.slice(lastSemi + 1) : ''

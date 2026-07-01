@@ -16,6 +16,15 @@ describe('session state helpers', () => {
     expect(trimSavedOutput(output)).toBe(`${'a'.repeat(MAX_SAVED_OUTPUT_CHARS - 4)}tail`)
   })
 
+  it('does not bisect an OSC marker the naive cut would otherwise split', () => {
+    const marker = '\x1b]633;E;ls;NONCE\x07'
+    const output = 'x'.repeat(50) + marker + 'TAIL'
+    const maxChars = 11 // lands inside the marker's payload for a naive slice(-11)
+
+    expect(output.slice(-maxChars)).toBe(';NONCE\x07TAIL')
+    expect(trimSavedOutput(output, maxChars)).toBe(marker + 'TAIL')
+  })
+
   it('drops assistant threads for sessions that are no longer open', () => {
     const snapshot = normalizeSessionState({
       version: 1,

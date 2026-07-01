@@ -650,6 +650,28 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     activeSessionNonceRef.current = activeSession?.shellIntegrationNonce
   }, [activeSessionId, activeSession?.status, activeSession?.shellIntegrationNonce])
 
+  const recreateBlockTracker = useCallback(() => {
+    const terminal = terminalRef.current
+    if (activeTrackerRef.current) {
+      activeTrackerRef.current.dispose()
+      activeTrackerRef.current = null
+    }
+    if (!terminal || !activeSessionId) return
+    const nonce = activeSessionNonceRef.current ?? ''
+    activeTrackerRef.current = new BlockTracker(
+      terminal,
+      activeSessionId,
+      nonce,
+      () => {
+        const blocks = activeTrackerRef.current?.getBlocks() ?? []
+        commandBlocksRef.current = blocks
+        onBlocksChangeRef.current(activeSessionId, blocks)
+        scheduleBlockHighlightSync()
+      },
+      (activity) => onBlockActivityChangeRef.current(activeSessionId, activity)
+    )
+  }, [activeSessionId, scheduleBlockHighlightSync])
+
   useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal) return
@@ -665,25 +687,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     setSearchResults(null)
 
     // Recreate BlockTracker for this session
-    if (activeTrackerRef.current) {
-      activeTrackerRef.current.dispose()
-      activeTrackerRef.current = null
-    }
-    if (activeSessionId) {
-      const nonce = activeSessionNonceRef.current ?? ''
-      activeTrackerRef.current = new BlockTracker(
-        terminal,
-        activeSessionId,
-        nonce,
-        () => {
-          const blocks = activeTrackerRef.current?.getBlocks() ?? []
-          commandBlocksRef.current = blocks
-          onBlocksChangeRef.current(activeSessionId, blocks)
-          scheduleBlockHighlightSync()
-        },
-        (activity) => onBlockActivityChangeRef.current(activeSessionId, activity)
-      )
-    }
+    recreateBlockTracker()
 
     const output = activeSessionId ? outputBuffers.current.get(activeSessionId) ?? '' : ''
     if (activeSessionId && output) {
@@ -705,7 +709,7 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
         void window.api.terminal.resize(activeSessionIdRef.current, terminal.cols, terminal.rows)
       }
     })
-  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, scheduleBlockHighlightSync, scheduleTerminalMetricsUpdate, t])
+  }, [activeSessionId, activeSessionRenderStatus, outputBuffers, recreateBlockTracker, scheduleTerminalMetricsUpdate, t])
 
   useEffect(() => {
     if (!activeSessionId) return
@@ -735,9 +739,13 @@ export const TerminalPane = forwardRef<TerminalPaneHandle, TerminalPaneProps>(fu
     if (clearSignal === 0) return
 
     terminalRef.current?.clear()
+    // xterm disposes every registered marker on clear(), so the tracker's
+    // pending block (if any) is left holding disposed markers — recreate it
+    // rather than let the next block finalize as permanently unusable.
+    recreateBlockTracker()
     onSelectionChange('')
     onClearBlockSelection()
-  }, [clearSignal, onClearBlockSelection, onSelectionChange])
+  }, [clearSignal, onClearBlockSelection, onSelectionChange, recreateBlockTracker])
 
   useEffect(() => {
     const terminal = terminalRef.current

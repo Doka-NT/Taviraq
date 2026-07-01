@@ -78,6 +78,21 @@ describe('BlockTracker activity', () => {
     expect(onChange).toHaveBeenCalledOnce()
     expect(tracker.getBlocks()).toHaveLength(1)
   })
+
+  it('bounds an interrupted block (no D) to the next prompt instead of the live buffer end', () => {
+    const { handlers, tracker } = createTracker()
+    const handle133 = handlers.get(133)
+
+    handle133?.('A')
+    handle133?.('C')
+    handle133?.('A') // Ctrl-C interrupts before D fires
+
+    const block = tracker.getBlocks()[0]
+    expect(block.end).toBeDefined()
+    expect(block.end?.isDisposed).toBe(false)
+    // Bounded to just before the new prompt, not the mock buffer's length (10).
+    expect(tracker.blockRange(block)).toEqual({ start: 1, end: 1 })
+  })
 })
 
 describe('BlockTracker command metadata', () => {

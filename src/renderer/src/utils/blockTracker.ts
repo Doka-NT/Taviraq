@@ -160,9 +160,14 @@ export class BlockTracker {
 
     switch (code) {
       case 'A': {
-        // Prompt start — finalize any open block (Ctrl-C / no D)
+        // Prompt start — finalize any open block (Ctrl-C / no D). Bound it to
+        // this new prompt's position instead of leaving end undefined, which
+        // would make blockRange() fall back to the live buffer length and
+        // grow the interrupted block's output to include everything after it.
         if (this.pending) {
-          this.finalizePending(undefined, undefined)
+          const boundaryColumn = this.terminal.buffer.active.cursorX
+          const boundaryMarker = this.terminal.registerMarker(0)
+          this.finalizePending(boundaryMarker ?? undefined, undefined, boundaryColumn)
         }
         this.onActivityChange('idle')
         const marker = this.terminal.registerMarker(0)

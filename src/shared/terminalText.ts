@@ -25,6 +25,37 @@ export function boundTerminalOutputForRequest(rawOutput: string, maxChars: numbe
   return bounded || undefined
 }
 
+const OSC_INTRODUCER = `${ANSI_ESCAPE}]`
+const OSC_ST = `${ANSI_ESCAPE}\\`
+// Command text is at most a few KB in practice; this bounds how far back we'll
+// look for an OSC introducer before giving up and accepting the naive cut.
+const OSC_TRIM_LOOKBACK = 8192
+
+// Bounds a raw terminal output buffer to at most maxChars WITHOUT stripping OSC
+// content — unlike boundTerminalOutputForRequest, this is for buffers that must
+// keep intact OSC bytes for other consumers (e.g. session-restore block
+// reconstruction reads OSC 633;E markers back out of outputBuffers). Instead it
+// moves the cut point earlier when the naive tail would start mid-sequence, so
+// a headless `633;E;...;<nonce>` fragment never gets stored.
+export function trimTerminalOutputBuffer(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value
+  const targetCutAt = value.length - maxChars
+  const introducerIndex = value.lastIndexOf(OSC_INTRODUCER, targetCutAt - 1)
+  if (introducerIndex === -1 || introducerIndex < targetCutAt - OSC_TRIM_LOOKBACK) {
+    return value.slice(targetCutAt)
+  }
+  const belIndex = value.indexOf('\x07', introducerIndex)
+  const stIndex = value.indexOf(OSC_ST, introducerIndex)
+  const useBel = belIndex !== -1 && (stIndex === -1 || belIndex <= stIndex)
+  const terminatorEnd = useBel ? belIndex + 1 : stIndex === -1 ? -1 : stIndex + OSC_ST.length
+  // Safe only if the WHOLE terminator (both bytes for ST) ends at or before
+  // the cut — otherwise the sequence spans the cut, so cut before it instead.
+  if (terminatorEnd !== -1 && terminatorEnd <= targetCutAt) {
+    return value.slice(targetCutAt)
+  }
+  return value.slice(introducerIndex)
+}
+
 // Decodes the shell-integration escaping scheme used for OSC 633;E command text:
 // \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d (in that encode order). Decoding must walk
 // the string left to right and resolve each backslash as it's found, rather than running

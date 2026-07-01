@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
 import { remapRestored633ENonce, type BlockTrackerActivity, type CommandBlock } from './utils/blockTracker'
-import { boundTerminalOutputForRequest } from '@shared/terminalText'
+import { boundTerminalOutputForRequest, trimTerminalOutputBuffer } from '@shared/terminalText'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
@@ -459,7 +459,7 @@ export function App(): JSX.Element {
     const prev = outputBuffers.current.get(sessionId) ?? ''
     const next = prev + data
     if (next.length > MAX_OUTPUT_CHARS) {
-      outputBuffers.current.set(sessionId, next.slice(-MAX_OUTPUT_CHARS))
+      outputBuffers.current.set(sessionId, trimTerminalOutputBuffer(next, MAX_OUTPUT_CHARS))
       commandBlocksRef.current.delete(sessionId)
       setSelectedBlockIds([])
     } else {

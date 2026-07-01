@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-import { boundTerminalOutputForRequest, decodeShellIntegrationCommand, stripAnsi } from '@shared/terminalText'
+import { boundTerminalOutputForRequest, decodeShellIntegrationCommand, stripAnsi, trimTerminalOutputBuffer } from '@shared/terminalText'
 
 describe('stripAnsi', () => {
   it('removes full OSC sequences terminated by BEL, including shell-integration markers', () => {
@@ -78,5 +78,48 @@ describe('boundTerminalOutputForRequest', () => {
   it('returns undefined when there is nothing left after stripping and bounding', () => {
     expect(boundTerminalOutputForRequest('', 100)).toBeUndefined()
     expect(boundTerminalOutputForRequest('\x1b]633;E;ls;nonce\x07', 100)).toBeUndefined()
+  })
+})
+
+describe('trimTerminalOutputBuffer', () => {
+  it('returns the value unchanged when already within the limit', () => {
+    expect(trimTerminalOutputBuffer('short', 100)).toBe('short')
+  })
+
+  it('performs the naive cut unchanged when it does not land inside an OSC sequence', () => {
+    const marker = '\x1b]633;E;ls;nonce\x07'
+    const value = marker + 'x'.repeat(100)
+    expect(trimTerminalOutputBuffer(value, 50)).toBe(value.slice(-50))
+  })
+
+  it('moves the cut before a BEL-terminated OSC sequence the naive cut would bisect', () => {
+    const marker = '\x1b]633;E;ls;NONCE\x07'
+    const value = 'x'.repeat(50) + marker + 'TAIL'
+    const targetCutAt = 60 // lands inside the marker's payload, after "ls;"
+    const maxChars = value.length - targetCutAt
+
+    // Sanity check: the naive cut really does bisect the marker, leaving a
+    // headless fragment with part of the nonce and no ESC] prefix.
+    expect(value.slice(-maxChars)).toBe(';NONCE\x07TAIL')
+
+    expect(trimTerminalOutputBuffer(value, maxChars)).toBe(marker + 'TAIL')
+  })
+
+  it('moves the cut before an ST-terminated OSC sequence the naive cut would bisect', () => {
+    const marker = '\x1b]0;title-text\x1b\\'
+    const value = 'x'.repeat(50) + marker + 'TAIL'
+    // Land the cut one byte into the ST terminator's two bytes (ESC + \).
+    const targetCutAt = 50 + marker.length - 1
+    const maxChars = value.length - targetCutAt
+
+    expect(value.slice(-maxChars)).toBe('\\TAIL')
+
+    expect(trimTerminalOutputBuffer(value, maxChars)).toBe(marker + 'TAIL')
+  })
+
+  it('falls back to the naive cut when the nearest OSC introducer is beyond the lookback window', () => {
+    const marker = '\x1b]0;unterminated-marker-with-no-terminator-at-all'
+    const value = marker + 'y'.repeat(20000)
+    expect(trimTerminalOutputBuffer(value, 100)).toBe(value.slice(-100))
   })
 })

@@ -312,6 +312,32 @@ describe('shell integration nonce isolation', () => {
     expect(output).toContain('133;B')
     expect(output).toContain('___ait_si_ps0')
   })
+
+  it('preserves the last command exit status through the precmd hook for chained PROMPT_COMMAND entries', () => {
+    const home = mkdtempSync(join(tmpdir(), 'ait-bash-home-'))
+    tempDirs.push(home)
+    process.env.HOME = home
+    writeFileSync(join(home, '.bashrc'), '')
+
+    const hook = buildHookEnv('/bin/bash', 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+    const initFile = hook.args?.[1]
+
+    // Simulates what bash does when ___ait_si_precmd runs as one PROMPT_COMMAND
+    // array entry among others: the exit status it leaves behind is what the
+    // NEXT entry (e.g. a user's status-aware prompt hook) will see as $?.
+    const output = execFileSync('/bin/bash', ['--noprofile', '-c', [
+      'source "$1"',
+      'false',
+      '___ait_si_precmd >/dev/null',
+      'echo "STATUS=$?"'
+    ].join('\n'), 'bash', initFile ?? ''], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home }
+    })
+
+    expect(output).toContain('STATUS=1')
+  })
 })
 
 describe('OSC 133 prompt detection', () => {

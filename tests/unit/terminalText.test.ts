@@ -18,6 +18,16 @@ describe('stripAnsi', () => {
   it('leaves plain text untouched', () => {
     expect(stripAnsi('plain output\nwith lines')).toBe('plain output\nwith lines')
   })
+
+  it('does not swallow real text between two separate ST-terminated OSC sequences', () => {
+    // A greedy match here would run from the first ESC] through the LAST
+    // terminator, deleting `visible` along with both title-setting sequences.
+    expect(stripAnsi('\x1b]0;a\x1b\\visible\x1b]0;b\x1b\\')).toBe('visible')
+  })
+
+  it('does not swallow real text between two separate BEL-terminated OSC sequences', () => {
+    expect(stripAnsi('\x1b]0;a\x07visible\x1b]0;b\x07')).toBe('visible')
+  })
 })
 
 describe('decodeShellIntegrationCommand', () => {

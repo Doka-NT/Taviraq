@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MPL-2.0
 
 const ANSI_ESCAPE = String.fromCharCode(27)
-const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
+// Lazy `*?`: a greedy star here would match from the first OSC introducer through the
+// LAST terminator in the string, deleting real text between two separate OSC sequences.
+const OSC_RE = new RegExp(`${ANSI_ESCAPE}\\][^\\u0007]*?(?:\\u0007|${ANSI_ESCAPE}\\\\)`, 'g')
 const CSI_RE = new RegExp(
   `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]|${ANSI_ESCAPE}[@-_]|\\r(?!\\n)|[\\u0080-\\u009f]`,
   'g'

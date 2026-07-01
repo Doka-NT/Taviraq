@@ -473,6 +473,7 @@ function buildBashHookEnv(nonce: string | undefined): HookEnv {
     '  local _ec=$?',
     '  printf \'\\033]133;D;%s\\007\' "$_ec"',
     '  printf \'\\033]633;P;Cwd=%s\\007\' "$PWD"',
+    '  return "$_ec"',
     '}',
     'if declare -p PROMPT_COMMAND 2>/dev/null | grep -q \'^declare -a\'; then',
     '  PROMPT_COMMAND=(___ait_si_precmd "${PROMPT_COMMAND[@]}")',

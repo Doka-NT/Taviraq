@@ -98,7 +98,11 @@ export class BlockTracker {
         : block.promptStart.line
     const endMarker = block.end && !block.end.isDisposed ? block.end : undefined
     const endLine = endMarker ? endMarker.line - 1 : this.terminal.buffer.active.length - 1
-    return { start: outputStart, end: Math.max(outputStart, endLine) }
+    // No Math.max clamp here: when a command produces no output, the D marker
+    // lands on the same row as outputStart (endLine < outputStart). readLines
+    // already treats from > to as empty, so clamping to outputStart would
+    // instead pull in that row's content once the next prompt renders there.
+    return { start: outputStart, end: endLine }
   }
 
   blockHighlightRange(block: CommandBlock): { start: number; end: number } | undefined {

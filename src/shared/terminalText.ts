@@ -14,6 +14,15 @@ export function stripAnsi(value: string): string {
   return value.replace(OSC_RE, '').replace(CSI_RE, '')
 }
 
+// Strips OSC sequences from the FULL raw buffer before bounding it to maxChars. Slicing
+// a raw buffer first can bisect an OSC 633;E marker, leaving a headless `633;E;...;<nonce>`
+// tail that no longer starts with the escape prefix stripAnsi requires to match it, so the
+// nonce would reach the request payload as plain text.
+export function boundTerminalOutputForRequest(rawOutput: string, maxChars: number): string | undefined {
+  const bounded = stripAnsi(rawOutput).slice(-maxChars)
+  return bounded || undefined
+}
+
 // Decodes the shell-integration escaping scheme used for OSC 633;E command text:
 // \ -> \\, ; -> \x3b, \n -> \x0a, \r -> \x0d (in that encode order). Decoding must walk
 // the string left to right and resolve each backslash as it's found, rather than running

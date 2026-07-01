@@ -5,7 +5,8 @@ import {
   BlockTracker,
   hasCommandText,
   remapRestored633ENonce,
-  type BlockTrackerActivity
+  type BlockTrackerActivity,
+  type CommandBlock
 } from '../../src/renderer/src/utils/blockTracker'
 
 function createTracker(nonce = 'nonce'): {
@@ -161,5 +162,47 @@ describe('BlockTracker command metadata', () => {
 
     expect(tracker.blockFullText(block)).toBe('')
     expect(tracker.blockFullText(block)).not.toContain('$ ')
+  })
+})
+
+describe('BlockTracker output range', () => {
+  function marker(line: number): IMarker {
+    const m = { line, isDisposed: false, dispose() { this.isDisposed = true } }
+    return m as unknown as IMarker
+  }
+
+  it('treats a same-row marker pair (zero-output command) as empty, not the next prompt row', () => {
+    const rowText: Record<number, string> = { 5: 'user@host:~$ ' }
+    const terminal = {
+      parser: { registerOscHandler: () => ({ dispose: vi.fn() }) },
+      registerMarker: () => marker(0),
+      buffer: {
+        active: {
+          length: 10,
+          getLine: (row: number) => rowText[row] !== undefined
+            ? { translateToString: () => rowText[row] }
+            : undefined
+        }
+      }
+    } as unknown as Terminal
+
+    const tracker = new BlockTracker(terminal, 'session-1', 'nonce', vi.fn(), vi.fn())
+
+    // Simulates OSC 133;C and 133;D both landing on row 5 — a command like
+    // `true` or `cd` that produces no output before the next prompt renders.
+    const block: CommandBlock = {
+      id: 'b1',
+      sessionId: 'session-1',
+      promptStart: marker(3),
+      commandStart: marker(4),
+      outputStart: marker(5),
+      end: marker(5),
+      command: 'true',
+      exitCode: 0,
+      quality: 'osc'
+    }
+
+    expect(tracker.blockRange(block)).toEqual({ start: 5, end: 4 })
+    expect(tracker.blockOutputText(block)).toBe('')
   })
 })

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-import { decodeShellIntegrationCommand, stripAnsi } from '@shared/terminalText'
+import { boundTerminalOutputForRequest, decodeShellIntegrationCommand, stripAnsi } from '@shared/terminalText'
 
 describe('stripAnsi', () => {
   it('removes full OSC sequences terminated by BEL, including shell-integration markers', () => {
@@ -44,5 +44,29 @@ describe('decodeShellIntegrationCommand', () => {
 
   it('leaves an unrecognized backslash sequence untouched', () => {
     expect(decodeShellIntegrationCommand('a\\zb')).toBe('a\\zb')
+  })
+})
+
+describe('boundTerminalOutputForRequest', () => {
+  it('strips a full OSC sequence before bounding, even when slicing first would bisect it', () => {
+    const nonce = 'MY-NONCE-VALUE'
+    const oscBody = `633;E;ls;${nonce}\x07`
+    const tail = 'AFTER-TAIL-TEXT'
+    const raw = 'x'.repeat(50) + '\x1b]' + oscBody + tail
+    const maxChars = oscBody.length + tail.length // lands exactly after the ESC] prefix
+
+    // Sanity check: slicing the raw buffer first (the old, buggy order) leaves a
+    // headless OSC fragment that stripAnsi can no longer recognize as an escape.
+    expect(raw.slice(-maxChars)).toBe(oscBody + tail)
+    expect(stripAnsi(raw.slice(-maxChars))).toContain(nonce)
+
+    const result = boundTerminalOutputForRequest(raw, maxChars)
+    expect(result).not.toContain(nonce)
+    expect(result).toContain('AFTER-TAIL-TEXT')
+  })
+
+  it('returns undefined when there is nothing left after stripping and bounding', () => {
+    expect(boundTerminalOutputForRequest('', 100)).toBeUndefined()
+    expect(boundTerminalOutputForRequest('\x1b]633;E;ls;nonce\x07', 100)).toBeUndefined()
   })
 })

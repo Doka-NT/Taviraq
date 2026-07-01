@@ -24,6 +24,7 @@ import {
   SECRET_MASKING_AUDIT_LIMIT
 } from '@shared/secretMaskingConfig'
 import { createDefaultChatToolsSettings } from '@shared/chatToolsConfig'
+import { boundTerminalOutputForRequest } from '@shared/terminalText'
 import { MessageContent } from './MessageContent'
 import { CommandPalette, type CommandPaletteAction } from './CommandPalette'
 import { ConfirmDialog } from './ui/ConfirmDialog'
@@ -1247,8 +1248,7 @@ export function LlmPanel({
 
   const getBoundedTerminalOutputForRequest = useCallback((sessionId: string, mode: AssistMode): string | undefined => {
     if (mode === 'off') return undefined
-    const terminalOutput = getOutputForSessionRef.current(sessionId).slice(-maxOutputContextRef.current)
-    return terminalOutput || undefined
+    return boundTerminalOutputForRequest(getOutputForSessionRef.current(sessionId), maxOutputContextRef.current)
   }, [])
 
   const saveThreadSnapshotToHistory = useCallback((thread: AssistantThread): string | undefined => {

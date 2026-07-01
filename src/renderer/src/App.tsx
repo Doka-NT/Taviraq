@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { ChevronLeft, Command, Copy, Pencil, PlugZap, RotateCcw, Server, SquareTerminal, Terminal, Wifi, WifiOff, X, PanelRightClose, PanelRightOpen, Plus, Settings2, ShieldAlert } from 'lucide-react'
 import type { AssistMode, CommandSnippet, PromptTemplate, RestorableAssistantThread, RestorableAssistantThreads, RestoredTerminalSession, SessionStateSnapshot, SSHProfileConfig, TerminalCursorStyle, TerminalSessionInfo } from '@shared/types'
 import { remapRestored633ENonce, type BlockTrackerActivity, type CommandBlock } from './utils/blockTracker'
+import { boundTerminalOutputForRequest } from '@shared/terminalText'
 import { TerminalPane, type TerminalPaneHandle } from './components/TerminalPane'
 import { LlmPanel } from './components/LlmPanel'
 import { CommandPalette, type CommandPaletteAction, type CommandPaletteCategoryFilter } from './components/CommandPalette'
@@ -330,7 +331,10 @@ export function App(): JSX.Element {
 
   const getOutputForSession = useCallback((sessionId: string): string => {
     const buf = outputBuffers.current.get(sessionId) ?? ''
-    return buf.slice(-maxOutputContextRef.current)
+    // Strip OSC before bounding by length: slicing the raw buffer first can
+    // bisect an OSC 633;E marker, leaving a headless `633;E;...;<nonce>` tail
+    // that no consumer's stripAnsi can recognize as an escape sequence.
+    return boundTerminalOutputForRequest(buf, maxOutputContextRef.current) ?? ''
   }, [])
 
   const getOutput = useCallback((): string => {

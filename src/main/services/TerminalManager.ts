@@ -466,18 +466,9 @@ function buildBashHookEnv(nonce: string | undefined): HookEnv {
     "  ___ait_si_user_ps1='\\$ '",
     'fi',
     '___ait_si_user_ps0=${PS0-}',
-    // preexec via PS0: runs in a subshell just before the user's command.
-    // Redirects to /dev/tty so the OSC bytes go to the terminal, not the PS0 capture.
-    '___ait_si_ps0() {',
-    '  local _c="$1" _e',
-    '  _e="${_c//\\\\/\\\\\\\\}"',
-    '  _e="${_e//;/\\x3b}"',
-    "  _e=\"${_e//$'\\n'/\\x0a}\"",
-    "  _e=\"${_e//$'\\r'/\\x0d}\"",
-    `  printf '\\033]633;E;%s;%s\\007\\033]133;C\\007' "$_e" '${nonceLit}' >/dev/tty 2>/dev/null`,
-    '}',
     '___ait_si_precmd() {',
     '  local _ec=$?',
+    '  ___ait_si_captured_this_cycle=0',
     '  printf \'\\033]133;D;%s\\007\' "$_ec"',
     '  printf \'\\033]633;P;Cwd=%s\\007\' "$PWD"',
     '  return "$_ec"',
@@ -493,7 +484,38 @@ function buildBashHookEnv(nonce: string | undefined): HookEnv {
     '  fi',
     'fi',
     "PS1='\\[\\e]133;A\\a\\]'\"$___ait_si_user_ps1\"'\\[\\e]133;B\\a\\]'",
-    "PS0='$(___ait_si_ps0 \"$BASH_COMMAND\")'\"$___ait_si_user_ps0\""
+    // PS0 no longer carries our hook — only the user's original PS0, if any.
+    // $BASH_COMMAND inside a PS0 command substitution (or even a bare
+    // parameter expansion) is NOT yet updated to the upcoming command —
+    // verified directly in bash 5.3 with a real PTY: PS0 always sees a stale
+    // value from the previous prompt cycle. PS0 fires before bash updates
+    // $BASH_COMMAND for the command that triggered it, so no expression
+    // inside PS0 can read the real command text.
+    'PS0="$___ait_si_user_ps0"',
+    // The DEBUG trap is the only mechanism that reliably sees the real
+    // upcoming command ($BASH_COMMAND is correct there). Installed last so
+    // nothing earlier in this file (which doesn't match the ___ait_si_*
+    // guard below) fires it first and consumes the once-per-cycle capture.
+    // Known limitation: only the first simple command of a compound line
+    // (`a && b`) is captured, matching $BASH_COMMAND's own per-simple-command
+    // granularity; a user's own additional PROMPT_COMMAND entries chained
+    // after ours can occasionally consume this cycle's capture before the
+    // real next command runs.
+    '___ait_si_captured_this_cycle=0',
+    '___ait_si_debug_hook() {',
+    '  case "$BASH_COMMAND" in',
+    '    ___ait_si_*) return ;;',
+    '  esac',
+    '  [[ $___ait_si_captured_this_cycle == 1 ]] && return',
+    '  ___ait_si_captured_this_cycle=1',
+    '  local _c="$BASH_COMMAND" _e',
+    '  _e="${_c//\\\\/\\\\\\\\}"',
+    '  _e="${_e//;/\\x3b}"',
+    "  _e=\"${_e//$'\\n'/\\x0a}\"",
+    "  _e=\"${_e//$'\\r'/\\x0d}\"",
+    `  printf '\\033]633;E;%s;%s\\007\\033]133;C\\007' "$_e" '${nonceLit}'`,
+    '}',
+    "trap '___ait_si_debug_hook' DEBUG"
   ].join('\n')
   writeFileSync(initFile, initContent + '\n')
 

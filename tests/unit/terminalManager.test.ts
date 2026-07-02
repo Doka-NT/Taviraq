@@ -345,7 +345,8 @@ describe('shell integration nonce isolation', () => {
     const initFile = hook.args?.[1]
     const output = execFileSync('/bin/bash', ['--noprofile', '-c', [
       'source "$1"',
-      'declare -p PS1 PS0 PROMPT_COMMAND'
+      'declare -p PS1 PS0 PROMPT_COMMAND',
+      'trap -p DEBUG'
     ].join('\n'), 'bash', initFile ?? ''], {
       encoding: 'utf8',
       env: { ...process.env, HOME: home }
@@ -354,7 +355,40 @@ describe('shell integration nonce isolation', () => {
     expect(output).toContain('printf user-hook')
     expect(output).toContain('133;A')
     expect(output).toContain('133;B')
-    expect(output).toContain('___ait_si_ps0')
+    // Command text is captured via a DEBUG trap, not PS0 — $BASH_COMMAND
+    // inside a PS0 substitution resolves to the substitution's own text, not
+    // the command that triggered the prompt (verified directly in bash 5.3).
+    expect(output).toContain('___ait_si_debug_hook')
+  })
+
+  it('captures the real typed command via the DEBUG trap, not the hook invocation itself', () => {
+    // Regression test for a real bug: $BASH_COMMAND inside a PS0 command
+    // substitution (or even a bare parameter expansion) resolves to the
+    // substitution's OWN text, not the command that triggered the prompt —
+    // verified directly in bash 5.3 with a real PTY. Every bash block's
+    // command used to be the hook's own source text instead of what the
+    // user ran. The DEBUG trap is the only mechanism that reliably sees the
+    // real upcoming command.
+    const home = mkdtempSync(join(tmpdir(), 'ait-bash-home-'))
+    tempDirs.push(home)
+    process.env.HOME = home
+    writeFileSync(join(home, '.bashrc'), '')
+
+    const hook = buildHookEnv('/bin/bash', 'test-nonce')
+    if (hook.zdotdir) tempDirs.push(hook.zdotdir)
+    const initFile = hook.args?.[1]
+
+    const output = execFileSync('/bin/bash', ['--noprofile', '-c', [
+      'source "$1"',
+      'echo hi'
+    ].join('\n'), 'bash', initFile ?? ''], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: home }
+    })
+
+    expect(output).toContain('633;E;echo hi;test-nonce')
+    expect(output).not.toContain('___ait_si_debug_hook;test-nonce')
+    expect(output).not.toContain("PS0='")
   })
 
   it('preserves the last command exit status through the precmd hook for chained PROMPT_COMMAND entries', () => {
